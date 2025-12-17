@@ -147,6 +147,64 @@ public class IdentityController {
     }
 
     /**
+     * 更新身份ID
+     * POST /api/updateIdentityId
+     * @param oldId 旧身份ID
+     * @param newId 新身份ID
+     * @param name 名字
+     * @param sex 性别
+     */
+    @PostMapping("/updateIdentityId")
+    public ResponseEntity<Map<String, Object>> updateIdentityId(
+            @RequestParam String oldId,
+            @RequestParam String newId,
+            @RequestParam String name,
+            @RequestParam String sex) {
+        logger.info("更新身份ID: oldId={} -> newId={}, name={}, sex={}", oldId, newId, name, sex);
+
+        Map<String, Object> response = new HashMap<>();
+
+        // 参数校验
+        if (oldId == null || oldId.trim().isEmpty()) {
+            response.put("code", -1);
+            response.put("msg", "旧身份ID不能为空");
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        if (newId == null || newId.trim().isEmpty()) {
+            response.put("code", -1);
+            response.put("msg", "新身份ID不能为空");
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        if (name == null || name.trim().isEmpty()) {
+            response.put("code", -1);
+            response.put("msg", "名字不能为空");
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        if (sex == null || (!sex.equals("男") && !sex.equals("女"))) {
+            response.put("code", -1);
+            response.put("msg", "性别必须是男或女");
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        Identity identity = identityService.updateIdentityId(oldId.trim(), newId.trim(), name.trim(), sex);
+
+        if (identity == null) {
+            response.put("code", -1);
+            response.put("msg", "更新失败，可能旧身份不存在或新ID已被使用");
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        response.put("code", 0);
+        response.put("msg", "success");
+        response.put("data", identity);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * 删除身份
      * POST /api/deleteIdentity
      * @param id 身份ID

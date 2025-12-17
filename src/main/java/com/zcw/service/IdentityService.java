@@ -200,6 +200,48 @@ public class IdentityService {
     }
 
     /**
+     * 更新身份ID（删除旧身份，创建新身份）
+     * @param oldId 旧身份ID
+     * @param newId 新身份ID
+     * @param name 名字
+     * @param sex 性别
+     * @return 新的身份对象，如果旧身份不存在返回null
+     */
+    public Identity updateIdentityId(String oldId, String newId, String name, String sex) {
+        // 先查询旧身份
+        Identity oldIdentity = getIdentityById(oldId);
+        if (oldIdentity == null) {
+            logger.warn("更新身份ID失败: 旧身份不存在, oldId={}", oldId);
+            return null;
+        }
+
+        // 检查新ID是否已存在
+        Identity existingNew = getIdentityById(newId);
+        if (existingNew != null) {
+            logger.warn("更新身份ID失败: 新ID已存在, newId={}", newId);
+            return null;
+        }
+
+        // 保留创建时间，更新最后使用时间
+        String createdAt = oldIdentity.getCreatedAt();
+        String now = LocalDateTime.now().format(DATE_FORMATTER);
+
+        // 删除旧身份
+        deleteIdentity(oldId);
+
+        // 创建新身份（使用旧的创建时间）
+        String sql = "INSERT INTO identity (id, name, sex, created_at, last_used_at) VALUES (?, ?, ?, ?, ?)";
+        jdbcTemplate.update(sql, newId, name, sex, createdAt, now);
+
+        logger.info("更新身份ID: oldId={} -> newId={}, name={}, sex={}", oldId, newId, name, sex);
+
+        Identity identity = new Identity(newId, name, sex);
+        identity.setCreatedAt(createdAt);
+        identity.setLastUsedAt(now);
+        return identity;
+    }
+
+    /**
      * 生成唯一ID（32位十六进制字符串）
      */
     private String generateUniqueId() {

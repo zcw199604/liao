@@ -13,6 +13,12 @@ spring:
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+  # 文件上传配置
+  servlet:
+    multipart:
+      max-file-size: 100MB      # 单个文件最大100MB
+      max-request-size: 100MB   # 请求最大100MB
+
   # 静态资源配置
   web:
     resources:

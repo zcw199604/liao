@@ -156,8 +156,14 @@
                         </p>
                     </div>
 
-                    <!-- 箭头 -->
-                    <i class="fas fa-chevron-right text-gray-600"></i>
+                    <!-- 操作按钮 -->
+                    <div class="flex items-center gap-2">
+                        <button @click.stop="showDeleteConfirm(identity)"
+                            class="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-500/10 rounded-lg transition">
+                            <i class="fas fa-trash-alt text-sm"></i>
+                        </button>
+                        <i class="fas fa-chevron-right text-gray-600"></i>
+                    </div>
                 </div>
             </div>
 
@@ -208,6 +214,30 @@
                     <button @click="createIdentity" :disabled="!newIdentity.name || !newIdentity.sex"
                         class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed">
                         创建
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 删除确认对话框 -->
+        <div v-if="deleteConfirmIdentity" class="fixed inset-0 z-[90] bg-black/60 flex items-center justify-center" @click="deleteConfirmIdentity = null">
+            <div class="w-80 bg-[#18181b] rounded-2xl p-6 shadow-2xl" @click.stop>
+                <div class="text-center mb-4">
+                    <i class="fas fa-exclamation-triangle text-4xl text-yellow-500 mb-3"></i>
+                    <h3 class="text-lg font-bold text-white mb-2">确认删除</h3>
+                    <p class="text-sm text-gray-400">确定要删除身份 <span class="text-white font-medium">{{ deleteConfirmIdentity.name }}</span> 吗？</p>
+                    <p class="text-xs text-gray-500 mt-1">此操作无法撤销</p>
+                </div>
+
+                <!-- 按钮 -->
+                <div class="flex gap-3">
+                    <button @click="deleteConfirmIdentity = null"
+                        class="flex-1 py-3 bg-[#27272a] text-gray-400 rounded-xl border border-gray-700">
+                        取消
+                    </button>
+                    <button @click="confirmDeleteIdentity"
+                        class="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium">
+                        删除
                     </button>
                 </div>
             </div>
@@ -469,18 +499,26 @@
 
         <!-- 上传菜单面板 -->
         <div v-if="showUploadMenu" class="bg-[#1a1a1d] border-t border-gray-800 p-4 max-h-60 overflow-y-auto">
-            <!-- 已上传图片列表 -->
-            <div v-if="uploadedImages.length > 0" class="mb-3">
-                <div class="text-xs text-gray-500 mb-2">已上传的图片（点击发送）</div>
+            <!-- 已上传媒体列表 -->
+            <div v-if="uploadedMedia.length > 0" class="mb-3">
+                <div class="text-xs text-gray-500 mb-2">已上传的文件（点击发送）</div>
                 <div class="flex flex-wrap gap-2">
-                    <div v-for="(img, idx) in uploadedImages" :key="idx"
-                        @click="sendImageMessage(img)"
-                        class="w-16 h-16 rounded-lg overflow-hidden cursor-pointer border border-gray-700 hover:border-indigo-500 transition">
-                        <img :src="img" class="w-full h-full object-cover">
+                    <div v-for="(media, idx) in uploadedMedia" :key="idx"
+                        @click="sendMediaMessage(media)"
+                        class="w-16 h-16 rounded-lg overflow-hidden cursor-pointer border border-gray-700 hover:border-indigo-500 transition relative">
+                        <!-- 图片预览 -->
+                        <img v-if="media.type === 'image'" :src="media.url" class="w-full h-full object-cover">
+                        <!-- 视频预览 -->
+                        <video v-if="media.type === 'video'" :src="media.url" class="w-full h-full object-cover">
+                        </video>
+                        <!-- 视频图标标识 -->
+                        <div v-if="media.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/30">
+                            <i class="fas fa-play-circle text-white text-2xl"></i>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div v-else class="text-xs text-gray-500 mb-3">暂无已上传的图片</div>
+            <div v-else class="text-xs text-gray-500 mb-3">暂无已上传的文件</div>
             <!-- 选择文件按钮 -->
             <button @click="triggerFileSelect" class="w-full py-3 bg-[#27272a] text-white rounded-xl hover:bg-[#333] transition">
                 <i class="fas fa-folder-open mr-2"></i>选择文件上传
@@ -583,6 +621,7 @@
             const identityLoading = ref(false); // 加载状态
             const showCreateForm = ref(false); // 显示创建表单
             const newIdentity = ref({ name: '', sex: '' }); // 新建身份表单数据
+            const deleteConfirmIdentity = ref(null); // 待删除的身份（用于确认对话框）
 
             // Toast 显示方法
             const showToast = (message, duration = 2000) => {
@@ -611,7 +650,7 @@
             const wsConnected = ref(false);
             const waitingForResponse = ref(false); // 等待服务器响应
             const imgServer = ref(''); // 图片服务器地址
-            const uploadedImages = ref([]); // 已上传的图片列表
+            const uploadedMedia = ref([]); // 已上传的媒体列表 [{url: 'xxx', type: 'image/video'}]
             const showUploadMenu = ref(false); // 显示上传菜单
             const loadingMore = ref(false); // 加载更多历史消息中
             const firstTidMap = ref({}); // 存储每个聊天的最早消息Tid
@@ -740,6 +779,44 @@
                 }
             };
 
+            // 显示删除确认对话框
+            const showDeleteConfirm = (identity) => {
+                console.log('准备删除身份:', identity);
+                deleteConfirmIdentity.value = identity;
+            };
+
+            // 确认删除身份
+            const confirmDeleteIdentity = async () => {
+                const identity = deleteConfirmIdentity.value;
+                if (!identity) return;
+
+                try {
+                    const params = new URLSearchParams();
+                    params.append('id', identity.id);
+
+                    const response = await fetch(`${API_BASE}/deleteIdentity`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: params
+                    });
+
+                    const result = await response.json();
+                    console.log('删除身份响应:', result);
+
+                    if (result.code === 0) {
+                        // 从列表中移除
+                        identityList.value = identityList.value.filter(item => item.id !== identity.id);
+                        deleteConfirmIdentity.value = null;
+                        showToast('已删除');
+                    } else {
+                        alert('删除失败: ' + (result.msg || '未知错误'));
+                    }
+                } catch (error) {
+                    console.error('删除身份出错:', error);
+                    alert('删除失败，请重试');
+                }
+            };
+
             // 0. 上报访问记录
             const reportReferrer = async () => {
                 try {
@@ -841,8 +918,12 @@
                     console.log('缓存图片数据:', data);
 
                     if (Array.isArray(data)) {
-                        uploadedImages.value = data;
-                        console.log('加载了', data.length, '张缓存图片');
+                        // 将URL数组转换为媒体对象数组（根据扩展名判断类型）
+                        uploadedMedia.value = data.map(url => ({
+                            url: url,
+                            type: url.toLowerCase().endsWith('.mp4') ? 'video' : 'image'
+                        }));
+                        console.log('加载了', data.length, '个缓存文件');
                     }
 
                 } catch (error) {
@@ -1372,31 +1453,28 @@
                 // 关闭上传菜单
                 showUploadMenu.value = false;
 
-                // 判断文件类型
+                // 判断文件类型并上传
                 if (file.type.startsWith('image/')) {
                     // 图片文件 - 上传到服务器
-                    await uploadImage(file);
+                    await uploadImage(file, 'image');
                 } else if (file.type.startsWith('video/')) {
-                    // 视频文件 - 暂时使用本地 URL
-                    const url = URL.createObjectURL(file);
-                    pushMessage('video', url, true);
-                    if (currentChatUser.value) {
-                        currentChatUser.value.lastMsg = '[视频]';
-                    }
+                    // 视频文件 - 上传到服务器
+                    await uploadImage(file, 'video');
                 } else {
                     // 其他文件类型 - 作为图片上传尝试
-                    await uploadImage(file);
+                    await uploadImage(file, 'image');
                 }
 
                 e.target.value = ''; // 重置 input
             };
 
-            // 上传图片
-            const uploadImage = async (file) => {
+            // 上传图片/视频
+            const uploadImage = async (file, fileType = 'image') => {
                 try {
-                    console.log('=== 开始上传图片 ===');
+                    console.log('=== 开始上传文件 ===');
                     console.log('文件名:', file.name);
                     console.log('文件大小:', file.size);
+                    console.log('文件类型:', fileType);
                     console.log('图片服务器地址:', imgServer.value);
 
                     if (!imgServer.value) {
@@ -1430,34 +1508,34 @@
 
                     if (!response.ok) {
                         const errorText = await response.text();
-                        console.error('图片上传失败:', response.status, errorText);
-                        alert('图片上传失败: ' + errorText);
+                        console.error('文件上传失败:', response.status, errorText);
+                        alert('文件上传失败: ' + errorText);
                         return;
                     }
 
                     const data = await response.json();
-                    console.log('图片上传返回:', data);
+                    console.log('文件上传返回:', data);
 
                     // 检查上传结果
                     if (data.state === 'OK' && data.msg) {
-                        // 构造图片完整URL（端口9006，路径前缀 /img/Upload/）
-                        const imageUrl = `http://${imgServer.value}:9006/img/Upload/${data.msg}`;
-                        console.log('图片服务器URL:', imageUrl);
+                        // 构造文件完整URL（端口9006，路径前缀 /img/Upload/）
+                        const mediaUrl = `http://${imgServer.value}:9006/img/Upload/${data.msg}`;
+                        console.log('文件服务器URL:', mediaUrl);
 
-                        // 添加到已上传图片列表（保存到前面，最新在前）
-                        uploadedImages.value.push(imageUrl);
-                        console.log('已保存到上传历史，当前共', uploadedImages.value.length, '张图片');
+                        // 添加到已上传媒体列表（保存到前面，最新在前）
+                        uploadedMedia.value.push({ url: mediaUrl, type: fileType });
+                        console.log('已保存到上传历史，当前共', uploadedMedia.value.length, '个文件');
 
                         // 不关闭菜单，让用户预览并选择是否发送
-                        console.log('图片上传成功，保持在上传菜单预览');
+                        console.log('文件上传成功，保持在上传菜单预览');
 
                     } else {
-                        alert('图片上传失败: ' + (data.error || '未知错误'));
+                        alert('文件上传失败: ' + (data.error || '未知错误'));
                     }
 
                 } catch (error) {
-                    console.error('上传图片异常:', error);
-                    alert('图片上传异常: ' + error.message);
+                    console.error('上传文件异常:', error);
+                    alert('文件上传异常: ' + error.message);
                 }
             };
 
@@ -1497,9 +1575,9 @@
                 console.log("预览图片:", src);
             };
 
-            // 发送已上传的图片
-            const sendImageMessage = (imageUrl) => {
-                console.log('发送已上传的图片:', imageUrl);
+            // 发送已上传的图片/视频
+            const sendMediaMessage = (media) => {
+                console.log('发送已上传的媒体:', media);
 
                 if (!ws || ws.readyState !== WebSocket.OPEN) {
                     alert('WebSocket 未连接，无法发送');
@@ -1511,46 +1589,51 @@
                     return;
                 }
 
-                // 从完整URL中提取图片路径
+                // 从完整URL中提取文件路径
                 // 例如：http://149.88.79.98:9006/img/Upload/2025/12/18/Random/xxx.jpg
                 // 提取：2025/12/18/Random/xxx.jpg
                 const urlPattern = /\/img\/Upload\/(.+)$/;
-                const match = imageUrl.match(urlPattern);
+                const match = media.url.match(urlPattern);
 
                 if (!match) {
-                    console.error('无法提取图片路径:', imageUrl);
-                    alert('图片路径格式错误');
+                    console.error('无法提取文件路径:', media.url);
+                    alert('文件路径格式错误');
                     return;
                 }
 
-                const imagePath = match[1];
-                console.log('提取图片路径:', imagePath);
+                const filePath = match[1];
+                console.log('提取文件路径:', filePath);
 
-                // 构造图片消息（用方括号包裹路径）
-                const imageMessage = {
+                // 构造消息（用方括号包裹路径）
+                const message = {
                     "act": `touser_${currentChatUser.value.id}_${currentChatUser.value.name}`,
                     "id": currentUser.value.id,
-                    "msg": `[${imagePath}]`
+                    "msg": `[${filePath}]`
                 };
 
                 // 发送到 WebSocket
-                ws.send(JSON.stringify(imageMessage));
-                console.log('发送图片消息:', imageMessage);
+                ws.send(JSON.stringify(message));
+                console.log('发送媒体消息:', message);
 
                 // 关闭菜单
                 showUploadMenu.value = false;
 
-                // 显示图片到聊天界面
-                pushMessage('image', imageUrl, true);
+                // 显示到聊天界面
+                pushMessage(media.type, media.url, true);
                 if (currentChatUser.value) {
-                    currentChatUser.value.lastMsg = '[图片]';
+                    currentChatUser.value.lastMsg = media.type === 'image' ? '[图片]' : '[视频]';
                 }
 
-                console.log('图片消息已发送并显示');
+                console.log('媒体消息已发送并显示');
+            };
+
+            // 发送已上传的图片（兼容旧调用）
+            const sendImageMessage = (imageUrl) => {
+                sendMediaMessage({ url: imageUrl, type: 'image' });
             };
 
             // 保存用户信息
-            const saveUserInfo = () => {
+            const saveUserInfo = async () => {
                 const idChanged = editUserInfo.value.id !== currentUser.value.id;
                 const nameChanged = editUserInfo.value.name !== currentUser.value.name;
                 const sexChanged = editUserInfo.value.sex !== currentUser.value.sex;
@@ -1561,85 +1644,142 @@
                     return;
                 }
 
-                // 如果 ID 改变了，断开并重连
-                if (idChanged) {
-                    currentUser.value.id = editUserInfo.value.id;
-                    currentUser.value.name = editUserInfo.value.name;
-                    currentUser.value.sex = editUserInfo.value.sex;
-
-                    // 断开当前 WebSocket
-                    if (ws) {
-                        ws.close();
-                    }
-
-                    // 清空聊天历史和列表
-                    chatHistory.value = {};
-                    historyUsers.value = [];
-                    favoriteUsers.value = [];
-                    historyLoaded.value = false;
-                    favoriteLoaded.value = false;
-                    firstTidMap.value = {};
-
-                    // 重新连接
-                    connectWebSocket();
-
-                    editMode.value = false;
-                    showSettings.value = false;
-                    showToast('用户ID已更新，正在重新连接...');
-                    return;
-                }
-
-                if (!ws || ws.readyState !== WebSocket.OPEN) {
-                    alert('WebSocket 未连接，无法保存');
-                    return;
-                }
-
                 // 设置等待响应标志
                 waitingForResponse.value = true;
 
-                // 设置超时，5秒后如果还没收到响应则退出等待
-                setTimeout(() => {
-                    if (waitingForResponse.value) {
-                        waitingForResponse.value = false;
+                try {
+                    // 如果 ID 改变了，调用更新ID接口
+                    if (idChanged) {
+                        console.log('ID改变，调用 updateIdentityId API');
+
+                        const params = new URLSearchParams();
+                        params.append('oldId', currentUser.value.id);
+                        params.append('newId', editUserInfo.value.id);
+                        params.append('name', editUserInfo.value.name);
+                        params.append('sex', editUserInfo.value.sex);
+
+                        const response = await fetch(`${API_BASE}/updateIdentityId`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: params
+                        });
+
+                        const data = await response.json();
+                        console.log('updateIdentityId 响应:', data);
+
+                        if (data.code !== 0) {
+                            alert('更新失败: ' + (data.msg || '未知错误'));
+                            waitingForResponse.value = false;
+                            return;
+                        }
+
+                        // 更新成功，更新本地数据
+                        currentUser.value.id = editUserInfo.value.id;
+                        currentUser.value.name = editUserInfo.value.name;
+                        currentUser.value.sex = editUserInfo.value.sex;
+
+                        // 断开当前 WebSocket
+                        if (ws) {
+                            ws.close();
+                        }
+
+                        // 清空聊天历史和列表
+                        chatHistory.value = {};
+                        historyUsers.value = [];
+                        favoriteUsers.value = [];
+                        historyLoaded.value = false;
+                        favoriteLoaded.value = false;
+                        firstTidMap.value = {};
+
+                        // 重新连接
+                        connectWebSocket();
+
                         editMode.value = false;
-                        alert('服务器响应超时，但信息可能已保存');
+                        showSettings.value = false;
+                        waitingForResponse.value = false;
+                        showToast('用户ID已更新，正在重新连接...');
+                        return;
                     }
-                }, 5000);
 
-                // 如果性别修改了，发送修改性别消息
-                if (sexChanged) {
-                    const modInfoMessage = {
-                        "act": "modinfo",
-                        "id": currentUser.value.id,
-                        "userSex": editUserInfo.value.sex,
-                        "address_show": "false",
-                        "randomhealthmode": "0",
-                        "randomvipsex": "0",
-                        "randomvipaddress": "0"
-                    };
-                    ws.send(JSON.stringify(modInfoMessage));
-                    console.log('发送修改性别消息:', modInfoMessage);
+                    // 如果名字或性别改变（ID不变），调用更新接口
+                    if (nameChanged || sexChanged) {
+                        console.log('名字/性别改变，调用 updateIdentity API');
 
-                    // 更新本地数据
-                    currentUser.value.sex = editUserInfo.value.sex;
+                        const params = new URLSearchParams();
+                        params.append('id', currentUser.value.id);
+                        params.append('name', editUserInfo.value.name);
+                        params.append('sex', editUserInfo.value.sex);
+
+                        const response = await fetch(`${API_BASE}/updateIdentity`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: params
+                        });
+
+                        const data = await response.json();
+                        console.log('updateIdentity 响应:', data);
+
+                        if (data.code !== 0) {
+                            alert('更新失败: ' + (data.msg || '未知错误'));
+                            waitingForResponse.value = false;
+                            return;
+                        }
+
+                        // 检查 WebSocket 连接
+                        if (!ws || ws.readyState !== WebSocket.OPEN) {
+                            alert('数据库已更新，但WebSocket未连接，无法同步聊天状态');
+                            waitingForResponse.value = false;
+                            editMode.value = false;
+                            return;
+                        }
+
+                        // 数据库更新成功，发送 WebSocket 消息
+
+                        // 如果性别修改了，发送修改性别消息
+                        if (sexChanged) {
+                            const modInfoMessage = {
+                                "act": "modinfo",
+                                "id": currentUser.value.id,
+                                "userSex": editUserInfo.value.sex,
+                                "address_show": "false",
+                                "randomhealthmode": "0",
+                                "randomvipsex": "0",
+                                "randomvipaddress": "0"
+                            };
+                            ws.send(JSON.stringify(modInfoMessage));
+                            console.log('发送修改性别消息:', modInfoMessage);
+                        }
+
+                        // 如果名字修改了，发送修改名字消息
+                        if (nameChanged) {
+                            const chgNameMessage = {
+                                "act": "chgname",
+                                "id": currentUser.value.id,
+                                "msg": editUserInfo.value.name
+                            };
+                            ws.send(JSON.stringify(chgNameMessage));
+                            console.log('发送修改名字消息:', chgNameMessage);
+                        }
+
+                        // 更新本地数据
+                        currentUser.value.name = editUserInfo.value.name;
+                        currentUser.value.sex = editUserInfo.value.sex;
+
+                        // 设置超时，等待服务器响应
+                        setTimeout(() => {
+                            if (waitingForResponse.value) {
+                                waitingForResponse.value = false;
+                                editMode.value = false;
+                                showToast('信息已保存');
+                            }
+                        }, 2000);
+                    }
+
+                } catch (error) {
+                    console.error('保存用户信息失败:', error);
+                    alert('保存失败: ' + error.message);
+                    waitingForResponse.value = false;
                 }
-
-                // 如果名字修改了，发送修改名字消息
-                if (nameChanged) {
-                    const chgNameMessage = {
-                        "act": "chgname",
-                        "id": currentUser.value.id,
-                        "msg": editUserInfo.value.name
-                    };
-                    ws.send(JSON.stringify(chgNameMessage));
-                    console.log('发送修改名字消息:', chgNameMessage);
-
-                    // 更新本地数据
-                    currentUser.value.name = editUserInfo.value.name;
-                }
-
-                // 注意：不立即退出编辑模式，等待服务器响应
-                console.log('等待服务器响应...');
             };
 
             // 监听编辑模式，初始化编辑数据
@@ -1909,12 +2049,12 @@
             return {
                 activeTab, isMatching, historyUsers, favoriteUsers, displayList,
                 currentChatUser, chatHistory, inputText, fileInput, chatBox,
-                wsConnected, showSettings, currentUser, editMode, editUserInfo, waitingForResponse, imgServer, isTyping, uploadedImages, toastMessage, loadingMore,
+                wsConnected, showSettings, currentUser, editMode, editUserInfo, waitingForResponse, imgServer, isTyping, uploadedMedia, toastMessage, loadingMore,
                 // 上传菜单相关
-                showUploadMenu, triggerFileSelect,
+                showUploadMenu, triggerFileSelect, sendMediaMessage,
                 // 身份选择相关
-                showIdentityPicker, identityList, identityLoading, showCreateForm, newIdentity,
-                getColorClass, loadIdentityList, selectIdentity, createIdentity, quickCreateIdentity,
+                showIdentityPicker, identityList, identityLoading, showCreateForm, newIdentity, deleteConfirmIdentity,
+                getColorClass, loadIdentityList, selectIdentity, createIdentity, quickCreateIdentity, showDeleteConfirm, confirmDeleteIdentity,
                 // 原有功能
                 startMatch, cancelMatch, enterChat, exitChat, toggleFavorite,
                 sendMessage, selectFile, handleFileUpload, autoResize, previewMedia, sendImageMessage, formatTime, loadMoreHistory,
