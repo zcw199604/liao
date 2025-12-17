@@ -8,6 +8,9 @@ import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 上游 WebSocket 客户端
@@ -32,11 +35,17 @@ public class UpstreamWebSocketClient extends WebSocketClient {
     // 连接是否已建立
     private volatile boolean connected = false;
 
+    // 心跳定时任务
+    private ScheduledExecutorService heartbeatExecutor;
+
     public UpstreamWebSocketClient(String serverUri, String userId, UpstreamWebSocketManager manager) {
         super(URI.create(serverUri));
         this.userId = userId;
         this.manager = manager;
         this.objectMapper = new ObjectMapper();
+
+        // 设置连接丢失检测超时：60秒没响应则认为连接丢失
+        this.setConnectionLostTimeout(700);
     }
 
     /**
@@ -47,8 +56,42 @@ public class UpstreamWebSocketClient extends WebSocketClient {
         log.info("上游 WebSocket 连接建立成功: userId={}, status={}", userId, handshake.getHttpStatus());
         connected = true;
 
+        // 启动心跳发送
+        startHeartbeat();
+
         // 发送缓存的消息
         flushMessageQueue();
+    }
+
+    /**
+     * 启动心跳发送任务
+     */
+    private void startHeartbeat() {
+        if (heartbeatExecutor == null || heartbeatExecutor.isShutdown()) {
+            heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
+            heartbeatExecutor.scheduleAtFixedRate(() -> {
+                try {
+                    if (isOpen()) {
+                        sendPing();
+                        log.debug("发送心跳ping: userId={}", userId);
+                    }
+                } catch (Exception e) {
+                    log.error("发送心跳失败: userId={}", userId, e);
+                }
+            }, 600, 600, TimeUnit.SECONDS); // 每30秒发送一次
+
+            log.info("心跳任务已启动: userId={}", userId);
+        }
+    }
+
+    /**
+     * 停止心跳任务
+     */
+    private void stopHeartbeat() {
+        if (heartbeatExecutor != null && !heartbeatExecutor.isShutdown()) {
+            heartbeatExecutor.shutdown();
+            log.info("心跳任务已停止: userId={}", userId);
+        }
     }
 
     /**
@@ -95,6 +138,9 @@ public class UpstreamWebSocketClient extends WebSocketClient {
         log.info("上游 WebSocket 连接关闭: userId={}, code={}, reason={}, remote={}", userId, code, reason, remote);
         connected = false;
 
+        // 停止心跳任务
+        stopHeartbeat();
+
         // 通知管理器处理重连
         manager.handleUpstreamDisconnect(userId);
     }
@@ -105,6 +151,15 @@ public class UpstreamWebSocketClient extends WebSocketClient {
     @Override
     public void onError(Exception ex) {
         log.error("上游 WebSocket 连接错误: userId={}", userId, ex);
+    }
+
+    /**
+     * 关闭连接时清理资源
+     */
+    @Override
+    public void close() {
+        stopHeartbeat();
+        super.close();
     }
 }
 
