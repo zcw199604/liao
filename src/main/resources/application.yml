@@ -5,3 +5,23 @@ server:
 spring:
   application:
     name: liao
+
+  # 静态资源配置
+  web:
+    resources:
+      # 静态资源路径
+      static-locations: classpath:/static/,classpath:/public/,classpath:/resources/,file:./upload/
+      # 缓存时间（秒）
+      cache:
+        period: 3600
+
+  # MVC 配置
+  mvc:
+    # 静态资源路径匹配
+    static-path-pattern: /**
+
+# WebSocket 配置
+websocket:
+  upstream:
+    # 上游 WebSocket 服务地址，根据实际情况修改
+    url: ws://localhost:9999

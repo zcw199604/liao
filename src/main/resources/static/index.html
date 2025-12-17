@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>匿名匹配</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        body { background-color: #0f0f13; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+        .page-container { height: 100vh; display: flex; flex-direction: column; position: relative;}
+        
+        /* 隐藏滚动条 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* 列表区域 */
+        .list-area { flex: 1; overflow-y: auto; padding-bottom: 90px; } /* 底部留白给按钮 */
+        
+        /* 聊天区域 */
+        .chat-area { flex: 1; overflow-y: auto; padding: 15px; background-color: #0f0f13; }
+        
+        /* 匹配按钮特效 */
+        .match-btn-container {
+            position: absolute; bottom: 80px; left: 0; right: 0; 
+            display: flex; justify-content: center; z-index: 10;
+            pointer-events: none; /* 让容器不挡点击，只让按钮挡 */
+        }
+        .match-btn {
+            pointer-events: auto;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 4px 15px rgba(118, 75, 162, 0.4);
+            transition: transform 0.2s;
+        }
+        .match-btn:active { transform: scale(0.95); }
+
+        /* 气泡样式 (无头像) */
+        .msg-bubble {
+            padding: 12px 16px;
+            border-radius: 16px;
+            max-width: 80%;
+            word-wrap: break-word;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+        .msg-left { 
+            background-color: #27272a; 
+            color: #eee; 
+            border-bottom-left-radius: 2px; 
+            align-self: flex-start; /* 左对齐 */
+        }
+        .msg-right { 
+            background-color: #4f46e5; /* Indigo-600 */
+            color: white; 
+            border-bottom-right-radius: 2px; 
+            align-self: flex-end; /* 右对齐 */
+            margin-left: auto; /* 强制靠右 */
+        }
+        
+        /* 加载动画 */
+        .radar-spinner {
+            width: 20px; height: 20px; border: 2px solid #fff; 
+            border-top-color: transparent; border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* 占位图标颜色类 */
+        .bg-color-1 { background-color: #3b82f6; }
+        .bg-color-2 { background-color: #10b981; }
+        .bg-color-3 { background-color: #f59e0b; }
+        .bg-color-4 { background-color: #ec4899; }
+        .bg-color-5 { background-color: #8b5cf6; }
+    </style>
+</head>
+<body>
+
+<div id="app" class="h-full">
+
+    <!-- === Toast 弹窗 === -->
+    <div v-if="toastMessage" class="fixed top-16 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 bg-[#27272a] text-white text-sm rounded-full shadow-lg animate-pulse">
+        {{ toastMessage }}
+    </div>
+
+    <!-- === 用户配置抽屉 === -->
+    <div v-if="showSettings" class="fixed inset-0 z-[70] bg-black/50" @click="showSettings = false">
+        <div class="absolute right-0 top-0 bottom-0 w-80 bg-[#18181b] shadow-2xl overflow-y-auto" @click.stop>
+            <!-- 头部 -->
+            <div class="h-14 flex items-center justify-between px-4 border-b border-gray-800">
+                <h2 class="text-lg font-bold">用户信息</h2>
+                <div class="flex items-center gap-2">
+                    <button v-if="!editMode" @click="editMode = true; initEditMode()" class="px-3 py-1 bg-indigo-600 text-white text-sm rounded-lg">
+                        编辑
+                    </button>
+                    <button v-else @click="saveUserInfo" :disabled="waitingForResponse" class="px-3 py-1 bg-green-600 text-white text-sm rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                        <span v-if="waitingForResponse" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        <span>{{ waitingForResponse ? '保存中...' : '保存' }}</span>
+                    </button>
+                    <button @click="showSettings = false; editMode = false; waitingForResponse = false" class="w-10 h-10 flex items-center justify-center text-gray-400">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 用户信息内容 -->
+            <div class="p-6 space-y-6">
+                <!-- 头像占位 -->
+                <div class="flex justify-center">
+                    <div class="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                        {{ currentUser.name.charAt(0) }}
+                    </div>
+                </div>
+
+                <!-- 用户信息列表 -->
+                <div class="space-y-4">
+                    <!-- 用户名 -->
+                    <div class="bg-[#27272a] rounded-xl p-4">
+                        <div class="text-xs text-gray-500 mb-2">用户名</div>
+                        <input
+                            v-if="editMode"
+                            v-model="editUserInfo.name"
+                            type="text"
+                            class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none"
+                            placeholder="输入用户名"
+                        />
+                        <div v-else class="text-base text-white font-medium">{{ currentUser.name }}</div>
+                    </div>
+
+                    <!-- 用户ID（不可修改） -->
+                    <div class="bg-[#27272a] rounded-xl p-4">
+                        <div class="text-xs text-gray-500 mb-1">用户ID</div>
+                        <div class="text-base text-white font-mono text-sm break-all">{{ currentUser.id }}</div>
+                    </div>
+
+                    <!-- 性别 -->
+                    <div class="bg-[#27272a] rounded-xl p-4">
+                        <div class="text-xs text-gray-500 mb-2">性别</div>
+                        <select
+                            v-if="editMode"
+                            v-model="editUserInfo.sex"
+                            class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none"
+                        >
+                            <option value="男">男</option>
+                            <option value="女">女</option>
+                        </select>
+                        <div v-else class="text-base text-white">{{ currentUser.sex }}</div>
+                    </div>
+
+                    <!-- IP地址（不可修改） -->
+                    <div class="bg-[#27272a] rounded-xl p-4">
+                        <div class="text-xs text-gray-500 mb-1">IP地址</div>
+                        <div class="text-base text-white">{{ currentUser.ip }}</div>
+                    </div>
+
+                    <!-- 地区（不可修改） -->
+                    <div class="bg-[#27272a] rounded-xl p-4">
+                        <div class="text-xs text-gray-500 mb-1">地区</div>
+                        <div class="text-base text-white">{{ currentUser.address }}</div>
+                    </div>
+                </div>
+
+                <!-- 连接状态 -->
+                <div class="bg-[#27272a] rounded-xl p-4 flex items-center justify-between">
+                    <span class="text-sm text-gray-400">WebSocket 状态</span>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full" :class="wsConnected ? 'bg-green-500' : 'bg-red-500'"></span>
+                        <span class="text-sm" :class="wsConnected ? 'text-green-500' : 'text-red-500'">
+                            {{ wsConnected ? '已连接' : '未连接' }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- === 匹配蒙层 (模拟匹配过程) === -->
+    <div v-if="isMatching" class="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center text-center">
+        <div class="relative w-32 h-32 mb-8">
+            <div class="absolute inset-0 border-4 border-blue-500/30 rounded-full animate-ping"></div>
+            <div class="absolute inset-0 border-4 border-blue-500 rounded-full flex items-center justify-center">
+                <i class="fas fa-satellite-dish text-4xl text-blue-400"></i>
+            </div>
+        </div>
+        <h2 class="text-xl font-bold mb-2">正在寻找有缘人...</h2>
+        <p class="text-gray-400 text-sm">匹配完全匿名</p>
+        <button @click="cancelMatch" class="mt-8 px-6 py-2 border border-gray-600 rounded-full text-gray-400 text-sm">取消</button>
+    </div>
+
+    <!-- === 页面 1: 会话列表 / 收藏列表 === -->
+    <div class="page-container" v-if="!currentChatUser">
+        
+        <!-- 顶部切换栏 -->
+        <div class="flex items-center justify-between pt-4 pb-2 px-4 bg-[#0f0f13] z-10">
+            <!-- 左侧：设置按钮 -->
+            <button @click="showSettings = true" class="w-10 h-10 flex items-center justify-center text-gray-400">
+                <i class="fas fa-cog text-xl"></i>
+            </button>
+
+            <!-- 中间：切换栏 -->
+            <div class="flex bg-[#1f1f22] p-1 rounded-full">
+                <button
+                    @click="switchTab('history')"
+                    :class="activeTab === 'history' ? 'bg-[#2d2d33] text-white shadow-md' : 'text-gray-500'"
+                    class="px-6 py-1.5 rounded-full text-sm font-medium transition-all duration-300">
+                    消息
+                </button>
+                <button
+                    @click="switchTab('favorites')"
+                    :class="activeTab === 'favorites' ? 'bg-[#2d2d33] text-white shadow-md' : 'text-gray-500'"
+                    class="px-6 py-1.5 rounded-full text-sm font-medium transition-all duration-300">
+                    收藏
+                </button>
+            </div>
+
+            <!-- 右侧：占位 -->
+            <div class="w-10"></div>
+        </div>
+
+        <!-- 列表内容 -->
+        <div class="list-area no-scrollbar px-4 pt-2">
+            <div v-for="user in displayList" :key="user.id" @click="enterChat(user)" 
+                 class="flex items-center p-4 mb-3 bg-[#18181b] rounded-2xl active:scale-[0.98] transition-transform duration-100">
+                
+                <!-- 纯色块代替头像 -->
+                <div :class="user.colorClass" class="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shrink-0">
+                    {{ user.name.charAt(0) }}
+                </div>
+
+                <!-- 文本信息 -->
+                <div class="ml-4 flex-1 min-w-0">
+                    <div class="flex justify-between items-baseline mb-1">
+                        <span class="font-bold text-base truncate">{{ user.name }}</span>
+                        <span class="text-xs text-gray-500">{{ user.lastTime }}</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <p class="text-sm text-gray-400 truncate pr-2">{{ user.lastMsg }}</p>
+                        <!-- 收藏标识 -->
+                        <i v-if="user.isFavorite && activeTab === 'history'" class="fas fa-star text-xs text-yellow-500"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 空状态提示 -->
+            <div v-if="displayList.length === 0" class="flex flex-col items-center justify-center mt-20 text-gray-600">
+                <i class="far fa-comments text-5xl mb-4 opacity-50"></i>
+                <p class="text-sm">暂无{{ activeTab === 'history' ? '消息' : '收藏' }}</p>
+            </div>
+        </div>
+
+        <!-- 底部悬浮匹配按钮 (仅在消息Tab显示) -->
+        <div class="match-btn-container" v-if="activeTab === 'history'">
+            <button @click="startMatch" class="match-btn flex items-center px-6 py-3 rounded-full text-white font-bold">
+                <i class="fas fa-random mr-2"></i> 匹配新用户
+            </button>
+        </div>
+    </div>
+
+    <!-- === 页面 2: 聊天界面 === -->
+    <div class="page-container bg-[#0f0f13] absolute inset-0 z-50" v-else>
+
+        <!-- 聊天头部 -->
+        <div class="bg-[#18181b]/90 backdrop-blur-sm border-b border-gray-800 sticky top-0 z-20 px-4 py-3">
+            <div class="flex items-center justify-between mb-2">
+                <button @click="exitChat" class="w-10 h-10 flex items-center justify-start text-gray-300">
+                    <i class="fas fa-chevron-left text-xl"></i>
+                </button>
+                <div class="font-bold text-base">{{ currentChatUser.name }}</div>
+                <button @click="toggleFavorite(currentChatUser)" class="w-10 h-10 flex items-center justify-end">
+                    <i :class="currentChatUser.isFavorite ? 'fas fa-star text-yellow-500' : 'far fa-star text-gray-400'"></i>
+                </button>
+            </div>
+            <div class="flex items-center justify-center gap-3 text-xs text-gray-400">
+                <div class="flex items-center gap-1" v-if="currentChatUser.sex">
+                    <i class="fas fa-venus-mars"></i>
+                    <span>{{ currentChatUser.sex }}</span>
+                </div>
+                <div class="flex items-center gap-1" v-if="currentChatUser.age && currentChatUser.age !== '0'">
+                    <i class="fas fa-birthday-cake"></i>
+                    <span>{{ currentChatUser.age }}岁</span>
+                </div>
+                <div class="flex items-center gap-1" v-if="currentChatUser.address">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <span>{{ currentChatUser.address }}</span>
+                </div>
+                <div class="flex items-center gap-1" :class="wsConnected ? 'text-green-500' : 'text-red-500'">
+                    <span class="w-1.5 h-1.5 rounded-full" :class="wsConnected ? 'bg-green-500' : 'bg-red-500'"></span>
+                    <span>{{ wsConnected ? '已连接' : '未连接' }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 聊天内容 (无头像) -->
+        <div class="chat-area flex flex-col no-scrollbar" ref="chatBox">
+            <!-- 加载更多历史消息按钮 -->
+            <div class="flex justify-center py-3">
+                <button @click="loadMoreHistory" :disabled="loadingMore" class="px-4 py-2 bg-[#27272a] text-gray-400 text-sm rounded-full active:bg-[#3a3a3f] disabled:opacity-50">
+                    <span v-if="loadingMore">加载中...</span>
+                    <span v-else>查看历史消息</span>
+                </button>
+            </div>
+
+            <div v-for="(msg, index) in chatHistory[currentChatUser.id] || []" :key="index"
+                 class="flex flex-col w-full mb-3" :class="msg.isSelf ? 'items-end' : 'items-start'">
+
+                <div v-if="msg.time" class="text-xs text-gray-500 mb-1" :class="msg.isSelf ? 'mr-1' : 'ml-1'">{{ formatTime(msg.time) }}</div>
+                <div class="msg-bubble" :class="msg.isSelf ? 'msg-right' : 'msg-left'">
+                    <!-- 文本 -->
+                    <span v-if="msg.type === 'text'">{{ msg.content }}</span>
+
+                    <!-- 图片 -->
+                    <img v-if="msg.type === 'image'" :src="msg.content" class="rounded-lg max-w-full block" @click="previewMedia(msg.content)">
+
+                    <!-- 视频 -->
+                    <video v-if="msg.type === 'video'" :src="msg.content" controls class="rounded-lg max-w-full block"></video>
+                </div>
+            </div>
+
+            <!-- 正在输入提示 -->
+            <div v-if="isTyping" class="flex w-full justify-start mb-3">
+                <div class="msg-bubble msg-left flex items-center gap-2">
+                    <span class="text-gray-400">正在输入</span>
+                    <div class="flex gap-1">
+                        <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0s"></span>
+                        <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+                        <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.4s"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部输入框 -->
+        <div class="bg-[#18181b] px-4 py-3 pb-safe flex items-end border-t border-gray-800">
+            <div class="mr-3 mb-1">
+                <i class="fas fa-plus-circle text-2xl text-gray-400 active:text-white transition" @click="selectFile"></i>
+                <input type="file" ref="fileInput" class="hidden" @change="handleFileUpload">
+            </div>
+
+            <div class="flex-1 bg-[#27272a] rounded-2xl min-h-[40px] flex items-center px-4 py-2 mr-3">
+                <textarea
+                    v-model="inputText"
+                    placeholder="发消息..."
+                    class="w-full bg-transparent text-white outline-none text-base resize-none overflow-hidden h-6 leading-6"
+                    rows="1"
+                    @input="autoResize"
+                    @keydown.enter.exact.prevent="sendMessage"
+                ></textarea>
+            </div>
+
+            <button @click="sendMessage"
+                class="mb-1 w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white disabled:opacity-50 disabled:bg-gray-700 transition"
+                :disabled="!inputText.trim()">
+                <i class="fas fa-paper-plane text-xs"></i>
+            </button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const { createApp, ref, computed, nextTick } = Vue;
+
+    createApp({
+        setup() {
+            // 动态获取服务器地址
+            const SERVER_HOST = window.location.host;
+            const API_BASE = `http://${SERVER_HOST}/api`;
+            const WS_URL = `ws://${SERVER_HOST}/ws`;
+
+            // 随机颜色池
+            const colors = ['bg-color-1', 'bg-color-2', 'bg-color-3', 'bg-color-4', 'bg-color-5'];
+            const getRandomColor = () => colors[Math.floor(Math.random() * colors.length)];
+
+            // 随机生成 IP 地址
+            const generateRandomIP = () => {
+                const part1 = Math.floor(Math.random() * 256);
+                const part2 = Math.floor(Math.random() * 256);
+                const part3 = Math.floor(Math.random() * 256);
+                const part4 = Math.floor(Math.random() * 256);
+                return `${part1}.${part2}.${part3}.${part4}`;
+            };
+
+            // 生成随机 Session ID
+            const generateSessionId = () => {
+                const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+                let result = '';
+                for (let i = 0; i < 24; i++) {
+                    result += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                return result;
+            };
+
+            // 生成随机32位ID（用于 randomOut 等消息）
+            const generateRandomId = () => {
+                const chars = 'abcdef0123456789';
+                let result = '';
+                for (let i = 0; i < 32; i++) {
+                    result += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                return result;
+            };
+
+            // 生成 Cookie 字符串
+            const generateCookie = (userid, nickname) => {
+                const sessionId = generateSessionId();
+                const encodedNickname = encodeURIComponent(nickname);
+                return `room_name_random=%E5%85%AC%E5%85%B1%E5%9C%BA%E6%89%80; room_psw_random=; userAge=0; switchvipsex=0; switchVipAddress=0; switchHealthMode=0; isMoon=-1; ASP.NET_SessionId=${sessionId}; user_id=${userid}; user_nickname_random=${encodedNickname}; SlideSysInfos=0`;
+            };
+
+            // 状态管理
+            const activeTab = ref('history'); // 默认显示历史 tab，但不自动加载
+            const isMatching = ref(false);
+            const currentChatUser = ref(null);
+            const inputText = ref('');
+            const fileInput = ref(null);
+            const chatBox = ref(null);
+            const showSettings = ref(false); // 显示设置面板
+            const editMode = ref(false); // 编辑模式
+            const isTyping = ref(false); // 对方是否正在输入
+            const toastMessage = ref(''); // Toast 消息
+
+            // Toast 显示方法
+            const showToast = (message, duration = 2000) => {
+                toastMessage.value = message;
+                setTimeout(() => { toastMessage.value = ''; }, duration);
+            };
+
+            // 当前用户信息
+            const currentUser = ref({
+                id: '3cfbecb0a6224f9693315eeb3c89cde4',
+                name: '哎吃',
+                sex: '女',
+                ip: '188.253.116.115',
+                address: '美国'
+            });
+
+            // 编辑用户信息（副本）
+            const editUserInfo = ref({
+                name: '',
+                sex: ''
+            });
+
+            // WebSocket 连接
+            let ws = null;
+            const wsConnected = ref(false);
+            const waitingForResponse = ref(false); // 等待服务器响应
+            const imgServer = ref(''); // 图片服务器地址
+            const uploadedImages = ref([]); // 已上传的图片列表
+            const loadingMore = ref(false); // 加载更多历史消息中
+            const firstTidMap = ref({}); // 存储每个聊天的最早消息Tid
+
+            // 数据源
+            const historyUsers = ref([]); // 历史用户列表
+            const favoriteUsers = ref([]); // 收藏用户列表
+            const historyLoaded = ref(false); // 历史列表是否已加载
+            const favoriteLoaded = ref(false); // 收藏列表是否已加载
+
+            const chatHistory = ref({});
+
+            // 计算属性：列表显示
+            const displayList = computed(() => {
+                if (activeTab.value === 'favorites') {
+                    return favoriteUsers.value;
+                }
+                return historyUsers.value;
+            });
+
+            // --- 功能逻辑 ---
+
+            // 0. 上报访问记录
+            const reportReferrer = async () => {
+                try {
+                    console.log('上报访问记录...');
+
+                    const referrerUrl = document.referrer || '';
+                    const currUrl = encodeURIComponent('http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko');
+                    const userid = currentUser.value.id;
+                    const cookieData = generateCookie(userid, currentUser.value.name);
+                    const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko';
+                    const userAgent = navigator.userAgent;
+
+                    const params = new URLSearchParams();
+                    params.append('referrerUrl', referrerUrl);
+                    params.append('currUrl', currUrl);
+                    params.append('userid', userid);
+                    params.append('cookieData', cookieData);
+                    params.append('referer', referer);
+                    params.append('userAgent', userAgent);
+
+                    const response = await fetch(`${API_BASE}/reportReferrer`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: params
+                    });
+
+                    const result = await response.text();
+                    console.log('上报成功:', result);
+
+                    // 上报完成后获取图片服务器地址
+                    await getImgServer();
+
+                    return true;
+
+                } catch (error) {
+                    console.error('上报访问记录失败:', error);
+                    return false;
+                }
+            };
+
+            // 获取图片服务器地址
+            const getImgServer = async () => {
+                try {
+                    console.log('获取图片服务器地址...');
+
+                    const response = await fetch(`${API_BASE}/getImgServer`);
+
+                    if (!response.ok) {
+                        console.warn('图片服务器接口返回错误:', response.status);
+                        return;
+                    }
+
+                    const data = await response.json();
+                    console.log('图片服务器数据:', data);
+
+                    // 解析并保存图片服务器地址
+                    if (data.state === 'OK' && data.msg && data.msg.server) {
+                        imgServer.value = data.msg.server;
+                        console.log('图片服务器地址:', imgServer.value);
+
+                        // 通知后端更新图片服务器地址
+                        const params = new URLSearchParams();
+                        params.append('server', imgServer.value);
+
+                        await fetch(`${API_BASE}/updateImgServer`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            body: params
+                        });
+
+                        console.log('已通知后端更新图片服务器地址');
+
+                        // 获取缓存的图片列表
+                        await loadCachedImages();
+                    }
+
+                } catch (error) {
+                    console.error('获取图片服务器地址失败:', error);
+                }
+            };
+
+            // 加载缓存的图片列表
+            const loadCachedImages = async () => {
+                try {
+                    console.log('加载缓存图片列表...');
+
+                    const response = await fetch(`${API_BASE}/getCachedImages?userid=${currentUser.value.id}`);
+
+                    if (!response.ok) {
+                        console.warn('获取缓存图片失败:', response.status);
+                        return;
+                    }
+
+                    const data = await response.json();
+                    console.log('缓存图片数据:', data);
+
+                    if (Array.isArray(data)) {
+                        uploadedImages.value = data;
+                        console.log('加载了', data.length, '张缓存图片');
+                    }
+
+                } catch (error) {
+                    console.error('加载缓存图片失败:', error);
+                }
+            };
+
+            // 1. 数据加载逻辑
+            const loadHistoryUsers = async () => {
+                if (historyLoaded.value) {
+                    console.log('历史用户列表已加载，跳过');
+                    return;
+                }
+
+                try {
+                    console.log('加载历史用户列表...');
+
+                    // 准备参数
+                    const userid = currentUser.value.id;
+                    const cookieData = generateCookie(userid, currentUser.value.name);
+                    const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko';
+                    const userAgent = navigator.userAgent;
+
+                    const params = new URLSearchParams();
+                    params.append('myUserID', userid);
+                    params.append('vipcode', '');
+                    params.append('serverPort', '1001');
+                    params.append('cookieData', cookieData);
+                    params.append('referer', referer);
+                    params.append('userAgent', userAgent);
+
+                    const response = await fetch(`${API_BASE}/getHistoryUserList`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: params
+                    });
+
+                    if (!response.ok) {
+                        console.warn('历史用户列表接口返回错误:', response.status);
+                        historyUsers.value = [];
+                        historyLoaded.value = true;
+                        return;
+                    }
+
+                    const data = await response.json();
+                    console.log('历史用户数据:', data);
+
+                    // 检查是否有错误
+                    if (data.error) {
+                        console.warn('历史用户列表加载失败:', data.error);
+                        historyUsers.value = [];
+                        historyLoaded.value = true;
+                        return;
+                    }
+
+                    // 转换数据格式
+                    historyUsers.value = data.map(user => ({
+                        id: user.id,
+                        name: user.nickname,
+                        lastMsg: '暂无消息',
+                        lastTime: '刚刚',
+                        isFavorite: false,
+                        colorClass: getRandomColor(),
+                        sex: user.sex || user.userSex || '未知',
+                        age: user.age || user.userAge || '0',
+                        address: user.address || user.userAddress || '未知'
+                    }));
+
+                    historyLoaded.value = true;
+                    console.log('历史用户列表加载完成:', historyUsers.value.length);
+                } catch (error) {
+                    console.error('加载历史用户失败:', error);
+                    historyUsers.value = [];
+                    historyLoaded.value = true;
+                }
+            };
+
+            const loadFavoriteUsers = async () => {
+                if (favoriteLoaded.value) {
+                    console.log('收藏用户列表已加载，跳过');
+                    return;
+                }
+
+                try {
+                    console.log('加载收藏用户列表...');
+
+                    // 准备参数
+                    const userid = currentUser.value.id;
+                    const cookieData = generateCookie(userid, currentUser.value.name);
+                    const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko';
+                    const userAgent = navigator.userAgent;
+
+                    const params = new URLSearchParams();
+                    params.append('myUserID', userid);
+                    params.append('vipcode', '');
+                    params.append('serverPort', '1001');
+                    params.append('cookieData', cookieData);
+                    params.append('referer', referer);
+                    params.append('userAgent', userAgent);
+
+                    const response = await fetch(`${API_BASE}/getFavoriteUserList`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: params
+                    });
+
+                    if (!response.ok) {
+                        console.warn('收藏用户列表接口返回错误:', response.status);
+                        favoriteUsers.value = [];
+                        favoriteLoaded.value = true;
+                        return;
+                    }
+
+                    const data = await response.json();
+                    console.log('收藏用户数据:', data);
+
+                    // 检查是否有错误
+                    if (data.error) {
+                        console.warn('收藏用户列表加载失败:', data.error);
+                        favoriteUsers.value = [];
+                        favoriteLoaded.value = true;
+                        return;
+                    }
+
+                    // 转换数据格式
+                    favoriteUsers.value = data.map(user => ({
+                        id: user.id,
+                        name: user.nickname,
+                        lastMsg: '暂无消息',
+                        lastTime: '刚刚',
+                        isFavorite: true,
+                        colorClass: getRandomColor(),
+                        sex: user.sex || user.userSex || '未知',
+                        age: user.age || user.userAge || '0',
+                        address: user.address || user.userAddress || '未知'
+                    }));
+
+                    favoriteLoaded.value = true;
+                    console.log('收藏用户列表加载完成:', favoriteUsers.value.length);
+                } catch (error) {
+                    console.error('加载收藏用户失败:', error);
+                    favoriteUsers.value = [];
+                    favoriteLoaded.value = true;
+                }
+            };
+
+            // 切换 Tab 时加载对应数据
+            const switchTab = (tab) => {
+                console.log('切换到 Tab:', tab);
+                activeTab.value = tab;
+                if (tab === 'history') {
+                    console.log('准备加载历史用户列表');
+                    historyLoaded.value = false; // 重置标志，强制重新加载
+                    loadHistoryUsers();
+                } else if (tab === 'favorites') {
+                    console.log('准备加载收藏用户列表');
+                    favoriteLoaded.value = false; // 重置标志，强制重新加载
+                    loadFavoriteUsers();
+                }
+            };
+
+            // 强制刷新列表
+            const refreshCurrentList = () => {
+                if (activeTab.value === 'history') {
+                    historyLoaded.value = false;
+                    loadHistoryUsers();
+                } else if (activeTab.value === 'favorites') {
+                    favoriteLoaded.value = false;
+                    loadFavoriteUsers();
+                }
+            };
+
+            // 加载消息历史
+            const loadMessageHistory = async (userToID) => {
+                console.log('=== 开始加载消息历史 ===');
+                console.log('userToID=', userToID);
+                console.log('myUserID=', currentUser.value.id);
+
+                try {
+                    // 准备参数
+                    const myUserID = currentUser.value.id;
+                    const cookieData = generateCookie(myUserID, currentUser.value.name);
+                    const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko';
+                    const userAgent = navigator.userAgent;
+
+                    const params = new URLSearchParams();
+                    params.append('myUserID', myUserID);
+                    params.append('UserToID', userToID);
+                    params.append('isFirst', '1');
+                    params.append('firstTid', '0');
+                    params.append('vipcode', '');
+                    params.append('serverPort', '1001');
+                    params.append('cookieData', cookieData);
+                    params.append('referer', referer);
+                    params.append('userAgent', userAgent);
+
+                    console.log('发送请求到 /api/getMessageHistory');
+
+                    const response = await fetch(`${API_BASE}/getMessageHistory`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: params
+                    });
+
+                    console.log('接口响应状态:', response.status);
+
+                    if (!response.ok) {
+                        console.warn('消息历史接口返回错误:', response.status);
+                        // 初始化为空数组
+                        if (!chatHistory.value[userToID]) {
+                            chatHistory.value[userToID] = [];
+                        }
+                        return;
+                    }
+
+                    const data = await response.json();
+                    console.log('消息历史数据:', data);
+
+                    // 检查是否有错误
+                    if (data.error) {
+                        console.warn('消息历史加载失败:', data.error);
+                        if (!chatHistory.value[userToID]) {
+                            chatHistory.value[userToID] = [];
+                        }
+                        return;
+                    }
+
+                    // 解析消息历史数据
+                    if (data.code === 0 && data.contents_list && Array.isArray(data.contents_list)) {
+                        // 转换消息格式，contents_list 是倒序的（最新在前），需要反转
+                        const messages = data.contents_list.reverse().map(msg => {
+                            // 判断逻辑：如果发送者不是对方，就是我发送的
+                            const isSelf = msg.id !== userToID;
+                            console.log('消息:', msg.content, '| msg.id=', msg.id, '| userToID=', userToID, '| isSelf=', isSelf);
+
+                            // 检查是否是图片消息（格式：[path/to/image.jpg]）
+                            let content = msg.content;
+                            let type = 'text';
+
+                            if (content.startsWith('[') && content.endsWith(']') &&
+                                (content.includes('.jpg') || content.includes('.png') || content.includes('.jpeg') || content.includes('.gif'))) {
+                                // 提取图片路径
+                                const imagePath = content.substring(1, content.length - 1);
+                                // 拼接完整URL
+                                content = `http://${imgServer.value}:9006/img/Upload/${imagePath}`;
+                                type = 'image';
+                                console.log('图片消息，拼接URL:', content);
+                            }
+
+                            return {
+                                type: type,
+                                content: content,
+                                isSelf: isSelf,
+                                time: msg.time,
+                                nickname: msg.nickname,
+                                tid: msg.Tid
+                            };
+                        });
+
+                        chatHistory.value[userToID] = messages;
+                        // 保存最早消息的 Tid 用于加载更多
+                        if (messages.length > 0) {
+                            firstTidMap.value[userToID] = messages[0].tid;
+                        }
+                        console.log('消息历史加载完成:', messages.length, '条消息, firstTid=', firstTidMap.value[userToID]);
+                    } else {
+                        // 如果没有历史消息或返回格式不对，初始化为空数组
+                        if (!chatHistory.value[userToID]) {
+                            chatHistory.value[userToID] = [];
+                        }
+                        console.log('没有历史消息');
+                    }
+
+                } catch (error) {
+                    console.error('加载消息历史失败:', error);
+                    // 初始化为空数组
+                    if (!chatHistory.value[userToID]) {
+                        chatHistory.value[userToID] = [];
+                    }
+                }
+            };
+
+            // 加载更多历史消息
+            const loadMoreHistory = async () => {
+                if (!currentChatUser.value || loadingMore.value) return;
+
+                const userToID = currentChatUser.value.id;
+                const firstTid = firstTidMap.value[userToID] || '0';
+
+                console.log('=== 加载更多历史消息 ===');
+                console.log('userToID=', userToID, 'firstTid=', firstTid);
+
+                loadingMore.value = true;
+
+                try {
+                    const myUserID = currentUser.value.id;
+                    const cookieData = generateCookie(myUserID, currentUser.value.name);
+                    const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko';
+                    const userAgent = navigator.userAgent;
+
+                    const params = new URLSearchParams();
+                    params.append('myUserID', myUserID);
+                    params.append('UserToID', userToID);
+                    params.append('isFirst', '0');
+                    params.append('firstTid', firstTid);
+                    params.append('vipcode', '');
+                    params.append('serverPort', '1001');
+                    params.append('cookieData', cookieData);
+                    params.append('referer', referer);
+                    params.append('userAgent', userAgent);
+
+                    const response = await fetch(`${API_BASE}/getMessageHistory`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: params
+                    });
+
+                    if (!response.ok) {
+                        console.warn('加载更多历史消息失败:', response.status);
+                        loadingMore.value = false;
+                        return;
+                    }
+
+                    const data = await response.json();
+                    console.log('更多历史消息数据:', data);
+
+                    if (data.code === 0 && data.contents_list && Array.isArray(data.contents_list) && data.contents_list.length > 0) {
+                        const newMessages = data.contents_list.reverse().map(msg => {
+                            const isSelf = msg.id !== userToID;
+                            let content = msg.content;
+                            let type = 'text';
+
+                            if (content.startsWith('[') && content.endsWith(']') &&
+                                (content.includes('.jpg') || content.includes('.png') || content.includes('.jpeg') || content.includes('.gif'))) {
+                                const imagePath = content.substring(1, content.length - 1);
+                                content = `http://${imgServer.value}:9006/img/Upload/${imagePath}`;
+                                type = 'image';
+                            }
+
+                            return { type, content, isSelf, time: msg.time, nickname: msg.nickname, tid: msg.Tid };
+                        });
+
+                        // 将新消息插入到现有消息的前面
+                        chatHistory.value[userToID] = [...newMessages, ...chatHistory.value[userToID]];
+
+                        // 更新最早消息的 Tid
+                        if (newMessages.length > 0) {
+                            firstTidMap.value[userToID] = newMessages[0].tid;
+                        }
+
+                        console.log('加载更多完成:', newMessages.length, '条消息');
+                        showToast(`加载了 ${newMessages.length} 条历史消息`);
+                    } else {
+                        showToast('没有更多历史消息了');
+                    }
+
+                } catch (error) {
+                    console.error('加载更多历史消息失败:', error);
+                    showToast('加载失败');
+                } finally {
+                    loadingMore.value = false;
+                }
+            };
+
+            // 2. 匹配逻辑
+            const startMatch = () => {
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    alert('WebSocket 未连接，无法匹配');
+                    return;
+                }
+
+                isMatching.value = true;
+
+                // 发送随机匹配消息
+                const randomMessage = {
+                    "act": "random",
+                    "id": currentUser.value.id,
+                    "userAge": "0"
+                };
+
+                ws.send(JSON.stringify(randomMessage));
+                console.log('发送随机匹配消息:', randomMessage);
+            };
+
+            const cancelMatch = () => {
+                isMatching.value = false;
+
+                // 发送取消匹配消息
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    const cancelMessage = {
+                        "act": "randomOut",
+                        "id": currentUser.value.id,
+                        "msg": generateRandomId()  // 使用随机32位ID
+                    };
+                    ws.send(JSON.stringify(cancelMessage));
+                    console.log('发送取消匹配消息:', cancelMessage);
+                }
+            };
+
+            // 2. 聊天室逻辑
+            const enterChat = async (user) => {
+                console.log('进入聊天界面, user=', user);
+                currentChatUser.value = user;
+                isTyping.value = false; // 清除正在输入状态
+
+                // 加载消息历史
+                console.log('准备加载消息历史, user.id=', user.id);
+                await loadMessageHistory(user.id);
+
+                scrollToBottom();
+            };
+
+            const exitChat = () => {
+                currentChatUser.value = null;
+                isTyping.value = false; // 清除正在输入状态
+            };
+
+            const toggleFavorite = (user) => {
+                user.isFavorite = !user.isFavorite;
+            };
+
+            // 3. 发送消息逻辑
+            const sendMessage = () => {
+                if (!inputText.value.trim()) return;
+
+                const message = inputText.value;
+
+                // 通过 WebSocket 发送消息
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    // 构造发送消息格式
+                    const toUserMessage = {
+                        "act": `touser_${currentChatUser.value.id}_${currentChatUser.value.name}`,
+                        "id": currentUser.value.id,
+                        "msg": message
+                    };
+
+                    ws.send(JSON.stringify(toUserMessage));
+                    console.log('发送消息:', toUserMessage);
+                } else {
+                    console.error('WebSocket 未连接');
+                    alert('连接已断开，请刷新页面重试');
+                    return;
+                }
+
+                // 显示自己发送的消息
+                pushMessage('text', message, true);
+
+                // 更新列表显示的最新消息
+                if (currentChatUser.value) {
+                    currentChatUser.value.lastMsg = message;
+                    currentChatUser.value.lastTime = '刚刚';
+                }
+
+                inputText.value = '';
+            };
+
+            // 4. 文件发送逻辑
+            const selectFile = () => {
+                console.log('选择上传文件');
+                fileInput.value.click();
+            };
+
+            const handleFileUpload = async (e) => {
+                console.log('handleFileUpload 被调用');
+                const file = e.target.files[0];
+                if (!file) {
+                    console.log('没有选择文件');
+                    return;
+                }
+
+                console.log('选择文件:', file.name, file.type, file.size);
+
+                // 判断文件类型
+                if (file.type.startsWith('image/')) {
+                    // 图片文件 - 上传到服务器
+                    await uploadImage(file);
+                } else if (file.type.startsWith('video/')) {
+                    // 视频文件 - 暂时使用本地 URL
+                    const url = URL.createObjectURL(file);
+                    pushMessage('video', url, true);
+                    if (currentChatUser.value) {
+                        currentChatUser.value.lastMsg = '[视频]';
+                    }
+                } else {
+                    // 其他文件类型
+                    alert('暂不支持该文件类型: ' + file.type);
+                }
+
+                e.target.value = ''; // 重置 input
+            };
+
+            // 上传图片
+            const uploadImage = async (file) => {
+                try {
+                    console.log('=== 开始上传图片 ===');
+                    console.log('文件名:', file.name);
+                    console.log('文件大小:', file.size);
+                    console.log('图片服务器地址:', imgServer.value);
+
+                    if (!imgServer.value) {
+                        alert('图片服务器地址未获取，请刷新页面重试');
+                        return;
+                    }
+
+                    // 构造 FormData
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('userid', currentUser.value.id);
+
+                    // 添加 headers 参数
+                    const cookieData = generateCookie(currentUser.value.id, currentUser.value.name);
+                    const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko';
+                    const userAgent = navigator.userAgent;
+
+                    formData.append('cookieData', cookieData);
+                    formData.append('referer', referer);
+                    formData.append('userAgent', userAgent);
+
+                    console.log('发送上传请求...');
+
+                    // 调用后端上传接口
+                    const response = await fetch(`${API_BASE}/uploadImage`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    console.log('上传响应状态:', response.status);
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('图片上传失败:', response.status, errorText);
+                        alert('图片上传失败: ' + errorText);
+                        return;
+                    }
+
+                    const data = await response.json();
+                    console.log('图片上传返回:', data);
+
+                    // 检查上传结果
+                    if (data.state === 'OK' && data.msg) {
+                        // 构造图片完整URL（端口9006，路径前缀 /img/Upload/）
+                        const imageUrl = `http://${imgServer.value}:9006/img/Upload/${data.msg}`;
+                        console.log('图片服务器URL:', imageUrl);
+
+                        // 添加到已上传图片列表（保存到前面，最新在前）
+                        uploadedImages.value.push(imageUrl);
+                        console.log('已保存到上传历史，当前共', uploadedImages.value.length, '张图片');
+
+                        // 不关闭菜单，让用户预览并选择是否发送
+                        console.log('图片上传成功，保持在上传菜单预览');
+
+                    } else {
+                        alert('图片上传失败: ' + (data.error || '未知错误'));
+                    }
+
+                } catch (error) {
+                    console.error('上传图片异常:', error);
+                    alert('图片上传异常: ' + error.message);
+                }
+            };
+
+            // 辅助函数
+            const pushMessage = (type, content, isSelf, time = null) => {
+                const uid = currentChatUser.value.id;
+                if (!chatHistory.value[uid]) chatHistory.value[uid] = [];
+                // 如果没有传入时间，使用当前时间
+                const msgTime = time || new Date().toISOString().replace('T', ' ').substring(0, 23);
+                chatHistory.value[uid].push({ type, content, isSelf, time: msgTime });
+                scrollToBottom();
+            };
+
+            const scrollToBottom = () => {
+                nextTick(() => {
+                    if (chatBox.value) {
+                        chatBox.value.scrollTop = chatBox.value.scrollHeight;
+                    }
+                });
+            };
+
+            // 格式化时间显示
+            const formatTime = (timeStr) => {
+                if (!timeStr) return '';
+                // 格式: 2025-12-18 03:02:11.721 → 2025-12-18 03:02
+                const match = timeStr.match(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/);
+                return match ? `${match[1]} ${match[2]}` : timeStr;
+            };
+
+            const autoResize = (e) => {
+                // 简单的输入框高度自适应
+                e.target.style.height = 'auto';
+                e.target.style.height = (e.target.scrollHeight) + 'px';
+            };
+
+            const previewMedia = (src) => {
+                console.log("预览图片:", src);
+            };
+
+            // 发送已上传的图片
+            const sendImageMessage = (imageUrl) => {
+                console.log('发送已上传的图片:', imageUrl);
+
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    alert('WebSocket 未连接，无法发送');
+                    return;
+                }
+
+                if (!currentChatUser.value) {
+                    alert('请先选择聊天对象');
+                    return;
+                }
+
+                // 从完整URL中提取图片路径
+                // 例如：http://149.88.79.98:9006/img/Upload/2025/12/18/Random/xxx.jpg
+                // 提取：2025/12/18/Random/xxx.jpg
+                const urlPattern = /\/img\/Upload\/(.+)$/;
+                const match = imageUrl.match(urlPattern);
+
+                if (!match) {
+                    console.error('无法提取图片路径:', imageUrl);
+                    alert('图片路径格式错误');
+                    return;
+                }
+
+                const imagePath = match[1];
+                console.log('提取图片路径:', imagePath);
+
+                // 构造图片消息（用方括号包裹路径）
+                const imageMessage = {
+                    "act": `touser_${currentChatUser.value.id}_${currentChatUser.value.name}`,
+                    "id": currentUser.value.id,
+                    "msg": `[${imagePath}]`
+                };
+
+                // 发送到 WebSocket
+                ws.send(JSON.stringify(imageMessage));
+                console.log('发送图片消息:', imageMessage);
+
+                // 关闭菜单
+                showUploadMenu.value = false;
+
+                // 显示图片到聊天界面
+                pushMessage('image', imageUrl, true);
+                if (currentChatUser.value) {
+                    currentChatUser.value.lastMsg = '[图片]';
+                }
+
+                console.log('图片消息已发送并显示');
+            };
+
+            // 保存用户信息
+            const saveUserInfo = () => {
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    alert('WebSocket 未连接，无法保存');
+                    return;
+                }
+
+                const nameChanged = editUserInfo.value.name !== currentUser.value.name;
+                const sexChanged = editUserInfo.value.sex !== currentUser.value.sex;
+
+                if (!nameChanged && !sexChanged) {
+                    alert('没有任何修改');
+                    editMode.value = false;
+                    return;
+                }
+
+                // 设置等待响应标志
+                waitingForResponse.value = true;
+
+                // 设置超时，5秒后如果还没收到响应则退出等待
+                setTimeout(() => {
+                    if (waitingForResponse.value) {
+                        waitingForResponse.value = false;
+                        editMode.value = false;
+                        alert('服务器响应超时，但信息可能已保存');
+                    }
+                }, 5000);
+
+                // 如果性别修改了，发送修改性别消息
+                if (sexChanged) {
+                    const modInfoMessage = {
+                        "act": "modinfo",
+                        "id": currentUser.value.id,
+                        "userSex": editUserInfo.value.sex,
+                        "address_show": "false",
+                        "randomhealthmode": "0",
+                        "randomvipsex": "0",
+                        "randomvipaddress": "0"
+                    };
+                    ws.send(JSON.stringify(modInfoMessage));
+                    console.log('发送修改性别消息:', modInfoMessage);
+
+                    // 更新本地数据
+                    currentUser.value.sex = editUserInfo.value.sex;
+                }
+
+                // 如果名字修改了，发送修改名字消息
+                if (nameChanged) {
+                    const chgNameMessage = {
+                        "act": "chgname",
+                        "id": currentUser.value.id,
+                        "msg": editUserInfo.value.name
+                    };
+                    ws.send(JSON.stringify(chgNameMessage));
+                    console.log('发送修改名字消息:', chgNameMessage);
+
+                    // 更新本地数据
+                    currentUser.value.name = editUserInfo.value.name;
+                }
+
+                // 注意：不立即退出编辑模式，等待服务器响应
+                console.log('等待服务器响应...');
+            };
+
+            // 监听编辑模式，初始化编辑数据
+            const initEditMode = () => {
+                editUserInfo.value.name = currentUser.value.name;
+                editUserInfo.value.sex = currentUser.value.sex;
+            };
+
+            // WebSocket 连接逻辑
+            const connectWebSocket = () => {
+                console.log('正在连接 WebSocket:', WS_URL);
+
+                ws = new WebSocket(WS_URL);
+
+                ws.onopen = () => {
+                    console.log('WebSocket 连接成功');
+                    wsConnected.value = true;
+
+                    // 连接成功后先上报访问记录
+                    reportReferrer().then(() => {
+                        console.log('上报完成，可以开始加载列表');
+                    });
+
+                    // 连接成功后发送登录消息
+                    const signMessage = {
+                        "act": "sign",
+                        "id": currentUser.value.id,
+                        "name": currentUser.value.name,
+                        "userSex": currentUser.value.sex,
+                        "address_show": "false",
+                        "randomhealthmode": "0",
+                        "randomvipsex": "0",
+                        "randomvipaddress": "0",
+                        "userip": currentUser.value.ip,
+                        "useraddree": currentUser.value.address,
+                        "randomvipcode": ""
+                    };
+
+                    const signMsg = JSON.stringify(signMessage);
+                    ws.send(signMsg);
+                    console.log('已发送登录消息:', signMsg);
+                };
+
+                ws.onmessage = (event) => {
+                    console.log('收到消息:', event.data);
+
+                    try {
+                        // 尝试解析 JSON
+                        const data = JSON.parse(event.data);
+
+                        // 过滤系统消息（code: 12, 18, 19 等），用 toast 显示
+                        if (data.code === 12 || data.code === 18 || data.code === 19) {
+                            console.log('系统消息，toast显示:', data);
+                            if (data.content) {
+                                showToast(data.content);
+                            }
+                            return;
+                        }
+
+                        // 处理正在输入消息
+                        if (data.act && (data.act.startsWith('inputStatusOn_') || data.act.startsWith('inputStatusOff_'))) {
+                            const isOn = data.act.startsWith('inputStatusOn_');
+                            // 提取用户ID（格式：inputStatusOn_userId_nickname）
+                            const parts = data.act.split('_');
+                            const typingUserId = parts[1];
+
+                            console.log('正在输入状态:', isOn ? '开始' : '结束', 'userId=', typingUserId);
+
+                            // 如果当前正在和这个用户聊天，显示/隐藏正在输入提示
+                            if (currentChatUser.value && currentChatUser.value.id === typingUserId) {
+                                isTyping.value = isOn;
+                                console.log('更新正在输入状态:', isTyping.value);
+
+                                // 如果显示正在输入，滚动到底部
+                                if (isOn) {
+                                    scrollToBottom();
+                                }
+                            }
+                            return;
+                        }
+
+                        // 处理聊天消息 (code: 7)
+                        if (data.code === 7 && data.fromuser) {
+                            console.log('收到聊天消息:', data);
+
+                            const fromUserId = data.fromuser.id;
+                            const toUserId = data.touser ? data.touser.id : null;
+                            let messageContent = data.fromuser.content;
+                            const fromUserNickname = data.fromuser.nickname;
+
+                            console.log('解析消息 - fromUserId=', fromUserId, 'toUserId=', toUserId, 'currentUserId=', currentUser.value.id);
+                            console.log('消息内容:', messageContent);
+                            console.log('当前聊天对象:', currentChatUser.value ? currentChatUser.value.id : '无');
+
+                            // 判断是不是自己发送的消息
+                            const isSelf = fromUserId === currentUser.value.id;
+                            console.log('isSelf=', isSelf);
+
+                            // 判断是否应该显示这条消息
+                            const shouldDisplay =
+                                (currentChatUser.value && currentChatUser.value.id === fromUserId) ||
+                                (currentChatUser.value && currentChatUser.value.id === toUserId && isSelf);
+
+                            console.log('shouldDisplay=', shouldDisplay);
+
+                            // 检查是否是图片消息
+                            let messageType = 'text';
+                            if (messageContent.startsWith('[') && messageContent.endsWith(']') &&
+                                (messageContent.includes('.jpg') || messageContent.includes('.png') || messageContent.includes('.jpeg') || messageContent.includes('.gif'))) {
+                                // 提取图片路径
+                                const imagePath = messageContent.substring(1, messageContent.length - 1);
+                                // 拼接完整URL
+                                messageContent = `http://${imgServer.value}:9006/img/Upload/${imagePath}`;
+                                messageType = 'image';
+                                console.log('图片消息，拼接URL:', messageContent);
+                            }
+
+                            // 获取消息时间
+                            const msgTime = data.fromuser.time || new Date().toISOString().replace('T', ' ').substring(0, 23);
+
+                            if (shouldDisplay) {
+                                // 收到消息，隐藏正在输入提示
+                                if (!isSelf) {
+                                    isTyping.value = false;
+                                }
+
+                                // 显示消息
+                                console.log('✓ 显示消息在聊天界面:', messageContent, 'isSelf=', isSelf, 'type=', messageType);
+                                pushMessage(messageType, messageContent, isSelf, msgTime);
+                                currentChatUser.value.lastMsg = messageType === 'image' ? '[图片]' : messageContent;
+                                currentChatUser.value.lastTime = '刚刚';
+                            } else if (!isSelf) {
+                                // 不在当前聊天界面，但收到消息 - 更新列表
+                                console.log('✓ 更新列表中的消息');
+                                const existingUser = historyUsers.value.find(u => u.id === fromUserId);
+                                if (existingUser) {
+                                    existingUser.lastMsg = messageType === 'image' ? '[图片]' : messageContent;
+                                    existingUser.lastTime = '刚刚';
+                                } else {
+                                    // 如果列表中没有这个用户，添加到列表
+                                    const newUser = {
+                                        id: fromUserId,
+                                        name: fromUserNickname,
+                                        lastMsg: messageType === 'image' ? '[图片]' : messageContent,
+                                        lastTime: '刚刚',
+                                        isFavorite: false,
+                                        colorClass: getRandomColor()
+                                    };
+                                    historyUsers.value.unshift(newUser);
+                                }
+
+                                // 初始化聊天记录（如果不存在）
+                                if (!chatHistory.value[fromUserId]) {
+                                    chatHistory.value[fromUserId] = [];
+                                }
+                                chatHistory.value[fromUserId].push({
+                                    type: messageType,
+                                    content: messageContent,
+                                    isSelf: false,
+                                    time: msgTime
+                                });
+                            }
+                            return;
+                        }
+
+                        // 处理匹配成功消息 (code: 15)
+                        if (data.code === 15 && data.sel_userid) {
+                            console.log('匹配成功:', data);
+                            isMatching.value = false;
+
+                            // 创建匹配到的用户
+                            const matchedUser = {
+                                id: data.sel_userid,
+                                name: data.sel_userNikename || '匿名用户',
+                                lastMsg: '匹配成功',
+                                lastTime: '刚刚',
+                                isFavorite: false,
+                                colorClass: getRandomColor(),
+                                sex: data.sel_userSex || '未知',
+                                age: data.sel_userAge || '未知',
+                                address: data.sel_userAddress || '未知'
+                            };
+
+                            // 添加到历史列表并置顶
+                            historyUsers.value.unshift(matchedUser);
+
+                            // 初始化聊天记录
+                            chatHistory.value[matchedUser.id] = [
+                                { type: 'text', content: '匹配成功，开始聊天吧！', isSelf: false }
+                            ];
+
+                            // 直接进入聊天
+                            enterChat(matchedUser);
+                            return;
+                        }
+
+                        // 如果正在等待修改信息的响应
+                        if (waitingForResponse.value) {
+                            waitingForResponse.value = false;
+
+                            // 弹出服务器返回的消息
+                            if (data.content) {
+                                alert('服务器响应: ' + data.content);
+                            } else if (data.msg) {
+                                alert('服务器响应: ' + data.msg);
+                            } else {
+                                alert('服务器响应: ' + event.data);
+                            }
+
+                            // 退出编辑模式
+                            editMode.value = false;
+                            return;
+                        }
+
+                        // 如果当前在聊天界面，显示收到的消息
+                        if (currentChatUser.value) {
+                            const messageContent = data.content || event.data;
+                            pushMessage('text', messageContent, false);
+                            currentChatUser.value.lastMsg = messageContent;
+                            currentChatUser.value.lastTime = '刚刚';
+                        }
+                    } catch (e) {
+                        // 如果不是 JSON，直接显示
+                        if (currentChatUser.value) {
+                            pushMessage('text', event.data, false);
+                            currentChatUser.value.lastMsg = event.data;
+                            currentChatUser.value.lastTime = '刚刚';
+                        }
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket 错误:', error);
+                    wsConnected.value = false;
+                };
+
+                ws.onclose = () => {
+                    console.log('WebSocket 连接关闭');
+                    wsConnected.value = false;
+
+                    // 尝试重连
+                    setTimeout(() => {
+                        console.log('尝试重新连接...');
+                        connectWebSocket();
+                    }, 3000);
+                };
+            };
+
+            // 页面加载时自动连接
+            connectWebSocket();
+
+            // 初始化编辑数据
+            initEditMode();
+
+            // 不再自动加载列表，等待用户点击 Tab
+
+            return {
+                activeTab, isMatching, historyUsers, favoriteUsers, displayList,
+                currentChatUser, chatHistory, inputText, fileInput, chatBox,
+                wsConnected, showSettings, currentUser, editMode, editUserInfo, waitingForResponse, imgServer, isTyping, uploadedImages, toastMessage, loadingMore,
+                startMatch, cancelMatch, enterChat, exitChat, toggleFavorite,
+                sendMessage, selectFile, handleFileUpload, autoResize, previewMedia, sendImageMessage, formatTime, loadMoreHistory,
+                loadHistoryUsers, loadFavoriteUsers, saveUserInfo, initEditMode, switchTab, refreshCurrentList, loadMessageHistory
+            };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
