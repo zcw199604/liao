@@ -381,8 +381,10 @@
                 </button>
             </div>
 
-            <!-- 右侧：占位 -->
-            <div class="w-10"></div>
+            <!-- 右侧：连接状态 -->
+            <div class="flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full" :class="wsConnected ? 'bg-green-500' : 'bg-red-500'"></span>
+            </div>
         </div>
 
         <!-- 列表内容 -->
@@ -416,8 +418,8 @@
             </div>
         </div>
 
-        <!-- 底部悬浮匹配按钮 (仅在消息Tab显示) -->
-        <div class="match-btn-container" v-if="activeTab === 'history'">
+        <!-- 底部悬浮匹配按钮 -->
+        <div class="match-btn-container">
             <button @click="startMatch" class="match-btn flex items-center px-6 py-3 rounded-full text-white font-bold">
                 <i class="fas fa-random mr-2"></i> 匹配新用户
             </button>
