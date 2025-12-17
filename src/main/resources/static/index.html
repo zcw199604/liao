@@ -73,6 +73,23 @@
         .bg-color-3 { background-color: #f59e0b; }
         .bg-color-4 { background-color: #ec4899; }
         .bg-color-5 { background-color: #8b5cf6; }
+
+        /* 身份选择页样式 */
+        .identity-card {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .identity-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+        .identity-card:active {
+            transform: scale(0.98);
+        }
+        .identity-card.selected {
+            border-color: #6366f1;
+            background-color: rgba(99, 102, 241, 0.1);
+        }
     </style>
 </head>
 <body>
@@ -82,6 +99,119 @@
     <!-- === Toast 弹窗 === -->
     <div v-if="toastMessage" class="fixed top-16 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 bg-[#27272a] text-white text-sm rounded-full shadow-lg animate-pulse">
         {{ toastMessage }}
+    </div>
+
+    <!-- === 身份选择页面 === -->
+    <div v-if="showIdentityPicker" class="page-container">
+        <!-- 顶部标题 -->
+        <div class="pt-8 pb-4 px-4 text-center">
+            <h1 class="text-2xl font-bold text-white mb-2">选择身份</h1>
+            <p class="text-sm text-gray-400">选择一个身份开始聊天，或创建新身份</p>
+        </div>
+
+        <!-- 操作按钮区 -->
+        <div class="flex gap-3 px-4 mb-4">
+            <button @click="quickCreateIdentity" :disabled="identityLoading"
+                class="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium shadow-lg disabled:opacity-50">
+                <i class="fas fa-bolt mr-2"></i>快速进入
+            </button>
+            <button @click="showCreateForm = true"
+                class="flex-1 py-3 bg-[#27272a] text-white rounded-xl font-medium border border-gray-700">
+                <i class="fas fa-plus mr-2"></i>创建身份
+            </button>
+        </div>
+
+        <!-- 身份列表 -->
+        <div class="list-area no-scrollbar px-4">
+            <!-- 加载中 -->
+            <div v-if="identityLoading" class="flex flex-col items-center justify-center mt-20">
+                <div class="radar-spinner"></div>
+                <p class="text-gray-500 text-sm mt-4">加载中...</p>
+            </div>
+
+            <!-- 身份卡片列表 -->
+            <div v-else-if="identityList.length > 0">
+                <div v-for="identity in identityList" :key="identity.id"
+                    @click="selectIdentity(identity)"
+                    class="identity-card flex items-center p-4 mb-3 bg-[#18181b] rounded-2xl border border-transparent">
+
+                    <!-- 头像 -->
+                    <div :class="getColorClass(identity.id)"
+                        class="w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg shrink-0">
+                        {{ identity.name.charAt(0) }}
+                    </div>
+
+                    <!-- 信息 -->
+                    <div class="ml-4 flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="font-bold text-lg text-white">{{ identity.name }}</span>
+                            <span class="px-2 py-0.5 text-xs rounded-full"
+                                :class="identity.sex === '男' ? 'bg-blue-500/20 text-blue-400' : 'bg-pink-500/20 text-pink-400'">
+                                {{ identity.sex }}
+                            </span>
+                        </div>
+                        <p class="text-xs text-gray-500">ID: {{ identity.id.substring(0, 8) }}...</p>
+                        <p v-if="identity.lastUsedAt" class="text-xs text-gray-600 mt-1">
+                            最后使用: {{ identity.lastUsedAt }}
+                        </p>
+                    </div>
+
+                    <!-- 箭头 -->
+                    <i class="fas fa-chevron-right text-gray-600"></i>
+                </div>
+            </div>
+
+            <!-- 空状态 -->
+            <div v-else class="flex flex-col items-center justify-center mt-20 text-gray-600">
+                <i class="fas fa-user-plus text-5xl mb-4 opacity-50"></i>
+                <p class="text-sm">还没有身份，点击上方按钮创建</p>
+            </div>
+        </div>
+
+        <!-- 创建身份弹窗 -->
+        <div v-if="showCreateForm" class="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center" @click="showCreateForm = false">
+            <div class="w-80 bg-[#18181b] rounded-2xl p-6 shadow-2xl" @click.stop>
+                <h3 class="text-lg font-bold text-white mb-4 text-center">创建新身份</h3>
+
+                <div class="space-y-4">
+                    <!-- 名字输入 -->
+                    <div>
+                        <label class="text-xs text-gray-500 mb-1 block">名字</label>
+                        <input v-model="newIdentity.name" type="text" placeholder="输入名字"
+                            class="w-full bg-[#27272a] text-white px-4 py-3 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none">
+                    </div>
+
+                    <!-- 性别选择 -->
+                    <div>
+                        <label class="text-xs text-gray-500 mb-1 block">性别</label>
+                        <div class="flex gap-3">
+                            <button @click="newIdentity.sex = '男'"
+                                :class="newIdentity.sex === '男' ? 'bg-blue-600 border-blue-600' : 'bg-[#27272a] border-gray-700'"
+                                class="flex-1 py-3 rounded-xl border text-white font-medium">
+                                <i class="fas fa-mars mr-2"></i>男
+                            </button>
+                            <button @click="newIdentity.sex = '女'"
+                                :class="newIdentity.sex === '女' ? 'bg-pink-600 border-pink-600' : 'bg-[#27272a] border-gray-700'"
+                                class="flex-1 py-3 rounded-xl border text-white font-medium">
+                                <i class="fas fa-venus mr-2"></i>女
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 按钮 -->
+                <div class="flex gap-3 mt-6">
+                    <button @click="showCreateForm = false"
+                        class="flex-1 py-3 bg-[#27272a] text-gray-400 rounded-xl border border-gray-700">
+                        取消
+                    </button>
+                    <button @click="createIdentity" :disabled="!newIdentity.name || !newIdentity.sex"
+                        class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                        创建
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- === 用户配置抽屉 === -->
@@ -196,7 +326,7 @@
     </div>
 
     <!-- === 页面 1: 会话列表 / 收藏列表 === -->
-    <div class="page-container" v-if="!currentChatUser">
+    <div class="page-container" v-if="!showIdentityPicker && !currentChatUser">
         
         <!-- 顶部切换栏 -->
         <div class="flex items-center justify-between pt-4 pb-2 px-4 bg-[#0f0f13] z-10">
@@ -265,7 +395,7 @@
     </div>
 
     <!-- === 页面 2: 聊天界面 === -->
-    <div class="page-container bg-[#0f0f13] absolute inset-0 z-50" v-else>
+    <div class="page-container bg-[#0f0f13] absolute inset-0 z-50" v-if="!showIdentityPicker && currentChatUser">
 
         <!-- 聊天头部 -->
         <div class="bg-[#18181b]/90 backdrop-blur-sm border-b border-gray-800 sticky top-0 z-20 px-4 py-3">
@@ -335,6 +465,26 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- 上传菜单面板 -->
+        <div v-if="showUploadMenu" class="bg-[#1a1a1d] border-t border-gray-800 p-4 max-h-60 overflow-y-auto">
+            <!-- 已上传图片列表 -->
+            <div v-if="uploadedImages.length > 0" class="mb-3">
+                <div class="text-xs text-gray-500 mb-2">已上传的图片（点击发送）</div>
+                <div class="flex flex-wrap gap-2">
+                    <div v-for="(img, idx) in uploadedImages" :key="idx"
+                        @click="sendImageMessage(img)"
+                        class="w-16 h-16 rounded-lg overflow-hidden cursor-pointer border border-gray-700 hover:border-indigo-500 transition">
+                        <img :src="img" class="w-full h-full object-cover">
+                    </div>
+                </div>
+            </div>
+            <div v-else class="text-xs text-gray-500 mb-3">暂无已上传的图片</div>
+            <!-- 选择文件按钮 -->
+            <button @click="triggerFileSelect" class="w-full py-3 bg-[#27272a] text-white rounded-xl hover:bg-[#333] transition">
+                <i class="fas fa-folder-open mr-2"></i>选择文件上传
+            </button>
         </div>
 
         <!-- 底部输入框 -->
@@ -427,6 +577,13 @@
             const isTyping = ref(false); // 对方是否正在输入
             const toastMessage = ref(''); // Toast 消息
 
+            // 身份选择相关状态
+            const showIdentityPicker = ref(true); // 是否显示身份选择页
+            const identityList = ref([]); // 身份列表
+            const identityLoading = ref(false); // 加载状态
+            const showCreateForm = ref(false); // 显示创建表单
+            const newIdentity = ref({ name: '', sex: '' }); // 新建身份表单数据
+
             // Toast 显示方法
             const showToast = (message, duration = 2000) => {
                 toastMessage.value = message;
@@ -455,6 +612,7 @@
             const waitingForResponse = ref(false); // 等待服务器响应
             const imgServer = ref(''); // 图片服务器地址
             const uploadedImages = ref([]); // 已上传的图片列表
+            const showUploadMenu = ref(false); // 显示上传菜单
             const loadingMore = ref(false); // 加载更多历史消息中
             const firstTidMap = ref({}); // 存储每个聊天的最早消息Tid
 
@@ -475,6 +633,112 @@
             });
 
             // --- 功能逻辑 ---
+
+            // 获取颜色类（用于身份卡片）
+            const getColorClass = (id) => {
+                const colors = ['bg-color-1', 'bg-color-2', 'bg-color-3', 'bg-color-4', 'bg-color-5'];
+                const hash = id.charCodeAt(0) + id.charCodeAt(1);
+                return colors[hash % colors.length];
+            };
+
+            // 加载身份列表
+            const loadIdentityList = async () => {
+                identityLoading.value = true;
+                try {
+                    const response = await fetch(`${API_BASE}/getIdentityList`);
+                    const result = await response.json();
+                    if (result.code === 0) {
+                        identityList.value = result.data || [];
+                        console.log('加载身份列表成功:', identityList.value.length, '个身份');
+                    } else {
+                        console.error('加载身份列表失败:', result.msg);
+                    }
+                } catch (error) {
+                    console.error('加载身份列表出错:', error);
+                } finally {
+                    identityLoading.value = false;
+                }
+            };
+
+            // 选择身份
+            const selectIdentity = async (identity) => {
+                console.log('选择身份:', identity);
+
+                // 更新当前用户信息
+                currentUser.value.id = identity.id;
+                currentUser.value.name = identity.name;
+                currentUser.value.sex = identity.sex;
+
+                // 通知后端更新使用时间
+                try {
+                    await fetch(`${API_BASE}/selectIdentity?id=${identity.id}`, { method: 'POST' });
+                } catch (error) {
+                    console.error('更新身份使用时间失败:', error);
+                }
+
+                // 隐藏身份选择页，进入主页面
+                showIdentityPicker.value = false;
+
+                // 连接WebSocket
+                connectWebSocket();
+            };
+
+            // 创建新身份
+            const createIdentity = async () => {
+                if (!newIdentity.value.name || !newIdentity.value.sex) {
+                    showToast('请填写完整信息');
+                    return;
+                }
+
+                try {
+                    const params = new URLSearchParams();
+                    params.append('name', newIdentity.value.name);
+                    params.append('sex', newIdentity.value.sex);
+
+                    const response = await fetch(`${API_BASE}/createIdentity`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: params
+                    });
+
+                    const result = await response.json();
+                    if (result.code === 0) {
+                        console.log('创建身份成功:', result.data);
+                        showCreateForm.value = false;
+                        newIdentity.value = { name: '', sex: '' };
+
+                        // 选择刚创建的身份
+                        selectIdentity(result.data);
+                    } else {
+                        showToast(result.msg || '创建失败');
+                    }
+                } catch (error) {
+                    console.error('创建身份出错:', error);
+                    showToast('创建失败，请重试');
+                }
+            };
+
+            // 快速创建随机身份
+            const quickCreateIdentity = async () => {
+                identityLoading.value = true;
+                try {
+                    const response = await fetch(`${API_BASE}/quickCreateIdentity`, { method: 'POST' });
+                    const result = await response.json();
+
+                    if (result.code === 0) {
+                        console.log('快速创建身份成功:', result.data);
+                        // 选择刚创建的身份
+                        selectIdentity(result.data);
+                    } else {
+                        showToast(result.msg || '创建失败');
+                    }
+                } catch (error) {
+                    console.error('快速创建身份出错:', error);
+                    showToast('创建失败，请重试');
+                } finally {
+                    identityLoading.value = false;
+                }
+            };
 
             // 0. 上报访问记录
             const reportReferrer = async () => {
@@ -824,6 +1088,7 @@
                             let content = msg.content;
                             let type = 'text';
 
+                            // 检查是否是图片消息
                             if (content.startsWith('[') && content.endsWith(']') &&
                                 (content.includes('.jpg') || content.includes('.png') || content.includes('.jpeg') || content.includes('.gif'))) {
                                 // 提取图片路径
@@ -832,6 +1097,15 @@
                                 content = `http://${imgServer.value}:9006/img/Upload/${imagePath}`;
                                 type = 'image';
                                 console.log('图片消息，拼接URL:', content);
+                            }
+                            // 检查是否是视频消息
+                            else if (content.startsWith('[') && content.endsWith(']') && content.includes('.mp4')) {
+                                // 提取视频路径
+                                const videoPath = content.substring(1, content.length - 1);
+                                // 拼接完整URL
+                                content = `http://${imgServer.value}:9006/img/Upload/${videoPath}`;
+                                type = 'video';
+                                console.log('视频消息，拼接URL:', content);
                             }
 
                             return {
@@ -1076,6 +1350,11 @@
 
             // 4. 文件发送逻辑
             const selectFile = () => {
+                console.log('切换上传菜单');
+                showUploadMenu.value = !showUploadMenu.value;
+            };
+
+            const triggerFileSelect = () => {
                 console.log('选择上传文件');
                 fileInput.value.click();
             };
@@ -1090,6 +1369,9 @@
 
                 console.log('选择文件:', file.name, file.type, file.size);
 
+                // 关闭上传菜单
+                showUploadMenu.value = false;
+
                 // 判断文件类型
                 if (file.type.startsWith('image/')) {
                     // 图片文件 - 上传到服务器
@@ -1102,8 +1384,8 @@
                         currentChatUser.value.lastMsg = '[视频]';
                     }
                 } else {
-                    // 其他文件类型
-                    alert('暂不支持该文件类型: ' + file.type);
+                    // 其他文件类型 - 作为图片上传尝试
+                    await uploadImage(file);
                 }
 
                 e.target.value = ''; // 重置 input
@@ -1475,6 +1757,15 @@
                                 messageType = 'image';
                                 console.log('图片消息，拼接URL:', messageContent);
                             }
+                            // 检查是否是视频消息
+                            else if (messageContent.startsWith('[') && messageContent.endsWith(']') && messageContent.includes('.mp4')) {
+                                // 提取视频路径
+                                const videoPath = messageContent.substring(1, messageContent.length - 1);
+                                // 拼接完整URL
+                                messageContent = `http://${imgServer.value}:9006/img/Upload/${videoPath}`;
+                                messageType = 'video';
+                                console.log('视频消息，拼接URL:', messageContent);
+                            }
 
                             // 获取消息时间
                             const msgTime = data.fromuser.time || new Date().toISOString().replace('T', ' ').substring(0, 23);
@@ -1488,21 +1779,21 @@
                                 // 显示消息
                                 console.log('✓ 显示消息在聊天界面:', messageContent, 'isSelf=', isSelf, 'type=', messageType);
                                 pushMessage(messageType, messageContent, isSelf, msgTime);
-                                currentChatUser.value.lastMsg = messageType === 'image' ? '[图片]' : messageContent;
+                                currentChatUser.value.lastMsg = messageType === 'image' ? '[图片]' : (messageType === 'video' ? '[视频]' : messageContent);
                                 currentChatUser.value.lastTime = '刚刚';
                             } else if (!isSelf) {
                                 // 不在当前聊天界面，但收到消息 - 更新列表
                                 console.log('✓ 更新列表中的消息');
                                 const existingUser = historyUsers.value.find(u => u.id === fromUserId);
                                 if (existingUser) {
-                                    existingUser.lastMsg = messageType === 'image' ? '[图片]' : messageContent;
+                                    existingUser.lastMsg = messageType === 'image' ? '[图片]' : (messageType === 'video' ? '[视频]' : messageContent);
                                     existingUser.lastTime = '刚刚';
                                 } else {
                                     // 如果列表中没有这个用户，添加到列表
                                     const newUser = {
                                         id: fromUserId,
                                         name: fromUserNickname,
-                                        lastMsg: messageType === 'image' ? '[图片]' : messageContent,
+                                        lastMsg: messageType === 'image' ? '[图片]' : (messageType === 'video' ? '[视频]' : messageContent),
                                         lastTime: '刚刚',
                                         isFavorite: false,
                                         colorClass: getRandomColor()
@@ -1607,8 +1898,8 @@
                 };
             };
 
-            // 页面加载时自动连接
-            connectWebSocket();
+            // 页面加载时先加载身份列表（不自动连接WebSocket）
+            loadIdentityList();
 
             // 初始化编辑数据
             initEditMode();
@@ -1619,6 +1910,12 @@
                 activeTab, isMatching, historyUsers, favoriteUsers, displayList,
                 currentChatUser, chatHistory, inputText, fileInput, chatBox,
                 wsConnected, showSettings, currentUser, editMode, editUserInfo, waitingForResponse, imgServer, isTyping, uploadedImages, toastMessage, loadingMore,
+                // 上传菜单相关
+                showUploadMenu, triggerFileSelect,
+                // 身份选择相关
+                showIdentityPicker, identityList, identityLoading, showCreateForm, newIdentity,
+                getColorClass, loadIdentityList, selectIdentity, createIdentity, quickCreateIdentity,
+                // 原有功能
                 startMatch, cancelMatch, enterChat, exitChat, toggleFavorite,
                 sendMessage, selectFile, handleFileUpload, autoResize, previewMedia, sendImageMessage, formatTime, loadMoreHistory,
                 loadHistoryUsers, loadFavoriteUsers, saveUserInfo, initEditMode, switchTab, refreshCurrentList, loadMessageHistory
