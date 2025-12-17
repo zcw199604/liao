@@ -503,4 +503,53 @@ public class UserHistoryController {
         log.info("返回 {} 张缓存图片", cached.imageUrls.size());
         return ResponseEntity.ok(cached.imageUrls);
     }
+
+    /**
+     * 收藏/取消收藏用户
+     */
+    @PostMapping("/toggleFavorite")
+    public ResponseEntity<String> toggleFavorite(
+            @RequestParam String myUserID,
+            @RequestParam String UserToID,
+            @RequestParam(required = false, defaultValue = "") String vipcode,
+            @RequestParam(required = false, defaultValue = "1001") String serverPort,
+            @RequestParam(required = false, defaultValue = "") String cookieData,
+            @RequestParam(required = false, defaultValue = "http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko") String referer,
+            @RequestParam(required = false, defaultValue = "Mozilla/5.0") String userAgent) {
+
+        log.info("收藏操作: myUserID={}, UserToID={}", myUserID, UserToID);
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            headers.set("Host", "v1.chat2019.cn");
+            headers.set("Origin", "http://v1.chat2019.cn");
+            headers.set("Referer", referer);
+            headers.set("User-Agent", userAgent);
+            headers.set("Cookie", cookieData);
+
+            MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+            formData.add("myUserID", myUserID);
+            formData.add("UserToID", UserToID);
+            formData.add("vipcode", vipcode);
+            formData.add("serverPort", serverPort);
+
+            HttpEntity<MultiValueMap<String, String>> requestEntity = new HttpEntity<>(formData, headers);
+
+            String upstreamUrl = "http://v1.chat2019.cn/asmx/method.asmx/random_MyHeart_Do";
+            ResponseEntity<String> response = restTemplate.exchange(
+                upstreamUrl,
+                HttpMethod.POST,
+                requestEntity,
+                String.class
+            );
+
+            log.info("收藏操作响应: {}", response.getBody());
+            return ResponseEntity.ok(response.getBody());
+
+        } catch (Exception e) {
+            log.error("收藏操作失败", e);
+            return ResponseEntity.ok("{\"state\":\"ERROR\",\"msg\":\"" + e.getMessage() + "\"}");
+        }
+    }
 }

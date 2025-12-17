@@ -128,10 +128,17 @@
                         <div v-else class="text-base text-white font-medium">{{ currentUser.name }}</div>
                     </div>
 
-                    <!-- 用户ID（不可修改） -->
+                    <!-- 用户ID -->
                     <div class="bg-[#27272a] rounded-xl p-4">
-                        <div class="text-xs text-gray-500 mb-1">用户ID</div>
-                        <div class="text-base text-white font-mono text-sm break-all">{{ currentUser.id }}</div>
+                        <div class="text-xs text-gray-500 mb-2">用户ID</div>
+                        <input
+                            v-if="editMode"
+                            v-model="editUserInfo.id"
+                            type="text"
+                            class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono text-sm"
+                            placeholder="输入用户ID"
+                        />
+                        <div v-else class="text-base text-white font-mono text-sm break-all">{{ currentUser.id }}</div>
                     </div>
 
                     <!-- 性别 -->
@@ -437,6 +444,7 @@
 
             // 编辑用户信息（副本）
             const editUserInfo = ref({
+                id: '',
                 name: '',
                 sex: ''
             });
@@ -994,8 +1002,41 @@
                 isTyping.value = false; // 清除正在输入状态
             };
 
-            const toggleFavorite = (user) => {
-                user.isFavorite = !user.isFavorite;
+            const toggleFavorite = async (user) => {
+                try {
+                    const myUserID = currentUser.value.id;
+                    const cookieData = generateCookie(myUserID, currentUser.value.name);
+                    const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko';
+                    const userAgent = navigator.userAgent;
+
+                    const params = new URLSearchParams();
+                    params.append('myUserID', myUserID);
+                    params.append('UserToID', user.id);
+                    params.append('vipcode', '');
+                    params.append('serverPort', '1001');
+                    params.append('cookieData', cookieData);
+                    params.append('referer', referer);
+                    params.append('userAgent', userAgent);
+
+                    const response = await fetch(`${API_BASE}/toggleFavorite`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: params
+                    });
+
+                    const data = await response.json();
+                    console.log('收藏操作结果:', data);
+
+                    if (data.state === 'OK') {
+                        user.isFavorite = !user.isFavorite;
+                        showToast(user.isFavorite ? '已收藏' : '已取消收藏');
+                    } else {
+                        showToast('操作失败: ' + (data.msg || '未知错误'));
+                    }
+                } catch (error) {
+                    console.error('收藏操作失败:', error);
+                    showToast('操作失败');
+                }
             };
 
             // 3. 发送消息逻辑
@@ -1228,17 +1269,46 @@
 
             // 保存用户信息
             const saveUserInfo = () => {
-                if (!ws || ws.readyState !== WebSocket.OPEN) {
-                    alert('WebSocket 未连接，无法保存');
-                    return;
-                }
-
+                const idChanged = editUserInfo.value.id !== currentUser.value.id;
                 const nameChanged = editUserInfo.value.name !== currentUser.value.name;
                 const sexChanged = editUserInfo.value.sex !== currentUser.value.sex;
 
-                if (!nameChanged && !sexChanged) {
+                if (!idChanged && !nameChanged && !sexChanged) {
                     alert('没有任何修改');
                     editMode.value = false;
+                    return;
+                }
+
+                // 如果 ID 改变了，断开并重连
+                if (idChanged) {
+                    currentUser.value.id = editUserInfo.value.id;
+                    currentUser.value.name = editUserInfo.value.name;
+                    currentUser.value.sex = editUserInfo.value.sex;
+
+                    // 断开当前 WebSocket
+                    if (ws) {
+                        ws.close();
+                    }
+
+                    // 清空聊天历史和列表
+                    chatHistory.value = {};
+                    historyUsers.value = [];
+                    favoriteUsers.value = [];
+                    historyLoaded.value = false;
+                    favoriteLoaded.value = false;
+                    firstTidMap.value = {};
+
+                    // 重新连接
+                    connectWebSocket();
+
+                    editMode.value = false;
+                    showSettings.value = false;
+                    showToast('用户ID已更新，正在重新连接...');
+                    return;
+                }
+
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    alert('WebSocket 未连接，无法保存');
                     return;
                 }
 
@@ -1292,6 +1362,7 @@
 
             // 监听编辑模式，初始化编辑数据
             const initEditMode = () => {
+                editUserInfo.value.id = currentUser.value.id;
                 editUserInfo.value.name = currentUser.value.name;
                 editUserInfo.value.sex = currentUser.value.sex;
             };
