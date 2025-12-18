@@ -316,7 +316,7 @@ public class UserHistoryController {
             // 调用上游接口
             ResponseEntity<String> response = restTemplate.postForEntity(UPSTREAM_MSG_HISTORY_URL, request, String.class);
 
-            log.info("消息历史接口返回: status={}, body={}", response.getStatusCode(), response.getBody());
+//            log.info("消息历史接口返回: status={}, body={}", response.getStatusCode(), response.getBody());
 
             return ResponseEntity.ok(response.getBody());
 
