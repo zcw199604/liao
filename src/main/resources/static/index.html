@@ -1342,14 +1342,18 @@
             };
 
             // 2. 聊天室逻辑
-            const enterChat = async (user) => {
-                console.log('进入聊天界面, user=', user);
+            const enterChat = async (user, loadHistory = true) => {
+                console.log('进入聊天界面, user=', user, 'loadHistory=', loadHistory);
                 currentChatUser.value = user;
                 isTyping.value = false; // 清除正在输入状态
 
-                // 加载消息历史
-                console.log('准备加载消息历史, user.id=', user.id);
-                await loadMessageHistory(user.id);
+                // 根据参数决定是否加载历史消息
+                if (loadHistory) {
+                    console.log('加载消息历史, user.id=', user.id);
+                    await loadMessageHistory(user.id);
+                } else {
+                    console.log('跳过历史消息加载（通过匹配进入）');
+                }
 
                 scrollToBottom();
             };
@@ -1983,8 +1987,8 @@
                                 { type: 'text', content: '匹配成功，开始聊天吧！', isSelf: false }
                             ];
 
-                            // 直接进入聊天
-                            enterChat(matchedUser);
+                            // 直接进入聊天（不加载历史记录）
+                            enterChat(matchedUser, false);
                             return;
                         }
 
