@@ -1542,7 +1542,11 @@
                     params.append('referer', referer);
                     params.append('userAgent', userAgent);
 
-                    const response = await fetch(`${API_BASE}/toggleFavorite`, {
+                    // 根据当前收藏状态选择接口
+                    const apiUrl = user.isFavorite ? `${API_BASE}/cancelFavorite` : `${API_BASE}/toggleFavorite`;
+                    console.log('调用接口:', apiUrl, 'isFavorite=', user.isFavorite);
+
+                    const response = await fetch(apiUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                         body: params
@@ -1551,9 +1555,9 @@
                     const data = await response.json();
                     console.log('收藏操作结果:', data);
 
-                    if (data.state === 'OK') {
+                    if (data.code === '0' || data.status === 'true') {
                         user.isFavorite = !user.isFavorite;
-                        showToast(user.isFavorite ? '已收藏' : '已取消收藏');
+                        showToast(user.isFavorite ? '收藏成功' : '取消收藏成功');
                     } else {
                         showToast('操作失败: ' + (data.msg || '未知错误'));
                     }
