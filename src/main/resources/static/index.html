@@ -1093,15 +1093,26 @@
             // 切换 Tab 时加载对应数据
             const switchTab = (tab) => {
                 console.log('切换到 Tab:', tab);
-                activeTab.value = tab;
-                if (tab === 'history') {
-                    console.log('准备加载历史用户列表');
-                    historyLoaded.value = false; // 重置标志，强制重新加载
-                    loadHistoryUsers();
-                } else if (tab === 'favorites') {
-                    console.log('准备加载收藏用户列表');
-                    favoriteLoaded.value = false; // 重置标志，强制重新加载
-                    loadFavoriteUsers();
+
+                // 如果点击的是当前Tab，强制刷新
+                if (activeTab.value === tab) {
+                    console.log('点击当前Tab，强制刷新');
+                    if (tab === 'history') {
+                        historyLoaded.value = false;
+                        loadHistoryUsers();
+                    } else if (tab === 'favorites') {
+                        favoriteLoaded.value = false;
+                        loadFavoriteUsers();
+                    }
+                } else {
+                    // 切换到不同Tab，不强制刷新（首次会自动加载）
+                    console.log('切换到不同Tab');
+                    activeTab.value = tab;
+                    if (tab === 'history') {
+                        loadHistoryUsers(); // 内部检查 historyLoaded
+                    } else if (tab === 'favorites') {
+                        loadFavoriteUsers(); // 内部检查 favoriteLoaded
+                    }
                 }
             };
 
