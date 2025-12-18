@@ -9,7 +9,7 @@ import org.springframework.web.socket.WebSocketSession;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 
 /**
  * 上游 WebSocket 管理器
@@ -28,6 +28,15 @@ public class UpstreamWebSocketManager {
     // 用户ID -> 下游客户端列表
     private final Map<String, List<WebSocketSession>> downstreamSessions = new ConcurrentHashMap<>();
 
+    // 延迟关闭任务映射
+    private final Map<String, ScheduledFuture<?>> pendingCloseTasks = new ConcurrentHashMap<>();
+
+    // 延迟关闭定时器
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+
+    // 延迟时间：30秒
+    private static final long CLOSE_DELAY_SECONDS = 30;
+
     public UpstreamWebSocketManager(WebSocketAddressService addressService) {
         this.addressService = addressService;
     }
@@ -40,6 +49,13 @@ public class UpstreamWebSocketManager {
      */
     public void registerDownstream(String userId, WebSocketSession session, String signMessage) {
         log.info("注册客户端: userId={}, sessionId={}", userId, session.getId());
+
+        // 如果有待执行的关闭任务，取消它
+        ScheduledFuture<?> pendingTask = pendingCloseTasks.remove(userId);
+        if (pendingTask != null && !pendingTask.isDone()) {
+            pendingTask.cancel(false);
+            log.info("用户 {} 重新连接，取消关闭上游连接任务", userId);
+        }
 
         // 添加到下游会话列表
         downstreamSessions.computeIfAbsent(userId, k -> new ArrayList<>()).add(session);
@@ -66,11 +82,11 @@ public class UpstreamWebSocketManager {
         if (sessions != null) {
             sessions.remove(session);
 
-            // 如果该用户已经没有下游连接了，关闭上游连接
+            // 如果该用户已经没有下游连接了，延迟关闭上游连接
             if (sessions.isEmpty()) {
-                log.info("用户 {} 的所有客户端已断开，关闭上游连接", userId);
+                log.info("用户 {} 的所有客户端已断开，延迟{}秒关闭上游连接", userId, CLOSE_DELAY_SECONDS);
                 downstreamSessions.remove(userId);
-                closeUpstreamConnection(userId);
+                scheduleCloseUpstream(userId);
             }
         }
     }
@@ -165,6 +181,34 @@ public class UpstreamWebSocketManager {
         } catch (Exception e) {
             log.error("创建上游连接失败: userId={}", userId, e);
         }
+    }
+
+    /**
+     * 调度延迟关闭上游连接
+     * @param userId 用户ID
+     */
+    private void scheduleCloseUpstream(String userId) {
+        // 如果已有待执行的任务，先取消
+        ScheduledFuture<?> existingTask = pendingCloseTasks.get(userId);
+        if (existingTask != null && !existingTask.isDone()) {
+            existingTask.cancel(false);
+        }
+
+        // 调度新的延迟关闭任务
+        ScheduledFuture<?> task = scheduler.schedule(() -> {
+            // 再次检查是否有下游连接
+            List<WebSocketSession> sessions = downstreamSessions.get(userId);
+            if (sessions == null || sessions.isEmpty()) {
+                log.info("延迟时间到，关闭用户 {} 的上游连接", userId);
+                closeUpstreamConnection(userId);
+            } else {
+                log.info("用户 {} 已重新连接，取消关闭上游连接", userId);
+            }
+            pendingCloseTasks.remove(userId);
+        }, CLOSE_DELAY_SECONDS, TimeUnit.SECONDS);
+
+        pendingCloseTasks.put(userId, task);
+        log.info("已调度延迟关闭任务: userId={}, 延迟{}秒", userId, CLOSE_DELAY_SECONDS);
     }
 
     /**
