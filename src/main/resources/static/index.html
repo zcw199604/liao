@@ -986,21 +986,23 @@
                         return;
                     }
 
-                    // 转换数据格式
-                    historyUsers.value = data.map(user => ({
-                        id: user.id,
-                        name: user.nickname,
-                        lastMsg: '暂无消息',
-                        lastTime: '刚刚',
-                        isFavorite: false,
-                        colorClass: getRandomColor(),
-                        sex: user.sex || user.userSex || '未知',
-                        age: user.age || user.userAge || '0',
-                        address: user.address || user.userAddress || '未知'
-                    }));
+                    // 转换数据格式，并过滤掉自己
+                    historyUsers.value = data
+                        .filter(user => user.id !== currentUser.value.id)  // 过滤掉自己
+                        .map(user => ({
+                            id: user.id,
+                            name: user.nickname,
+                            lastMsg: '暂无消息',
+                            lastTime: '刚刚',
+                            isFavorite: false,
+                            colorClass: getRandomColor(),
+                            sex: user.sex || user.userSex || '未知',
+                            age: user.age || user.userAge || '0',
+                            address: user.address || user.userAddress || '未知'
+                        }));
 
                     historyLoaded.value = true;
-                    console.log('历史用户列表加载完成:', historyUsers.value.length);
+                    console.log('历史用户列表加载完成（已过滤自己）:', historyUsers.value.length);
                 } catch (error) {
                     console.error('加载历史用户失败:', error);
                     historyUsers.value = [];
@@ -1057,21 +1059,23 @@
                         return;
                     }
 
-                    // 转换数据格式
-                    favoriteUsers.value = data.map(user => ({
-                        id: user.id,
-                        name: user.nickname,
-                        lastMsg: '暂无消息',
-                        lastTime: '刚刚',
-                        isFavorite: true,
-                        colorClass: getRandomColor(),
-                        sex: user.sex || user.userSex || '未知',
-                        age: user.age || user.userAge || '0',
-                        address: user.address || user.userAddress || '未知'
-                    }));
+                    // 转换数据格式，并过滤掉自己
+                    favoriteUsers.value = data
+                        .filter(user => user.id !== currentUser.value.id)  // 过滤掉自己
+                        .map(user => ({
+                            id: user.id,
+                            name: user.nickname,
+                            lastMsg: '暂无消息',
+                            lastTime: '刚刚',
+                            isFavorite: true,
+                            colorClass: getRandomColor(),
+                            sex: user.sex || user.userSex || '未知',
+                            age: user.age || user.userAge || '0',
+                            address: user.address || user.userAddress || '未知'
+                        }));
 
                     favoriteLoaded.value = true;
-                    console.log('收藏用户列表加载完成:', favoriteUsers.value.length);
+                    console.log('收藏用户列表加载完成（已过滤自己）:', favoriteUsers.value.length);
                 } catch (error) {
                     console.error('加载收藏用户失败:', error);
                     favoriteUsers.value = [];
@@ -1854,8 +1858,8 @@
                         // 尝试解析 JSON
                         const data = JSON.parse(event.data);
 
-                        // 过滤系统消息（code: 12, 18, 19 等），用 toast 显示
-                        if (data.code === 12 || data.code === 18 || data.code === 19) {
+                        // 过滤系统消息（code: 12, 16, 18, 19 等），用 toast 显示
+                        if (data.code === 12 || data.code === 16 || data.code === 18 || data.code === 19) {
                             console.log('系统消息，toast显示:', data);
                             if (data.content) {
                                 showToast(data.content);
@@ -1953,15 +1957,20 @@
                                     existingUser.lastTime = '刚刚';
                                 } else {
                                     // 如果列表中没有这个用户，添加到列表
-                                    const newUser = {
-                                        id: fromUserId,
-                                        name: fromUserNickname,
-                                        lastMsg: messageType === 'image' ? '[图片]' : (messageType === 'video' ? '[视频]' : messageContent),
-                                        lastTime: '刚刚',
-                                        isFavorite: false,
-                                        colorClass: getRandomColor()
-                                    };
-                                    historyUsers.value.unshift(newUser);
+                                    // 额外检查：确保不是自己（双重保险）
+                                    if (fromUserId !== currentUser.value.id) {
+                                        const newUser = {
+                                            id: fromUserId,
+                                            name: fromUserNickname,
+                                            lastMsg: messageType === 'image' ? '[图片]' : (messageType === 'video' ? '[视频]' : messageContent),
+                                            lastTime: '刚刚',
+                                            isFavorite: false,
+                                            colorClass: getRandomColor()
+                                        };
+                                        historyUsers.value.unshift(newUser);
+                                    } else {
+                                        console.log('忽略添加自己到列表');
+                                    }
                                 }
 
                                 // 初始化聊天记录（如果不存在）
@@ -1999,10 +2008,8 @@
                             // 添加到历史列表并置顶
                             historyUsers.value.unshift(matchedUser);
 
-                            // 初始化聊天记录
-                            chatHistory.value[matchedUser.id] = [
-                                { type: 'text', content: '匹配成功，开始聊天吧！', isSelf: false }
-                            ];
+                            // 初始化为空聊天记录
+                            chatHistory.value[matchedUser.id] = [];
 
                             // 直接进入聊天（不加载历史记录）
                             enterChat(matchedUser, false);
