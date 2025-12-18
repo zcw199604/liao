@@ -1218,8 +1218,8 @@
                             else if (content.startsWith('[') && content.endsWith(']') && content.includes('.mp4')) {
                                 // 提取视频路径
                                 const videoPath = content.substring(1, content.length - 1);
-                                // 拼接完整URL
-                                content = `http://${imgServer.value}:9006/img/Upload/${videoPath}`;
+                                // 拼接完整URL（视频端口8006）
+                                content = `http://${imgServer.value}:8006/img/Upload/${videoPath}`;
                                 type = 'video';
                                 console.log('视频消息，拼接URL:', content);
                             }
@@ -1307,11 +1307,18 @@
                             let content = msg.content;
                             let type = 'text';
 
+                            // 检查是否是图片消息
                             if (content.startsWith('[') && content.endsWith(']') &&
                                 (content.includes('.jpg') || content.includes('.png') || content.includes('.jpeg') || content.includes('.gif'))) {
                                 const imagePath = content.substring(1, content.length - 1);
                                 content = `http://${imgServer.value}:9006/img/Upload/${imagePath}`;
                                 type = 'image';
+                            }
+                            // 检查是否是视频消息
+                            else if (content.startsWith('[') && content.endsWith(']') && content.includes('.mp4')) {
+                                const videoPath = content.substring(1, content.length - 1);
+                                content = `http://${imgServer.value}:8006/img/Upload/${videoPath}`;
+                                type = 'video';
                             }
 
                             return { type, content, isSelf, time: msg.time, nickname: msg.nickname, tid: msg.Tid };
@@ -1569,9 +1576,10 @@
 
                     // 检查上传结果
                     if (data.state === 'OK' && data.msg) {
-                        // 构造文件完整URL（端口9006，路径前缀 /img/Upload/）
-                        const mediaUrl = `http://${imgServer.value}:9006/img/Upload/${data.msg}`;
-                        console.log('文件服务器URL:', mediaUrl);
+                        // 构造文件完整URL（图片端口9006，视频端口8006）
+                        const port = fileType === 'video' ? '8006' : '9006';
+                        const mediaUrl = `http://${imgServer.value}:${port}/img/Upload/${data.msg}`;
+                        console.log('文件服务器URL:', mediaUrl, '端口:', port);
 
                         // 添加到已上传媒体列表开头（最新在前）
                         uploadedMedia.value.unshift({ url: mediaUrl, type: fileType });
@@ -1944,8 +1952,8 @@
                             else if (messageContent.startsWith('[') && messageContent.endsWith(']') && messageContent.includes('.mp4')) {
                                 // 提取视频路径
                                 const videoPath = messageContent.substring(1, messageContent.length - 1);
-                                // 拼接完整URL
-                                messageContent = `http://${imgServer.value}:9006/img/Upload/${videoPath}`;
+                                // 拼接完整URL（视频端口8006）
+                                messageContent = `http://${imgServer.value}:8006/img/Upload/${videoPath}`;
                                 messageType = 'video';
                                 console.log('视频消息，拼接URL:', messageContent);
                             }
