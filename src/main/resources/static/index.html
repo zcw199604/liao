@@ -479,7 +479,12 @@
             <div v-for="(msg, index) in chatHistory[currentChatUser.id] || []" :key="index"
                  class="flex flex-col w-full mb-3" :class="msg.isSelf ? 'items-end' : 'items-start'">
 
-                <div v-if="msg.time" class="text-xs text-gray-500 mb-1" :class="msg.isSelf ? 'mr-1' : 'ml-1'">{{ formatTime(msg.time) }}</div>
+                <!-- 昵称 + 时间 -->
+                <div class="text-xs text-gray-500 mb-1 flex items-center gap-2" :class="msg.isSelf ? 'mr-1 justify-end' : 'ml-1'">
+                    <span v-if="msg.nickname" class="font-medium">{{ msg.nickname }}</span>
+                    <span v-if="msg.time">{{ formatTime(msg.time) }}</span>
+                </div>
+
                 <div class="msg-bubble" :class="msg.isSelf ? 'msg-right' : 'msg-left'">
                     <!-- 文本（支持表情解析） -->
                     <span v-if="msg.type === 'text'" v-html="parseEmoji(msg.content)"></span>
@@ -1737,12 +1742,12 @@
             };
 
             // 辅助函数
-            const pushMessage = (type, content, isSelf, time = null) => {
+            const pushMessage = (type, content, isSelf, time = null, nickname = null) => {
                 const uid = currentChatUser.value.id;
                 if (!chatHistory.value[uid]) chatHistory.value[uid] = [];
                 // 如果没有传入时间，使用当前时间
                 const msgTime = time || new Date().toISOString().replace('T', ' ').substring(0, 23);
-                chatHistory.value[uid].push({ type, content, isSelf, time: msgTime });
+                chatHistory.value[uid].push({ type, content, isSelf, time: msgTime, nickname });
                 scrollToBottom();
             };
 
@@ -2107,7 +2112,7 @@
 
                                 // 显示消息
                                 console.log('✓ 显示消息在聊天界面:', messageContent, 'isSelf=', isSelf, 'type=', messageType);
-                                pushMessage(messageType, messageContent, isSelf, msgTime);
+                                pushMessage(messageType, messageContent, isSelf, msgTime, data.fromuser.nickname);
                                 currentChatUser.value.lastMsg = messageType === 'image' ? '[图片]' : (messageType === 'video' ? '[视频]' : messageContent);
                                 currentChatUser.value.lastTime = '刚刚';
                             } else if (!isSelf) {
@@ -2202,14 +2207,14 @@
                         // 如果当前在聊天界面，显示收到的消息
                         if (currentChatUser.value) {
                             const messageContent = data.content || event.data;
-                            pushMessage('text', messageContent, false);
+                            pushMessage('text', messageContent, false, null, currentChatUser.value.name);
                             currentChatUser.value.lastMsg = messageContent;
                             currentChatUser.value.lastTime = '刚刚';
                         }
                     } catch (e) {
                         // 如果不是 JSON，直接显示
                         if (currentChatUser.value) {
-                            pushMessage('text', event.data, false);
+                            pushMessage('text', event.data, false, null, currentChatUser.value.name);
                             currentChatUser.value.lastMsg = event.data;
                             currentChatUser.value.lastTime = '刚刚';
                         }
