@@ -388,7 +388,7 @@
         </div>
 
         <!-- 列表内容 -->
-        <div class="list-area no-scrollbar px-4 pt-2">
+        <div ref="listArea" class="list-area no-scrollbar px-4 pt-2">
             <div v-for="user in displayList" :key="user.id" @click="enterChat(user)" 
                  class="flex items-center p-4 mb-3 bg-[#18181b] rounded-2xl active:scale-[0.98] transition-transform duration-100">
                 
@@ -612,6 +612,8 @@
             const inputText = ref('');
             const fileInput = ref(null);
             const chatBox = ref(null);
+            const listArea = ref(null); // 列表区域引用
+            const savedScrollPosition = ref(0); // 保存的滚动位置
             const showSettings = ref(false); // 显示设置面板
             const editMode = ref(false); // 编辑模式
             const isTyping = ref(false); // 对方是否正在输入
@@ -921,11 +923,12 @@
 
                     if (Array.isArray(data)) {
                         // 将URL数组转换为媒体对象数组（根据扩展名判断类型）
-                        uploadedMedia.value = data.map(url => ({
+                        // 倒序排列，最新上传的在前面
+                        uploadedMedia.value = data.reverse().map(url => ({
                             url: url,
                             type: url.toLowerCase().endsWith('.mp4') ? 'video' : 'image'
                         }));
-                        console.log('加载了', data.length, '个缓存文件');
+                        console.log('加载了', data.length, '个缓存文件（倒序显示）');
                     }
 
                 } catch (error) {
@@ -1344,6 +1347,13 @@
             // 2. 聊天室逻辑
             const enterChat = async (user, loadHistory = true) => {
                 console.log('进入聊天界面, user=', user, 'loadHistory=', loadHistory);
+
+                // 保存当前列表的滚动位置
+                if (listArea.value) {
+                    savedScrollPosition.value = listArea.value.scrollTop;
+                    console.log('保存滚动位置:', savedScrollPosition.value);
+                }
+
                 currentChatUser.value = user;
                 isTyping.value = false; // 清除正在输入状态
 
@@ -1351,16 +1361,23 @@
                 if (loadHistory) {
                     console.log('加载消息历史, user.id=', user.id);
                     await loadMessageHistory(user.id);
-                } else {
-                    console.log('跳过历史消息加载（通过匹配进入）');
                 }
 
+                // 直接滚动到最新消息
                 scrollToBottom();
             };
 
             const exitChat = () => {
                 currentChatUser.value = null;
                 isTyping.value = false; // 清除正在输入状态
+
+                // 恢复列表的滚动位置
+                nextTick(() => {
+                    if (listArea.value && savedScrollPosition.value > 0) {
+                        listArea.value.scrollTop = savedScrollPosition.value;
+                        console.log('恢复滚动位置:', savedScrollPosition.value);
+                    }
+                });
             };
 
             const toggleFavorite = async (user) => {
@@ -1528,8 +1545,8 @@
                         const mediaUrl = `http://${imgServer.value}:9006/img/Upload/${data.msg}`;
                         console.log('文件服务器URL:', mediaUrl);
 
-                        // 添加到已上传媒体列表（保存到前面，最新在前）
-                        uploadedMedia.value.push({ url: mediaUrl, type: fileType });
+                        // 添加到已上传媒体列表开头（最新在前）
+                        uploadedMedia.value.unshift({ url: mediaUrl, type: fileType });
                         console.log('已保存到上传历史，当前共', uploadedMedia.value.length, '个文件');
 
                         // 不关闭菜单，让用户预览并选择是否发送
@@ -2054,7 +2071,7 @@
 
             return {
                 activeTab, isMatching, historyUsers, favoriteUsers, displayList,
-                currentChatUser, chatHistory, inputText, fileInput, chatBox,
+                currentChatUser, chatHistory, inputText, fileInput, chatBox, listArea,
                 wsConnected, showSettings, currentUser, editMode, editUserInfo, waitingForResponse, imgServer, isTyping, uploadedMedia, toastMessage, loadingMore,
                 // 上传菜单相关
                 showUploadMenu, triggerFileSelect, sendMediaMessage,
