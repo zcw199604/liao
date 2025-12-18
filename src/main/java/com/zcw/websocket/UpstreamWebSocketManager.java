@@ -35,7 +35,7 @@ public class UpstreamWebSocketManager {
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     // 延迟时间：30秒
-    private static final long CLOSE_DELAY_SECONDS = 30;
+    private static final long CLOSE_DELAY_SECONDS = 80;
 
     public UpstreamWebSocketManager(WebSocketAddressService addressService) {
         this.addressService = addressService;
@@ -60,12 +60,15 @@ public class UpstreamWebSocketManager {
         // 添加到下游会话列表
         downstreamSessions.computeIfAbsent(userId, k -> new ArrayList<>()).add(session);
 
-        // 如果该用户还没有上游连接，创建一个
-        if (!upstreamClients.containsKey(userId)) {
-            log.info("用户 {} 首次连接，创建上游连接", userId);
-            createUpstreamConnection(userId, signMessage);
-        } else {
-            log.info("用户 {} 复用已有上游连接", userId);
+        // 同步块：确保上游连接创建的线程安全
+        synchronized (this) {
+            // 如果该用户还没有上游连接，创建一个
+            if (!upstreamClients.containsKey(userId)) {
+                log.info("用户 {} 首次连接，创建上游连接", userId);
+                createUpstreamConnection(userId, signMessage);
+            } else {
+                log.info("用户 {} 复用已有上游连接", userId);
+            }
         }
     }
 
