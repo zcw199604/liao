@@ -409,6 +409,12 @@
                         <i v-if="user.isFavorite && activeTab === 'history'" class="fas fa-star text-xs text-yellow-500"></i>
                     </div>
                 </div>
+
+                <!-- 未读消息数气泡 -->
+                <span v-if="user.unreadCount > 0"
+                    class="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full min-w-[20px] text-center font-medium ml-2">
+                    {{ user.unreadCount }}
+                </span>
             </div>
 
             <!-- 空状态提示 -->
@@ -1005,7 +1011,8 @@
                             colorClass: getRandomColor(),
                             sex: user.sex || user.userSex || '未知',
                             age: user.age || user.userAge || '0',
-                            address: user.address || user.userAddress || '未知'
+                            address: user.address || user.userAddress || '未知',
+                            unreadCount: 0  // 未读消息数
                         }));
 
                     historyLoaded.value = true;
@@ -1078,7 +1085,8 @@
                             colorClass: getRandomColor(),
                             sex: user.sex || user.userSex || '未知',
                             age: user.age || user.userAge || '0',
-                            address: user.address || user.userAddress || '未知'
+                            address: user.address || user.userAddress || '未知',
+                            unreadCount: 0  // 未读消息数
                         }));
 
                     favoriteLoaded.value = true;
@@ -1376,6 +1384,12 @@
                     console.log('保存滚动位置:', savedScrollPosition.value);
                 }
 
+                // 清零未读消息数
+                if (user.unreadCount && user.unreadCount > 0) {
+                    console.log('清零未读消息数:', user.unreadCount, '→ 0');
+                    user.unreadCount = 0;
+                }
+
                 currentChatUser.value = user;
                 isTyping.value = false; // 清除正在输入状态
 
@@ -1455,22 +1469,14 @@
                     };
 
                     ws.send(JSON.stringify(toUserMessage));
-                    console.log('发送消息:', toUserMessage);
+                    console.log('发送消息，等待服务器回显:', toUserMessage);
                 } else {
                     console.error('WebSocket 未连接');
                     alert('连接已断开，请刷新页面重试');
                     return;
                 }
 
-                // 显示自己发送的消息
-                pushMessage('text', message, true);
-
-                // 更新列表显示的最新消息
-                if (currentChatUser.value) {
-                    currentChatUser.value.lastMsg = message;
-                    currentChatUser.value.lastTime = '刚刚';
-                }
-
+                // 清空输入框
                 inputText.value = '';
             };
 
@@ -1658,18 +1664,10 @@
 
                 // 发送到 WebSocket
                 ws.send(JSON.stringify(message));
-                console.log('发送媒体消息:', message);
+                console.log('发送媒体消息，等待服务器回显:', message);
 
                 // 关闭菜单
                 showUploadMenu.value = false;
-
-                // 显示到聊天界面
-                pushMessage(media.type, media.url, true);
-                if (currentChatUser.value) {
-                    currentChatUser.value.lastMsg = media.type === 'image' ? '[图片]' : '[视频]';
-                }
-
-                console.log('媒体消息已发送并显示');
             };
 
             // 发送已上传的图片（兼容旧调用）
@@ -1920,14 +1918,14 @@
                             console.log('消息内容:', messageContent);
                             console.log('当前聊天对象:', currentChatUser.value ? currentChatUser.value.id : '无');
 
-                            // 判断是不是自己发送的消息
-                            const isSelf = fromUserId === currentUser.value.id;
-                            console.log('isSelf=', isSelf);
+                            // 判断是不是自己发送的消息（通过nickname判断，因为fromuser.id是随机会话ID）
+                            const isSelf = data.fromuser.nickname === currentUser.value.name;
+                            console.log('isSelf=', isSelf, '(通过nickname判断)');
 
-                            // 判断是否应该显示这条消息
-                            const shouldDisplay =
-                                (currentChatUser.value && currentChatUser.value.id === fromUserId) ||
-                                (currentChatUser.value && currentChatUser.value.id === toUserId && isSelf);
+                            // 判断是否应该显示这条消息（通过nickname判断）
+                            const shouldDisplay = currentChatUser.value &&
+                                (data.fromuser.nickname === currentChatUser.value.name ||
+                                 (data.touser && data.touser.nickname === currentChatUser.value.name));
 
                             console.log('shouldDisplay=', shouldDisplay);
 
@@ -1973,6 +1971,7 @@
                                 if (existingUser) {
                                     existingUser.lastMsg = messageType === 'image' ? '[图片]' : (messageType === 'video' ? '[视频]' : messageContent);
                                     existingUser.lastTime = '刚刚';
+                                    existingUser.unreadCount = (existingUser.unreadCount || 0) + 1;  // 未读数+1
                                 } else {
                                     // 如果列表中没有这个用户，添加到列表
                                     // 额外检查：确保不是自己（双重保险）
@@ -1983,7 +1982,8 @@
                                             lastMsg: messageType === 'image' ? '[图片]' : (messageType === 'video' ? '[视频]' : messageContent),
                                             lastTime: '刚刚',
                                             isFavorite: false,
-                                            colorClass: getRandomColor()
+                                            colorClass: getRandomColor(),
+                                            unreadCount: 1  // 新用户且有一条新消息
                                         };
                                         historyUsers.value.unshift(newUser);
                                     } else {
@@ -2020,7 +2020,8 @@
                                 colorClass: getRandomColor(),
                                 sex: data.sel_userSex || '未知',
                                 age: data.sel_userAge || '未知',
-                                address: data.sel_userAddress || '未知'
+                                address: data.sel_userAddress || '未知',
+                                unreadCount: 0  // 未读消息数
                             };
 
                             // 添加到历史列表并置顶
