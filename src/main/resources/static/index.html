@@ -467,7 +467,7 @@
         </div>
 
         <!-- 聊天内容 (无头像) -->
-        <div class="chat-area flex flex-col no-scrollbar" ref="chatBox">
+        <div class="chat-area flex flex-col no-scrollbar" ref="chatBox" @click="closeAllPanels">
             <!-- 加载更多历史消息按钮 -->
             <div class="flex justify-center py-3">
                 <button @click="loadMoreHistory" :disabled="loadingMore" class="px-4 py-2 bg-[#27272a] text-gray-400 text-sm rounded-full active:bg-[#3a3a3f] disabled:opacity-50">
@@ -506,7 +506,7 @@
         </div>
 
         <!-- 上传菜单面板 -->
-        <div v-if="showUploadMenu" class="bg-[#1a1a1d] border-t border-gray-800 p-4 max-h-60 overflow-y-auto">
+        <div v-if="showUploadMenu" class="bg-[#1a1a1d] border-t border-gray-800 p-4 max-h-60 overflow-y-auto" @click.stop>
             <!-- 已上传媒体列表 -->
             <div v-if="uploadedMedia.length > 0" class="mb-3">
                 <div class="text-xs text-gray-500 mb-2">已上传的文件（点击发送）</div>
@@ -534,13 +534,13 @@
         </div>
 
         <!-- 表情选择面板 -->
-        <div v-if="showEmojiPanel" class="bg-[#1a1a1d] border-t border-gray-800 p-4 max-h-60 overflow-y-auto">
+        <div v-if="showEmojiPanel" class="bg-[#1a1a1d] border-t border-gray-800 p-4 max-h-60 overflow-y-auto" @click.stop>
             <div class="text-xs text-gray-500 mb-3">选择表情</div>
-            <div class="grid grid-cols-7 gap-2">
+            <div class="grid grid-cols-10 gap-1.5">
                 <div v-for="(url, name) in emojiMap" :key="name"
                     @click="insertEmoji(name)"
                     class="cursor-pointer hover:bg-[#27272a] rounded p-1 transition flex items-center justify-center">
-                    <img :src="url" class="w-8 h-8">
+                    <img :src="url" class="w-5 h-5">
                 </div>
             </div>
         </div>
@@ -548,8 +548,8 @@
         <!-- 底部输入框 -->
         <div class="bg-[#18181b] px-4 py-3 pb-safe flex items-end border-t border-gray-800">
             <div class="flex items-center gap-2 mr-3 mb-1">
-                <i class="fas fa-plus-circle text-2xl text-gray-400 active:text-white transition" @click="selectFile"></i>
-                <i class="fas fa-smile text-2xl text-gray-400 active:text-yellow-400 transition" @click="toggleEmojiPanel"></i>
+                <i class="fas fa-plus-circle text-2xl text-gray-400 active:text-white transition" @click.stop="selectFile"></i>
+                <i class="fas fa-smile text-2xl text-gray-400 active:text-yellow-400 transition" @click.stop="toggleEmojiPanel"></i>
                 <input type="file" ref="fileInput" class="hidden" @change="handleFileUpload">
             </div>
 
@@ -1617,6 +1617,12 @@
                 showEmojiPanel.value = false;
             };
 
+            // 关闭所有面板
+            const closeAllPanels = () => {
+                showUploadMenu.value = false;
+                showEmojiPanel.value = false;
+            };
+
             // 解析文本中的表情为HTML
             const parseEmoji = (text) => {
                 if (!text) return '';
@@ -2241,7 +2247,7 @@
                 // 上传菜单相关
                 showUploadMenu, triggerFileSelect, sendMediaMessage,
                 // 表情相关
-                emojiMap, showEmojiPanel, toggleEmojiPanel, insertEmoji, parseEmoji,
+                emojiMap, showEmojiPanel, toggleEmojiPanel, insertEmoji, parseEmoji, closeAllPanels,
                 // 身份选择相关
                 showIdentityPicker, identityList, identityLoading, showCreateForm, newIdentity, deleteConfirmIdentity,
                 getColorClass, loadIdentityList, selectIdentity, createIdentity, quickCreateIdentity, showDeleteConfirm, confirmDeleteIdentity,
