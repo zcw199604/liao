@@ -1722,16 +1722,17 @@
                         uploadedMedia.value.unshift({ url: mediaUrl, type: fileType });
                         console.log('已保存到上传历史，当前共', uploadedMedia.value.length, '个文件');
 
-                        // 不关闭菜单，让用户预览并选择是否发送
-                        console.log('文件上传成功，保持在上传菜单预览');
+                        // 显示上传成功提示
+                        const fileTypeName = fileType === 'image' ? '图片' : fileType === 'video' ? '视频' : '文件';
+                        showToast(`${fileTypeName}上传成功`);
 
                     } else {
-                        alert('文件上传失败: ' + (data.error || '未知错误'));
+                        showToast('文件上传失败: ' + (data.error || '未知错误'));
                     }
 
                 } catch (error) {
                     console.error('上传文件异常:', error);
-                    alert('文件上传异常: ' + error.message);
+                    showToast('文件上传异常: ' + error.message);
                 }
             };
 
