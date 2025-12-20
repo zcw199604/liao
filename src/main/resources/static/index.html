@@ -249,12 +249,12 @@
         <div class="absolute right-0 top-0 bottom-0 w-80 bg-[#18181b] shadow-2xl overflow-y-auto" @click.stop>
             <!-- 头部 -->
             <div class="h-14 flex items-center justify-between px-4 border-b border-gray-800">
-                <h2 class="text-lg font-bold">用户信息</h2>
+                <h2 class="text-lg font-bold">{{ settingsMode === 'identity' ? '身份信息' : '系统设置' }}</h2>
                 <div class="flex items-center gap-2">
-                    <button v-if="!editMode" @click="editMode = true; initEditMode()" class="px-3 py-1 bg-indigo-600 text-white text-sm rounded-lg">
+                    <button v-if="settingsMode === 'identity' && !editMode" @click="editMode = true; initEditMode()" class="px-3 py-1 bg-indigo-600 text-white text-sm rounded-lg">
                         编辑
                     </button>
-                    <button v-else @click="saveUserInfo" :disabled="waitingForResponse" class="px-3 py-1 bg-green-600 text-white text-sm rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                    <button v-else-if="settingsMode === 'identity' && editMode" @click="saveUserInfo" :disabled="waitingForResponse" class="px-3 py-1 bg-green-600 text-white text-sm rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
                         <span v-if="waitingForResponse" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                         <span>{{ waitingForResponse ? '保存中...' : '保存' }}</span>
                     </button>
@@ -264,8 +264,8 @@
                 </div>
             </div>
 
-            <!-- 用户信息内容 -->
-            <div class="p-6 space-y-6">
+            <!-- 身份信息内容 -->
+            <div v-if="settingsMode === 'identity'" class="p-6 space-y-6">
                 <!-- 头像占位 -->
                 <div class="flex justify-center">
                     <div class="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
@@ -336,6 +336,47 @@
                         <span class="text-sm" :class="wsConnected ? 'text-green-500' : 'text-red-500'">
                             {{ wsConnected ? '已连接' : '未连接' }}
                         </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 系统设置内容 -->
+            <div v-if="settingsMode === 'system'" class="p-6 space-y-6">
+                <!-- WebSocket连接管理 -->
+                <div class="bg-[#27272a] rounded-xl p-4">
+                    <h3 class="text-white font-medium mb-4 flex items-center gap-2">
+                        <i class="fas fa-network-wired text-blue-400"></i>
+                        <span>连接管理</span>
+                    </h3>
+
+                    <div class="space-y-3">
+                        <!-- 连接统计 -->
+                        <div class="bg-[#18181b] rounded-lg p-3 space-y-2">
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="text-gray-400">总连接数</span>
+                                <span class="text-white font-mono">{{ connectionStats.active || 0 }}</span>
+                            </div>
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="text-gray-400">上游连接</span>
+                                <span class="text-green-400 font-mono">{{ connectionStats.upstream || 0 }}</span>
+                            </div>
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="text-gray-400">下游连接</span>
+                                <span class="text-blue-400 font-mono">{{ connectionStats.downstream || 0 }}</span>
+                            </div>
+                        </div>
+
+                        <!-- 断开所有连接按钮 -->
+                        <button @click="confirmDisconnectAll"
+                            :disabled="disconnectAllLoading"
+                            class="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium transition disabled:opacity-50 flex items-center justify-center gap-2">
+                            <i class="fas fa-power-off"></i>
+                            <span>{{ disconnectAllLoading ? '断开中...' : '断开所有连接' }}</span>
+                        </button>
+
+                        <p class="text-xs text-gray-500 text-center">
+                            此操作会断开所有客户端和上游服务器的连接
+                        </p>
                     </div>
                 </div>
             </div>
@@ -520,6 +561,31 @@
         </div>
     </div>
 
+    <!-- === 断开所有连接确认对话框 === -->
+    <div v-if="showDisconnectAllDialog"
+         class="fixed inset-0 z-[90] bg-black/60 flex items-center justify-center"
+         @click="showDisconnectAllDialog = false">
+        <div class="w-80 bg-[#18181b] rounded-2xl p-6 shadow-2xl" @click.stop>
+            <div class="text-center mb-4">
+                <i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-3"></i>
+                <h3 class="text-lg font-bold text-white mb-2">确认断开所有连接</h3>
+                <p class="text-sm text-gray-400">此操作将断开所有客户端的连接</p>
+                <p class="text-xs text-gray-500 mt-1">包括上游和下游的所有WebSocket连接</p>
+            </div>
+
+            <div class="flex gap-3">
+                <button @click="showDisconnectAllDialog = false"
+                    class="flex-1 py-3 bg-[#27272a] text-gray-400 rounded-xl border border-gray-700 hover:bg-[#333] transition">
+                    取消
+                </button>
+                <button @click="executeDisconnectAll"
+                    class="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition">
+                    确认断开
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- === 匹配蒙层 (模拟匹配过程) === -->
     <div v-if="isMatching" class="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center text-center">
         <div class="relative w-32 h-32 mb-8">
@@ -549,10 +615,15 @@
                 <div v-if="showTopMenu"
                      @click.stop
                      class="absolute left-0 top-12 w-48 bg-[#18181b] rounded-xl shadow-2xl border border-gray-700 z-50">
-                    <button @click="openSettings"
+                    <button @click="openIdentitySettings"
                         class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 rounded-t-xl transition">
+                        <i class="fas fa-user-edit text-blue-400"></i>
+                        <span>身份信息</span>
+                    </button>
+                    <button @click="openSystemSettings"
+                        class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-gray-700 transition">
                         <i class="fas fa-cog text-gray-400"></i>
-                        <span>设置</span>
+                        <span>系统设置</span>
                     </button>
                     <button @click="showSwitchIdentityConfirm"
                         class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-gray-700 rounded-b-xl transition">
@@ -917,6 +988,10 @@
             const showEmojiPanel = ref(false); // 显示表情面板
             const showTopMenu = ref(false); // 顶部菜单显示状态
             const showSwitchIdentityDialog = ref(false); // 切换身份确认对话框
+            const settingsMode = ref('identity'); // 设置模式: 'identity' | 'system'
+            const showDisconnectAllDialog = ref(false); // 断开所有连接确认对话框
+            const disconnectAllLoading = ref(false); // 断开连接加载状态
+            const connectionStats = ref({ active: 0, upstream: 0, downstream: 0 }); // 连接统计
             const loadingMore = ref(false); // 加载更多历史消息中
             const firstTidMap = ref({}); // 存储每个聊天的最早消息Tid
 
@@ -1074,10 +1149,65 @@
                 loadHistoryUsers();
             };
 
-            // 打开设置
-            const openSettings = () => {
+            // 打开身份信息设置
+            const openIdentitySettings = () => {
                 showTopMenu.value = false;
+                settingsMode.value = 'identity';
                 showSettings.value = true;
+            };
+
+            // 打开系统设置
+            const openSystemSettings = () => {
+                showTopMenu.value = false;
+                settingsMode.value = 'system';
+                showSettings.value = true;
+                // 加载连接统计
+                loadConnectionStats();
+            };
+
+            // 加载连接统计
+            const loadConnectionStats = async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/getConnectionStats`);
+                    const data = await response.json();
+                    if (data.code === 0) {
+                        connectionStats.value = data.data;
+                        console.log('连接统计:', data.data);
+                    }
+                } catch (error) {
+                    console.error('加载连接统计失败:', error);
+                }
+            };
+
+            // 显示断开确认对话框
+            const confirmDisconnectAll = () => {
+                showDisconnectAllDialog.value = true;
+            };
+
+            // 执行断开所有连接
+            const executeDisconnectAll = async () => {
+                disconnectAllLoading.value = true;
+                showDisconnectAllDialog.value = false;
+
+                try {
+                    const response = await fetch(`${API_BASE}/disconnectAllConnections`, {
+                        method: 'POST'
+                    });
+
+                    const data = await response.json();
+                    if (data.code === 0) {
+                        showToast('所有连接已断开');
+                        // 刷新统计
+                        await loadConnectionStats();
+                    } else {
+                        showToast('操作失败: ' + data.msg);
+                    }
+                } catch (error) {
+                    console.error('断开连接失败:', error);
+                    showToast('操作失败，请重试');
+                } finally {
+                    disconnectAllLoading.value = false;
+                }
             };
 
             // 显示切换身份确认对话框
@@ -2865,7 +2995,10 @@
                 getColorClass, loadIdentityList, selectIdentity, createIdentity, quickCreateIdentity, showDeleteConfirm, confirmDeleteIdentity,
                 // 身份切换相关
                 showTopMenu, showSwitchIdentityDialog,
-                openSettings, showSwitchIdentityConfirm, confirmSwitchIdentity, cancelSwitchIdentity,
+                openIdentitySettings, openSystemSettings, showSwitchIdentityConfirm, confirmSwitchIdentity, cancelSwitchIdentity,
+                // 系统设置相关
+                settingsMode, showDisconnectAllDialog, disconnectAllLoading, connectionStats,
+                loadConnectionStats, confirmDisconnectAll, executeDisconnectAll,
                 // 原有功能
                 startMatch, cancelMatch, enterChat, exitChat, toggleFavorite,
                 sendMessage, selectFile, handleFileUpload, autoResize, previewMedia, sendImageMessage, formatTime, loadMoreHistory,

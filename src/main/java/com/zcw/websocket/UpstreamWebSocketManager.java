@@ -264,4 +264,77 @@ public class UpstreamWebSocketManager {
             log.info("用户 {} 已无下游连接", userId);
         }
     }
+
+    /**
+     * 断开所有WebSocket连接（包括上游和下游）
+     * 用于系统管理员强制关闭所有连接
+     */
+    public void closeAllConnections() {
+        log.info("开始断开所有WebSocket连接...");
+
+        // 1. 断开所有上游连接
+        log.info("断开 {} 个上游连接", upstreamClients.size());
+        upstreamClients.forEach((userId, client) -> {
+            try {
+                if (client.isOpen()) {
+                    client.close();
+                    log.info("已断开用户 {} 的上游连接", userId);
+                }
+            } catch (Exception e) {
+                log.error("断开上游连接失败: userId={}", userId, e);
+            }
+        });
+        upstreamClients.clear();
+
+        // 2. 断开所有下游连接
+        int totalDownstream = downstreamSessions.values().stream()
+                .mapToInt(List::size)
+                .sum();
+        log.info("断开 {} 个下游连接", totalDownstream);
+
+        downstreamSessions.forEach((userId, sessions) -> {
+            // 复制列表避免并发修改
+            List<WebSocketSession> sessionsCopy = new ArrayList<>(sessions);
+            sessionsCopy.forEach(session -> {
+                try {
+                    if (session.isOpen()) {
+                        session.close();
+                    }
+                } catch (Exception e) {
+                    log.error("断开下游连接失败: userId={}", userId, e);
+                }
+            });
+        });
+        downstreamSessions.clear();
+
+        // 3. 取消所有延迟关闭任务
+        pendingCloseTasks.forEach((userId, task) -> {
+            task.cancel(false);
+        });
+        pendingCloseTasks.clear();
+
+        log.info("所有WebSocket连接已断开");
+    }
+
+    /**
+     * 获取连接统计信息
+     */
+    public Map<String, Object> getConnectionStats() {
+        Map<String, Object> stats = new java.util.HashMap<>();
+
+        // 上游连接数
+        int upstreamCount = upstreamClients.size();
+
+        // 下游连接数
+        int downstreamCount = downstreamSessions.values().stream()
+                .mapToInt(List::size)
+                .sum();
+
+        // 活跃连接数（上游+下游）
+        stats.put("active", upstreamCount + downstreamCount);
+        stats.put("upstream", upstreamCount);
+        stats.put("downstream", downstreamCount);
+
+        return stats;
+    }
 }
