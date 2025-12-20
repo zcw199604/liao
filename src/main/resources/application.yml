@@ -38,3 +38,12 @@ websocket:
   upstream:
     # 上游 WebSocket 服务地址，根据实际情况修改
     url: ws://localhost:9999
+
+# 认证配置
+auth:
+  # 访问码（建议设置为复杂字符串）
+  access-code: Aa305512775.
+  # JWT密钥（必须至少256位，建议64位随机字符串）
+  jwt-secret: your-jwt-secret-key-at-least-256-bits-long-please-change-this-to-random-string
+  # Token过期时间（小时）
+  token-expire-hours: 24

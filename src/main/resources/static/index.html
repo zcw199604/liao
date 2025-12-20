@@ -101,6 +101,44 @@
         {{ toastMessage }}
     </div>
 
+    <!-- === 登录页面 === -->
+    <div v-if="showLoginPage" class="fixed inset-0 z-[200] bg-[#0f0f13] flex items-center justify-center">
+        <div class="w-full max-w-md px-6">
+            <!-- Logo/标题 -->
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-white mb-2">匿名匹配</h1>
+                <p class="text-gray-400 text-sm">请输入访问码以继续</p>
+            </div>
+
+            <!-- 登录表单 -->
+            <div class="bg-[#1a1a1f] rounded-2xl p-8 shadow-xl">
+                <div class="mb-6">
+                    <label class="block text-gray-300 text-sm font-medium mb-2">访问码</label>
+                    <input
+                        v-model="loginAccessCode"
+                        type="password"
+                        placeholder="请输入访问码"
+                        @keyup.enter="handleLogin"
+                        class="w-full px-4 py-3 bg-[#27272a] text-white rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none transition"
+                        :disabled="loginLoading"
+                    />
+                </div>
+
+                <button
+                    @click="handleLogin"
+                    :disabled="loginLoading || !loginAccessCode"
+                    class="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                    <span v-if="!loginLoading">登录</span>
+                    <span v-else class="flex items-center justify-center">
+                        <span class="radar-spinner mr-2"></span>
+                        登录中...
+                    </span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- === 身份选择页面 === -->
     <div v-if="showIdentityPicker" class="page-container">
         <!-- 顶部标题 -->
@@ -943,6 +981,12 @@
             const newIdentity = ref({ name: '', sex: '' }); // 新建身份表单数据
             const deleteConfirmIdentity = ref(null); // 待删除的身份（用于确认对话框）
 
+            // 登录认证相关状态
+            const showLoginPage = ref(true); // 是否显示登录页
+            const loginAccessCode = ref(''); // 输入的访问码
+            const loginLoading = ref(false); // 登录加载中
+            const authToken = ref(''); // JWT Token
+
             // Toast 显示方法
             const showToast = (message, duration = 2000) => {
                 toastMessage.value = message;
@@ -1104,11 +1148,120 @@
                 return colors[hash % colors.length];
             };
 
+            // ============== 登录认证相关方法 ==============
+            // 带Token的fetch请求
+            const fetchWithToken = (url, options = {}) => {
+                const token = authToken.value || localStorage.getItem('authToken');
+
+                if (token) {
+                    options.headers = {
+                        ...options.headers,
+                        'Authorization': `Bearer ${token}`
+                    };
+                }
+
+                return fetch(url, options);
+            };
+
+            // 处理登录
+            const handleLogin = async () => {
+                if (!loginAccessCode.value || loginLoading.value) return;
+
+                loginLoading.value = true;
+
+                try {
+                    const response = await fetch(`${API_BASE}/auth/login`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `accessCode=${encodeURIComponent(loginAccessCode.value)}`
+                    });
+
+                    const result = await response.json();
+
+                    if (result.code === 0) {
+                        // 登录成功，保存Token
+                        authToken.value = result.token;
+                        localStorage.setItem('authToken', result.token);
+
+                        console.log('登录成功，Token已保存');
+                        showToast('登录成功');
+
+                        // 隐藏登录页，显示身份选择页
+                        showLoginPage.value = false;
+                        showIdentityPicker.value = true;
+
+                        // 加载身份列表
+                        await loadIdentityList();
+                    } else {
+                        showToast(result.msg || '登录失败');
+                    }
+                } catch (error) {
+                    console.error('登录失败:', error);
+                    showToast('登录失败: ' + error.message);
+                } finally {
+                    loginLoading.value = false;
+                }
+            };
+
+            // 检查Token有效性
+            const checkToken = async () => {
+                const savedToken = localStorage.getItem('authToken');
+
+                if (!savedToken) {
+                    console.log('没有保存的Token，显示登录页');
+                    showLoginPage.value = true;
+                    return false;
+                }
+
+                try {
+                    const response = await fetch(`${API_BASE}/auth/verify`, {
+                        headers: {
+                            'Authorization': `Bearer ${savedToken}`
+                        }
+                    });
+
+                    const result = await response.json();
+
+                    if (result.code === 0 && result.valid) {
+                        console.log('Token有效，跳过登录');
+                        authToken.value = savedToken;
+                        showLoginPage.value = false;
+                        return true;
+                    } else {
+                        console.log('Token无效，显示登录页');
+                        localStorage.removeItem('authToken');
+                        showLoginPage.value = true;
+                        return false;
+                    }
+                } catch (error) {
+                    console.error('Token验证失败:', error);
+                    showLoginPage.value = true;
+                    return false;
+                }
+            };
+
+            // 退出登录
+            const handleLogout = () => {
+                localStorage.removeItem('authToken');
+                authToken.value = '';
+                showLoginPage.value = true;
+                showIdentityPicker.value = false;
+
+                // 断开WebSocket
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.close();
+                }
+
+                showToast('已退出登录');
+            };
+
             // 加载身份列表
             const loadIdentityList = async () => {
                 identityLoading.value = true;
                 try {
-                    const response = await fetch(`${API_BASE}/getIdentityList`);
+                    const response = await fetchWithToken(`${API_BASE}/getIdentityList`);
                     const result = await response.json();
                     if (result.code === 0) {
                         identityList.value = result.data || [];
@@ -1134,7 +1287,7 @@
 
                 // 通知后端更新使用时间
                 try {
-                    await fetch(`${API_BASE}/selectIdentity?id=${identity.id}`, { method: 'POST' });
+                    await fetchWithToken(`${API_BASE}/selectIdentity?id=${identity.id}`, { method: 'POST' });
                 } catch (error) {
                     console.error('更新身份使用时间失败:', error);
                 }
@@ -1168,7 +1321,7 @@
             // 加载连接统计
             const loadConnectionStats = async () => {
                 try {
-                    const response = await fetch(`${API_BASE}/getConnectionStats`);
+                    const response = await fetchWithToken(`${API_BASE}/getConnectionStats`);
                     const data = await response.json();
                     if (data.code === 0) {
                         connectionStats.value = data.data;
@@ -1190,7 +1343,7 @@
                 showDisconnectAllDialog.value = false;
 
                 try {
-                    const response = await fetch(`${API_BASE}/disconnectAllConnections`, {
+                    const response = await fetchWithToken(`${API_BASE}/disconnectAllConnections`, {
                         method: 'POST'
                     });
 
@@ -1282,7 +1435,7 @@
                     params.append('name', newIdentity.value.name);
                     params.append('sex', newIdentity.value.sex);
 
-                    const response = await fetch(`${API_BASE}/createIdentity`, {
+                    const response = await fetchWithToken(`${API_BASE}/createIdentity`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                         body: params
@@ -1309,7 +1462,7 @@
             const quickCreateIdentity = async () => {
                 identityLoading.value = true;
                 try {
-                    const response = await fetch(`${API_BASE}/quickCreateIdentity`, { method: 'POST' });
+                    const response = await fetchWithToken(`${API_BASE}/quickCreateIdentity`, { method: 'POST' });
                     const result = await response.json();
 
                     if (result.code === 0) {
@@ -1342,7 +1495,7 @@
                     const params = new URLSearchParams();
                     params.append('id', identity.id);
 
-                    const response = await fetch(`${API_BASE}/deleteIdentity`, {
+                    const response = await fetchWithToken(`${API_BASE}/deleteIdentity`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                         body: params
@@ -1385,7 +1538,7 @@
                     params.append('referer', referer);
                     params.append('userAgent', userAgent);
 
-                    const response = await fetch(`${API_BASE}/reportReferrer`, {
+                    const response = await fetchWithToken(`${API_BASE}/reportReferrer`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded'
@@ -1412,7 +1565,7 @@
                 try {
                     console.log('获取图片服务器地址...');
 
-                    const response = await fetch(`${API_BASE}/getImgServer`);
+                    const response = await fetchWithToken(`${API_BASE}/getImgServer`);
 
                     if (!response.ok) {
                         console.warn('图片服务器接口返回错误:', response.status);
@@ -1431,7 +1584,7 @@
                         const params = new URLSearchParams();
                         params.append('server', imgServer.value);
 
-                        await fetch(`${API_BASE}/updateImgServer`, {
+                        await fetchWithToken(`${API_BASE}/updateImgServer`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/x-www-form-urlencoded'
@@ -1456,7 +1609,7 @@
                     console.log('加载图片列表...');
 
                     // 1. 始终加载已上传缓存（3小时内上传的）
-                    const cacheResponse = await fetch(`${API_BASE}/getCachedImages?userid=${currentUser.value.id}`);
+                    const cacheResponse = await fetchWithToken(`${API_BASE}/getCachedImages?userid=${currentUser.value.id}`);
                     if (cacheResponse.ok) {
                         const cacheResult = await cacheResponse.json();
 
@@ -1542,7 +1695,7 @@
                     params.append('referer', referer);
                     params.append('userAgent', userAgent);
 
-                    const response = await fetch(`${API_BASE}/getHistoryUserList`, {
+                    const response = await fetchWithToken(`${API_BASE}/getHistoryUserList`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded'
@@ -1616,7 +1769,7 @@
                     params.append('referer', referer);
                     params.append('userAgent', userAgent);
 
-                    const response = await fetch(`${API_BASE}/getFavoriteUserList`, {
+                    const response = await fetchWithToken(`${API_BASE}/getFavoriteUserList`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded'
@@ -1730,7 +1883,7 @@
 
                     console.log('发送请求到 /api/getMessageHistory');
 
-                    const response = await fetch(`${API_BASE}/getMessageHistory`, {
+                    const response = await fetchWithToken(`${API_BASE}/getMessageHistory`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded'
@@ -1855,7 +2008,7 @@
                     params.append('referer', referer);
                     params.append('userAgent', userAgent);
 
-                    const response = await fetch(`${API_BASE}/getMessageHistory`, {
+                    const response = await fetchWithToken(`${API_BASE}/getMessageHistory`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                         body: params
@@ -2174,7 +2327,7 @@
                     console.log('发送上传请求...');
 
                     // 调用后端上传接口
-                    const response = await fetch(`${API_BASE}/uploadImage`, {
+                    const response = await fetchWithToken(`${API_BASE}/uploadImage`, {
                         method: 'POST',
                         body: formData
                     });
@@ -2366,7 +2519,7 @@
                     console.log('发送重新上传请求...');
 
                     // 调用后端接口
-                    const response = await fetch(`${API_BASE}/reuploadHistoryImage`, {
+                    const response = await fetchWithToken(`${API_BASE}/reuploadHistoryImage`, {
                         method: 'POST',
                         body: formData
                     });
@@ -2574,7 +2727,7 @@
                         params.append('name', editUserInfo.value.name);
                         params.append('sex', editUserInfo.value.sex);
 
-                        const response = await fetch(`${API_BASE}/updateIdentityId`, {
+                        const response = await fetchWithToken(`${API_BASE}/updateIdentityId`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                             body: params
@@ -2626,7 +2779,7 @@
                         params.append('name', editUserInfo.value.name);
                         params.append('sex', editUserInfo.value.sex);
 
-                        const response = await fetch(`${API_BASE}/updateIdentity`, {
+                        const response = await fetchWithToken(`${API_BASE}/updateIdentity`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                             body: params
@@ -2708,9 +2861,20 @@
             // WebSocket 连接逻辑
             let manualClose = false; // 手动关闭标志
             const connectWebSocket = () => {
-                console.log('正在连接 WebSocket:', WS_URL);
+                const token = authToken.value || localStorage.getItem('authToken');
 
-                ws = new WebSocket(WS_URL);
+                if (!token) {
+                    console.error('没有Token，无法连接WebSocket');
+                    showToast('认证失败，请重新登录');
+                    handleLogout();
+                    return;
+                }
+
+                // 在WebSocket URL中添加token参数
+                const wsUrlWithToken = `${WS_URL}?token=${encodeURIComponent(token)}`;
+                console.log('正在连接 WebSocket (已携带Token)');
+
+                ws = new WebSocket(wsUrlWithToken);
 
                 ws.onopen = () => {
                     console.log('WebSocket 连接成功');
@@ -2968,8 +3132,17 @@
                 };
             };
 
-            // 页面加载时先加载身份列表（不自动连接WebSocket）
-            loadIdentityList();
+            // 页面加载时先检查Token
+            (async () => {
+                const tokenValid = await checkToken();
+
+                if (tokenValid) {
+                    // Token有效，显示身份选择页并加载身份列表
+                    showIdentityPicker.value = true;
+                    await loadIdentityList();
+                }
+                // 如果Token无效，已经在checkToken中显示登录页了
+            })();
 
             // 初始化编辑数据
             initEditMode();
@@ -2990,6 +3163,9 @@
                 openAllUploadImageModal, closeAllUploadImageModal, loadAllUploadImages, handleAllUploadScroll,
                 // 表情相关
                 emojiMap, showEmojiPanel, toggleEmojiPanel, insertEmoji, parseEmoji, closeAllPanels,
+                // 登录认证相关
+                showLoginPage, loginAccessCode, loginLoading, authToken,
+                handleLogin, checkToken, handleLogout, fetchWithToken,
                 // 身份选择相关
                 showIdentityPicker, identityList, identityLoading, showCreateForm, newIdentity, deleteConfirmIdentity,
                 getColorClass, loadIdentityList, selectIdentity, createIdentity, quickCreateIdentity, showDeleteConfirm, confirmDeleteIdentity,
