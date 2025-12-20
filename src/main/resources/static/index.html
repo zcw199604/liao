@@ -101,6 +101,25 @@
         {{ toastMessage }}
     </div>
 
+    <!-- === 媒体预览弹窗 === -->
+    <div v-if="showMediaPreview" class="fixed inset-0 z-[85] bg-black/80 flex items-center justify-center" @click="closeMediaPreview">
+        <div class="relative flex flex-col items-center gap-4 max-w-[92vw]" @click.stop>
+            <img v-if="previewMediaType === 'image'" :src="previewMediaUrl"
+                class="max-w-[92vw] rounded-lg shadow-2xl object-contain"
+                :class="previewMediaCanUpload ? 'max-h-[80vh]' : 'max-h-[92vh]'" alt="预览图片">
+            <video v-if="previewMediaType === 'video'" :src="previewMediaUrl" controls
+                class="max-w-[92vw] rounded-lg shadow-2xl bg-black"
+                :class="previewMediaCanUpload ? 'max-h-[80vh]' : 'max-h-[92vh]'"></video>
+            <button v-if="previewMediaCanUpload" @click="confirmPreviewUpload"
+                class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:opacity-90 transition">
+                上传/重新上传
+            </button>
+            <button @click="closeMediaPreview" class="absolute -top-3 -right-3 w-8 h-8 flex items-center justify-center bg-black/70 text-white rounded-full">
+                <i class="fas fa-times text-sm"></i>
+            </button>
+        </div>
+    </div>
+
     <!-- === 登录页面 === -->
     <div v-if="showLoginPage" class="fixed inset-0 z-[200] bg-[#0f0f13] flex items-center justify-center">
         <div class="w-full max-w-md px-6">
@@ -450,7 +469,7 @@
                  class="flex-1 overflow-y-auto p-6 no-scrollbar">
                 <div class="grid grid-cols-3 sm:grid-cols-4 gap-4">
                     <div v-for="(media, idx) in chatHistoryImages" :key="'modal-history-' + idx"
-                        @click="reuploadHistoryImageFromModal(media)"
+                        @click="previewUploadMedia(media)"
                         class="aspect-square rounded-xl overflow-hidden cursor-pointer border-2 border-gray-700 hover:border-green-500 transition-all hover:scale-105 relative group">
                         <img v-if="media.type === 'image'"
                              :src="media.url"
@@ -468,7 +487,7 @@
                         <!-- 悬停提示 -->
                         <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition flex items-end justify-center pb-3">
                             <span class="text-white text-xs font-medium">
-                                <i class="fas fa-upload mr-1"></i>点击上传
+                                <i class="fas fa-search-plus mr-1"></i>点击预览
                             </span>
                         </div>
                     </div>
@@ -485,7 +504,7 @@
 
             <!-- 底部提示 -->
             <div class="px-6 py-4 border-t border-gray-800 text-center text-xs text-gray-500">
-                点击图片将重新上传至服务器，然后可在上方"已上传的文件"中点击发送
+                点击图片/视频预览，在预览中可上传/重新上传，再在上方"已上传的文件"中点击发送
             </div>
         </div>
     </div>
@@ -520,7 +539,7 @@
                  ref="allUploadScrollContainer">
                 <div class="grid grid-cols-3 sm:grid-cols-4 gap-4">
                     <div v-for="(media, idx) in allUploadImages" :key="'all-upload-' + idx"
-                        @click="reuploadHistoryImageFromModal(media)"
+                        @click="previewUploadMedia(media)"
                         class="aspect-square rounded-xl overflow-hidden cursor-pointer border-2 border-gray-700 hover:border-blue-500 transition-all hover:scale-105 relative group">
                         <img v-if="media.type === 'image'"
                              :src="media.url"
@@ -538,7 +557,7 @@
                         <!-- 悬停提示 -->
                         <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition flex items-end justify-center pb-3">
                             <span class="text-white text-xs font-medium">
-                                <i class="fas fa-upload mr-1"></i>点击上传
+                                <i class="fas fa-search-plus mr-1"></i>点击预览
                             </span>
                         </div>
                     </div>
@@ -1030,6 +1049,11 @@
             const allUploadTotal = ref(0);               // 总数
             const allUploadTotalPages = ref(0);          // 总页数
             const allUploadScrollContainer = ref(null);  // 滚动容器引用
+            const showMediaPreview = ref(false); // 显示媒体预览
+            const previewMediaUrl = ref(''); // 预览媒体地址
+            const previewMediaType = ref('image'); // 预览媒体类型
+            const previewMediaCanUpload = ref(false); // 预览是否允许上传
+            const previewUploadTarget = ref(null); // 预览上传目标
             const showEmojiPanel = ref(false); // 显示表情面板
             const showTopMenu = ref(false); // 顶部菜单显示状态
             const showSwitchIdentityDialog = ref(false); // 切换身份确认对话框
@@ -2417,8 +2441,39 @@
                 e.target.style.height = (e.target.scrollHeight) + 'px';
             };
 
+            const openMediaPreview = (media, canUpload = false) => {
+                if (!media) return;
+                const url = typeof media === 'string' ? media : media.url;
+                if (!url) return;
+
+                previewMediaUrl.value = url;
+                previewMediaType.value = typeof media === 'string' ? 'image' : (media.type || 'image');
+                previewMediaCanUpload.value = canUpload;
+                previewUploadTarget.value = canUpload ? media : null;
+                showMediaPreview.value = true;
+            };
+
             const previewMedia = (src) => {
-                console.log("预览图片:", src);
+                openMediaPreview(src, false);
+            };
+
+            const previewUploadMedia = (media) => {
+                openMediaPreview(media, true);
+            };
+
+            const closeMediaPreview = () => {
+                showMediaPreview.value = false;
+                previewMediaUrl.value = '';
+                previewMediaType.value = 'image';
+                previewMediaCanUpload.value = false;
+                previewUploadTarget.value = null;
+            };
+
+            const confirmPreviewUpload = async () => {
+                if (!previewUploadTarget.value) return;
+                const target = previewUploadTarget.value;
+                closeMediaPreview();
+                await reuploadHistoryImageFromModal(target);
             };
 
             // 发送已上传的图片/视频
@@ -2618,6 +2673,7 @@
 
                 // 上传成功后关闭弹出框，显示上传菜单
                 showHistoryImageModal.value = false;
+                showAllUploadImageModal.value = false;
                 showUploadMenu.value = true;
             };
 
@@ -3158,6 +3214,7 @@
                 activeTab, isMatching, historyUsers, favoriteUsers, displayList,
                 currentChatUser, chatHistory, inputText, fileInput, chatBox, listArea,
                 wsConnected, showSettings, currentUser, editMode, editUserInfo, waitingForResponse, imgServer, isTyping, uploadedMedia, toastMessage, loadingMore,
+                showMediaPreview, previewMediaUrl, previewMediaType, previewMediaCanUpload, closeMediaPreview, confirmPreviewUpload,
                 // 上传菜单相关
                 showUploadMenu, triggerFileSelect, sendMediaMessage,
                 // 历史图片弹出框相关
@@ -3182,7 +3239,7 @@
                 loadConnectionStats, confirmDisconnectAll, executeDisconnectAll,
                 // 原有功能
                 startMatch, cancelMatch, enterChat, exitChat, toggleFavorite,
-                sendMessage, selectFile, handleFileUpload, autoResize, previewMedia, sendImageMessage, formatTime, loadMoreHistory,
+                sendMessage, selectFile, handleFileUpload, autoResize, previewMedia, previewUploadMedia, sendImageMessage, formatTime, loadMoreHistory,
                 loadHistoryUsers, loadFavoriteUsers, saveUserInfo, initEditMode, switchTab, refreshCurrentList, loadMessageHistory
             };
         }
