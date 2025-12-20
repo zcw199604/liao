@@ -495,6 +495,31 @@
         </div>
     </div>
 
+    <!-- === 切换身份确认对话框 === -->
+    <div v-if="showSwitchIdentityDialog"
+         class="fixed inset-0 z-[90] bg-black/60 flex items-center justify-center"
+         @click="cancelSwitchIdentity">
+        <div class="w-80 bg-[#18181b] rounded-2xl p-6 shadow-2xl" @click.stop>
+            <div class="text-center mb-4">
+                <i class="fas fa-exchange-alt text-4xl text-indigo-500 mb-3"></i>
+                <h3 class="text-lg font-bold text-white mb-2">确认切换身份</h3>
+                <p class="text-sm text-gray-400">切换身份后，当前聊天会话将关闭</p>
+                <p class="text-xs text-gray-500 mt-1">聊天记录不会丢失</p>
+            </div>
+
+            <div class="flex gap-3">
+                <button @click="cancelSwitchIdentity"
+                    class="flex-1 py-3 bg-[#27272a] text-gray-400 rounded-xl border border-gray-700 hover:bg-[#333] transition">
+                    取消
+                </button>
+                <button @click="confirmSwitchIdentity"
+                    class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition">
+                    确认切换
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- === 匹配蒙层 (模拟匹配过程) === -->
     <div v-if="isMatching" class="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center text-center">
         <div class="relative w-32 h-32 mb-8">
@@ -509,14 +534,33 @@
     </div>
 
     <!-- === 页面 1: 会话列表 / 收藏列表 === -->
-    <div class="page-container" v-if="!showIdentityPicker && !currentChatUser">
+    <div class="page-container" v-if="!showIdentityPicker && !currentChatUser" @click.self="showTopMenu = false">
         
         <!-- 顶部切换栏 -->
         <div class="flex items-center justify-between pt-4 pb-2 px-4 bg-[#0f0f13] z-10">
-            <!-- 左侧：设置按钮 -->
-            <button @click="showSettings = true" class="w-10 h-10 flex items-center justify-center text-gray-400">
-                <i class="fas fa-cog text-xl"></i>
-            </button>
+            <!-- 左侧：菜单按钮（下拉） -->
+            <div class="relative">
+                <button @click.stop="showTopMenu = !showTopMenu"
+                    class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white transition">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+
+                <!-- 下拉菜单 -->
+                <div v-if="showTopMenu"
+                     @click.stop
+                     class="absolute left-0 top-12 w-48 bg-[#18181b] rounded-xl shadow-2xl border border-gray-700 z-50">
+                    <button @click="openSettings"
+                        class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 rounded-t-xl transition">
+                        <i class="fas fa-cog text-gray-400"></i>
+                        <span>设置</span>
+                    </button>
+                    <button @click="showSwitchIdentityConfirm"
+                        class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-gray-700 rounded-b-xl transition">
+                        <i class="fas fa-user-circle text-indigo-400"></i>
+                        <span>切换身份</span>
+                    </button>
+                </div>
+            </div>
 
             <!-- 中间：切换栏 -->
             <div class="flex bg-[#1f1f22] p-1 rounded-full">
@@ -871,6 +915,8 @@
             const allUploadTotalPages = ref(0);          // 总页数
             const allUploadScrollContainer = ref(null);  // 滚动容器引用
             const showEmojiPanel = ref(false); // 显示表情面板
+            const showTopMenu = ref(false); // 顶部菜单显示状态
+            const showSwitchIdentityDialog = ref(false); // 切换身份确认对话框
             const loadingMore = ref(false); // 加载更多历史消息中
             const firstTidMap = ref({}); // 存储每个聊天的最早消息Tid
 
@@ -1026,6 +1072,72 @@
 
                 // 自动加载历史用户列表
                 loadHistoryUsers();
+            };
+
+            // 打开设置
+            const openSettings = () => {
+                showTopMenu.value = false;
+                showSettings.value = true;
+            };
+
+            // 显示切换身份确认对话框
+            const showSwitchIdentityConfirm = () => {
+                showTopMenu.value = false;
+
+                if (currentChatUser.value) {
+                    // 正在聊天，显示确认对话框
+                    showSwitchIdentityDialog.value = true;
+                } else {
+                    // 没在聊天，直接切换
+                    confirmSwitchIdentity();
+                }
+            };
+
+            // 确认切换身份（核心逻辑）
+            const confirmSwitchIdentity = () => {
+                console.log('用户确认切换身份');
+
+                // 1. 设置手动关闭标志并断开 WebSocket
+                if (ws) {
+                    console.log('断开 WebSocket 连接');
+                    manualClose = true;
+                    ws.close();
+                    ws = null;
+                }
+
+                // 2. 清空所有状态
+                currentChatUser.value = null;
+                chatHistory.value = {};
+                historyUsers.value = [];
+                favoriteUsers.value = [];
+                uploadedMedia.value = [];
+                chatHistoryImages.value = [];
+
+                // 3. 重置加载标志
+                historyLoaded.value = false;
+                favoriteLoaded.value = false;
+                firstTidMap.value = {};
+
+                // 4. 清空输入框和面板状态
+                inputText.value = '';
+                showUploadMenu.value = false;
+                showEmojiPanel.value = false;
+                isMatching.value = false;
+                isTyping.value = false;
+
+                // 5. 返回身份选择页
+                showIdentityPicker.value = true;
+                showSwitchIdentityDialog.value = false;
+
+                // 6. 重新加载身份列表
+                loadIdentityList();
+
+                console.log('已切换到身份选择页');
+            };
+
+            // 取消切换身份
+            const cancelSwitchIdentity = () => {
+                showSwitchIdentityDialog.value = false;
             };
 
             // 创建新身份
@@ -2464,6 +2576,7 @@
             };
 
             // WebSocket 连接逻辑
+            let manualClose = false; // 手动关闭标志
             const connectWebSocket = () => {
                 console.log('正在连接 WebSocket:', WS_URL);
 
@@ -2710,6 +2823,13 @@
                     console.log('WebSocket 连接关闭');
                     wsConnected.value = false;
 
+                    // 如果是手动关闭（切换身份），不重连
+                    if (manualClose) {
+                        console.log('手动关闭，跳过重连');
+                        manualClose = false;
+                        return;
+                    }
+
                     // 尝试重连
                     setTimeout(() => {
                         console.log('尝试重新连接...');
@@ -2743,6 +2863,9 @@
                 // 身份选择相关
                 showIdentityPicker, identityList, identityLoading, showCreateForm, newIdentity, deleteConfirmIdentity,
                 getColorClass, loadIdentityList, selectIdentity, createIdentity, quickCreateIdentity, showDeleteConfirm, confirmDeleteIdentity,
+                // 身份切换相关
+                showTopMenu, showSwitchIdentityDialog,
+                openSettings, showSwitchIdentityConfirm, confirmSwitchIdentity, cancelSwitchIdentity,
                 // 原有功能
                 startMatch, cancelMatch, enterChat, exitChat, toggleFavorite,
                 sendMessage, selectFile, handleFileUpload, autoResize, previewMedia, sendImageMessage, formatTime, loadMoreHistory,
