@@ -1014,8 +1014,9 @@
             const wsConnected = ref(false);
             const waitingForResponse = ref(false); // 等待服务器响应
             const imgServer = ref(''); // 图片服务器地址
-            const detectedImagePort = ref('9006'); // 缓存检测到的图片端口（动态检测）
-            const detectedVideoPort = ref('8006'); // 缓存检测到的视频端口（动态检测）
+            // ==================== 临时禁用动态端口检测，使用固定端口 ====================
+            // const detectedImagePort = ref('9006'); // 缓存检测到的图片端口（动态检测）
+            // const detectedVideoPort = ref('8006'); // 缓存检测到的视频端口（动态检测）
             const uploadedMedia = ref([]); // 已上传的媒体列表 [{url: 'xxx', type: 'image/video'}]
             const chatHistoryImages = ref([]); // 聊天历史图片列表（新增）
             const showUploadMenu = ref(false); // 显示上传菜单
@@ -1613,17 +1614,18 @@
                     if (cacheResponse.ok) {
                         const cacheResult = await cacheResponse.json();
 
-                        // 从响应中提取端口和数据
-                        const serverPort = cacheResult.port || '9006';
+                        // ==================== 临时使用固定端口 ====================
+                        // const serverPort = cacheResult.port || '9006';
+                        const serverPort = '9006';  // 临时使用固定端口
                         const cacheData = cacheResult.data || cacheResult;  // 兼容旧格式
 
-                        console.log('后端返回端口:', serverPort);
+                        console.log('使用固定端口:', serverPort);
 
-                        // 缓存检测到的端口，供WebSocket消息使用
-                        if (cacheResult.port) {
-                            detectedImagePort.value = cacheResult.port;
-                            console.log('更新全局图片端口缓存:', detectedImagePort.value);
-                        }
+                        // 临时禁用动态端口缓存
+                        // if (cacheResult.port) {
+                        //     detectedImagePort.value = cacheResult.port;
+                        //     console.log('更新全局图片端口缓存:', detectedImagePort.value);
+                        // }
 
                         if (Array.isArray(cacheData)) {
                             uploadedMedia.value = cacheData
@@ -1642,9 +1644,10 @@
                                         const relativePath = match[1];
                                         // 移除 images/ 前缀，得到：2025/12/19/xxx.jpg
                                         const uploadPath = relativePath.replace(/^images\//, '');
-                                        // 使用后端返回的动态端口
-                                        displayUrl = `http://${imgServer.value}:${serverPort}/img/Upload/${uploadPath}`;
-                                        console.log('URL转换:', url, '→', displayUrl, '端口:', serverPort);
+                                        // ==================== 临时使用固定端口（根据文件类型） ====================
+                                        const fixedPort = fileType === 'video' ? '8006' : '9006';
+                                        displayUrl = `http://${imgServer.value}:${fixedPort}/img/Upload/${uploadPath}`;
+                                        console.log('URL转换:', url, '→', displayUrl, '端口:', fixedPort, '(固定)');
                                     }
 
                                     return {
@@ -1931,19 +1934,19 @@
                                 (content.includes('.jpg') || content.includes('.png') || content.includes('.jpeg') || content.includes('.gif'))) {
                                 // 提取图片路径
                                 const imagePath = content.substring(1, content.length - 1);
-                                // 拼接完整URL（使用动态检测的端口）
-                                content = `http://${imgServer.value}:${detectedImagePort.value}/img/Upload/${imagePath}`;
+                                // ==================== 临时使用固定端口9006 ====================
+                                content = `http://${imgServer.value}:9006/img/Upload/${imagePath}`;
                                 type = 'image';
-                                console.log('图片消息，拼接URL:', content);
+                                console.log('图片消息，拼接URL:', content, '(固定端口9006)');
                             }
                             // 检查是否是视频消息
                             else if (content.startsWith('[') && content.endsWith(']') && content.includes('.mp4')) {
                                 // 提取视频路径
                                 const videoPath = content.substring(1, content.length - 1);
-                                // 拼接完整URL（使用动态检测的端口）
-                                content = `http://${imgServer.value}:${detectedVideoPort.value}/img/Upload/${videoPath}`;
+                                // ==================== 临时使用固定端口8006 ====================
+                                content = `http://${imgServer.value}:8006/img/Upload/${videoPath}`;
                                 type = 'video';
-                                console.log('视频消息，拼接URL:', content);
+                                console.log('视频消息，拼接URL:', content, '(固定端口8006)');
                             }
 
                             return {
@@ -2033,13 +2036,15 @@
                             if (content.startsWith('[') && content.endsWith(']') &&
                                 (content.includes('.jpg') || content.includes('.png') || content.includes('.jpeg') || content.includes('.gif'))) {
                                 const imagePath = content.substring(1, content.length - 1);
-                                content = `http://${imgServer.value}:${detectedImagePort.value}/img/Upload/${imagePath}`;
+                                // ==================== 临时使用固定端口9006 ====================
+                                content = `http://${imgServer.value}:9006/img/Upload/${imagePath}`;
                                 type = 'image';
                             }
                             // 检查是否是视频消息
                             else if (content.startsWith('[') && content.endsWith(']') && content.includes('.mp4')) {
                                 const videoPath = content.substring(1, content.length - 1);
-                                content = `http://${imgServer.value}:${detectedVideoPort.value}/img/Upload/${videoPath}`;
+                                // ==================== 临时使用固定端口8006 ====================
+                                content = `http://${imgServer.value}:8006/img/Upload/${videoPath}`;
                                 type = 'video';
                             }
 
@@ -2346,21 +2351,21 @@
 
                     // 检查上传结果
                     if (data.state === 'OK' && data.msg) {
-                        // 使用后端返回的端口（动态检测），如果没有则fallback
-                        const port = data.port || (fileType === 'video' ? '8006' : '9006');
+                        // ==================== 临时使用固定端口 ====================
+                        const port = fileType === 'video' ? '8006' : '9006';
                         const mediaUrl = `http://${imgServer.value}:${port}/img/Upload/${data.msg}`;
-                        console.log('文件服务器URL:', mediaUrl, '端口:', port, '(动态检测)');
+                        console.log('文件服务器URL:', mediaUrl, '端口:', port, '(固定端口)');
 
-                        // 缓存检测到的端口，供WebSocket消息使用
-                        if (data.port) {
-                            if (fileType === 'video') {
-                                detectedVideoPort.value = data.port;
-                                console.log('更新全局视频端口缓存:', detectedVideoPort.value);
-                            } else {
-                                detectedImagePort.value = data.port;
-                                console.log('更新全局图片端口缓存:', detectedImagePort.value);
-                            }
-                        }
+                        // ==================== 临时禁用端口缓存 ====================
+                        // if (data.port) {
+                        //     if (fileType === 'video') {
+                        //         detectedVideoPort.value = data.port;
+                        //         console.log('更新全局视频端口缓存:', detectedVideoPort.value);
+                        //     } else {
+                        //         detectedImagePort.value = data.port;
+                        //         console.log('更新全局图片端口缓存:', detectedImagePort.value);
+                        //     }
+                        // }
 
                         // 添加到已上传媒体列表开头（最新在前）
                         uploadedMedia.value.unshift({ url: mediaUrl, type: fileType });
@@ -2536,10 +2541,10 @@
 
                     // 检查上传结果
                     if (data.state === 'OK' && data.msg) {
-                        // 构造上游完整URL（根据类型选择端口）
-                        const port = historyImage.type === 'video' ? detectedVideoPort.value : detectedImagePort.value;
+                        // ==================== 临时使用固定端口 ====================
+                        const port = historyImage.type === 'video' ? '8006' : '9006';
                         const mediaUrl = `http://${imgServer.value}:${port}/img/Upload/${data.msg}`;
-                        console.log('上游文件URL:', mediaUrl, '端口:', port);
+                        console.log('上游文件URL:', mediaUrl, '端口:', port, '(固定端口)');
 
                         // 添加到已上传列表开头（预览）
                         uploadedMedia.value.unshift({
@@ -2973,19 +2978,19 @@
                                 (messageContent.includes('.jpg') || messageContent.includes('.png') || messageContent.includes('.jpeg') || messageContent.includes('.gif'))) {
                                 // 提取图片路径
                                 const imagePath = messageContent.substring(1, messageContent.length - 1);
-                                // 拼接完整URL（使用动态检测的端口）
-                                messageContent = `http://${imgServer.value}:${detectedImagePort.value}/img/Upload/${imagePath}`;
+                                // ==================== 临时使用固定端口9006 ====================
+                                messageContent = `http://${imgServer.value}:9006/img/Upload/${imagePath}`;
                                 messageType = 'image';
-                                console.log('图片消息，拼接URL:', messageContent, '端口:', detectedImagePort.value);
+                                console.log('图片消息，拼接URL:', messageContent, '端口: 9006 (固定)');
                             }
                             // 检查是否是视频消息
                             else if (messageContent.startsWith('[') && messageContent.endsWith(']') && messageContent.includes('.mp4')) {
                                 // 提取视频路径
                                 const videoPath = messageContent.substring(1, messageContent.length - 1);
-                                // 拼接完整URL（使用动态检测的端口）
-                                messageContent = `http://${imgServer.value}:${detectedVideoPort.value}/img/Upload/${videoPath}`;
+                                // ==================== 临时使用固定端口8006 ====================
+                                messageContent = `http://${imgServer.value}:8006/img/Upload/${videoPath}`;
                                 messageType = 'video';
-                                console.log('视频消息，拼接URL:', messageContent, '端口:', detectedVideoPort.value);
+                                console.log('视频消息，拼接URL:', messageContent, '端口: 8006 (固定)');
                             }
 
                             // 获取消息时间
