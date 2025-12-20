@@ -2982,6 +2982,12 @@
                             return;
                         }
 
+                        // 忽略特定消息（code: 18）
+                        if (data.code === 18) {
+                            console.log('忽略消息 code=18:', data);
+                            return;
+                        }
+
                         // 处理正在输入消息
                         if (data.act && (data.act.startsWith('inputStatusOn_') || data.act.startsWith('inputStatusOff_'))) {
                             const isOn = data.act.startsWith('inputStatusOn_');
