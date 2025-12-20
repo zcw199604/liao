@@ -2173,7 +2173,7 @@
                     const apiUrl = user.isFavorite ? `${API_BASE}/cancelFavorite` : `${API_BASE}/toggleFavorite`;
                     console.log('调用接口:', apiUrl, 'isFavorite=', user.isFavorite);
 
-                    const response = await fetch(apiUrl, {
+                    const response = await fetchWithToken(apiUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                         body: params
@@ -2462,7 +2462,7 @@
                 console.log('发送媒体消息，等待服务器回显:', message);
 
                 // 记录发送关系到数据库
-                fetch(`${API_BASE}/recordImageSend`, {
+                fetchWithToken(`${API_BASE}/recordImageSend`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded'
@@ -2572,7 +2572,7 @@
                 try {
                     // 加载聊天历史图片
                     console.log('加载与', currentChatUser.value.name, '的聊天历史图片');
-                    const historyResponse = await fetch(
+                    const historyResponse = await fetchWithToken(
                         `${API_BASE}/getChatImages?userId1=${currentUser.value.id}&userId2=${currentChatUser.value.id}&limit=50`
                     );
 
@@ -2647,7 +2647,7 @@
                 try {
                     console.log(`加载所有上传图片，第${page}页`);
 
-                    const response = await fetch(
+                    const response = await fetchWithToken(
                         `${API_BASE}/getAllUploadImages?userId=${currentUser.value.id}&page=${page}&pageSize=${allUploadPageSize.value}`
                     );
 

@@ -498,7 +498,7 @@ public class MediaUploadService {
     /**
      * 查询用户所有上传的图片（基于MD5去重，支持分页）
      *
-     * @param userId     用户ID
+     * @param userId     用户ID（当前实现不再按用户过滤）
      * @param page       页码（从1开始）
      * @param pageSize   每页数量
      * @param hostHeader Host头（用于URL转换）
@@ -510,19 +510,18 @@ public class MediaUploadService {
         String sql = """
             SELECT local_path
             FROM media_upload_history
-            WHERE user_id = ?
-              AND file_md5 IS NOT NULL
+            WHERE file_md5 IS NOT NULL
               AND id IN (
                   SELECT MAX(id)
                   FROM media_upload_history
-                  WHERE user_id = ? AND file_md5 IS NOT NULL
+                  WHERE file_md5 IS NOT NULL
                   GROUP BY file_md5
               )
             ORDER BY upload_time DESC
             LIMIT ? OFFSET ?
             """;
 
-        List<String> localPaths = jdbcTemplate.queryForList(sql, String.class, userId, userId, pageSize, offset);
+        List<String> localPaths = jdbcTemplate.queryForList(sql, String.class, pageSize, offset);
 
         return convertToLocalUrls(localPaths, hostHeader);
     }
@@ -530,18 +529,17 @@ public class MediaUploadService {
     /**
      * 统计用户上传的图片总数（去重后）
      *
-     * @param userId 用户ID
+     * @param userId 用户ID（当前实现不再按用户过滤）
      * @return 去重后的图片总数
      */
     public int getAllUploadImagesCount(String userId) {
         String sql = """
             SELECT COUNT(DISTINCT file_md5)
             FROM media_upload_history
-            WHERE user_id = ?
-              AND file_md5 IS NOT NULL
+            WHERE file_md5 IS NOT NULL
             """;
 
-        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, userId);
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
         return count != null ? count : 0;
     }
 }
