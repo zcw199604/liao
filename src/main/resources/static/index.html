@@ -2973,8 +2973,8 @@
                         // 尝试解析 JSON
                         const data = JSON.parse(event.data);
 
-                        // 过滤系统消息（code: 12, 16, 18, 19 等），用 toast 显示
-                        if (data.code === 12 || data.code === 16 || data.code === 18 || data.code === 19) {
+                        // 过滤系统消息（code: 12, 13, 16, 19 等），用 toast 显示
+                        if (data.code === 12 || data.code === 13 || data.code === 16 || data.code === 19) {
                             console.log('系统消息，toast显示:', data);
                             if (data.content) {
                                 showToast(data.content);
