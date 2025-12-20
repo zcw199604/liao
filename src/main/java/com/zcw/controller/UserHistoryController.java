@@ -1,9 +1,15 @@
 package com.zcw.controller;
 
+import com.zcw.model.MediaUploadHistory;
+import com.zcw.service.FileStorageService;
+import com.zcw.service.ImageServerService;
+import com.zcw.service.MediaUploadService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
@@ -24,8 +30,8 @@ public class UserHistoryController {
 
     private final RestTemplate restTemplate;
 
-    // 图片服务器地址（动态获取）
-    private volatile String imgServerHost = "149.88.79.98:9003";
+    @Autowired
+    private ImageServerService imageServerService;
 
     // 图片缓存：用户ID -> 图片URL列表及过期时间
     private final Map<String, CachedImages> imageCache = new ConcurrentHashMap<>();
@@ -65,6 +71,12 @@ public class UserHistoryController {
 
     private static final String UPSTREAM_IMG_SERVER_URL =
         "http://v1.chat2019.cn/asmx/method.asmx/getImgServer";
+
+    @Autowired
+    private FileStorageService fileStorageService;
+
+    @Autowired
+    private MediaUploadService mediaUploadService;
 
     public UserHistoryController() {
         this.restTemplate = new RestTemplate();
@@ -361,7 +373,7 @@ public class UserHistoryController {
     @PostMapping("/updateImgServer")
     public ResponseEntity<String> updateImgServer(@RequestParam String server) {
         log.info("更新图片服务器地址: {}", server);
-        this.imgServerHost = server + ":9003";
+        imageServerService.setImgServerHost(server);
         return ResponseEntity.ok("{\"success\":true}");
     }
 
@@ -385,10 +397,45 @@ public class UserHistoryController {
         log.info("上传图片请求: userid={}, fileName={}, fileSize={}",
                 userid, file.getOriginalFilename(), file.getSize());
 
+        String localPath = null;
+        String md5 = null;
+
         try {
-            // 构造上传URL
+            // 1. 验证文件类型
+            if (!fileStorageService.isValidFileType(file.getContentType())) {
+                log.warn("不支持的文件类型: {}", file.getContentType());
+                return ResponseEntity.status(400).body("{\"error\":\"不支持的文件类型\"}");
+            }
+
+            // 2. 计算文件MD5
+            try {
+                md5 = fileStorageService.calculateMD5(file);
+                log.info("文件MD5: {}", md5);
+            } catch (Exception e) {
+                log.error("计算MD5失败", e);
+                return ResponseEntity.status(500).body("{\"error\":\"MD5计算失败\"}");
+            }
+
+            // 3. 检查本地是否已存在相同MD5的文件
+            String existingLocalPath = fileStorageService.findLocalPathByMD5(md5);
+            if (existingLocalPath != null) {
+                // 本地文件已存在，复用
+                log.info("文件已存在（MD5={}），复用本地路径: {}", md5, existingLocalPath);
+                localPath = existingLocalPath;
+            } else {
+                // 4. 本地文件不存在，保存新文件
+                try {
+                    localPath = fileStorageService.saveFile(file, "image");
+                    log.info("文件已保存到本地: {}", localPath);
+                } catch (Exception e) {
+                    log.error("本地文件保存失败", e);
+                    return ResponseEntity.status(500).body("{\"error\":\"本地存储失败: " + e.getMessage() + "\"}");
+                }
+            }
+
+            // 5. 上传到上游服务器（每次都上传）
             String uploadUrl = String.format("http://%s/asmx/upload.asmx/ProcessRequest?act=uploadImgRandom&userid=%s",
-                    imgServerHost, userid);
+                    imageServerService.getImgServerHost(), userid);
 
             log.info("上传到图片服务器: {}", uploadUrl);
 
@@ -397,7 +444,7 @@ public class UserHistoryController {
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
             // 添加必要的 headers
-            headers.set("Host", imgServerHost.split(":")[0]);
+            headers.set("Host", imageServerService.getImgServerHost().split(":")[0]);
             headers.set("Origin", "http://v1.chat2019.cn");
             headers.set("Referer", referer);
             headers.set("User-Agent", userAgent);
@@ -407,7 +454,7 @@ public class UserHistoryController {
                 headers.set("Cookie", cookieData);
             }
 
-            log.info("上传请求 Headers - Host: {}, Origin: http://v1.chat2019.cn", imgServerHost.split(":")[0]);
+            log.info("上传请求 Headers - Host: {}, Origin: http://v1.chat2019.cn", imageServerService.getImgServerHost().split(":")[0]);
             log.info("Referer: {}", referer);
 
             // 构造 multipart 请求
@@ -431,26 +478,66 @@ public class UserHistoryController {
 
             log.info("图片上传成功: {}", response.getBody());
 
-            // 解析返回结果并缓存图片URL
+            // 4. 解析返回结果并保存到数据库
             try {
                 com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
                 com.fasterxml.jackson.databind.JsonNode jsonNode = mapper.readTree(response.getBody());
 
                 if ("OK".equals(jsonNode.get("state").asText()) && jsonNode.has("msg")) {
                     String imagePath = jsonNode.get("msg").asText();
-                    String imageUrl = String.format("http://%s:9006/img/Upload/%s", imgServerHost.split(":")[0], imagePath);
+                    String imgServerHostClean = imageServerService.getImgServerHost().split(":")[0];
 
-                    // 添加到缓存
-                    addImageToCache(userid, imageUrl);
-                    log.info("图片已添加到缓存: userid={}, imageUrl={}", userid, imageUrl);
+                    // 检测可用端口
+                    String availablePort = detectAvailablePort(imgServerHostClean);
+                    String imageUrl = String.format("http://%s:%s/img/Upload/%s", imgServerHostClean, availablePort, imagePath);
+
+                    // 5. 保存上传历史到数据库
+                    MediaUploadHistory history = new MediaUploadHistory();
+                    history.setUserId(userid);
+                    history.setToUserId(null);  // 上传时不知道接收方
+                    history.setOriginalFilename(file.getOriginalFilename());
+                    history.setLocalFilename(localPath.substring(localPath.lastIndexOf("/") + 1));
+                    history.setRemoteFilename(imagePath);
+                    history.setRemoteUrl(imageUrl);
+                    history.setLocalPath(localPath);
+                    history.setFileSize(file.getSize());
+                    history.setFileType(file.getContentType());
+                    history.setFileExtension(fileStorageService.getFileExtension(file.getOriginalFilename()));
+                    history.setFileMd5(md5);  // 设置MD5值
+
+                    try {
+                        mediaUploadService.saveUploadRecord(history);
+                        log.info("上传历史已保存到数据库");
+                    } catch (Exception e) {
+                        // 数据库保存失败不影响返回，仅记录日志
+                        log.error("保存上传历史到数据库失败", e);
+                    }
+
+                    // 6. 添加到内存缓存（存储 local_path 而非 remote_url）
+                    addImageToCache(userid, localPath);
+                    log.info("图片已添加到缓存: userid={}, localPath={}", userid, localPath);
+
+                    // 7. 构造包含端口信息的响应返回给前端
+                    com.fasterxml.jackson.databind.node.ObjectNode enhancedResponse = mapper.createObjectNode();
+                    enhancedResponse.put("state", "OK");
+                    enhancedResponse.put("msg", imagePath);
+                    enhancedResponse.put("port", availablePort);  // 添加端口信息
+
+                    return ResponseEntity.ok(enhancedResponse.toString());
                 }
             } catch (Exception e) {
-                log.warn("解析上传结果失败，跳过缓存", e);
+                log.warn("解析上传结果失败，跳过缓存和数据库保存", e);
             }
 
+            // 如果解析失败或state不是OK，返回原始响应
             return ResponseEntity.ok(response.getBody());
 
         } catch (Exception e) {
+            // 上游上传失败，删除本地文件
+            if (localPath != null) {
+                fileStorageService.deleteFile(localPath);
+                log.info("上传失败，已清理本地文件: {}", localPath);
+            }
             log.error("上传图片失败", e);
             return ResponseEntity.status(500).body("{\"error\":\"上传图片失败: " + e.getMessage() + "\"}");
         }
@@ -479,29 +566,88 @@ public class UserHistoryController {
     }
 
     /**
+     * 检测图片服务器可用端口
+     * 模仿上游 NetPing 逻辑，遍历端口找到可用的
+     *
+     * @param imgServerHost 图片服务器地址
+     * @return 可用的端口号
+     */
+    private String detectAvailablePort(String imgServerHost) {
+        // 端口优先级顺序（9系列优先，8系列备选）
+        String[] ports = {"9006", "9005", "9003", "9002", "9001", "8006", "8005", "8003", "8002", "8001"};
+
+        for (String port : ports) {
+            try {
+                String testUrl = "http://" + imgServerHost + ":" + port + "/useripaddressv23.js";
+
+                // 创建专用的测试RestTemplate，设置超时
+                RestTemplate testTemplate = new RestTemplate();
+                SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+                factory.setConnectTimeout(800);  // 连接超时800ms
+                factory.setReadTimeout(800);     // 读取超时800ms
+                testTemplate.setRequestFactory(factory);
+
+                // 尝试访问测试URL
+                testTemplate.getForEntity(testUrl, String.class);
+                log.info("端口 {} 可用", port);
+                return port;
+            } catch (Exception e) {
+                log.debug("端口 {} 不可用: {}", port, e.getMessage());
+            }
+        }
+
+        log.warn("未找到可用端口，使用默认9006");
+        return "9006";  // 默认端口
+    }
+
+    /**
      * 获取用户的缓存图片列表
-     * @param userid 用户ID
-     * @return 图片URL列表
+     *
+     * @param userid     用户ID
+     * @param hostHeader HTTP请求的Host头
+     * @return 图片本地访问URL列表和可用端口
      */
     @GetMapping("/getCachedImages")
-    public ResponseEntity<List<String>> getCachedImages(@RequestParam String userid) {
-        log.info("获取缓存图片列表: userid={}", userid);
+    public ResponseEntity<Map<String, Object>> getCachedImages(
+            @RequestParam String userid,
+            @RequestHeader(value = "Host", required = false) String hostHeader) {
+
+        log.info("获取缓存图片列表: userid={}, host={}", userid, hostHeader);
 
         CachedImages cached = imageCache.get(userid);
 
         if (cached == null) {
             log.info("用户 {} 没有缓存图片", userid);
-            return ResponseEntity.ok(new ArrayList<>());
+            Map<String, Object> emptyResponse = new HashMap<>();
+            emptyResponse.put("port", "9006");
+            emptyResponse.put("data", new ArrayList<>());
+            return ResponseEntity.ok(emptyResponse);
         }
 
         if (cached.isExpired()) {
             log.info("用户 {} 的缓存已过期，清除缓存", userid);
             imageCache.remove(userid);
-            return ResponseEntity.ok(new ArrayList<>());
+            Map<String, Object> emptyResponse = new HashMap<>();
+            emptyResponse.put("port", "9006");
+            emptyResponse.put("data", new ArrayList<>());
+            return ResponseEntity.ok(emptyResponse);
         }
 
-        log.info("返回 {} 张缓存图片", cached.imageUrls.size());
-        return ResponseEntity.ok(cached.imageUrls);
+        // 检测可用端口
+        String imgServerHost = imageServerService.getImgServerHost().split(":")[0];
+        String availablePort = detectAvailablePort(imgServerHost);
+
+        // 将缓存的 local_path 转换为本地访问URL
+        List<String> localUrls = mediaUploadService.convertPathsToLocalUrls(cached.imageUrls, hostHeader);
+
+        log.info("返回 {} 张缓存图片，端口: {}", localUrls.size(), availablePort);
+
+        // 返回包含端口信息的对象
+        Map<String, Object> response = new HashMap<>();
+        response.put("port", availablePort);
+        response.put("data", localUrls);
+
+        return ResponseEntity.ok(response);
     }
 
     /**
