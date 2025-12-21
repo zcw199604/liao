@@ -2356,7 +2356,7 @@
                     console.log('发送上传请求...');
 
                     // 调用后端上传接口
-                    const response = await fetchWithToken(`${API_BASE}/uploadImage`, {
+                    const response = await fetchWithToken(`${API_BASE}/uploadMedia`, {
                         method: 'POST',
                         body: formData
                     });

@@ -36,13 +36,28 @@ public class FileStorageService {
     private static final String BASE_UPLOAD_PATH = System.getProperty("user.dir") + "/upload";
 
     /**
-     * 支持的图片类型
+     * 支持的媒体类型（图片/视频）
      */
-    private static final Set<String> SUPPORTED_IMAGE_TYPES = Set.of(
+    private static final Set<String> SUPPORTED_MEDIA_TYPES = Set.of(
+            // 图片格式
             "image/jpeg",
             "image/png",
             "image/gif",
-            "image/webp"
+            "image/webp",
+            // 视频格式
+            "video/mp4"
+    );
+
+    /**
+     * 媒体类型到存储分类的映射
+     * 用于自动判断存储路径：image → ./upload/images/，video → ./upload/videos/
+     */
+    private static final Map<String, String> MEDIA_TYPE_CATEGORY = Map.of(
+            "image/jpeg", "image",
+            "image/png", "image",
+            "image/gif", "image",
+            "image/webp", "image",
+            "video/mp4", "video"
     );
 
     /**
@@ -84,7 +99,7 @@ public class FileStorageService {
         Path relativePath = basePath.relativize(filePath);
         String relativePathStr = "/" + relativePath.toString().replace("\\", "/");
 
-        log.info("文件保存成功: {} -> {}", originalFilename, relativePathStr);
+        log.info("媒体文件保存成功: {} -> {}", originalFilename, relativePathStr);
         return relativePathStr;
     }
 
@@ -108,7 +123,7 @@ public class FileStorageService {
             if (file.exists() && file.isFile()) {
                 boolean deleted = file.delete();
                 if (deleted) {
-                    log.info("文件删除成功: {}", localPath);
+                    log.info("媒体文件删除成功: {}", localPath);
                     return true;
                 } else {
                     log.warn("文件删除失败: {}", localPath);
@@ -125,16 +140,41 @@ public class FileStorageService {
     }
 
     /**
-     * 验证文件类型
+     * 验证媒体文件类型
      *
      * @param contentType 文件的MIME类型
      * @return 是否为支持的类型
      */
-    public boolean isValidFileType(String contentType) {
+    public boolean isValidMediaType(String contentType) {
         if (contentType == null || contentType.isEmpty()) {
             return false;
         }
-        return SUPPORTED_IMAGE_TYPES.contains(contentType.toLowerCase());
+        return SUPPORTED_MEDIA_TYPES.contains(contentType.toLowerCase());
+    }
+
+    /**
+     * 验证文件类型（已废弃，请使用 isValidMediaType）
+     *
+     * @param contentType 文件的MIME类型
+     * @return 是否为支持的类型
+     * @deprecated 为保持向后兼容保留，内部转发到 isValidMediaType
+     */
+    @Deprecated
+    public boolean isValidFileType(String contentType) {
+        return isValidMediaType(contentType);
+    }
+
+    /**
+     * 根据MIME类型推断存储分类
+     *
+     * @param contentType 文件的MIME类型
+     * @return 存储分类（image/video/file）
+     */
+    public String getCategoryFromContentType(String contentType) {
+        if (contentType == null || contentType.isEmpty()) {
+            return "file"; // 默认分类
+        }
+        return MEDIA_TYPE_CATEGORY.getOrDefault(contentType.toLowerCase(), "file");
     }
 
     /**

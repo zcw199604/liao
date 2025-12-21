@@ -386,23 +386,26 @@ public class UserHistoryController {
      * @param userAgent User-Agent header
      * @return 上传结果
      */
-    @PostMapping("/uploadImage")
-    public ResponseEntity<String> uploadImage(
+    /**
+     * 上传媒体文件（图片/视频）
+     */
+    @PostMapping("/uploadMedia")
+    public ResponseEntity<String> uploadMedia(
             @RequestParam("file") MultipartFile file,
             @RequestParam String userid,
             @RequestParam(required = false, defaultValue = "") String cookieData,
             @RequestParam(required = false, defaultValue = "http://v1.chat2019.cn/randomdeskrynew4m1phj.html?v=4m1phj") String referer,
             @RequestParam(required = false, defaultValue = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36") String userAgent) {
 
-        log.info("上传图片请求: userid={}, fileName={}, fileSize={}",
-                userid, file.getOriginalFilename(), file.getSize());
+        log.info("上传媒体请求: userid={}, fileName={}, fileSize={}, contentType={}",
+                userid, file.getOriginalFilename(), file.getSize(), file.getContentType());
 
         String localPath = null;
         String md5 = null;
 
         try {
             // 1. 验证文件类型
-            if (!fileStorageService.isValidFileType(file.getContentType())) {
+            if (!fileStorageService.isValidMediaType(file.getContentType())) {
                 log.warn("不支持的文件类型: {}", file.getContentType());
                 return ResponseEntity.status(400).body("{\"error\":\"不支持的文件类型\"}");
             }
@@ -425,8 +428,10 @@ public class UserHistoryController {
             } else {
                 // 4. 本地文件不存在，保存新文件
                 try {
-                    localPath = fileStorageService.saveFile(file, "image");
-                    log.info("文件已保存到本地: {}", localPath);
+                    // 根据MIME类型自动推断存储分类
+                    String category = fileStorageService.getCategoryFromContentType(file.getContentType());
+                    localPath = fileStorageService.saveFile(file, category);
+                    log.info("文件已保存到本地: {}，分类: {} -> {}", localPath, file.getContentType(), category);
                 } catch (Exception e) {
                     log.error("本地文件保存失败", e);
                     return ResponseEntity.status(500).body("{\"error\":\"本地存储失败: " + e.getMessage() + "\"}");
@@ -437,7 +442,7 @@ public class UserHistoryController {
             String uploadUrl = String.format("http://%s/asmx/upload.asmx/ProcessRequest?act=uploadImgRandom&userid=%s",
                     imageServerService.getImgServerHost(), userid);
 
-            log.info("上传到图片服务器: {}", uploadUrl);
+            log.info("上传到媒体服务器: {}", uploadUrl);
 
             // 设置请求头
             HttpHeaders headers = new HttpHeaders();
@@ -476,7 +481,7 @@ public class UserHistoryController {
             // 调用上游接口
             ResponseEntity<String> response = restTemplate.postForEntity(uploadUrl, requestEntity, String.class);
 
-            log.info("图片上传成功: {}", response.getBody());
+            log.info("媒体上传成功: contentType={}, response={}", file.getContentType(), response.getBody());
 
             // 4. 解析返回结果并保存到数据库
             try {
@@ -515,7 +520,7 @@ public class UserHistoryController {
 
                     // 6. 添加到内存缓存（存储 local_path 而非 remote_url）
                     addImageToCache(userid, localPath);
-                    log.info("图片已添加到缓存: userid={}, localPath={}", userid, localPath);
+                    log.info("媒体已添加到缓存: userid={}, localPath={}, contentType={}", userid, localPath, file.getContentType());
 
                     // 7. 构造包含端口信息的响应返回给前端
                     com.fasterxml.jackson.databind.node.ObjectNode enhancedResponse = mapper.createObjectNode();
@@ -538,13 +543,30 @@ public class UserHistoryController {
                 fileStorageService.deleteFile(localPath);
                 log.info("上传失败，已清理本地文件: {}", localPath);
             }
-            log.error("上传图片失败", e);
-            return ResponseEntity.status(500).body("{\"error\":\"上传图片失败: " + e.getMessage() + "\"}");
+            log.error("上传媒体失败: contentType={}", file.getContentType(), e);
+            return ResponseEntity.status(500).body("{\"error\":\"上传媒体失败: " + e.getMessage() + "\"}");
         }
     }
 
     /**
-     * 添加图片到缓存
+     * 上传图片（已废弃，请使用 /uploadMedia）
+     * @deprecated 为保持向后兼容保留，内部转发到 uploadMedia
+     */
+    @PostMapping("/uploadImage")
+    @Deprecated
+    public ResponseEntity<String> uploadImage(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam String userid,
+            @RequestParam(required = false, defaultValue = "") String cookieData,
+            @RequestParam(required = false, defaultValue = "http://v1.chat2019.cn/randomdeskrynew4m1phj.html?v=4m1phj") String referer,
+            @RequestParam(required = false, defaultValue = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36") String userAgent) {
+
+        // 转发到新接口
+        return uploadMedia(file, userid, cookieData, referer, userAgent);
+    }
+
+    /**
+     * 添加图片到缓存（内部方法，支持图片和视频）
      * @param userid 用户ID
      * @param imageUrl 图片URL
      */

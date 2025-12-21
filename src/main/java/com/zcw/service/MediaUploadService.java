@@ -190,7 +190,7 @@ public class MediaUploadService {
         // 检查是否已经记录过发送给该用户
         MediaUploadHistory existing = getExistingSendRecord(remoteUrl, fromUserId, toUserId);
         if (existing != null) {
-            log.info("该图片已经发送给该用户，更新发送时间: fromUserId={}, toUserId={}, remoteUrl={}",
+            log.info("该媒体已经发送给该用户，更新发送时间: fromUserId={}, toUserId={}, remoteUrl={}",
                     fromUserId, toUserId, remoteUrl);
             // 更新发送时间
             updateSendTime(existing.getId());
@@ -222,7 +222,7 @@ public class MediaUploadService {
                 now
         );
 
-        log.info("记录图片发送: fromUserId={}, toUserId={}, remoteUrl={}", fromUserId, toUserId, remoteUrl);
+        log.info("记录媒体发送: fromUserId={}, toUserId={}, remoteUrl={}", fromUserId, toUserId, remoteUrl);
 
         // 返回新记录
         return getExistingSendRecord(remoteUrl, fromUserId, toUserId);
@@ -412,7 +412,7 @@ public class MediaUploadService {
         // 转换为本地访问URL
         List<String> urls = convertToLocalUrls(localPaths, hostHeader);
 
-        log.debug("查询聊天图片: userId1={}, userId2={}, 返回{}张", userId1, userId2, urls.size());
+        log.debug("查询聊天媒体: userId1={}, userId2={}, 返回{}个", userId1, userId2, urls.size());
         return urls;
     }
 
