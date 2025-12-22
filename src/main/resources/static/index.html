@@ -436,6 +436,35 @@
                         </p>
                     </div>
                 </div>
+
+                <!-- 媒体管理 -->
+                <div class="bg-[#27272a] rounded-xl p-4">
+                    <h3 class="text-white font-medium mb-4 flex items-center gap-2">
+                        <i class="fas fa-images text-purple-400"></i>
+                        <span>媒体管理</span>
+                    </h3>
+
+                    <div class="space-y-3">
+                        <!-- 统计信息 -->
+                        <div class="bg-[#18181b] rounded-lg p-3">
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="text-gray-400">总上传数</span>
+                                <span class="text-white font-mono">{{ allUploadTotal || 0 }} 张</span>
+                            </div>
+                        </div>
+
+                        <!-- 管理按钮 -->
+                        <button @click="openMediaManagementModal"
+                            class="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium transition flex items-center justify-center gap-2">
+                            <i class="fas fa-cog"></i>
+                            <span>管理已上传图片</span>
+                        </button>
+
+                        <p class="text-xs text-gray-500 text-center">
+                            可以删除不需要的图片
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -515,10 +544,29 @@
             <!-- 头部 -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
                 <div class="flex items-center gap-2">
-                    <i class="fas fa-images text-blue-500"></i>
-                    <h3 class="text-lg font-bold text-white">所有上传图片</h3>
+                    <i class="fas fa-images" :class="managementMode ? 'text-purple-500' : 'text-blue-500'"></i>
+                    <h3 class="text-lg font-bold text-white">
+                        {{ managementMode ? '管理已上传图片' : '所有上传图片' }}
+                    </h3>
                     <span class="text-xs text-gray-500 ml-2">(共 {{ allUploadTotal }} 张)</span>
                 </div>
+
+                <!-- 管理模式下的操作按钮 -->
+                <div v-if="managementMode" class="flex items-center gap-2">
+                    <button @click="toggleSelectionMode"
+                        :class="selectionMode ? 'bg-purple-600' : 'bg-gray-700'"
+                        class="px-3 py-1.5 text-white text-sm rounded-lg transition flex items-center gap-1">
+                        <i :class="selectionMode ? 'fas fa-check-square' : 'far fa-square'"></i>
+                        <span>{{ selectionMode ? '取消选择' : '选择' }}</span>
+                    </button>
+
+                    <button @click="triggerUploadInModal"
+                        class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg transition hover:bg-indigo-700 flex items-center gap-1">
+                        <i class="fas fa-upload"></i>
+                        <span>上传</span>
+                    </button>
+                </div>
+
                 <button @click="closeAllUploadImageModal" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]">
                     <i class="fas fa-times"></i>
                 </button>
@@ -539,8 +587,37 @@
                  ref="allUploadScrollContainer">
                 <div class="grid grid-cols-3 sm:grid-cols-4 gap-4">
                     <div v-for="(media, idx) in allUploadImages" :key="'all-upload-' + idx"
-                        @click="previewUploadMedia(media)"
-                        class="aspect-square rounded-xl overflow-hidden cursor-pointer border-2 border-gray-700 hover:border-blue-500 transition-all hover:scale-105 relative group">
+                        class="aspect-square rounded-xl overflow-hidden cursor-pointer border-2 transition-all relative group"
+                        :class="[
+                            selectedImages.includes(media.url) ? 'border-purple-500' : 'border-gray-700',
+                            deletingImages.has(media.url) ? 'opacity-50' : 'hover:border-blue-500 hover:scale-105'
+                        ]"
+                        @click="handleImageClick(media)">
+
+                        <!-- 多选复选框（管理模式 + 选择模式下显示） -->
+                        <div v-if="managementMode && selectionMode"
+                             class="absolute top-2 left-2 z-10"
+                             @click.stop="toggleImageSelection(media)">
+                            <div class="w-6 h-6 rounded bg-black/50 flex items-center justify-center">
+                                <i v-if="selectedImages.includes(media.url)"
+                                   class="fas fa-check-circle text-purple-500 text-lg"></i>
+                                <i v-else class="far fa-circle text-white text-lg"></i>
+                            </div>
+                        </div>
+
+                        <!-- 删除按钮（管理模式 + 非选择模式下显示） -->
+                        <button v-if="managementMode && !selectionMode && !deletingImages.has(media.url)"
+                            @click.stop="confirmDeleteSingle(media)"
+                            class="absolute top-2 right-2 z-10 w-8 h-8 bg-black/70 rounded-full flex items-center justify-center text-red-500 opacity-0 group-hover:opacity-100 transition hover:bg-red-600 hover:text-white">
+                            <i class="fas fa-trash text-sm"></i>
+                        </button>
+
+                        <!-- 删除中加载图标 -->
+                        <div v-if="deletingImages.has(media.url)"
+                             class="absolute inset-0 bg-black/70 flex items-center justify-center z-20">
+                            <div class="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+
                         <img v-if="media.type === 'image'"
                              :src="media.url"
                              class="w-full h-full object-cover">
@@ -557,7 +634,7 @@
                         <!-- 悬停提示 -->
                         <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition flex items-end justify-center pb-3">
                             <span class="text-white text-xs font-medium">
-                                <i class="fas fa-search-plus mr-1"></i>点击预览
+                                <i class="fas fa-search-plus mr-1"></i>{{ managementMode && !selectionMode ? '预览/删除' : '点击预览' }}
                             </span>
                         </div>
                     </div>
@@ -586,9 +663,85 @@
                 </div>
             </div>
 
+            <!-- 批量操作栏（管理模式 + 选择模式 + 有选中项时显示） -->
+            <div v-if="managementMode && selectionMode && selectedImages.length > 0"
+                 class="px-6 py-4 bg-[#1a1a1d] border-t border-gray-800">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm text-gray-400">
+                        已选中 <span class="text-white font-bold">{{ selectedImages.length }}</span> 张
+                        <span v-if="selectedImages.length >= 50" class="text-yellow-500 ml-2">
+                            （已达单次删除上限）
+                        </span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button @click="selectAll"
+                            class="px-4 py-2 bg-gray-700 text-white text-sm rounded-lg hover:bg-gray-600 transition">
+                            {{ selectedImages.length === allUploadImages.length ? '取消全选' : '全选当前页' }}
+                        </button>
+                        <button @click="confirmBatchDelete"
+                            :disabled="selectedImages.length === 0 || selectedImages.length > 50"
+                            class="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                            <i class="fas fa-trash"></i>
+                            <span>批量删除</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- 底部提示 -->
             <div class="px-6 py-4 border-t border-gray-800 text-center text-xs text-gray-500">
-                点击图片将重新上传至服务器，然后可发送
+                {{ managementMode ? '提示：点击图片预览，悬停显示删除按钮' : '点击图片将重新上传至服务器，然后可发送' }}
+            </div>
+        </div>
+    </div>
+
+    <!-- === 删除确认对话框 === -->
+    <div v-if="showMediaDeleteConfirm"
+         class="fixed inset-0 z-[95] bg-black/60 flex items-center justify-center"
+         @click="showMediaDeleteConfirm = false">
+        <div class="w-96 bg-[#18181b] rounded-2xl p-6 shadow-2xl" @click.stop>
+            <div class="text-center mb-4">
+                <i class="fas fa-exclamation-triangle text-5xl text-red-500 mb-3"></i>
+                <h3 class="text-xl font-bold text-white mb-2">确认删除</h3>
+
+                <!-- 单个删除 -->
+                <div v-if="deleteTargets.length === 1">
+                    <p class="text-sm text-gray-400 mb-2">确定要删除这张{{ deleteTargets[0].type === 'image' ? '图片' : '视频' }}吗？</p>
+                    <div class="text-xs text-gray-500 bg-[#27272a] rounded-lg p-3 mt-3">
+                        <p class="truncate">{{ extractFileName(deleteTargets[0].url) }}</p>
+                    </div>
+                </div>
+
+                <!-- 批量删除 -->
+                <div v-else>
+                    <p class="text-sm text-gray-400 mb-2">确定要删除选中的 <span class="text-red-500 font-bold">{{ deleteTargets.length }}</span> 张图片吗？</p>
+                    <div class="text-xs text-gray-500 bg-[#27272a] rounded-lg p-3 mt-3 max-h-32 overflow-y-auto">
+                        <p v-for="(target, idx) in deleteTargets.slice(0, 5)" :key="idx" class="truncate">
+                            {{ idx + 1 }}. {{ extractFileName(target.url) }}
+                        </p>
+                        <p v-if="deleteTargets.length > 5" class="text-gray-600 mt-1">
+                            ... 还有 {{ deleteTargets.length - 5 }} 张
+                        </p>
+                    </div>
+                </div>
+
+                <p class="text-xs text-red-400 mt-3">
+                    <i class="fas fa-info-circle mr-1"></i>删除后无法恢复！
+                </p>
+            </div>
+
+            <!-- 按钮 -->
+            <div class="flex gap-3">
+                <button @click="showMediaDeleteConfirm = false"
+                    class="flex-1 py-3 bg-[#27272a] text-gray-400 rounded-xl border border-gray-700 hover:bg-[#333] transition">
+                    取消
+                </button>
+                <button @click="executeDelete"
+                    :disabled="deleting"
+                    class="flex-1 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                    <span v-if="deleting" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span>{{ deleting ? '删除中...' : '确认删除' }}</span>
+                </button>
             </div>
         </div>
     </div>
@@ -1063,6 +1216,15 @@
             const connectionStats = ref({ active: 0, upstream: 0, downstream: 0 }); // 连接统计
             const loadingMore = ref(false); // 加载更多历史消息中
             const firstTidMap = ref({}); // 存储每个聊天的最早消息Tid
+
+            // 媒体管理相关状态
+            const managementMode = ref(false); // 管理模式（true=可删除，false=只读）
+            const selectionMode = ref(false); // 选择模式
+            const selectedImages = ref([]); // 已选图片列表
+            const deletingImages = ref(new Set()); // 删除中的图片集合
+            const showMediaDeleteConfirm = ref(false); // 显示媒体删除确认对话框
+            const deleteTargets = ref([]); // 待删除目标
+            const deleting = ref(false); // 删除进行中
 
             // 数据源
             const historyUsers = ref([]); // 历史用户列表
@@ -2689,9 +2851,29 @@
                 await loadAllUploadImages(1);
             };
 
+            // 打开媒体管理弹框（从设置面板）
+            const openMediaManagementModal = async () => {
+                console.log('打开媒体管理弹框');
+                managementMode.value = true;  // 启用管理模式
+                showAllUploadImageModal.value = true;
+                allUploadImages.value = [];
+                allUploadPage.value = 1;
+                allUploadTotal.value = 0;
+                allUploadTotalPages.value = 0;
+                selectionMode.value = false;
+                selectedImages.value = [];
+
+                // 加载第一页
+                await loadAllUploadImages(1);
+            };
+
             // 关闭所有上传图片弹框
             const closeAllUploadImageModal = () => {
                 showAllUploadImageModal.value = false;
+                managementMode.value = false;
+                selectionMode.value = false;
+                selectedImages.value = [];
+                deletingImages.value.clear();
             };
 
             // 加载所有上传图片（分页）
@@ -2761,6 +2943,251 @@
                     }
                 }
             };
+
+            // ============== 媒体管理相关方法 ==============
+
+            // 切换选择模式
+            const toggleSelectionMode = () => {
+                console.log('切换选择模式');
+                selectionMode.value = !selectionMode.value;
+                if (!selectionMode.value) {
+                    // 退出选择模式时清空选中项
+                    selectedImages.value = [];
+                }
+            };
+
+            // 切换单个图片选择
+            const toggleImageSelection = (media) => {
+                const index = selectedImages.value.indexOf(media.url);
+                if (index > -1) {
+                    // 已选中，取消选中
+                    selectedImages.value.splice(index, 1);
+                    console.log('取消选中图片:', media.url);
+                } else {
+                    // 未选中，添加选中（检查上限）
+                    if (selectedImages.value.length >= 50) {
+                        showToast('最多选择50张图片');
+                        return;
+                    }
+                    selectedImages.value.push(media.url);
+                    console.log('选中图片:', media.url, '已选', selectedImages.value.length);
+                }
+            };
+
+            // 全选/取消全选
+            const selectAll = () => {
+                if (selectedImages.value.length === allUploadImages.value.length) {
+                    // 已全选，取消全选
+                    selectedImages.value = [];
+                    console.log('取消全选');
+                } else {
+                    // 全选当前页（最多50张）
+                    const toSelect = allUploadImages.value.slice(0, 50);
+                    selectedImages.value = toSelect.map(img => img.url);
+                    console.log('全选当前页:', selectedImages.value.length, '张');
+                    if (allUploadImages.value.length > 50) {
+                        showToast('已选中前50张图片（上限）');
+                    }
+                }
+            };
+
+            // 处理图片点击（根据模式和状态决定行为）
+            const handleImageClick = (media) => {
+                if (managementMode.value && selectionMode.value) {
+                    // 管理模式 + 选择模式：切换选中状态
+                    toggleImageSelection(media);
+                } else {
+                    // 其他情况：预览图片
+                    previewUploadMedia(media);
+                }
+            };
+
+            // 确认删除单个图片
+            const confirmDeleteSingle = (media) => {
+                console.log('准备删除单个图片:', media);
+                deleteTargets.value = [media];
+                showMediaDeleteConfirm.value = true;
+            };
+
+            // 确认批量删除
+            const confirmBatchDelete = () => {
+                if (selectedImages.value.length === 0) {
+                    showToast('请先选择要删除的图片');
+                    return;
+                }
+
+                if (selectedImages.value.length > 50) {
+                    showToast('单次最多删除50张图片');
+                    return;
+                }
+
+                console.log('准备批量删除:', selectedImages.value.length, '张');
+
+                // 构造删除目标列表
+                deleteTargets.value = allUploadImages.value.filter(
+                    img => selectedImages.value.includes(img.url)
+                );
+                showMediaDeleteConfirm.value = true;
+            };
+
+            // 执行删除
+            const executeDelete = async () => {
+                console.log('开始执行删除:', deleteTargets.value.length, '张');
+                deleting.value = true;
+
+                try {
+                    if (deleteTargets.value.length === 1) {
+                        // 单个删除
+                        await deleteSingleImage(deleteTargets.value[0]);
+                    } else {
+                        // 批量删除
+                        await batchDeleteImages(deleteTargets.value);
+                    }
+
+                    // 关闭确认对话框
+                    showMediaDeleteConfirm.value = false;
+                    deleteTargets.value = [];
+
+                    // 退出选择模式
+                    selectionMode.value = false;
+                    selectedImages.value = [];
+
+                    // 刷新列表
+                    await loadAllUploadImages(allUploadPage.value);
+
+                } catch (error) {
+                    console.error('删除失败:', error);
+                    showToast('删除失败: ' + error.message);
+                } finally {
+                    deleting.value = false;
+                }
+            };
+
+            // 删除单个图片
+            const deleteSingleImage = async (media) => {
+                try {
+                    // 提取本地路径（从URL中）
+                    const localPath = extractLocalPath(media.url);
+                    console.log('删除图片，localPath=', localPath);
+
+                    // 标记为删除中
+                    deletingImages.value.add(media.url);
+
+                    const params = new URLSearchParams();
+                    params.append('localPath', localPath);
+                    params.append('userId', currentUser.value.id);
+
+                    const response = await fetchWithToken(`${API_BASE}/deleteMedia`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                        body: params
+                    });
+
+                    const result = await response.json();
+                    console.log('删除响应:', result);
+
+                    if (result.code === 0) {
+                        // 从列表中移除
+                        allUploadImages.value = allUploadImages.value.filter(
+                            img => img.url !== media.url
+                        );
+                        allUploadTotal.value--;
+
+                        showToast('删除成功');
+                        console.log('删除成功，剩余', allUploadImages.value.length, '张');
+                    } else {
+                        throw new Error(result.msg || '删除失败');
+                    }
+
+                } catch (error) {
+                    console.error('删除图片失败:', error);
+                    throw error;
+                } finally {
+                    // 移除删除中标记
+                    deletingImages.value.delete(media.url);
+                }
+            };
+
+            // 批量删除图片
+            const batchDeleteImages = async (mediaList) => {
+                try {
+                    // 提取所有本地路径
+                    const localPaths = mediaList.map(media => extractLocalPath(media.url));
+                    console.log('批量删除，count=', localPaths.length, 'localPaths=', localPaths);
+
+                    // 标记所有为删除中
+                    mediaList.forEach(media => deletingImages.value.add(media.url));
+
+                    const response = await fetchWithToken(`${API_BASE}/batchDeleteMedia`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            userId: currentUser.value.id,
+                            localPaths: localPaths
+                        })
+                    });
+
+                    const result = await response.json();
+                    console.log('批量删除响应:', result);
+
+                    if (result.code === 0) {
+                        const { successCount, failCount, failedItems } = result.data;
+
+                        // 从列表中移除成功删除的项
+                        const failedUrls = failedItems.map(item => {
+                            // 根据localPath找到对应的URL
+                            return mediaList.find(m => extractLocalPath(m.url) === item.localPath)?.url;
+                        }).filter(Boolean);
+
+                        allUploadImages.value = allUploadImages.value.filter(
+                            img => !mediaList.map(m => m.url).includes(img.url) || failedUrls.includes(img.url)
+                        );
+
+                        allUploadTotal.value -= successCount;
+
+                        // 显示结果
+                        if (failCount > 0) {
+                            showToast(`删除完成：成功${successCount}张，失败${failCount}张`);
+                            console.warn('失败项:', failedItems);
+                        } else {
+                            showToast(`批量删除成功（${successCount}张）`);
+                            console.log('批量删除成功:', successCount, '张');
+                        }
+                    } else {
+                        throw new Error(result.msg || '批量删除失败');
+                    }
+
+                } catch (error) {
+                    console.error('批量删除失败:', error);
+                    throw error;
+                } finally {
+                    // 移除所有删除中标记
+                    mediaList.forEach(media => deletingImages.value.delete(media.url));
+                }
+            };
+
+            // 从URL中提取本地路径
+            const extractLocalPath = (url) => {
+                // URL格式：http://localhost:8080/upload/images/2025/12/19/xxx.jpg
+                // 提取：/images/2025/12/19/xxx.jpg
+                const urlPattern = /\/upload(\/?.+)$/;
+                const match = url.match(urlPattern);
+                return match ? match[1] : url;
+            };
+
+            // 从URL中提取文件名
+            const extractFileName = (url) => {
+                const parts = url.split('/');
+                return parts[parts.length - 1];
+            };
+
+            // 在弹框内触发上传
+            const triggerUploadInModal = () => {
+                console.log('在弹框内触发文件选择');
+                fileInput.value.click();
+            };
+
+            // ============== 媒体管理方法结束 ==============
 
             // 保存用户信息
             const saveUserInfo = async () => {
@@ -3229,6 +3656,13 @@
                 // 所有上传图片弹框相关
                 showAllUploadImageModal, allUploadImages, allUploadLoading, allUploadPage, allUploadTotal, allUploadTotalPages, allUploadScrollContainer,
                 openAllUploadImageModal, closeAllUploadImageModal, loadAllUploadImages, handleAllUploadScroll,
+                // 媒体管理相关
+                managementMode, selectionMode, selectedImages, deletingImages,
+                showMediaDeleteConfirm, deleteTargets, deleting,
+                openMediaManagementModal, toggleSelectionMode, toggleImageSelection,
+                selectAll, handleImageClick, confirmDeleteSingle, confirmBatchDelete,
+                executeDelete, deleteSingleImage, batchDeleteImages,
+                extractLocalPath, extractFileName, triggerUploadInModal,
                 // 表情相关
                 emojiMap, showEmojiPanel, toggleEmojiPanel, insertEmoji, parseEmoji, closeAllPanels,
                 // 登录认证相关

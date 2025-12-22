@@ -366,4 +366,120 @@ public class MediaHistoryController {
             return ResponseEntity.status(500).body(errorResponse);
         }
     }
+
+    /**
+     * 删除单个媒体文件
+     *
+     * @param localPath 本地文件相对路径（如：/images/2025/12/19/xxx.jpg）
+     * @param userId    当前用户ID
+     * @return 删除结果
+     */
+    @PostMapping("/deleteMedia")
+    public ResponseEntity<Map<String, Object>> deleteMedia(
+            @RequestParam String localPath,
+            @RequestParam String userId) {
+
+        log.info("删除媒体文件: userId={}, localPath={}", userId, localPath);
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // 调用Service层删除
+            com.zcw.model.DeleteResult result = mediaUploadService.deleteMediaByPath(userId, localPath);
+
+            response.put("code", 0);
+            response.put("msg", "删除成功");
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("deletedRecords", result.getDeletedRecords());
+            data.put("fileDeleted", result.isFileDeleted());
+            response.put("data", data);
+
+            log.info("删除媒体文件成功: userId={}, localPath={}, deletedRecords={}, fileDeleted={}",
+                    userId, localPath, result.getDeletedRecords(), result.isFileDeleted());
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            log.warn("删除失败（参数错误）: {}", e.getMessage());
+            response.put("code", 400);
+            response.put("msg", "参数错误：" + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+
+        } catch (RuntimeException e) {
+            log.warn("删除失败（权限或业务错误）: {}", e.getMessage());
+            response.put("code", 403);
+            response.put("msg", e.getMessage());
+            return ResponseEntity.status(403).body(response);
+
+        } catch (Exception e) {
+            log.error("删除媒体文件异常", e);
+            response.put("code", 500);
+            response.put("msg", "删除失败：" + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * 批量删除媒体文件
+     *
+     * @param request 包含localPaths和userId的Map
+     * @return 批量删除结果
+     */
+    @PostMapping("/batchDeleteMedia")
+    public ResponseEntity<Map<String, Object>> batchDeleteMedia(@RequestBody Map<String, Object> request) {
+
+        String userId = (String) request.get("userId");
+        @SuppressWarnings("unchecked")
+        List<String> localPaths = (List<String>) request.get("localPaths");
+
+        log.info("批量删除媒体文件: userId={}, count={}", userId, localPaths != null ? localPaths.size() : 0);
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // 验证参数
+            if (userId == null || userId.isEmpty()) {
+                response.put("code", 400);
+                response.put("msg", "用户ID不能为空");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            if (localPaths == null || localPaths.isEmpty()) {
+                response.put("code", 400);
+                response.put("msg", "文件路径列表不能为空");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // 限制单次最多50张
+            if (localPaths.size() > 50) {
+                response.put("code", 400);
+                response.put("msg", "单次最多删除50张图片");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // 调用Service层批量删除
+            com.zcw.model.BatchDeleteResult result = mediaUploadService.batchDeleteMedia(userId, localPaths);
+
+            response.put("code", 0);
+            response.put("msg", "批量删除完成");
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("successCount", result.getSuccessCount());
+            data.put("failCount", result.getFailCount());
+            data.put("failedItems", result.getFailedItems());
+            response.put("data", data);
+
+            log.info("批量删除媒体文件完成: userId={}, successCount={}, failCount={}",
+                    userId, result.getSuccessCount(), result.getFailCount());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("批量删除媒体文件异常", e);
+            response.put("code", 500);
+            response.put("msg", "批量删除失败：" + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
 }

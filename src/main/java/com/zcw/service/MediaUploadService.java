@@ -542,4 +542,103 @@ public class MediaUploadService {
         Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
         return count != null ? count : 0;
     }
+
+    /**
+     * 删除媒体记录及文件（支持MD5去重）
+     *
+     * @param userId    用户ID
+     * @param localPath 本地文件相对路径（如：/images/2025/12/19/xxx.jpg）
+     * @return 删除结果
+     * @throws Exception 删除失败时抛出异常
+     */
+    public com.zcw.model.DeleteResult deleteMediaByPath(String userId, String localPath) throws Exception {
+        if (userId == null || userId.isEmpty()) {
+            throw new IllegalArgumentException("用户ID不能为空");
+        }
+        if (localPath == null || localPath.isEmpty()) {
+            throw new IllegalArgumentException("文件路径不能为空");
+        }
+
+        // 1. 查询该文件的所有记录（包括发送记录）
+        String selectSql = "SELECT * FROM media_upload_history WHERE local_path = ? AND user_id = ?";
+        List<MediaUploadHistory> records = jdbcTemplate.query(selectSql, mediaUploadHistoryRowMapper, localPath, userId);
+
+        if (records.isEmpty()) {
+            throw new RuntimeException("未找到该文件记录");
+        }
+
+        // 2. 验证权限：确保是该用户上传的（找到原始上传记录）
+        MediaUploadHistory originalRecord = records.stream()
+                .filter(r -> r.getToUserId() == null)  // 原始上传记录的to_user_id为NULL
+                .findFirst()
+                .orElse(null);
+
+        if (originalRecord == null) {
+            throw new RuntimeException("无权删除此文件：未找到原始上传记录");
+        }
+
+        if (!originalRecord.getUserId().equals(userId)) {
+            throw new RuntimeException("无权删除其他用户的文件");
+        }
+
+        String fileMd5 = originalRecord.getFileMd5();
+
+        // 3. 删除数据库记录（删除该用户的所有相关记录）
+        String deleteSql = "DELETE FROM media_upload_history WHERE user_id = ? AND local_path = ?";
+        int deletedCount = jdbcTemplate.update(deleteSql, userId, localPath);
+
+        log.info("删除数据库记录成功: userId={}, localPath={}, deletedCount={}", userId, localPath, deletedCount);
+
+        // 4. 检查MD5：如果没有其他用户使用该文件，删除物理文件
+        boolean fileDeleted = false;
+        if (fileMd5 != null && !fileMd5.isEmpty()) {
+            String countSql = "SELECT COUNT(*) FROM media_upload_history WHERE file_md5 = ?";
+            Integer remainingCount = jdbcTemplate.queryForObject(countSql, Integer.class, fileMd5);
+
+            if (remainingCount != null && remainingCount == 0) {
+                // 没有其他记录使用该文件，可以删除
+                fileDeleted = fileStorageService.deleteFile(localPath);
+                log.info("物理文件删除: localPath={}, deleted={}", localPath, fileDeleted);
+            } else {
+                log.info("文件被其他记录引用，跳过物理删除: md5={}, remainingCount={}", fileMd5, remainingCount);
+            }
+        } else {
+            // 如果没有MD5，直接尝试删除（兼容旧数据）
+            fileDeleted = fileStorageService.deleteFile(localPath);
+            log.info("未找到MD5，直接尝试删除文件: localPath={}, deleted={}", localPath, fileDeleted);
+        }
+
+        return new com.zcw.model.DeleteResult(deletedCount, fileDeleted);
+    }
+
+    /**
+     * 批量删除媒体文件
+     *
+     * @param userId     用户ID
+     * @param localPaths 本地文件路径列表
+     * @return 批量删除结果
+     */
+    public com.zcw.model.BatchDeleteResult batchDeleteMedia(String userId, List<String> localPaths) {
+        int successCount = 0;
+        int failCount = 0;
+        List<java.util.Map<String, String>> failedItems = new java.util.ArrayList<>();
+
+        for (String localPath : localPaths) {
+            try {
+                deleteMediaByPath(userId, localPath);
+                successCount++;
+                log.info("批量删除成功: userId={}, localPath={}", userId, localPath);
+            } catch (Exception e) {
+                failCount++;
+                failedItems.add(java.util.Map.of(
+                        "localPath", localPath,
+                        "reason", e.getMessage()
+                ));
+                log.error("批量删除失败: userId={}, localPath={}, error={}", userId, localPath, e.getMessage());
+            }
+        }
+
+        log.info("批量删除完成: successCount={}, failCount={}", successCount, failCount);
+        return new com.zcw.model.BatchDeleteResult(successCount, failCount, failedItems);
+    }
 }
