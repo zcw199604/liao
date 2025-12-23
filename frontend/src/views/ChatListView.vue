@@ -1,5 +1,5 @@
 <template>
-  <div class="page-container bg-[#0f0f13]" @click.self="showTopMenu = false">
+  <div class="page-container bg-[#0f0f13]" @click="showTopMenu = false">
     <!-- 顶部切换栏 -->
     <div class="flex items-center justify-between pt-4 pb-2 px-4 bg-[#0f0f13] z-10">
       <!-- 左侧：菜单按钮（下拉） -->
