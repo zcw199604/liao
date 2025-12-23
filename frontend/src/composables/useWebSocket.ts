@@ -183,7 +183,7 @@ export const useWebSocket = () => {
 
         // 处理匹配成功消息 (code: 15)
         if (code === 15 && (data as any).sel_userid) {
-          const matchedUser = {
+          const matchedUser: User = {
             id: String((data as any).sel_userid),
             name: String((data as any).sel_userNikename || '匿名用户'),
             nickname: String((data as any).sel_userNikename || '匿名用户'),
@@ -199,10 +199,17 @@ export const useWebSocket = () => {
           }
 
           chatStore.isMatching = false
-          chatStore.historyUsers = [
-            matchedUser,
-            ...chatStore.historyUsers.filter(u => u.id !== matchedUser.id)
-          ]
+
+          // 更新单一数据源
+          chatStore.upsertUser(matchedUser)
+
+          // 移到历史列表最前面
+          const historyIds = chatStore.historyUserIds
+          const existingIndex = historyIds.indexOf(matchedUser.id)
+          if (existingIndex > -1) {
+            historyIds.splice(existingIndex, 1)
+          }
+          historyIds.unshift(matchedUser.id)
 
           // 初始化聊天记录为空，并进入聊天（不加载历史）
           messageStore.clearHistory(matchedUser.id)
@@ -310,23 +317,39 @@ export const useWebSocket = () => {
               messageStore.isTyping = false
             }
 
-            // 更新当前聊天对象摘要
+            // 直接更新 userMap 中的对象
             if (chatStore.currentChatUser) {
-              chatStore.currentChatUser.lastMsg = lastMsg
-              chatStore.currentChatUser.lastTime = '刚刚'
-              chatStore.currentChatUser.unreadCount = 0
+              chatStore.updateUser(chatStore.currentChatUser.id, {
+                lastMsg,
+                lastTime: '刚刚',
+                unreadCount: 0
+              })
             }
 
             setTimeout(scrollToBottom, 100)
           } else if (!isSelf) {
-            // 不在当前聊天界面，但收到消息 - 更新列表（历史）
-            const existingUser = chatStore.historyUsers.find(u => u.id === fromUserId)
+            // 不在当前聊天界面，但收到消息 - 使用单一数据源更新
+            const existingUser = chatStore.getUser(fromUserId)
+
             if (existingUser) {
-              existingUser.lastMsg = lastMsg
-              existingUser.lastTime = '刚刚'
-              existingUser.unreadCount = (existingUser.unreadCount || 0) + 1
+              // 用户已存在 - 更新状态
+              chatStore.updateUser(fromUserId, {
+                lastMsg,
+                lastTime: '刚刚',
+                unreadCount: (existingUser.unreadCount || 0) + 1
+              })
+
+              // 移到历史列表最前面
+              const historyIds = chatStore.historyUserIds
+              const existingIndex = historyIds.indexOf(fromUserId)
+              if (existingIndex > -1) {
+                historyIds.splice(existingIndex, 1)
+              }
+              historyIds.unshift(fromUserId)
+
             } else if (fromUserId !== currentUser.id) {
-              chatStore.historyUsers.unshift({
+              // 新用户 - 创建并添加
+              const newUser: User = {
                 id: fromUserId,
                 name: fromUserNickname || '匿名用户',
                 nickname: fromUserNickname || '匿名用户',
@@ -339,7 +362,10 @@ export const useWebSocket = () => {
                 lastMsg,
                 lastTime: '刚刚',
                 unreadCount: 1
-              } as any)
+              }
+
+              chatStore.upsertUser(newUser)
+              chatStore.historyUserIds.unshift(fromUserId)
             }
           }
 

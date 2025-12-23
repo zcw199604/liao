@@ -64,9 +64,9 @@ export const useChat = () => {
   const enterChat = (user: any, loadHistory: boolean = true) => {
     chatStore.enterChat(user)
 
-    // 清零未读
+    // 清零未读 - 使用单一数据源更新
     if (user.unreadCount && user.unreadCount > 0) {
-      user.unreadCount = 0
+      chatStore.updateUser(user.id, { unreadCount: 0 })
     }
 
     // 加载聊天历史 - 增量渲染策略
@@ -127,11 +127,28 @@ export const useChat = () => {
         return
       }
 
-      user.isFavorite = !user.isFavorite
-      show(user.isFavorite ? '收藏成功' : '取消收藏成功')
+      const newFavoriteState = !user.isFavorite
 
-      // 重新加载列表
-      await loadUsers()
+      // 更新 userMap 中的收藏状态
+      chatStore.updateUser(user.id, { isFavorite: newFavoriteState })
+
+      // 更新 favoriteUserIds 数组
+      if (newFavoriteState) {
+        // 添加收藏 - 插入到收藏列表前面
+        if (!chatStore.favoriteUserIds.includes(user.id)) {
+          chatStore.favoriteUserIds.unshift(user.id)
+        }
+      } else {
+        // 取消收藏 - 从收藏列表移除
+        const index = chatStore.favoriteUserIds.indexOf(user.id)
+        if (index > -1) {
+          chatStore.favoriteUserIds.splice(index, 1)
+        }
+      }
+
+      show(newFavoriteState ? '收藏成功' : '取消收藏成功')
+
+      // 本地立即更新，无需重新加载列表
     } catch (error) {
       console.error('收藏操作失败:', error)
       show('操作失败')

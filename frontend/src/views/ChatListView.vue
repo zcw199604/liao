@@ -238,8 +238,7 @@ const confirmSwitchIdentity = () => {
   disconnect(true)
   chatStore.exitChat()
   messageStore.resetAll()
-  chatStore.historyUsers = []
-  chatStore.favoriteUsers = []
+  chatStore.clearAllUsers()
   chatStore.activeTab = 'history'
   chatStore.isMatching = false
   userStore.clearCurrentUser()

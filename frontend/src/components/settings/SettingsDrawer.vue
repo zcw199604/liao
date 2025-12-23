@@ -258,9 +258,7 @@ const saveUserInfo = async () => {
 
       disconnect(true)
       messageStore.resetAll()
-      chatStore.currentChatUser = null
-      chatStore.historyUsers = []
-      chatStore.favoriteUsers = []
+      chatStore.clearAllUsers()
       chatStore.activeTab = 'history'
 
       connect()

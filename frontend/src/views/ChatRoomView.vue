@@ -437,7 +437,7 @@ onMounted(async () => {
   // 兜底：允许直接通过路由进入聊天室
   const userId = String(route.params.userId || '')
   if (userId && !chatStore.currentChatUser) {
-    const user = [...chatStore.historyUsers, ...chatStore.favoriteUsers].find(u => u.id === userId)
+    const user = chatStore.getUser(userId)
     if (user) {
       enterChat(user, true)
     } else {
