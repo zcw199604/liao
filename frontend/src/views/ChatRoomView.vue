@@ -45,6 +45,18 @@
       @typing-end="handleTypingEnd"
     />
 
+    <!-- 快捷匹配按钮 -->
+    <div class="absolute bottom-20 right-4 z-10">
+      <button
+        @click="handleStartMatch"
+        :disabled="!chatStore.wsConnected"
+        class="w-12 h-12 rounded-full bg-purple-600 flex items-center justify-center text-white transition hover:bg-purple-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+        title="匹配新用户"
+      >
+        <i class="fas fa-random text-lg"></i>
+      </button>
+    </div>
+
     <!-- 媒体预览 -->
     <MediaPreview
       v-model:visible="showMediaPreview"
@@ -163,7 +175,7 @@ const { uploadFile } = useUpload()
 const route = useRoute()
 const { connect, setScrollToBottom } = useWebSocket()
 const { show } = useToast()
-const { toggleFavorite, enterChat } = useChat()
+const { toggleFavorite, enterChat, startMatch } = useChat()
 
 const inputText = ref('')
 const showUploadMenu = ref(false)
@@ -394,6 +406,18 @@ const handleOpenAllUploads = async () => {
   mediaStore.selectedImages = []
   mediaStore.showAllUploadImageModal = true
   await mediaStore.loadAllUploadImages(userStore.currentUser.id, 1)
+}
+
+const handleStartMatch = () => {
+  if (!chatStore.wsConnected) {
+    show('WebSocket 未连接，无法匹配')
+    return
+  }
+
+  const success = startMatch()
+  if (success) {
+    console.log('从聊天室发起随机匹配')
+  }
 }
 
 onMounted(async () => {
