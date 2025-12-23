@@ -1,5 +1,5 @@
 <template>
-  <div class="page-container bg-[#0f0f13] absolute inset-0 z-50">
+  <div class="page-container bg-[#0f0f13]">
     <ChatHeader
       :user="chatStore.currentChatUser"
       :connected="chatStore.wsConnected"
