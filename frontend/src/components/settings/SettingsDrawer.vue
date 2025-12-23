@@ -1,0 +1,375 @@
+<template>
+  <teleport to="body">
+    <div v-if="visible" class="fixed inset-0 z-[70] bg-black/50" @click="close">
+      <div class="absolute right-0 top-0 bottom-0 w-80 bg-[#18181b] shadow-2xl overflow-y-auto" @click.stop>
+        <!-- 头部 -->
+        <div class="h-14 flex items-center justify-between px-4 border-b border-gray-800">
+          <h2 class="text-lg font-bold text-white">{{ mode === 'identity' ? '身份信息' : '系统设置' }}</h2>
+          <div class="flex items-center gap-2">
+            <button
+              v-if="mode === 'identity' && !editMode"
+              @click="startEdit"
+              class="px-3 py-1 bg-indigo-600 text-white text-sm rounded-lg"
+            >
+              编辑
+            </button>
+            <button
+              v-else-if="mode === 'identity' && editMode"
+              @click="saveUserInfo"
+              :disabled="saving"
+              class="px-3 py-1 bg-green-600 text-white text-sm rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <span v-if="saving" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+              <span>{{ saving ? '保存中...' : '保存' }}</span>
+            </button>
+            <button
+              @click="close"
+              class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white"
+            >
+              <i class="fas fa-times text-xl"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- 身份信息 -->
+        <div v-if="mode === 'identity'" class="p-6 space-y-6">
+          <div class="flex justify-center">
+            <div class="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+              {{ currentUser?.name?.charAt(0) || '?' }}
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <div class="bg-[#27272a] rounded-xl p-4">
+              <div class="text-xs text-gray-500 mb-2">用户名</div>
+              <input
+                v-if="editMode"
+                v-model="edit.name"
+                type="text"
+                class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none"
+                placeholder="输入用户名"
+              />
+              <div v-else class="text-base text-white font-medium">{{ currentUser?.name }}</div>
+            </div>
+
+            <div class="bg-[#27272a] rounded-xl p-4">
+              <div class="text-xs text-gray-500 mb-2">用户ID</div>
+              <input
+                v-if="editMode"
+                v-model="edit.id"
+                type="text"
+                class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono text-sm"
+                placeholder="输入用户ID"
+              />
+              <div v-else class="text-base text-white font-mono text-sm break-all">{{ currentUser?.id }}</div>
+            </div>
+
+            <div class="bg-[#27272a] rounded-xl p-4">
+              <div class="text-xs text-gray-500 mb-2">性别</div>
+              <select
+                v-if="editMode"
+                v-model="edit.sex"
+                class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none"
+              >
+                <option value="男">男</option>
+                <option value="女">女</option>
+              </select>
+              <div v-else class="text-base text-white">{{ currentUser?.sex }}</div>
+            </div>
+
+            <div class="bg-[#27272a] rounded-xl p-4">
+              <div class="text-xs text-gray-500 mb-1">IP地址</div>
+              <div class="text-base text-white">{{ currentUser?.ip }}</div>
+            </div>
+
+            <div class="bg-[#27272a] rounded-xl p-4">
+              <div class="text-xs text-gray-500 mb-1">地区</div>
+              <div class="text-base text-white">{{ currentUser?.area }}</div>
+            </div>
+
+            <div class="bg-[#27272a] rounded-xl p-4">
+              <div class="text-xs text-gray-500 mb-1">Cookie（自动生成）</div>
+              <div class="text-xs text-gray-400 break-all font-mono leading-relaxed">{{ currentUser?.cookie }}</div>
+            </div>
+
+            <div class="bg-[#27272a] rounded-xl p-4">
+              <div class="flex justify-between items-center">
+                <span class="text-sm text-gray-400">WebSocket 状态</span>
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full" :class="chatStore.wsConnected ? 'bg-green-500' : 'bg-red-500'"></span>
+                  <span class="text-sm" :class="chatStore.wsConnected ? 'text-green-500' : 'text-red-500'">
+                    {{ chatStore.wsConnected ? '已连接' : '未连接' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 系统设置 -->
+        <div v-else class="p-6 space-y-6">
+          <SystemSettings
+            :stats="connectionStats"
+            :forceout-count="forceoutUserCount"
+            :loading="disconnectAllLoading"
+            @refresh="refreshSystem"
+            @disconnect-all="confirmDisconnectAll"
+            @clear-forceout="confirmClearForceout"
+          />
+
+          <div class="bg-[#27272a] rounded-xl p-4">
+            <h3 class="text-white font-medium mb-4 flex items-center gap-2">
+              <i class="fas fa-images text-purple-400"></i>
+              <span>媒体管理</span>
+            </h3>
+            <div class="space-y-3">
+              <div class="bg-[#18181b] rounded-lg p-3">
+                <div class="flex justify-between items-center text-sm">
+                  <span class="text-gray-400">总上传数</span>
+                  <span class="text-white font-mono">{{ mediaStore.allUploadTotal || 0 }} 个</span>
+                </div>
+              </div>
+              <button
+                @click="openMediaManagement"
+                class="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium transition flex items-center justify-center gap-2"
+              >
+                <i class="fas fa-cog"></i>
+                <span>管理已上传图片</span>
+              </button>
+              <p class="text-xs text-gray-500 text-center">可以删除不需要的图片</p>
+            </div>
+          </div>
+        </div>
+
+        <Dialog
+          v-model:visible="showDisconnectAllDialog"
+          title="确认断开所有连接"
+          content="此操作会断开所有客户端和上游服务器的连接"
+          show-warning
+          @confirm="doDisconnectAll"
+        />
+
+        <Dialog
+          v-model:visible="showClearForceoutDialog"
+          title="确认清除禁止连接用户"
+          :content="`当前有 ${forceoutUserCount} 个用户被禁止连接（5分钟限制），确定清除？`"
+          show-warning
+          confirm-button-class="bg-amber-600"
+          @confirm="doClearForceout"
+        />
+      </div>
+    </div>
+  </teleport>
+</template>
+
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import { useUserStore } from '@/stores/user'
+import { useChatStore } from '@/stores/chat'
+import { useMessageStore } from '@/stores/message'
+import { useMediaStore } from '@/stores/media'
+import { useWebSocket } from '@/composables/useWebSocket'
+import { useSettings } from '@/composables/useSettings'
+import { useToast } from '@/composables/useToast'
+import { generateCookie } from '@/utils/cookie'
+import * as identityApi from '@/api/identity'
+import SystemSettings from '@/components/settings/SystemSettings.vue'
+import Dialog from '@/components/common/Dialog.vue'
+
+type Mode = 'identity' | 'system'
+
+interface Props {
+  visible: boolean
+  mode: Mode
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  'update:visible': [value: boolean]
+}>()
+
+const userStore = useUserStore()
+const chatStore = useChatStore()
+const messageStore = useMessageStore()
+const mediaStore = useMediaStore()
+const { disconnect, connect, send } = useWebSocket()
+const { show } = useToast()
+
+const { connectionStats, forceoutUserCount, disconnectAllLoading, loadConnectionStats, loadForceoutUserCount, disconnectAll, clearForceout } = useSettings()
+
+const currentUser = computed(() => userStore.currentUser)
+
+const editMode = ref(false)
+const saving = ref(false)
+const edit = ref({ id: '', name: '', sex: '男' })
+
+const showDisconnectAllDialog = ref(false)
+const showClearForceoutDialog = ref(false)
+
+const close = () => {
+  editMode.value = false
+  saving.value = false
+  emit('update:visible', false)
+}
+
+const startEdit = () => {
+  if (!currentUser.value) return
+  edit.value = { id: currentUser.value.id, name: currentUser.value.name, sex: currentUser.value.sex }
+  editMode.value = true
+}
+
+const saveUserInfo = async () => {
+  if (!currentUser.value) return
+
+  const idChanged = edit.value.id !== currentUser.value.id
+  const nameChanged = edit.value.name !== currentUser.value.name
+  const sexChanged = edit.value.sex !== currentUser.value.sex
+
+  if (!idChanged && !nameChanged && !sexChanged) {
+    show('没有任何修改')
+    editMode.value = false
+    return
+  }
+
+  saving.value = true
+  try {
+    // ID 改变：更新数据库 + 断开连接 + 重新连接
+    if (idChanged) {
+      const res = await identityApi.updateIdentityId({
+        oldId: currentUser.value.id,
+        newId: edit.value.id,
+        name: edit.value.name,
+        sex: edit.value.sex
+      })
+
+      if (res.code !== 0) {
+        show(`更新失败: ${res.msg || '未知错误'}`)
+        return
+      }
+
+      userStore.setCurrentUser({
+        ...currentUser.value,
+        id: edit.value.id,
+        name: edit.value.name,
+        nickname: edit.value.name,
+        sex: edit.value.sex,
+        cookie: generateCookie(edit.value.id, edit.value.name)
+      })
+
+      disconnect(true)
+      messageStore.resetAll()
+      chatStore.currentChatUser = null
+      chatStore.historyUsers = []
+      chatStore.favoriteUsers = []
+      chatStore.activeTab = 'history'
+
+      connect()
+      await Promise.all([
+        chatStore.loadHistoryUsers(edit.value.id, edit.value.name),
+        chatStore.loadFavoriteUsers(edit.value.id, edit.value.name)
+      ])
+      show('用户ID已更新，正在重新连接...')
+      editMode.value = false
+      emit('update:visible', false)
+      return
+    }
+
+    // 名字/性别改变：更新数据库 + 同步上游 WS（如果已连接）
+    if (nameChanged || sexChanged) {
+      const res = await identityApi.updateIdentity({
+        id: currentUser.value.id,
+        name: edit.value.name,
+        sex: edit.value.sex
+      })
+
+      if (res.code !== 0) {
+        show(`更新失败: ${res.msg || '未知错误'}`)
+        return
+      }
+
+      if (!chatStore.wsConnected) {
+        show('数据库已更新，但WebSocket未连接，无法同步聊天状态')
+      } else {
+        if (sexChanged) {
+          send({
+            act: 'modinfo',
+            id: currentUser.value.id,
+            userSex: edit.value.sex,
+            address_show: 'false',
+            randomhealthmode: '0',
+            randomvipsex: '0',
+            randomvipaddress: '0'
+          })
+        }
+        if (nameChanged) {
+          send({
+            act: 'chgname',
+            id: currentUser.value.id,
+            msg: edit.value.name
+          })
+        }
+      }
+
+      userStore.updateUserInfo({
+        name: edit.value.name,
+        nickname: edit.value.name,
+        sex: edit.value.sex,
+        cookie: generateCookie(currentUser.value.id, edit.value.name)
+      })
+
+      show('信息已保存')
+      editMode.value = false
+    }
+  } catch (e: any) {
+    console.error('保存用户信息失败:', e)
+    show(`保存失败: ${e?.message || '未知错误'}`)
+  } finally {
+    saving.value = false
+  }
+}
+
+const refreshSystem = async () => {
+  await Promise.all([loadConnectionStats(), loadForceoutUserCount()])
+}
+
+const confirmDisconnectAll = () => {
+  showDisconnectAllDialog.value = true
+}
+
+const doDisconnectAll = async () => {
+  const ok = await disconnectAll()
+  show(ok ? '已断开所有连接' : '操作失败')
+}
+
+const confirmClearForceout = () => {
+  showClearForceoutDialog.value = true
+}
+
+const doClearForceout = async () => {
+  const res = await clearForceout()
+  show(res.success ? res.message : res.message)
+}
+
+const openMediaManagement = async () => {
+  if (!currentUser.value) return
+  mediaStore.managementMode = true
+  mediaStore.selectionMode = false
+  mediaStore.selectedImages = []
+  mediaStore.showAllUploadImageModal = true
+  await mediaStore.loadAllUploadImages(currentUser.value.id, 1)
+}
+
+watch(
+  () => props.visible,
+  async (v) => {
+    if (!v) return
+
+    if (props.mode === 'system') {
+      await refreshSystem()
+      if (currentUser.value) {
+        await mediaStore.loadAllUploadImages(currentUser.value.id, 1)
+      }
+    }
+  }
+)
+</script>

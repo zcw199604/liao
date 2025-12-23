@@ -37,4 +37,13 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Node.js ###
 /node_modules/
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.vite/
+
+### 前端构建产物（由npm run build生成，不提交到仓库）###
+src/main/resources/static/
+temp-old-index.html

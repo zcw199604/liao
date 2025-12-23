@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
@@ -38,6 +39,18 @@ public class WebMvcConfig implements WebMvcConfigurer {
         // 配置 /upload/** 路径访问上传文件（如果有文件上传功能）
         registry.addResourceHandler("/upload/**")
                 .addResourceLocations("file:./upload/");
+    }
+
+    /**
+     * 配置前端 SPA 路由回退
+     * 直接访问 /chat/... 等前端路由时，转发到 index.html 交给前端路由处理
+     */
+    @Override
+    public void addViewControllers(ViewControllerRegistry registry) {
+        registry.addViewController("/login").setViewName("forward:/index.html");
+        registry.addViewController("/identity").setViewName("forward:/index.html");
+        registry.addViewController("/list").setViewName("forward:/index.html");
+        registry.addViewController("/chat/**").setViewName("forward:/index.html");
     }
 
     /**

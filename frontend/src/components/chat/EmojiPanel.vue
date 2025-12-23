@@ -1,0 +1,43 @@
+<template>
+  <div v-if="visible" class="bg-[#1a1a1d] border-t border-gray-800 p-4" @click.stop>
+    <div class="text-xs text-gray-500 mb-3 flex items-center justify-between">
+      <span><i class="fas fa-smile mr-1"></i>选择表情</span>
+      <button @click="$emit('update:visible', false)" class="text-gray-400 hover:text-white">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- 表情网格 -->
+    <div class="grid grid-cols-6 gap-2 max-h-64 overflow-y-auto">
+      <div
+        v-for="(emojiUrl, text) in emojiMap"
+        :key="text"
+        @click="handleSelect(text)"
+        class="flex flex-col items-center gap-1 p-2 hover:bg-[#27272a] rounded-lg cursor-pointer transition"
+      >
+        <img :src="emojiUrl" :alt="text" class="w-8 h-8" />
+        <span class="text-[10px] text-gray-500 text-center leading-tight">{{ text }}</span>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { emojiMap } from '@/constants/emoji'
+
+interface Props {
+  visible: boolean
+}
+
+defineProps<Props>()
+
+const emit = defineEmits<{
+  'update:visible': [value: boolean]
+  'select': [text: string]
+}>()
+
+const handleSelect = (text: string) => {
+  emit('select', text)
+  // 不自动关闭面板，让用户可以连续选择
+}
+</script>

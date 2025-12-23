@@ -1,0 +1,471 @@
+<template>
+  <div class="page-container bg-[#0f0f13] absolute inset-0 z-50">
+    <ChatHeader
+      :user="chatStore.currentChatUser"
+      :connected="chatStore.wsConnected"
+      @back="handleBack"
+      @toggle-favorite="handleToggleFavorite"
+    />
+
+    <MessageList
+      :messages="messages"
+      :is-typing="messageStore.isTyping"
+      :loading-more="messageStore.loadingMore"
+      :can-load-more="canLoadMore"
+      @load-more="handleLoadMore"
+      @close-all-panels="handleCloseAllPanels"
+      ref="messageListRef"
+    />
+
+    <!-- 上传菜单 -->
+    <UploadMenu
+      v-model:visible="showUploadMenu"
+      :uploaded-media="mediaStore.uploadedMedia"
+      :can-open-chat-history="!!chatStore.currentChatUser"
+      @send="handleSendMedia"
+      @upload-file="handleUploadFile"
+      @open-chat-history="handleOpenChatHistory"
+      @open-all-uploads="handleOpenAllUploads"
+    />
+
+    <!-- 表情面板 -->
+    <EmojiPanel
+      v-model:visible="showEmojiPanel"
+      @select="handleEmojiSelect"
+    />
+
+    <!-- 输入框 -->
+    <ChatInput
+      v-model="inputText"
+      :disabled="!chatStore.wsConnected"
+      @send="handleSend"
+      @show-upload="handleToggleUpload"
+      @show-emoji="handleToggleEmoji"
+      @typing-start="handleTypingStart"
+      @typing-end="handleTypingEnd"
+    />
+
+    <!-- 媒体预览 -->
+    <MediaPreview
+      v-model:visible="showMediaPreview"
+      :url="previewUrl"
+      :type="previewType"
+      :can-upload="previewCanUpload"
+      @upload="confirmPreviewUpload"
+    />
+
+    <!-- 隐藏的文件输入 -->
+    <input
+      ref="fileInput"
+      type="file"
+      accept="image/*,video/*"
+      @change="handleFileChange"
+      style="display: none"
+    />
+
+    <Toast />
+
+    <!-- 聊天历史图片/视频弹窗 -->
+    <teleport to="body">
+      <div
+        v-if="showHistoryMediaModal"
+        class="fixed inset-0 z-[75] bg-black/70 flex items-center justify-center"
+        @click="closeHistoryMediaModal"
+      >
+        <div class="w-[90%] max-w-2xl h-[70vh] bg-[#18181b] rounded-2xl shadow-2xl flex flex-col" @click.stop>
+          <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+            <div class="flex items-center gap-2">
+              <i class="fas fa-history text-green-500"></i>
+              <h3 class="text-lg font-bold text-white">
+                与 {{ chatStore.currentChatUser?.nickname }} 的聊天历史图片
+              </h3>
+            </div>
+            <button
+              @click="closeHistoryMediaModal"
+              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+            >
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <div v-if="historyMediaLoading" class="flex-1 flex items-center justify-center">
+            <div class="text-center">
+              <div class="radar-spinner mx-auto mb-3"></div>
+              <p class="text-gray-500 text-sm">加载中...</p>
+            </div>
+          </div>
+
+          <div v-else-if="historyMedia && historyMedia.length > 0" class="flex-1 overflow-y-auto p-6 no-scrollbar">
+            <div class="grid grid-cols-3 sm:grid-cols-4 gap-4">
+              <div
+                v-for="(media, idx) in historyMedia"
+                :key="'history-media-' + idx"
+                class="aspect-square rounded-xl overflow-hidden cursor-pointer border-2 border-gray-700 hover:border-green-500 hover:scale-105 transition-all relative"
+                @click="openPreviewUpload(media)"
+              >
+                <img v-if="media.type === 'image'" :src="media.url" class="w-full h-full object-cover" />
+                <video v-else :src="media.url" class="w-full h-full object-cover"></video>
+                <div v-if="media.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/30">
+                  <i class="fas fa-play-circle text-white text-3xl"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="flex-1 flex items-center justify-center">
+            <div class="text-center text-gray-500">
+              <i class="fas fa-image text-5xl mb-4 opacity-30"></i>
+              <p>暂无聊天历史图片</p>
+            </div>
+          </div>
+
+          <div class="px-6 py-4 border-t border-gray-800 text-center text-xs text-gray-500">
+            点击图片/视频预览，在预览中可上传/重新上传，再在上方"已上传的文件"中点击发送
+          </div>
+        </div>
+      </div>
+    </teleport>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useChatStore } from '@/stores/chat'
+import { useMessageStore } from '@/stores/message'
+import { useMediaStore } from '@/stores/media'
+import { useUserStore } from '@/stores/user'
+import { useMessage } from '@/composables/useMessage'
+import { useUpload } from '@/composables/useUpload'
+import { useWebSocket } from '@/composables/useWebSocket'
+import { useToast } from '@/composables/useToast'
+import { useChat } from '@/composables/useChat'
+import { extractUploadLocalPath } from '@/utils/media'
+import { generateCookie } from '@/utils/cookie'
+import { IMG_SERVER_IMAGE_PORT, IMG_SERVER_VIDEO_PORT } from '@/constants/config'
+import * as mediaApi from '@/api/media'
+import ChatHeader from '@/components/chat/ChatHeader.vue'
+import MessageList from '@/components/chat/MessageList.vue'
+import ChatInput from '@/components/chat/ChatInput.vue'
+import UploadMenu from '@/components/chat/UploadMenu.vue'
+import EmojiPanel from '@/components/chat/EmojiPanel.vue'
+import MediaPreview from '@/components/media/MediaPreview.vue'
+import Toast from '@/components/common/Toast.vue'
+import type { UploadedMedia } from '@/types'
+
+const router = useRouter()
+const chatStore = useChatStore()
+const messageStore = useMessageStore()
+const mediaStore = useMediaStore()
+const userStore = useUserStore()
+const { sendText, sendImage, sendVideo, sendTypingStatus } = useMessage()
+const { uploadFile } = useUpload()
+const route = useRoute()
+const { connect, setScrollToBottom } = useWebSocket()
+const { show } = useToast()
+const { toggleFavorite, enterChat } = useChat()
+
+const inputText = ref('')
+const showUploadMenu = ref(false)
+const showEmojiPanel = ref(false)
+const showMediaPreview = ref(false)
+const previewUrl = ref('')
+const previewType = ref<'image' | 'video'>('image')
+const previewCanUpload = ref(false)
+const previewTarget = ref<UploadedMedia | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+const messageListRef = ref<any>(null)
+
+const showHistoryMediaModal = ref(false)
+const historyMediaLoading = ref(false)
+const historyMedia = ref<UploadedMedia[]>([])
+
+const messages = computed(() => {
+  if (!chatStore.currentChatUser) return []
+  return messageStore.getMessages(chatStore.currentChatUser.id)
+})
+
+const canLoadMore = computed(() => {
+  return !!chatStore.currentChatUser
+})
+
+const handleSend = () => {
+  if (!inputText.value.trim() || !chatStore.currentChatUser) return
+  if (!chatStore.wsConnected) {
+    show('连接已断开，请刷新页面重试')
+    return
+  }
+
+  sendText(inputText.value, chatStore.currentChatUser)
+  inputText.value = ''
+}
+
+const handleToggleUpload = async () => {
+  showUploadMenu.value = !showUploadMenu.value
+  if (showUploadMenu.value) {
+    showEmojiPanel.value = false
+    if (userStore.currentUser) {
+      await mediaStore.loadImgServer()
+      await mediaStore.loadCachedImages(userStore.currentUser.id)
+    }
+  }
+}
+
+const handleToggleEmoji = () => {
+  showEmojiPanel.value = !showEmojiPanel.value
+  if (showEmojiPanel.value) {
+    showUploadMenu.value = false
+  }
+}
+
+const handleCloseAllPanels = () => {
+  showUploadMenu.value = false
+  showEmojiPanel.value = false
+}
+
+const handleTypingStart = () => {
+  if (chatStore.currentChatUser && chatStore.wsConnected) {
+    sendTypingStatus(true, chatStore.currentChatUser)
+  }
+}
+
+const handleTypingEnd = () => {
+  if (chatStore.currentChatUser && chatStore.wsConnected) {
+    sendTypingStatus(false, chatStore.currentChatUser)
+  }
+}
+
+const handleEmojiSelect = (text: string) => {
+  inputText.value += text
+  showEmojiPanel.value = false
+}
+
+const handleUploadFile = () => {
+  if (fileInput.value) {
+    fileInput.value.accept = 'image/*,video/*'
+    fileInput.value.click()
+  }
+}
+
+const handleFileChange = async (e: Event) => {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file || !userStore.currentUser) return
+
+  showUploadMenu.value = false
+
+  const media = await uploadFile(file, userStore.currentUser.id, userStore.currentUser.name)
+  if (media) {
+    show(media.type === 'video' ? '视频上传成功' : '图片上传成功')
+  } else {
+    show('文件上传失败')
+  }
+
+  target.value = ''
+}
+
+const handleSendMedia = (media: UploadedMedia) => {
+  if (!chatStore.currentChatUser) return
+  if (!chatStore.wsConnected) {
+    show('连接已断开，请刷新页面重试')
+    return
+  }
+
+  if (media.type === 'image') {
+    void sendImage(media.url, chatStore.currentChatUser)
+  } else {
+    void sendVideo(media.url, chatStore.currentChatUser)
+  }
+
+  showUploadMenu.value = false
+}
+
+const handleBack = () => {
+  messageStore.isTyping = false
+  chatStore.exitChat()
+  router.push('/list')
+}
+
+const handleToggleFavorite = () => {
+  if (!chatStore.currentChatUser) return
+  toggleFavorite(chatStore.currentChatUser)
+}
+
+const handleLoadMore = async () => {
+  if (!chatStore.currentChatUser || !userStore.currentUser) return
+
+  const lastTid = messageStore.firstTidMap[chatStore.currentChatUser.id]
+  const count = await messageStore.loadHistory(userStore.currentUser.id, chatStore.currentChatUser.id, {
+    isFirst: false,
+    firstTid: lastTid,
+    myUserName: userStore.currentUser.name
+  })
+
+  if (count > 0) {
+    show(`加载了 ${count} 条历史消息`)
+  } else if (count === 0) {
+    show('没有更多历史消息了')
+  } else {
+    show('加载失败')
+  }
+}
+
+const handleOpenChatHistory = async () => {
+  if (!chatStore.currentChatUser || !userStore.currentUser) return
+
+  showHistoryMediaModal.value = true
+  historyMediaLoading.value = true
+  try {
+    const res = await mediaApi.getChatImages(userStore.currentUser.id, chatStore.currentChatUser.id, 50)
+    const list: string[] = Array.isArray(res) ? res : []
+    historyMedia.value = list.map(url => ({
+      url,
+      type: url.toLowerCase().includes('.mp4') ? 'video' : 'image'
+    }))
+  } catch (e) {
+    console.error('加载聊天历史图片失败:', e)
+    historyMedia.value = []
+  } finally {
+    historyMediaLoading.value = false
+  }
+}
+
+const closeHistoryMediaModal = () => {
+  showHistoryMediaModal.value = false
+}
+
+const openPreviewUpload = (media: UploadedMedia) => {
+  previewTarget.value = media
+  previewUrl.value = media.url
+  previewType.value = media.type
+  previewCanUpload.value = true
+  showMediaPreview.value = true
+}
+
+const confirmPreviewUpload = async () => {
+  if (!previewTarget.value || !userStore.currentUser) return
+
+  if (!mediaStore.imgServer) {
+    await mediaStore.loadImgServer()
+  }
+  if (!mediaStore.imgServer) {
+    show('图片服务器地址未获取')
+    return
+  }
+
+  const localPath = extractUploadLocalPath(previewTarget.value.url)
+  const cookieData = generateCookie(userStore.currentUser.id, userStore.currentUser.name)
+  const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
+  const userAgent = navigator.userAgent
+
+  try {
+    const res = await mediaApi.reuploadHistoryImage({
+      userId: userStore.currentUser.id,
+      localPath,
+      cookieData,
+      referer,
+      userAgent
+    })
+
+    if (res?.state === 'OK' && res.msg) {
+      const port = previewTarget.value.type === 'video' ? IMG_SERVER_VIDEO_PORT : IMG_SERVER_IMAGE_PORT
+      const remoteUrl = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
+      mediaStore.addUploadedMedia({ url: remoteUrl, type: previewTarget.value.type })
+      show('图片已加载，点击可发送')
+      showMediaPreview.value = false
+      previewCanUpload.value = false
+      previewTarget.value = null
+      showHistoryMediaModal.value = false
+      showUploadMenu.value = true
+      return
+    }
+
+    show(`重新上传失败: ${res?.msg || res?.error || '未知错误'}`)
+  } catch (e) {
+    console.error('重新上传失败:', e)
+    show('重新上传失败')
+  }
+}
+
+const handleOpenAllUploads = async () => {
+  if (!userStore.currentUser) return
+  mediaStore.managementMode = false
+  mediaStore.selectionMode = false
+  mediaStore.selectedImages = []
+  mediaStore.showAllUploadImageModal = true
+  await mediaStore.loadAllUploadImages(userStore.currentUser.id, 1)
+}
+
+onMounted(async () => {
+  if (!userStore.currentUser) {
+    router.push('/identity')
+    return
+  }
+
+  // 对齐旧版：进入聊天页时刷新“已上传的文件”列表
+  try {
+    await mediaStore.loadImgServer()
+    await mediaStore.loadCachedImages(userStore.currentUser.id)
+  } catch (e) {
+    console.warn('初始化已上传文件列表失败:', e)
+  }
+
+  // 兜底：允许直接通过路由进入聊天室
+  const userId = String(route.params.userId || '')
+  if (userId && !chatStore.currentChatUser) {
+    const user = [...chatStore.historyUsers, ...chatStore.favoriteUsers].find(u => u.id === userId)
+    if (user) {
+      enterChat(user, true)
+    } else {
+      router.push('/list')
+      return
+    }
+  }
+
+  if (!chatStore.wsConnected) {
+    connect()
+  }
+
+  if (messageListRef.value) {
+    setScrollToBottom(() => {
+      messageListRef.value?.scrollToBottom()
+    })
+  }
+
+  const handlePreview = (e: any) => {
+    previewUrl.value = e.detail.url
+    previewType.value = e.detail.type
+    previewCanUpload.value = false
+    previewTarget.value = null
+    showMediaPreview.value = true
+  }
+  window.addEventListener('preview-media', handlePreview)
+
+  onUnmounted(() => {
+    window.removeEventListener('preview-media', handlePreview)
+  })
+})
+
+watch(
+  () => mediaStore.openUploadMenuSeq,
+  () => {
+    if (!chatStore.currentChatUser) return
+    showHistoryMediaModal.value = false
+    showEmojiPanel.value = false
+    showUploadMenu.value = true
+  }
+)
+
+watch(
+  () => chatStore.currentChatUser,
+  (user) => {
+    if (!user) return
+    messageStore.isTyping = false
+    // 进入聊天时清零未读
+    if (user.unreadCount && user.unreadCount > 0) {
+      user.unreadCount = 0
+    }
+  },
+  { immediate: true }
+)
+</script>
