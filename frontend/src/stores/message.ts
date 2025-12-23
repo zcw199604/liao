@@ -11,6 +11,45 @@ export const useMessageStore = defineStore('message', () => {
   const firstTidMap = ref<Record<string, string>>({})
   const loadingMore = ref(false)
 
+  // 消息去重 - 基于tid
+  const deduplicateMessages = (messages: ChatMessage[]): ChatMessage[] => {
+    const seen = new Set<string>()
+    return messages.filter(msg => {
+      if (!msg.tid) return true // 没有tid的消息保留
+      if (seen.has(msg.tid)) return false
+      seen.add(msg.tid)
+      return true
+    })
+  }
+
+  // 消息排序 - 按tid数字大小排序
+  const sortMessages = (messages: ChatMessage[]): ChatMessage[] => {
+    return messages.sort((a, b) => {
+      const tidA = parseInt(a.tid) || 0
+      const tidB = parseInt(b.tid) || 0
+      return tidA - tidB
+    })
+  }
+
+  // 获取增量新消息 - 只返回比缓存最后一条更新的消息
+  const getIncrementalMessages = (
+    cached: ChatMessage[],
+    fresh: ChatMessage[]
+  ): ChatMessage[] => {
+    if (cached.length === 0) return fresh // 无缓存，返回所有新消息
+
+    // 获取缓存中最后一条消息的tid（最大的tid）
+    const maxCachedTid = Math.max(...cached.map(m => parseInt(m.tid) || 0))
+
+    // 只返回tid比缓存更大的消息
+    const newMessages = fresh.filter(msg => {
+      const msgTid = parseInt(msg.tid) || 0
+      return msgTid > maxCachedTid
+    })
+
+    return newMessages
+  }
+
   const getMessages = (userId: string): ChatMessage[] => {
     return chatHistory.value.get(userId) || []
   }
@@ -24,7 +63,7 @@ export const useMessageStore = defineStore('message', () => {
   const loadHistory = async (
     myUserID: string,
     UserToID: string,
-    options?: { isFirst?: boolean; firstTid?: string; myUserName?: string }
+    options?: { isFirst?: boolean; firstTid?: string; myUserName?: string; incremental?: boolean }
   ): Promise<number> => {
     loadingMore.value = true
     try {
@@ -32,6 +71,7 @@ export const useMessageStore = defineStore('message', () => {
       const isFirst = options?.isFirst ?? true
       const firstTid = options?.firstTid ?? '0'
       const myUserName = options?.myUserName || 'User'
+      const incremental = options?.incremental ?? false
 
       if (!mediaStore.imgServer) {
         try {
@@ -111,11 +151,32 @@ export const useMessageStore = defineStore('message', () => {
           } as ChatMessage
         })
 
+        const existing = chatHistory.value.get(UserToID) || []
+
         if (isFirst) {
-          chatHistory.value.set(UserToID, mapped)
+          if (incremental && existing.length > 0) {
+            // 增量模式 + 有缓存：只追加新消息
+            const newMessages = getIncrementalMessages(existing, mapped)
+
+            if (newMessages.length > 0) {
+              console.log(`增量追加 ${newMessages.length} 条新消息`)
+              const updated = [...existing, ...newMessages]
+              chatHistory.value.set(UserToID, updated)
+            } else {
+              console.log('没有新消息，保持缓存不变')
+            }
+
+            return newMessages.length  // 返回新增消息数量
+          } else {
+            // 首次加载 或 无缓存：直接设置
+            chatHistory.value.set(UserToID, mapped)
+          }
         } else {
-          const existing = chatHistory.value.get(UserToID) || []
-          chatHistory.value.set(UserToID, [...mapped, ...existing])
+          // 向前翻页：prepend到前面并去重排序
+          const combined = [...mapped, ...existing]
+          const deduplicated = deduplicateMessages(combined)
+          const sorted = sortMessages(deduplicated)
+          chatHistory.value.set(UserToID, sorted)
         }
 
         if (mapped.length > 0) {

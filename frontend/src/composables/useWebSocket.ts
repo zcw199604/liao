@@ -288,10 +288,19 @@ export const useWebSocket = () => {
             : fromUserId
 
           if (targetUserId) {
-            messageStore.addMessage(targetUserId, chatMessage)
-          }
+            // WebSocket消息去重 - 基于tid
+            const existingMessages = messageStore.getMessages(targetUserId)
+            const isDuplicate = existingMessages.some(msg =>
+              msg.tid && chatMessage.tid && msg.tid === chatMessage.tid
+            )
 
-          console.log('消息已添加到聊天历史')
+            if (isDuplicate) {
+              console.log('WebSocket消息重复（tid已存在），跳过:', chatMessage.tid)
+            } else {
+              messageStore.addMessage(targetUserId, chatMessage)
+              console.log('消息已添加到聊天历史')
+            }
+          }
 
           const lastMsg = isImage ? '[图片]' : (isVideo ? '[视频]' : messageContent)
 

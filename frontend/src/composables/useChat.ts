@@ -69,13 +69,35 @@ export const useChat = () => {
       user.unreadCount = 0
     }
 
-    // 加载聊天历史
+    // 加载聊天历史 - 增量渲染策略
     if (loadHistory && userStore.currentUser) {
-      messageStore.loadHistory(userStore.currentUser.id, user.id, {
-        isFirst: true,
-        firstTid: '0',
-        myUserName: userStore.currentUser.name
-      })
+      const cachedMessages = messageStore.getMessages(user.id)
+
+      if (cachedMessages.length > 0) {
+        // 有缓存：立即显示，增量获取新消息
+        console.log(`使用缓存消息 ${cachedMessages.length} 条，检查新消息中...`)
+
+        // 获取最新消息并增量追加
+        messageStore.loadHistory(userStore.currentUser.id, user.id, {
+          isFirst: true,
+          firstTid: '0',
+          myUserName: userStore.currentUser.name,
+          incremental: true  // 增量模式
+        }).then(newCount => {
+          if (newCount > 0) {
+            console.log(`增量追加 ${newCount} 条新消息`)
+          } else {
+            console.log('没有新消息')
+          }
+        })
+      } else {
+        // 无缓存：正常加载（显示loading）
+        messageStore.loadHistory(userStore.currentUser.id, user.id, {
+          isFirst: true,
+          firstTid: '0',
+          myUserName: userStore.currentUser.name
+        })
+      }
     }
   }
 
