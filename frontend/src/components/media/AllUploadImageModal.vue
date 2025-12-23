@@ -16,8 +16,9 @@
             <span class="text-xs text-gray-500 ml-2">(共 {{ mediaStore.allUploadTotal }} 个)</span>
           </div>
 
-          <div v-if="mediaStore.managementMode" class="flex items-center gap-2">
+          <div class="flex items-center gap-2">
             <button
+              v-if="mediaStore.managementMode"
               @click="toggleSelectionMode"
               :class="mediaStore.selectionMode ? 'bg-purple-600' : 'bg-gray-700'"
               class="px-3 py-1.5 text-white text-sm rounded-lg transition flex items-center gap-1"
@@ -25,14 +26,14 @@
               <i :class="mediaStore.selectionMode ? 'fas fa-check-square' : 'far fa-square'"></i>
               <span>{{ mediaStore.selectionMode ? '取消选择' : '选择' }}</span>
             </button>
-          </div>
 
-          <button
-            @click="close"
-            class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
-          >
-            <i class="fas fa-times"></i>
-          </button>
+            <button
+              @click="close"
+              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+            >
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
         </div>
 
         <!-- 加载状态 -->

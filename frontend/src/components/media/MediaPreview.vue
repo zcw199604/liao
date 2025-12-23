@@ -3,7 +3,7 @@
     <transition name="fade">
       <div
         v-if="visible"
-        class="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50"
+        class="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[100]"
         @click.self="$emit('update:visible', false)"
       >
         <button
