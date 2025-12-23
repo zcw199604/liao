@@ -119,11 +119,27 @@ public class UpstreamWebSocketClient extends WebSocketClient {
     }
 
     /**
-     * 收到上游服务的消息，直接转发给当前用户的所有下游客户端
+     * 收到上游服务的消息，检测forceout消息后转发给下游客户端
      */
     @Override
     public void onMessage(String message) {
         log.info("收到上游服务消息: userId={}, message={}", userId, message);
+
+        // 检查是否是forceout消息
+        try {
+            com.fasterxml.jackson.databind.JsonNode jsonNode = objectMapper.readTree(message);
+            if (jsonNode.has("code") && jsonNode.get("code").asInt() == -3 &&
+                jsonNode.has("forceout") && jsonNode.get("forceout").asBoolean()) {
+
+                log.warn("收到forceout消息，将添加到禁止列表: userId={}", userId);
+                // 通知管理器处理forceout
+                manager.handleForceout(userId, message);
+                return;
+            }
+        } catch (Exception e) {
+            // 解析失败，按普通消息处理
+            log.debug("消息不是JSON格式或解析失败，按普通消息处理: userId={}", userId);
+        }
 
         // 直接广播到当前用户的所有下游客户端
         // 不需要解析消息内容，因为一个上游连接属于一个用户

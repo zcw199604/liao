@@ -21,6 +21,7 @@ public class UpstreamWebSocketManager {
     private static final Logger log = LoggerFactory.getLogger(UpstreamWebSocketManager.class);
 
     private final WebSocketAddressService addressService;
+    private final ForceoutManager forceoutManager;
 
     // 用户ID -> 上游WebSocket客户端
     private final Map<String, UpstreamWebSocketClient> upstreamClients = new ConcurrentHashMap<>();
@@ -37,8 +38,10 @@ public class UpstreamWebSocketManager {
     // 延迟时间：30秒
     private static final long CLOSE_DELAY_SECONDS = 80;
 
-    public UpstreamWebSocketManager(WebSocketAddressService addressService) {
+    public UpstreamWebSocketManager(WebSocketAddressService addressService,
+                                    ForceoutManager forceoutManager) {
         this.addressService = addressService;
+        this.forceoutManager = forceoutManager;
     }
 
     /**
@@ -49,6 +52,27 @@ public class UpstreamWebSocketManager {
      */
     public void registerDownstream(String userId, WebSocketSession session, String signMessage) {
         log.info("注册客户端: userId={}, sessionId={}", userId, session.getId());
+
+        // 检查是否被forceout禁止
+        if (forceoutManager.isForbidden(userId)) {
+            long remainingSeconds = forceoutManager.getRemainingSeconds(userId);
+            log.warn("用户 {} 被forceout禁止连接，剩余时间: {}秒", userId, remainingSeconds);
+
+            try {
+                // 发送拒绝消息（code=-4）
+                String rejectMessage = String.format(
+                    "{\"code\":-4,\"content\":\"由于重复登录，您的连接被暂时禁止，请%d秒后再试\",\"forceout\":true}",
+                    remainingSeconds
+                );
+                session.sendMessage(new org.springframework.web.socket.TextMessage(rejectMessage));
+
+                // 立即关闭连接
+                session.close();
+            } catch (Exception e) {
+                log.error("发送拒绝消息失败", e);
+            }
+            return;
+        }
 
         // 如果有待执行的关闭任务，取消它
         ScheduledFuture<?> pendingTask = pendingCloseTasks.remove(userId);
@@ -224,6 +248,47 @@ public class UpstreamWebSocketManager {
             client.close();
             log.info("上游连接已关闭: userId={}", userId);
         }
+    }
+
+    /**
+     * 处理forceout消息
+     * 当收到上游的forceout消息时，将用户添加到禁止列表，并关闭所有连接
+     * @param userId 用户ID
+     * @param message forceout消息内容
+     */
+    public void handleForceout(String userId, String message) {
+        log.warn("处理forceout: userId={}, message={}", userId, message);
+
+        // 1. 添加到禁止列表（5分钟）
+        forceoutManager.addForceoutUser(userId);
+
+        // 2. 广播forceout消息到所有下游连接（让前端停止重连）
+        broadcastToDownstream(userId, message);
+
+        // 3. 关闭上游连接
+        closeUpstreamConnection(userId);
+
+        // 4. 延迟1秒后关闭���有下游连接（让前端先收到消息）
+        scheduler.schedule(() -> {
+            List<WebSocketSession> sessions = downstreamSessions.get(userId);
+            if (sessions != null) {
+                log.info("延迟关闭用户 {} 的 {} 个下游连接", userId, sessions.size());
+                List<WebSocketSession> sessionsCopy = new ArrayList<>(sessions);
+                sessionsCopy.forEach(session -> {
+                    try {
+                        if (session.isOpen()) {
+                            session.close();
+                            log.info("✓ 已关闭forceout用户的下游连接: sessionId={}", session.getId());
+                        }
+                    } catch (Exception e) {
+                        log.error("✗ 关闭下游连接失败", e);
+                    }
+                });
+                downstreamSessions.remove(userId);
+            }
+        }, 1, TimeUnit.SECONDS);
+
+        log.warn("Forceout处理完成: userId={}, 已添加到禁止列表5分钟", userId);
     }
 
     /**

@@ -434,6 +434,25 @@
                         <p class="text-xs text-gray-500 text-center">
                             此操作会断开所有客户端和上游服务器的连接
                         </p>
+
+                        <!-- 新增：被禁止用户统计和清除按钮 -->
+                        <div v-if="forceoutUserCount > 0" class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mt-3">
+                            <div class="flex items-center gap-2 mb-2 text-amber-500">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <span class="text-sm font-medium">当前有 {{ forceoutUserCount }} 个用户被禁止连接（5分钟限制）</span>
+                            </div>
+                            <button @click="confirmClearForceout"
+                                class="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition flex items-center justify-center gap-2">
+                                <i class="fas fa-unlock"></i>
+                                <span>清除所有禁止连接的用户</span>
+                            </button>
+                        </div>
+                        <div v-else class="mt-3 text-center">
+                            <span class="text-sm text-green-400 flex items-center justify-center gap-2">
+                                <i class="fas fa-check-circle"></i>
+                                <span>当前没有被禁止的用户</span>
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -1214,6 +1233,7 @@
             const showDisconnectAllDialog = ref(false); // 断开所有连接确认对话框
             const disconnectAllLoading = ref(false); // 断开连接加载状态
             const connectionStats = ref({ active: 0, upstream: 0, downstream: 0 }); // 连接统计
+            const forceoutUserCount = ref(0); // 被禁止的用户数量
             const loadingMore = ref(false); // 加载更多历史消息中
             const firstTidMap = ref({}); // 存储每个聊天的最早消息Tid
 
@@ -1503,6 +1523,8 @@
                 showSettings.value = true;
                 // 加载连接统计
                 loadConnectionStats();
+                // 加载被禁止用户统计
+                loadForceoutUserCount();
             };
 
             // 加载连接统计
@@ -1547,6 +1569,56 @@
                     showToast('操作失败，请重试');
                 } finally {
                     disconnectAllLoading.value = false;
+                }
+            };
+
+            // 加载被禁止用户数量
+            const loadForceoutUserCount = async () => {
+                try {
+                    console.log('🔍 开始加载被禁止用户统计...');
+                    const response = await fetchWithToken(`${API_BASE}/getForceoutUserCount`);
+                    console.log('🔍 API响应状态:', response.status);
+
+                    const data = await response.json();
+                    console.log('🔍 API响应数据:', data);
+
+                    if (data.code === 0) {
+                        forceoutUserCount.value = data.data;
+                        console.log('✅ 被禁止用户数量:', data.data);
+                        console.log('📊 forceoutUserCount状态已更新:', forceoutUserCount.value);
+                    } else {
+                        console.error('❌ API返回错误:', data.msg);
+                    }
+                } catch (error) {
+                    console.error('❌ 加载被禁止用户数量失败:', error);
+                }
+            };
+
+            // 确认清除所有禁止连接的用户
+            const confirmClearForceout = () => {
+                if (confirm(`确定要清除所有被禁止的用户吗？\n当前有 ${forceoutUserCount.value} 个用户被禁止连接。\n清除后这些用户将可以立即重新连接。`)) {
+                    executeClearForceout();
+                }
+            };
+
+            // 执行清除禁止用户
+            const executeClearForceout = async () => {
+                try {
+                    const response = await fetchWithToken(`${API_BASE}/clearForceoutUsers`, {
+                        method: 'POST'
+                    });
+
+                    const data = await response.json();
+                    if (data.code === 0) {
+                        showToast(data.msg || '清除成功');
+                        // 刷新统计
+                        loadForceoutUserCount();
+                    } else {
+                        showToast('清除失败: ' + data.msg);
+                    }
+                } catch (error) {
+                    console.error('清除禁止用户失败:', error);
+                    showToast('清除失败，请稍后重试');
                 }
             };
 
@@ -3400,6 +3472,40 @@
                         // 尝试解析 JSON
                         const data = JSON.parse(event.data);
 
+                        // ========== 新增：检测forceout消息 ==========
+                        // 检测上游forceout消息（code=-3, forceout=true）
+                        if (data.code === -3 && data.forceout === true) {
+                            console.error('收到forceout消息，停止重连:', data.content);
+
+                            // 设置特殊标志，阻止重连
+                            window.forceoutFlag = true;
+
+                            // 显示提示
+                            alert(data.content || '请不要在同一个浏览器下重复登录');
+
+                            // 关闭连接
+                            wsConnected.value = false;
+                            if (ws) {
+                                ws.close();
+                            }
+
+                            return; // 停止处理
+                        }
+
+                        // 检测后端拒绝消息（code=-4, forceout=true）
+                        if (data.code === -4 && data.forceout === true) {
+                            console.error('后端拒绝连接:', data.content);
+
+                            // 设置forceout标志
+                            window.forceoutFlag = true;
+
+                            // 显示提示
+                            alert(data.content || '连接被拒绝，请稍后再试');
+
+                            return;
+                        }
+                        // ========== 结束新增 ==========
+
                         // 过滤系统消息（code: 12, 13, 16, 19 等），用 toast 显示
                         if (data.code === 12 || data.code === 13 || data.code === 16 || data.code === 19) {
                             console.log('系统消息，toast显示:', data);
@@ -3618,6 +3724,13 @@
                         return;
                     }
 
+                    // ========== 新增：检查forceout标志 ==========
+                    if (window.forceoutFlag) {
+                        console.log('因forceout被禁止，跳过重连');
+                        return; // 永久停止重连（除非刷新页面）
+                    }
+                    // ========== 结束新增 ==========
+
                     // 尝试重连
                     setTimeout(() => {
                         console.log('尝试重新连接...');
@@ -3675,8 +3788,8 @@
                 showTopMenu, showSwitchIdentityDialog,
                 openIdentitySettings, openSystemSettings, showSwitchIdentityConfirm, confirmSwitchIdentity, cancelSwitchIdentity,
                 // 系统设置相关
-                settingsMode, showDisconnectAllDialog, disconnectAllLoading, connectionStats,
-                loadConnectionStats, confirmDisconnectAll, executeDisconnectAll,
+                settingsMode, showDisconnectAllDialog, disconnectAllLoading, connectionStats, forceoutUserCount,
+                loadConnectionStats, confirmDisconnectAll, executeDisconnectAll, loadForceoutUserCount, confirmClearForceout, executeClearForceout,
                 // 原有功能
                 startMatch, cancelMatch, enterChat, exitChat, toggleFavorite,
                 sendMessage, selectFile, handleFileUpload, autoResize, previewMedia, previewUploadMedia, sendImageMessage, formatTime, loadMoreHistory,
