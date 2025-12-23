@@ -1,0 +1,31 @@
+# Maven 构建输出
+target/
+!target/*.jar
+
+# IDE 文件
+.idea/
+*.iml
+.vscode/
+.eclipse/
+
+# Git 文件
+.git/
+.gitignore
+
+# Node.js（如果前端资源已打包到static）
+node_modules/
+package-lock.json
+
+# 日志文件
+*.log
+
+# 临时文件
+*.tmp
+*.swp
+upload/
+
+# GitHub 配置
+.github/
+
+# 其他
+.DS_Store

@@ -1,6 +1,6 @@
 # 应用配置
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 spring:
   application:
@@ -8,9 +8,9 @@ spring:
 
   # 数据库配置
   datasource:
-    url: jdbc:mysql://10.10.10.90:3306/hot_img?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
-    username: root
-    password: 123456
+    url: ${DB_URL:jdbc:mysql://10.10.10.90:3306/hot_img?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   # 文件上传配置
@@ -37,13 +37,13 @@ spring:
 websocket:
   upstream:
     # 上游 WebSocket 服务地址，根据实际情况修改
-    url: ws://localhost:9999
+    url: ${WEBSOCKET_UPSTREAM_URL:ws://localhost:9999}
 
 # 认证配置
 auth:
   # 访问码（建议设置为复杂字符串）
-  access-code: Aa305512775.
+  access-code: ${AUTH_ACCESS_CODE:Aa305512775.}
   # JWT密钥（必须至少256位，建议64位随机字符串）
-  jwt-secret: your-jwt-secret-key-at-least-256-bits-long-please-change-this-to-random-string
+  jwt-secret: ${JWT_SECRET:your-jwt-secret-key-at-least-256-bits-long-please-change-this-to-random-string}
   # Token过期时间（小时）
-  token-expire-hours: 24
+  token-expire-hours: ${TOKEN_EXPIRE_HOURS:24}
