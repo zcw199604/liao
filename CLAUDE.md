@@ -65,8 +65,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 后端（Spring Boot）
 
+**环境要求**：
+- JDK 17（推荐使用 Amazon Corretto 17）
+- 本地JDK路径：`C:\Users\MyPC\.jdks\corretto-17.0.16`
+
 ```bash
-# 编译项目
+# 编译项目（使用指定的JDK 17）
+export JAVA_HOME="C:\Users\MyPC\.jdks\corretto-17.0.16"
+export PATH="$JAVA_HOME/bin:$PATH"
+mvn clean compile
+
+# 或者使用简化命令（已配置环境变量的情况）
 mvn clean compile
 
 # 运行测试
@@ -81,6 +90,11 @@ mvn spring-boot:run
 # 或直接运行JAR
 java -jar target/liao-1.0-SNAPSHOT.jar
 ```
+
+**注意事项**：
+- 项目要求 JDK 17，如遇到编译错误"无效的编码"，请确保使用正确的 JDK 路径
+- Git Bash 环境下使用 `export` 设置环境变量
+- Windows CMD 环境下使用 `set JAVA_HOME=路径` 设置环境变量
 
 ### 前端（Vue 3 + Vite）
 
