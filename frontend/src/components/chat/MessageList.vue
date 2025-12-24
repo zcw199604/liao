@@ -13,8 +13,8 @@
     </div>
 
     <div
-      v-for="(msg, index) in messages"
-      :key="index"
+      v-for="msg in messages"
+      :key="getMessageKey(msg)"
       class="flex flex-col w-full mb-3"
       :class="msg.isSelf ? 'items-end' : 'items-start'"
     >
@@ -86,6 +86,17 @@ defineEmits<{
 
 const chatBox = ref<HTMLElement | null>(null)
 const { getMediaUrl } = useUpload()
+
+const getMessageKey = (msg: ChatMessage): string => {
+  const tid = String(msg.tid || '').trim()
+  if (tid) return `tid:${tid}`
+
+  const fromUserId = String(msg.fromuser?.id || '')
+  const type = String(msg.type || '')
+  const time = String(msg.time || '')
+  const content = String(msg.content || '')
+  return `fallback:${fromUserId}|${type}|${time}|${content}`
+}
 
 const scrollToBottom = () => {
   nextTick(() => {

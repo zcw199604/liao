@@ -23,6 +23,12 @@ export const useWebSocket = () => {
   const mediaStore = useMediaStore()
   const { show } = useToast()
 
+  const formatNow = () => {
+    const now = new Date()
+    const pad = (value: number, length: number = 2) => String(value).padStart(length, '0')
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${pad(now.getMilliseconds(), 3)}`
+  }
+
   const toPlainText = (input: string) => {
     return input
       .replace(/<br\s*\/?>/gi, ' ')
@@ -275,14 +281,31 @@ export const useWebSocket = () => {
           }
 
           // 构建聊天消息对象
+          const resolvedTime = String(
+            (data as any)?.fromuser?.time ??
+            (data as any)?.fromuser?.Time ??
+            (data as any)?.time ??
+            (data as any)?.Time ??
+            ''
+          )
+          const resolvedTid = String(
+            (data as any)?.tid ??
+            (data as any)?.Tid ??
+            (data as any)?.fromuser?.tid ??
+            (data as any)?.fromuser?.Tid ??
+            ''
+          )
+          const time = resolvedTime || formatNow()
+          const tid = resolvedTid || `${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
+
           const chatMessage: ChatMessage = {
             code,
             fromuser: data.fromuser,
             touser: data.touser,
             type: isImage ? 'image' : isVideo ? 'video' : (data.type || 'text'),
             content: messageContent,
-            time: (data as any).fromuser?.time || (data as any).time || '',
-            tid: (data as any).tid || (data as any).fromuser?.tid || '',
+            time,
+            tid,
             isSelf,
             isImage,
             isVideo,
@@ -375,7 +398,7 @@ export const useWebSocket = () => {
         // 兜底：对齐旧版逻辑，未识别的消息在聊天界面内直接显示（优先显示在当前聊天窗口）
         const fallbackContent = String((data as any)?.content ?? (data as any)?.msg ?? '')
         if (fallbackContent) {
-          const now = new Date().toISOString().replace('T', ' ').substring(0, 23)
+          const now = formatNow()
           if (chatStore.currentChatUser) {
             const peer = chatStore.currentChatUser as any
             const fromUser = {
@@ -423,7 +446,7 @@ export const useWebSocket = () => {
         const raw = String(event.data || '')
         if (!raw) return
 
-        const now = new Date().toISOString().replace('T', ' ').substring(0, 23)
+        const now = formatNow()
         if (chatStore.currentChatUser) {
           const peer = chatStore.currentChatUser as any
           const fromUser = {

@@ -11,24 +11,102 @@ export const useMessageStore = defineStore('message', () => {
   const firstTidMap = ref<Record<string, string>>({})
   const loadingMore = ref(false)
 
-  // 消息去重 - 基于tid
+  const parseMessageTime = (timeStr: string): number | null => {
+    if (!timeStr) return null
+
+    // 常见格式：2025-12-18 03:02:11.721 / 2025/12/18 03:02:11
+    const match = timeStr.match(
+      /(\d{4})[-\/](\d{2})[-\/](\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,3}))?/
+    )
+    if (match) {
+      const year = Number(match[1])
+      const month = Number(match[2]) - 1
+      const day = Number(match[3])
+      const hour = Number(match[4])
+      const minute = Number(match[5])
+      const second = Number(match[6] || '0')
+      const millisecond = Number(String(match[7] || '0').padEnd(3, '0'))
+      return new Date(year, month, day, hour, minute, second, millisecond).getTime()
+    }
+
+    const parsed = Date.parse(timeStr)
+    if (!Number.isNaN(parsed)) return parsed
+    return null
+  }
+
+  const getMessageDedupKey = (msg: ChatMessage): string => {
+    const tid = String(msg.tid || '').trim()
+    if (tid) return `tid:${tid}`
+
+    const fromUserId = String(msg.fromuser?.id || '')
+    const toUserId = String(msg.touser?.id || '')
+    const type = String(msg.type || '')
+    const time = String(msg.time || '')
+    const content = String(msg.content || '')
+    return `fallback:${fromUserId}|${toUserId}|${type}|${time}|${content}`
+  }
+
+  // 消息去重：优先基于 tid；tid 缺失时使用内容+时间的兜底 key
   const deduplicateMessages = (messages: ChatMessage[]): ChatMessage[] => {
     const seen = new Set<string>()
-    return messages.filter(msg => {
-      if (!msg.tid) return true // 没有tid的消息保留
-      if (seen.has(msg.tid)) return false
-      seen.add(msg.tid)
-      return true
+    const result: ChatMessage[] = []
+    for (const msg of messages) {
+      const key = getMessageDedupKey(msg)
+      if (seen.has(key)) continue
+      seen.add(key)
+      result.push(msg)
+    }
+    return result
+  }
+
+  // 消息排序：按时间（主）+ tid（辅）升序，保证渲染稳定
+  const sortMessages = (messages: ChatMessage[]): ChatMessage[] => {
+    return messages.sort((a, b) => {
+      const timeA = parseMessageTime(a.time)
+      const timeB = parseMessageTime(b.time)
+      if (timeA != null && timeB != null && timeA !== timeB) return timeA - timeB
+
+      const tidA = Number.parseInt(a.tid, 10)
+      const tidB = Number.parseInt(b.tid, 10)
+      const tidAValid = Number.isFinite(tidA)
+      const tidBValid = Number.isFinite(tidB)
+      if (tidAValid && tidBValid && tidA !== tidB) return tidA - tidB
+      if (tidAValid && !tidBValid) return 1
+      if (!tidAValid && tidBValid) return -1
+
+      const timeStrA = String(a.time || '')
+      const timeStrB = String(b.time || '')
+      if (timeStrA !== timeStrB) return timeStrA.localeCompare(timeStrB)
+
+      const fromIdA = String(a.fromuser?.id || '')
+      const fromIdB = String(b.fromuser?.id || '')
+      if (fromIdA !== fromIdB) return fromIdA.localeCompare(fromIdB)
+
+      return String(a.content || '').localeCompare(String(b.content || ''))
     })
   }
 
-  // 消息排序 - 按tid数字大小排序
-  const sortMessages = (messages: ChatMessage[]): ChatMessage[] => {
-    return messages.sort((a, b) => {
-      const tidA = parseInt(a.tid) || 0
-      const tidB = parseInt(b.tid) || 0
-      return tidA - tidB
-    })
+  const normalizeMessages = (messages: ChatMessage[]): ChatMessage[] => {
+    return sortMessages(deduplicateMessages(messages))
+  }
+
+  const getMinTid = (messages: ChatMessage[]): string | null => {
+    let minTidValue: number | null = null
+    let minTidRaw: string | null = null
+
+    for (const msg of messages) {
+      const rawTid = String(msg.tid || '').trim()
+      if (!rawTid) continue
+      const numericTid = Number.parseInt(rawTid, 10)
+      if (!Number.isFinite(numericTid)) continue
+
+      if (minTidValue == null || numericTid < minTidValue) {
+        minTidValue = numericTid
+        minTidRaw = rawTid
+      }
+    }
+
+    return minTidRaw
   }
 
   // 获取增量新消息 - 只返回比缓存最后一条更新的消息
@@ -56,8 +134,13 @@ export const useMessageStore = defineStore('message', () => {
 
   const addMessage = (userId: string, message: ChatMessage) => {
     const messages = chatHistory.value.get(userId) || []
-    messages.push(message)
-    chatHistory.value.set(userId, messages)
+    const updated = normalizeMessages([...messages, message])
+    chatHistory.value.set(userId, updated)
+
+    const minTid = getMinTid(updated)
+    if (minTid) {
+      firstTidMap.value[userId] = minTid
+    }
   }
 
   const loadHistory = async (
@@ -158,29 +241,39 @@ export const useMessageStore = defineStore('message', () => {
             // 增量模式 + 有缓存：只追加新消息
             const newMessages = getIncrementalMessages(existing, mapped)
 
-            if (newMessages.length > 0) {
-              console.log(`增量追加 ${newMessages.length} 条新消息`)
-              const updated = [...existing, ...newMessages]
-              chatHistory.value.set(UserToID, updated)
-            } else {
-              console.log('没有新消息，保持缓存不变')
+            const combined = newMessages.length > 0
+              ? [...existing, ...newMessages]
+              : [...existing]
+
+            const normalized = normalizeMessages(combined)
+            chatHistory.value.set(UserToID, normalized)
+
+            const minTid = getMinTid(normalized)
+            if (minTid) {
+              firstTidMap.value[UserToID] = minTid
             }
 
             return newMessages.length  // 返回新增消息数量
           } else {
             // 首次加载 或 无缓存：直接设置
-            chatHistory.value.set(UserToID, mapped)
+            const normalized = normalizeMessages(mapped)
+            chatHistory.value.set(UserToID, normalized)
+
+            const minTid = getMinTid(normalized)
+            if (minTid) {
+              firstTidMap.value[UserToID] = minTid
+            }
           }
         } else {
           // 向前翻页：prepend到前面并去重排序
           const combined = [...mapped, ...existing]
-          const deduplicated = deduplicateMessages(combined)
-          const sorted = sortMessages(deduplicated)
-          chatHistory.value.set(UserToID, sorted)
-        }
+          const normalized = normalizeMessages(combined)
+          chatHistory.value.set(UserToID, normalized)
 
-        if (mapped.length > 0) {
-          firstTidMap.value[UserToID] = mapped[0]!.tid
+          const minTid = getMinTid(normalized)
+          if (minTid) {
+            firstTidMap.value[UserToID] = minTid
+          }
         }
 
         return mapped.length
