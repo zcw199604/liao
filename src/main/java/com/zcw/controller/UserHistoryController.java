@@ -2,6 +2,7 @@ package com.zcw.controller;
 
 import com.zcw.model.MediaUploadHistory;
 import com.zcw.service.FileStorageService;
+import com.zcw.service.ImageCacheService;
 import com.zcw.service.ImageServerService;
 import com.zcw.service.MediaUploadService;
 import org.slf4j.Logger;
@@ -33,28 +34,8 @@ public class UserHistoryController {
     @Autowired
     private ImageServerService imageServerService;
 
-    // 图片缓存：用户ID -> 图片URL列表及过期时间
-    private final Map<String, CachedImages> imageCache = new ConcurrentHashMap<>();
-
-    // 缓存过期时间：3小时（毫秒）
-    private static final long CACHE_EXPIRE_TIME = 3 * 60 * 60 * 1000;
-
-    /**
-     * 缓存图片数据结构
-     */
-    private static class CachedImages {
-        List<String> imageUrls;
-        long expireTime;
-
-        CachedImages(List<String> imageUrls, long expireTime) {
-            this.imageUrls = imageUrls;
-            this.expireTime = expireTime;
-        }
-
-        boolean isExpired() {
-            return System.currentTimeMillis() > expireTime;
-        }
-    }
+    @Autowired
+    private ImageCacheService imageCacheService;
 
     // 上游接口地址
     private static final String UPSTREAM_API_URL =
@@ -519,7 +500,7 @@ public class UserHistoryController {
                     }
 
                     // 6. 添加到内存缓存（存储 local_path 而非 remote_url）
-                    addImageToCache(userid, localPath);
+                    imageCacheService.addImageToCache(userid, localPath);
                     log.info("媒体已添加到缓存: userid={}, localPath={}, contentType={}", userid, localPath, file.getContentType());
 
                     // 7. 构造包含端口信息的响应返回给前端
@@ -563,28 +544,6 @@ public class UserHistoryController {
 
         // 转发到新接口
         return uploadMedia(file, userid, cookieData, referer, userAgent);
-    }
-
-    /**
-     * 添加图片到缓存（内部方法，支持图片和视频）
-     * @param userid 用户ID
-     * @param imageUrl 图片URL
-     */
-    private void addImageToCache(String userid, String imageUrl) {
-        long expireTime = System.currentTimeMillis() + CACHE_EXPIRE_TIME;
-
-        CachedImages cached = imageCache.get(userid);
-        if (cached == null || cached.isExpired()) {
-            // 创建新缓存
-            List<String> urls = new ArrayList<>();
-            urls.add(imageUrl);
-            imageCache.put(userid, new CachedImages(urls, expireTime));
-        } else {
-            // 添加到现有缓存
-            cached.imageUrls.add(imageUrl);
-            // 更新过期时间
-            cached.expireTime = expireTime;
-        }
     }
 
     /**
@@ -636,19 +595,10 @@ public class UserHistoryController {
 
         log.info("获取缓存图片列表: userid={}, host={}", userid, hostHeader);
 
-        CachedImages cached = imageCache.get(userid);
+        ImageCacheService.CachedImages cached = imageCacheService.getCachedImages(userid);
 
         if (cached == null) {
             log.info("用户 {} 没有缓存图片", userid);
-            Map<String, Object> emptyResponse = new HashMap<>();
-            emptyResponse.put("port", "9006");
-            emptyResponse.put("data", new ArrayList<>());
-            return ResponseEntity.ok(emptyResponse);
-        }
-
-        if (cached.isExpired()) {
-            log.info("用户 {} 的缓存已过期，清除缓存", userid);
-            imageCache.remove(userid);
             Map<String, Object> emptyResponse = new HashMap<>();
             emptyResponse.put("port", "9006");
             emptyResponse.put("data", new ArrayList<>());
@@ -660,7 +610,7 @@ public class UserHistoryController {
         String availablePort = detectAvailablePort(imgServerHost);
 
         // 将缓存的 local_path 转换为本地访问URL
-        List<String> localUrls = mediaUploadService.convertPathsToLocalUrls(cached.imageUrls, hostHeader);
+        List<String> localUrls = mediaUploadService.convertPathsToLocalUrls(cached.getImageUrls(), hostHeader);
 
         log.info("返回 {} 张缓存图片，端口: {}", localUrls.size(), availablePort);
 

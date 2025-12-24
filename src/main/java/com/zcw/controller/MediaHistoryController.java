@@ -1,6 +1,7 @@
 package com.zcw.controller;
 
 import com.zcw.model.MediaUploadHistory;
+import com.zcw.service.ImageCacheService;
 import com.zcw.service.ImageServerService;
 import com.zcw.service.MediaUploadService;
 import org.slf4j.Logger;
@@ -31,6 +32,9 @@ public class MediaHistoryController {
 
     @Autowired
     private ImageServerService imageServerService;
+
+    @Autowired
+    private ImageCacheService imageCacheService;
 
     /**
      * 记录图片发送
@@ -273,6 +277,20 @@ public class MediaHistoryController {
         try {
             // 调用 Service 层处理
             String response = mediaUploadService.reuploadLocalFile(userId, localPath, cookieData, referer, userAgent);
+
+            // 解析响应，如果成功则添加到缓存
+            try {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                com.fasterxml.jackson.databind.JsonNode jsonNode = mapper.readTree(response);
+
+                if ("OK".equals(jsonNode.get("state").asText())) {
+                    // 重新上传成功，添加到缓存
+                    imageCacheService.addImageToCache(userId, localPath);
+                    log.info("重新上传成功，已添加到缓存: userId={}, localPath={}", userId, localPath);
+                }
+            } catch (Exception e) {
+                log.warn("解析重新上传响应失败，跳过缓存", e);
+            }
 
             return ResponseEntity.ok(response);
 
