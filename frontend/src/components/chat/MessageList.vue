@@ -109,6 +109,15 @@ const scrollToBottom = () => {
   })
 }
 
+// 滚动到顶部（查看历史消息）
+const scrollToTop = () => {
+  nextTick(() => {
+    if (chatBox.value) {
+      chatBox.value.scrollTop = 0
+    }
+  })
+}
+
 const previewMedia = (url: string, type: 'image' | 'video') => {
   window.dispatchEvent(new CustomEvent('preview-media', {
     detail: { url, type }
@@ -128,6 +137,7 @@ onMounted(() => {
 })
 
 defineExpose({
-  scrollToBottom
+  scrollToBottom,
+  scrollToTop
 })
 </script>

@@ -131,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
@@ -305,6 +305,12 @@ const handleLoadMore = async () => {
 
   if (count > 0) {
     show(`加载了 ${count} 条历史消息`)
+
+    // 滚动到顶部，显示刚加载的历史消息
+    await nextTick()
+    if (messageListRef.value) {
+      messageListRef.value.scrollToTop()
+    }
   } else if (count === 0) {
     show('没有更多历史消息了')
   } else {
