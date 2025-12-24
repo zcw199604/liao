@@ -70,6 +70,9 @@ import { formatTime } from '@/utils/time'
 import { parseEmoji } from '@/utils/string'
 import { emojiMap } from '@/constants/emoji'
 import { useUpload } from '@/composables/useUpload'
+import { useMessageStore } from '@/stores/message'
+
+const messageStore = useMessageStore()
 
 interface Props {
   messages: ChatMessage[]
@@ -113,6 +116,10 @@ const previewMedia = (url: string, type: 'image' | 'video') => {
 }
 
 watch(() => props.messages.length, () => {
+  // 如果正在加载历史消息，不自动滚动
+  if (messageStore.isLoadingHistory) {
+    return
+  }
   scrollToBottom()
 }, { flush: 'post' })
 

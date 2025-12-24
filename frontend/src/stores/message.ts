@@ -10,6 +10,7 @@ export const useMessageStore = defineStore('message', () => {
   const isTyping = ref(false)
   const firstTidMap = ref<Record<string, string>>({})
   const loadingMore = ref(false)
+  const isLoadingHistory = ref(false)
 
   const parseMessageTime = (timeStr: string): number | null => {
     if (!timeStr) return null
@@ -149,6 +150,7 @@ export const useMessageStore = defineStore('message', () => {
     options?: { isFirst?: boolean; firstTid?: string; myUserName?: string; incremental?: boolean }
   ): Promise<number> => {
     loadingMore.value = true
+    isLoadingHistory.value = true
     try {
       const mediaStore = useMediaStore()
       const isFirst = options?.isFirst ?? true
@@ -288,6 +290,7 @@ export const useMessageStore = defineStore('message', () => {
       return -1
     } finally {
       loadingMore.value = false
+      isLoadingHistory.value = false
     }
   }
 
@@ -308,6 +311,7 @@ export const useMessageStore = defineStore('message', () => {
     isTyping,
     firstTidMap,
     loadingMore,
+    isLoadingHistory,
     getMessages,
     addMessage,
     loadHistory,
