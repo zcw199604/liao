@@ -44,14 +44,14 @@
       <!-- 中间：切换栏 -->
       <div class="flex bg-[#1f1f22] p-1 rounded-full">
         <button
-          @click="chatStore.activeTab = 'history'"
+          @click="handleTabSwitch('history')"
           :class="chatStore.activeTab === 'history' ? 'bg-[#2d2d33] text-white shadow-md' : 'text-gray-500'"
           class="px-6 py-1.5 rounded-full text-sm font-medium transition-all duration-300"
         >
           消息
         </button>
         <button
-          @click="chatStore.activeTab = 'favorite'"
+          @click="handleTabSwitch('favorite')"
           :class="chatStore.activeTab === 'favorite' ? 'bg-[#2d2d33] text-white shadow-md' : 'text-gray-500'"
           class="px-6 py-1.5 rounded-full text-sm font-medium transition-all duration-300"
         >
@@ -64,6 +64,9 @@
         <span class="w-2 h-2 rounded-full" :class="chatStore.wsConnected ? 'bg-green-500' : 'bg-red-500'"></span>
       </div>
     </div>
+
+    <!-- 加载状态指示器 -->
+    <div v-if="isRefreshing" class="h-1 bg-blue-500 animate-pulse"></div>
 
     <!-- 列表内容 -->
     <div class="list-area no-scrollbar px-4 pt-2" ref="listAreaRef">
@@ -193,6 +196,45 @@ const showSettings = ref(false)
 const settingsMode = ref<'identity' | 'system'>('identity')
 const showSwitchIdentityDialog = ref(false)
 const listAreaRef = ref<HTMLElement | null>(null)
+const isRefreshing = ref(false)
+
+// 刷新当前tab的数据
+const refreshCurrentTab = async () => {
+  if (isRefreshing.value || !userStore.currentUser) return
+
+  isRefreshing.value = true
+  try {
+    if (chatStore.activeTab === 'history') {
+      await chatStore.loadHistoryUsers(
+        userStore.currentUser.id,
+        userStore.currentUser.name
+      )
+    } else {
+      await chatStore.loadFavoriteUsers(
+        userStore.currentUser.id,
+        userStore.currentUser.name
+      )
+    }
+  } catch (error) {
+    console.error('刷新列表失败:', error)
+    show('刷新失败，请稍后重试')
+  } finally {
+    isRefreshing.value = false
+  }
+}
+
+// 处理tab切换
+const handleTabSwitch = async (tab: 'history' | 'favorite') => {
+  // 如果点击当前已选中的tab，刷新当前列表
+  if (chatStore.activeTab === tab) {
+    await refreshCurrentTab()
+    return
+  }
+
+  // 切换到新tab（不刷新，只切换显示）
+  chatStore.activeTab = tab
+}
+
 const handleMatchSuccess = (e: any) => {
   const matchedUser = e.detail as User
   enterChat(matchedUser, false)
