@@ -38,6 +38,12 @@ public class UpstreamWebSocketManager {
     // 延迟时间：30秒
     private static final long CLOSE_DELAY_SECONDS = 80;
 
+    // 最大同时连接的不同身份数量
+    private static final int MAX_CONCURRENT_IDENTITIES = 2;
+
+    // 记录每个userId的创建时间戳（用于FIFO淘汰）
+    private final Map<String, Long> connectionCreationTime = new ConcurrentHashMap<>();
+
     public UpstreamWebSocketManager(WebSocketAddressService addressService,
                                     ForceoutManager forceoutManager) {
         this.addressService = addressService;
@@ -86,10 +92,69 @@ public class UpstreamWebSocketManager {
 
         // 同步块：确保上游连接创建的线程安全
         synchronized (this) {
-            // 如果该用户还没有上游连接，创建一个
+            // 如果该用户还没有上游连接，检查是否超出限制
             if (!upstreamClients.containsKey(userId)) {
-                log.info("用户 {} 首次连接，创建上游连接", userId);
+
+                // 检查当前活跃连接数
+                int currentActiveCount = upstreamClients.size();
+
+                if (currentActiveCount >= MAX_CONCURRENT_IDENTITIES) {
+                    // 达到限制，执行FIFO淘汰
+                    log.warn("已达到最大连接数限制: 当前={}, 最大={}, 将淘汰最早创建的连接",
+                             currentActiveCount, MAX_CONCURRENT_IDENTITIES);
+
+                    // 找到最早创建的userId
+                    String oldestUserId = connectionCreationTime.entrySet().stream()
+                        .min(Map.Entry.comparingByValue())
+                        .map(Map.Entry::getKey)
+                        .orElse(null);
+
+                    if (oldestUserId != null && !oldestUserId.equals(userId)) {
+                        log.warn("淘汰最早创建的连接: userId={}, 创建时间={}",
+                                 oldestUserId, connectionCreationTime.get(oldestUserId));
+
+                        // 向被淘汰的用户广播通知消息（code=-6）
+                        String evictMessage = "{\"code\":-6,\"content\":\"由于新身份连接，您已被自动断开\",\"evicted\":true}";
+                        broadcastToDownstream(oldestUserId, evictMessage);
+
+                        // 延迟1秒后关闭连接（让消息先送达）
+                        scheduler.schedule(() -> {
+                            closeUpstreamConnection(oldestUserId);
+
+                            // 关闭所有下游连接
+                            List<WebSocketSession> sessionsToClose = downstreamSessions.get(oldestUserId);
+                            if (sessionsToClose != null) {
+                                List<WebSocketSession> sessionsCopy = new ArrayList<>(sessionsToClose);
+                                sessionsCopy.forEach(s -> {
+                                    try {
+                                        if (s.isOpen()) {
+                                            s.close();
+                                        }
+                                    } catch (Exception e) {
+                                        log.error("关闭被淘汰连接的下游会话失败", e);
+                                    }
+                                });
+                                downstreamSessions.remove(oldestUserId);
+                            }
+
+                            // 取消待执行的延迟关闭任务
+                            ScheduledFuture<?> oldPendingTask = pendingCloseTasks.remove(oldestUserId);
+                            if (oldPendingTask != null && !oldPendingTask.isDone()) {
+                                oldPendingTask.cancel(false);
+                            }
+
+                        }, 1, TimeUnit.SECONDS);
+                    }
+                }
+
+                // 创建新的上游连接
+                log.info("用户 {} 首次连接，创建上游连接（当前活跃数: {}/{}）",
+                         userId, upstreamClients.size() + 1, MAX_CONCURRENT_IDENTITIES);
                 createUpstreamConnection(userId, signMessage);
+
+                // 记录创建时间
+                connectionCreationTime.put(userId, System.currentTimeMillis());
+
             } else {
                 log.info("用户 {} 复用已有上游连接", userId);
             }
@@ -244,9 +309,12 @@ public class UpstreamWebSocketManager {
      */
     private void closeUpstreamConnection(String userId) {
         UpstreamWebSocketClient client = upstreamClients.remove(userId);
+        connectionCreationTime.remove(userId); // 清理创建时间记录
+
         if (client != null) {
             client.close();
-            log.info("上游连接已关闭: userId={}", userId);
+            log.info("上游连接已关闭: userId={}, 当前活跃数: {}/{}",
+                     userId, upstreamClients.size(), MAX_CONCURRENT_IDENTITIES);
         }
     }
 
@@ -350,6 +418,7 @@ public class UpstreamWebSocketManager {
             }
         });
         upstreamClients.clear();
+        connectionCreationTime.clear(); // 清理创建时间记录
 
         // 2. 断开所有下游连接
         int totalDownstream = downstreamSessions.values().stream()
@@ -399,6 +468,8 @@ public class UpstreamWebSocketManager {
         stats.put("active", upstreamCount + downstreamCount);
         stats.put("upstream", upstreamCount);
         stats.put("downstream", downstreamCount);
+        stats.put("maxIdentities", MAX_CONCURRENT_IDENTITIES); // 最大身份数
+        stats.put("availableSlots", MAX_CONCURRENT_IDENTITIES - upstreamCount); // 剩余槽位
 
         return stats;
     }
