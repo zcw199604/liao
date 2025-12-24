@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-area flex flex-col no-scrollbar" ref="chatBox" @click="$emit('closeAllPanels')">
+  <div class="chat-area flex flex-col no-scrollbar" ref="chatBox" @click="$emit('closeAllPanels')" @scroll="handleScroll">
     <!-- 加载更多历史消息按钮 -->
     <div class="flex justify-center py-3">
       <button
@@ -60,6 +60,19 @@
         </div>
       </div>
     </div>
+
+    <!-- 回到底部按钮 -->
+    <transition name="fade">
+      <button
+        v-if="!isAtBottom"
+        @click="scrollToBottom"
+        class="fixed bottom-24 right-6 w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white shadow-lg hover:bg-indigo-700 active:scale-95 transition-all z-10"
+        title="回到最新消息"
+        aria-label="回到最新消息"
+      >
+        <i class="fas fa-arrow-down text-lg"></i>
+      </button>
+    </transition>
   </div>
 </template>
 
@@ -89,6 +102,21 @@ defineEmits<{
 
 const chatBox = ref<HTMLElement | null>(null)
 const { getMediaUrl } = useUpload()
+const isAtBottom = ref(true)
+
+// 检测滚动位置
+let scrollTimer: ReturnType<typeof setTimeout> | null = null
+const handleScroll = () => {
+  if (scrollTimer) clearTimeout(scrollTimer)
+
+  scrollTimer = setTimeout(() => {
+    if (!chatBox.value) return
+    const { scrollTop, scrollHeight, clientHeight } = chatBox.value
+    // 距离底部小于50px认为在底部
+    const distanceToBottom = scrollHeight - scrollTop - clientHeight
+    isAtBottom.value = distanceToBottom < 50
+  }, 100)
+}
 
 const getMessageKey = (msg: ChatMessage): string => {
   const tid = String(msg.tid || '').trim()
@@ -134,6 +162,8 @@ watch(() => props.messages.length, () => {
 
 onMounted(() => {
   scrollToBottom()
+  // 初始化时认为在底部
+  isAtBottom.value = true
 })
 
 defineExpose({
@@ -141,3 +171,21 @@ defineExpose({
   scrollToTop
 })
 </script>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+</style>
+
