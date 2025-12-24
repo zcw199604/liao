@@ -38,24 +38,14 @@
     <ChatInput
       v-model="inputText"
       :disabled="!chatStore.wsConnected"
+      :ws-connected="chatStore.wsConnected"
       @send="handleSend"
       @show-upload="handleToggleUpload"
       @show-emoji="handleToggleEmoji"
       @typing-start="handleTypingStart"
       @typing-end="handleTypingEnd"
+      @start-match="handleStartMatch"
     />
-
-    <!-- 快捷匹配按钮 -->
-    <div class="absolute bottom-20 right-4 z-10">
-      <button
-        @click="handleStartMatch"
-        :disabled="!chatStore.wsConnected"
-        class="w-12 h-12 rounded-full bg-purple-600 flex items-center justify-center text-white transition hover:bg-purple-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-        title="匹配新用户"
-      >
-        <i class="fas fa-random text-lg"></i>
-      </button>
-    </div>
 
     <!-- 媒体预览 -->
     <MediaPreview

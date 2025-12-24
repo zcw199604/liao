@@ -37,15 +37,31 @@
       ></textarea>
     </div>
 
-    <button
-      type="button"
-      @click="$emit('send')"
-      :disabled="disabled || !modelValue.trim()"
-      class="mb-1 w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white disabled:opacity-50 disabled:bg-gray-700 disabled:cursor-not-allowed transition shrink-0"
-      aria-label="发送"
-    >
-      <i class="fas fa-paper-plane text-xs"></i>
-    </button>
+    <!-- 右侧按钮组 -->
+    <div class="flex items-center gap-2">
+      <!-- 发送按钮 -->
+      <button
+        type="button"
+        @click="$emit('send')"
+        :disabled="disabled || !modelValue.trim()"
+        class="mb-1 w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white disabled:opacity-50 disabled:bg-gray-700 disabled:cursor-not-allowed transition shrink-0"
+        aria-label="发送"
+      >
+        <i class="fas fa-paper-plane text-xs"></i>
+      </button>
+
+      <!-- 随机匹配按钮 -->
+      <button
+        type="button"
+        @click="$emit('startMatch')"
+        :disabled="!wsConnected"
+        class="mb-1 w-9 h-9 rounded-full bg-purple-600 flex items-center justify-center text-white transition hover:bg-purple-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shrink-0"
+        title="匹配新用户"
+        aria-label="匹配"
+      >
+        <i class="fas fa-random text-sm"></i>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -55,6 +71,7 @@ import { ref, watch, nextTick } from 'vue'
 interface Props {
   modelValue: string
   disabled: boolean
+  wsConnected?: boolean  // 新增：WebSocket连接状态
 }
 
 const props = defineProps<Props>()
@@ -66,6 +83,7 @@ const emit = defineEmits<{
   'showEmoji': []
   'typingStart': []
   'typingEnd': []
+  'startMatch': []  // 新增：匹配事件
 }>()
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
