@@ -254,8 +254,11 @@ onMounted(async () => {
   // 连接WebSocket
   connect()
 
-  // 加载用户列表
-  await loadUsers()
+  // 只在列表为空时加载用户列表
+  // 如果列表已有数据（从聊天界面返回），跳过加载
+  if (chatStore.historyUsers.length === 0 && chatStore.favoriteUsers.length === 0) {
+    await loadUsers()
+  }
   await nextTick()
   if (listAreaRef.value && chatStore.listScrollTop > 0) {
     listAreaRef.value.scrollTop = chatStore.listScrollTop
