@@ -5,6 +5,7 @@
       :connected="chatStore.wsConnected"
       @back="handleBack"
       @toggle-favorite="handleToggleFavorite"
+      @clear-and-reload="handleClearAndReload"
     />
 
     <MessageList
@@ -291,6 +292,50 @@ const handleBack = () => {
 const handleToggleFavorite = () => {
   if (!chatStore.currentChatUser) return
   toggleFavorite(chatStore.currentChatUser)
+}
+
+const handleClearAndReload = async () => {
+  if (!chatStore.currentChatUser || !userStore.currentUser) return
+
+  // 确认对话框
+  if (!confirm('确定要清空并重新加载聊天记录吗？本地缓存的消息将被清除。')) {
+    return
+  }
+
+  const userId = chatStore.currentChatUser.id
+
+  try {
+    // 1. 清空本地缓存的聊天记录
+    messageStore.clearHistory(userId)
+    show('正在重新加载聊天记录...')
+
+    // 2. 重新加载聊天记录
+    const count = await messageStore.loadHistory(
+      userStore.currentUser.id,
+      userId,
+      {
+        isFirst: true,         // 首次加载模式
+        firstTid: '0',         // 从头开始
+        myUserName: userStore.currentUser.name,
+        incremental: false     // 完全替换
+      }
+    )
+
+    // 3. 滚动到底部
+    await nextTick()
+    if (messageListRef.value) {
+      messageListRef.value.scrollToBottom()
+    }
+
+    if (count > 0) {
+      show(`已重新加载 ${count} 条消息`)
+    } else {
+      show('暂无聊天记录')
+    }
+  } catch (e) {
+    console.error('重新加载聊天记录失败:', e)
+    show('重新加载失败，请稍后重试')
+  }
 }
 
 const handleLoadMore = async () => {

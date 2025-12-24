@@ -8,14 +8,28 @@
         <i class="fas fa-chevron-left text-xl"></i>
       </button>
       <div class="font-bold text-base text-white">{{ user?.nickname || '未知用户' }}</div>
-      <button
-        @click="$emit('toggleFavorite')"
-        class="w-10 h-10 flex items-center justify-end"
-      >
-        <i
-          :class="user?.isFavorite ? 'fas fa-star text-yellow-500' : 'far fa-star text-gray-400'"
-        ></i>
-      </button>
+
+      <!-- 右侧按钮组 -->
+      <div class="flex items-center gap-2">
+        <!-- 清空记录按钮 -->
+        <button
+          @click="$emit('clearAndReload')"
+          class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white transition"
+          title="清空并重新加载聊天记录"
+        >
+          <i class="fas fa-sync-alt"></i>
+        </button>
+
+        <!-- 收藏按钮 -->
+        <button
+          @click="$emit('toggleFavorite')"
+          class="w-10 h-10 flex items-center justify-center"
+        >
+          <i
+            :class="user?.isFavorite ? 'fas fa-star text-yellow-500' : 'far fa-star text-gray-400'"
+          ></i>
+        </button>
+      </div>
     </div>
     <div class="flex items-center justify-center gap-3 text-xs text-gray-400">
       <div v-if="user?.sex" class="flex items-center gap-1">
@@ -50,5 +64,6 @@ defineProps<Props>()
 defineEmits<{
   'back': []
   'toggleFavorite': []
+  'clearAndReload': []
 }>()
 </script>
