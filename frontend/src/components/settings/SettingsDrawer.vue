@@ -117,27 +117,35 @@
             @clear-forceout="confirmClearForceout"
           />
 
+          <!-- 媒体管理 (优化后) -->
           <div class="bg-[#27272a] rounded-xl p-4">
-            <h3 class="text-white font-medium mb-4 flex items-center gap-2">
-              <i class="fas fa-images text-purple-400"></i>
-              <span>媒体管理</span>
-            </h3>
-            <div class="space-y-3">
-              <div class="bg-[#18181b] rounded-lg p-3">
-                <div class="flex justify-between items-center text-sm">
-                  <span class="text-gray-400">总上传数</span>
-                  <span class="text-white font-mono">{{ mediaStore.allUploadTotal || 0 }} 个</span>
+             <h3 class="text-white font-medium mb-3 flex items-center gap-2">
+                <i class="fas fa-photo-video text-purple-400"></i>
+                <span>媒体库</span>
+             </h3>
+             
+             <div 
+               @click="openMediaManagement"
+               class="group relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-900/50 to-indigo-900/50 border border-white/5 cursor-pointer hover:border-purple-500/50 transition-all"
+             >
+                <div class="p-4 flex items-center justify-between z-10 relative">
+                   <div>
+                      <div class="text-2xl font-bold text-white mb-1">{{ mediaStore.allUploadTotal || 0 }}</div>
+                      <div class="text-xs text-gray-400 group-hover:text-purple-300 transition-colors">已上传文件</div>
+                   </div>
+                   <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-purple-500 group-hover:text-white transition-all">
+                      <i class="fas fa-chevron-right"></i>
+                   </div>
                 </div>
-              </div>
-              <button
-                @click="openMediaManagement"
-                class="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium transition flex items-center justify-center gap-2"
-              >
-                <i class="fas fa-cog"></i>
-                <span>管理已上传图片</span>
-              </button>
-              <p class="text-xs text-gray-500 text-center">可以删除不需要的图片</p>
-            </div>
+                
+                <!-- 装饰性背景图标 -->
+                <i class="fas fa-images absolute -bottom-4 -right-2 text-6xl text-white/5 group-hover:text-white/10 transition-colors rotate-12"></i>
+             </div>
+             
+             <p class="text-xs text-gray-500 mt-3 flex items-center gap-1.5">
+               <i class="fas fa-info-circle"></i>
+               <span>点击卡片管理或清理历史图片</span>
+             </p>
           </div>
         </div>
 
