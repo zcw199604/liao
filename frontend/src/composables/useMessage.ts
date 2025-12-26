@@ -21,7 +21,7 @@ export const useMessage = () => {
   }
 
   // 发送图片消息
-  const sendImage = async (mediaUrl: string, targetUser: any) => {
+  const sendImage = async (mediaUrl: string, targetUser: any, localFilename?: string) => {
     if (!userStore.currentUser || !targetUser) return
 
     const filePath = extractRemoteFilePathFromImgUploadUrl(mediaUrl)
@@ -40,7 +40,8 @@ export const useMessage = () => {
       await mediaApi.recordImageSend({
         remoteUrl: mediaUrl,
         fromUserId: userStore.currentUser.id,
-        toUserId: targetUser.id
+        toUserId: targetUser.id,
+        localFilename
       })
     } catch (e) {
       console.warn('记录发送关系失败:', e)
@@ -48,7 +49,7 @@ export const useMessage = () => {
   }
 
   // 发送视频消息
-  const sendVideo = async (mediaUrl: string, targetUser: any) => {
+  const sendVideo = async (mediaUrl: string, targetUser: any, localFilename?: string) => {
     if (!userStore.currentUser || !targetUser) return
 
     const filePath = extractRemoteFilePathFromImgUploadUrl(mediaUrl)
@@ -67,7 +68,8 @@ export const useMessage = () => {
       await mediaApi.recordImageSend({
         remoteUrl: mediaUrl,
         fromUserId: userStore.currentUser.id,
-        toUserId: targetUser.id
+        toUserId: targetUser.id,
+        localFilename
       })
     } catch (e) {
       console.warn('记录发送关系失败:', e)

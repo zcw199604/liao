@@ -177,22 +177,52 @@ public class MediaUploadService {
      * @param remoteUrl  远程图片URL
      * @param fromUserId 发送者ID
      * @param toUserId   接收者ID
+     * @param localFilename 本地文件名（可选，用于更精确匹配）
      * @return 新的发送记录
      */
-    public MediaUploadHistory recordImageSend(String remoteUrl, String fromUserId, String toUserId) {
-        // 查找原始上传记录
-        MediaUploadHistory original = getByRemoteUrl(remoteUrl, fromUserId);
+    public MediaUploadHistory recordImageSend(String remoteUrl, String fromUserId, String toUserId, String localFilename) {
+        MediaUploadHistory original = null;
+
+        // 1. 优先尝试通过本地文件名查找（最准确，不受上游URL变化影响）
+        if (localFilename != null && !localFilename.isEmpty()) {
+            original = getByLocalFilename(localFilename, fromUserId);
+            if (original != null) {
+                log.info("通过本地文件名匹配成功: {}", localFilename);
+            }
+        }
+
+        // 2. 如果未找到，尝试通过完整URL查找
         if (original == null) {
-            log.warn("未找到原始上传记录: remoteUrl={}, fromUserId={}", remoteUrl, fromUserId);
+            original = getByRemoteUrl(remoteUrl, fromUserId);
+        }
+
+        // 3. 如果仍未找到，尝试通过远程文件名查找（容错处理）
+        if (original == null) {
+            String filename = extractFilenameFromUrl(remoteUrl);
+            if (filename != null) {
+                original = getByRemoteFilename(filename, fromUserId);
+                if (original != null) {
+                    log.info("通过远程文件名匹配成功: {}", filename);
+                }
+            }
+        }
+
+        if (original == null) {
+            log.warn("未找到原始上传记录: remoteUrl={}, localFilename={}, fromUserId={}", remoteUrl, localFilename, fromUserId);
             return null;
         }
 
         // 检查是否已经记录过发送给该用户
+        // 优先使用原始记录的 remoteUrl 来查找存在的发送记录，或者使用当前 remoteUrl
         MediaUploadHistory existing = getExistingSendRecord(remoteUrl, fromUserId, toUserId);
+        
+        // 如果没找到，尝试用原始记录的文件名查找（避免URL不一致导致的重复插入）
+        if (existing == null) {
+             existing = getExistingSendRecordByFilename(original.getRemoteFilename(), fromUserId, toUserId);
+        }
+
         if (existing != null) {
-            log.info("该媒体已经发送给该用户，更新发送时间: fromUserId={}, toUserId={}, remoteUrl={}",
-                    fromUserId, toUserId, remoteUrl);
-            // 更新发送时间
+            log.info("该媒体已经发送给该用户，更新发送时间: fromUserId={}, toUserId={}", fromUserId, toUserId);
             updateSendTime(existing.getId());
             return existing;
         }
@@ -213,7 +243,7 @@ public class MediaUploadService {
                 original.getOriginalFilename(),
                 original.getLocalFilename(),
                 original.getRemoteFilename(),
-                remoteUrl,
+                remoteUrl, // 存入本次使用的URL
                 original.getLocalPath(),
                 original.getFileSize(),
                 original.getFileType(),
@@ -222,10 +252,44 @@ public class MediaUploadService {
                 now
         );
 
-        log.info("记录媒体发送: fromUserId={}, toUserId={}, remoteUrl={}", fromUserId, toUserId, remoteUrl);
+        log.info("记录媒体发送: fromUserId={}, toUserId={}, localFilename={}", fromUserId, toUserId, original.getLocalFilename());
 
         // 返回新记录
         return getExistingSendRecord(remoteUrl, fromUserId, toUserId);
+    }
+
+    private String extractFilenameFromUrl(String url) {
+        if (url == null || url.isEmpty()) return null;
+        int lastSlash = url.lastIndexOf('/');
+        if (lastSlash >= 0 && lastSlash < url.length() - 1) {
+            return url.substring(lastSlash + 1);
+        }
+        return null;
+    }
+
+    public MediaUploadHistory getByLocalFilename(String localFilename, String userId) {
+        String sql = "SELECT * FROM media_upload_history WHERE local_filename = ? AND user_id = ? AND to_user_id IS NULL LIMIT 1";
+        List<MediaUploadHistory> results = jdbcTemplate.query(sql, mediaUploadHistoryRowMapper, localFilename, userId);
+        return results.isEmpty() ? null : results.get(0);
+    }
+
+    public MediaUploadHistory getByRemoteFilename(String remoteFilename, String userId) {
+        String sql = "SELECT * FROM media_upload_history WHERE remote_filename = ? AND user_id = ? AND to_user_id IS NULL LIMIT 1";
+        List<MediaUploadHistory> results = jdbcTemplate.query(sql, mediaUploadHistoryRowMapper, remoteFilename, userId);
+        return results.isEmpty() ? null : results.get(0);
+    }
+
+    private MediaUploadHistory getExistingSendRecordByFilename(String remoteFilename, String fromUserId, String toUserId) {
+        String sql = "SELECT * FROM media_upload_history WHERE remote_filename = ? AND user_id = ? AND to_user_id = ? LIMIT 1";
+        List<MediaUploadHistory> results = jdbcTemplate.query(sql, mediaUploadHistoryRowMapper, remoteFilename, fromUserId, toUserId);
+        return results.isEmpty() ? null : results.get(0);
+    }
+
+    /**
+     * 保留旧方法签名以兼容其他可能的调用者（如果有）
+     */
+    public MediaUploadHistory recordImageSend(String remoteUrl, String fromUserId, String toUserId) {
+        return recordImageSend(remoteUrl, fromUserId, toUserId, null);
     }
 
     /**

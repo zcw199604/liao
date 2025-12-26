@@ -291,9 +291,9 @@ const handleSendMedia = (media: UploadedMedia) => {
   }
 
   if (media.type === 'image') {
-    void sendImage(media.url, chatStore.currentChatUser)
+    void sendImage(media.url, chatStore.currentChatUser, media.localFilename)
   } else {
-    void sendVideo(media.url, chatStore.currentChatUser)
+    void sendVideo(media.url, chatStore.currentChatUser, media.localFilename)
   }
 
   showUploadMenu.value = false

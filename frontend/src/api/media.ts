@@ -65,7 +65,7 @@ export const reuploadHistoryImage = (data: {
 }
 
 // 记录媒体发送关系（用于聊天历史图片查询）
-export const recordImageSend = (data: { remoteUrl: string; fromUserId: string; toUserId: string }) => {
+export const recordImageSend = (data: { remoteUrl: string; fromUserId: string; toUserId: string; localFilename?: string }) => {
   const formData = createFormData(data)
   return request.post<any, any>('/recordImageSend', formData, {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }

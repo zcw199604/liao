@@ -1,6 +1,7 @@
 export interface UploadedMedia {
   url: string
   type: 'image' | 'video'
+  localFilename?: string
 }
 
 export interface MediaItem {

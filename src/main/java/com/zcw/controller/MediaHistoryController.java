@@ -49,14 +49,16 @@ public class MediaHistoryController {
     public ResponseEntity<Map<String, Object>> recordImageSend(
             @RequestParam String remoteUrl,
             @RequestParam String fromUserId,
-            @RequestParam String toUserId) {
+            @RequestParam String toUserId,
+            @RequestParam(required = false) String localFilename) {
 
-        log.info("记录图片发送: fromUserId={}, toUserId={}, remoteUrl={}", fromUserId, toUserId, remoteUrl);
+        log.info("记录图片发送: fromUserId={}, toUserId={}, remoteUrl={}, localFilename={}", 
+                fromUserId, toUserId, remoteUrl, localFilename);
 
         Map<String, Object> result = new HashMap<>();
 
         try {
-            MediaUploadHistory record = mediaUploadService.recordImageSend(remoteUrl, fromUserId, toUserId);
+            MediaUploadHistory record = mediaUploadService.recordImageSend(remoteUrl, fromUserId, toUserId, localFilename);
 
             if (record != null) {
                 result.put("success", true);

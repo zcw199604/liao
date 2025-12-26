@@ -508,6 +508,7 @@ public class UserHistoryController {
                     enhancedResponse.put("state", "OK");
                     enhancedResponse.put("msg", imagePath);
                     enhancedResponse.put("port", availablePort);  // 添加端口信息
+                    enhancedResponse.put("localFilename", history.getLocalFilename()); // 添加本地文件名，用于精确关联
 
                     return ResponseEntity.ok(enhancedResponse.toString());
                 }

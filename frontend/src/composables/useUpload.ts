@@ -43,7 +43,8 @@ export const useUpload = () => {
 
         const media: UploadedMedia = {
           url,
-          type
+          type,
+          localFilename: res.localFilename
         }
 
         mediaStore.addUploadedMedia(media)
