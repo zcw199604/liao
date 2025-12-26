@@ -271,9 +271,12 @@ const handleClick = () => {
 }
 
 const startDrag = (e: MouseEvent | TouchEvent) => {
-  if (scale.value <= 1) return // 只有放大时才能拖动
+  // 允许 scale=1 时进行拖动以支持滑动切换
+  // if (scale.value <= 1) return 
   
-  e.preventDefault() 
+  // 对于触摸事件，不立即阻止默认行为，以便允许点击
+  // 但在移动时会阻止默认行为
+  
   isDragging.value = true
   hasMoved = false
   
@@ -293,7 +296,6 @@ const startDrag = (e: MouseEvent | TouchEvent) => {
 
 const onDrag = (e: MouseEvent | TouchEvent) => {
   if (!isDragging.value) return
-  e.preventDefault()
   
   const clientX = e instanceof MouseEvent ? e.clientX : (e.touches?.[0]?.clientX || 0)
   const clientY = e instanceof MouseEvent ? e.clientY : (e.touches?.[0]?.clientY || 0)
@@ -301,12 +303,23 @@ const onDrag = (e: MouseEvent | TouchEvent) => {
   const deltaX = clientX - startX
   const deltaY = clientY - startY
   
+  // 防抖阈值
   if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
       hasMoved = true
+      // 移动时阻止默认行为（如滚动）
+      if (e.cancelable) e.preventDefault()
   }
 
-  translateX.value = initialTranslateX + deltaX
-  translateY.value = initialTranslateY + deltaY
+  if (scale.value > 1) {
+    // 放大模式：自由拖拽
+    translateX.value = initialTranslateX + deltaX
+    translateY.value = initialTranslateY + deltaY
+  } else {
+    // 未放大模式：仅水平滑动（Swipe）
+    // 增加阻尼感，除以 1.5 还是 1.0 看手感，这里用 1:1 跟随更自然
+    translateX.value = deltaX 
+    // Y轴保持不动
+  }
 }
 
 const stopDrag = () => {
@@ -316,10 +329,29 @@ const stopDrag = () => {
   window.removeEventListener('touchmove', onDrag)
   window.removeEventListener('touchend', stopDrag)
   
-  if (!hasMoved && scale.value > 1) {
-      // 拖动结束但没移动，不做操作，等待点击事件处理还原
-      // 或者：如果为了更灵敏的体验，可以在这里处理。
-      // 目前 logic 是 click 处理还原
+  if (!hasMoved) {
+      // 如果没有移动，视为点击
+      // 如果是放大状态下的点击，应该不需要在这里处理，handleClick 会处理
+      // 但如果是在 scale=1 下的点击，handleClick 也会处理
+      return
+  }
+  
+  if (scale.value === 1) {
+    // 滑动切换判定
+    const threshold = 80 // 滑动阈值
+    if (translateX.value > threshold) {
+      // 向右滑 -> 上一张
+      prev()
+    } else if (translateX.value < -threshold) {
+      // 向左滑 -> 下一张
+      next()
+    } else {
+      // 未达到阈值，回弹
+      translateX.value = 0
+    }
+  } else {
+    // 放大状态下的松手，不需要额外逻辑，保持当前位置
+    // (后续可以加边缘回弹逻辑，这里暂不处理)
   }
 }
 
