@@ -4,6 +4,7 @@ import type { ChatMessage } from '@/types'
 import * as chatApi from '@/api/chat'
 import { generateCookie } from '@/utils/cookie'
 import { useMediaStore } from '@/stores/media'
+import { emojiMap } from '@/constants/emoji'
 
 export const useMessageStore = defineStore('message', () => {
   const chatHistory = ref<Map<string, ChatMessage[]>>(new Map())
@@ -200,16 +201,22 @@ export const useMessageStore = defineStore('message', () => {
           let type = 'text'
 
           if (rawContent.startsWith('[') && rawContent.endsWith(']')) {
-            const path = rawContent.substring(1, rawContent.length - 1)
-            const isVideo = path.toLowerCase().includes('.mp4')
-            const isImage = !isVideo && /\.(jpg|jpeg|png|gif|webp)$/i.test(path)
+            // 如果是表情包，不处理为文件
+            if (emojiMap[rawContent]) {
+              type = 'text'
+              content = rawContent
+            } else {
+              const path = rawContent.substring(1, rawContent.length - 1)
+              const isVideo = path.toLowerCase().includes('.mp4')
+              const isImage = !isVideo && /\.(jpg|jpeg|png|gif|webp)$/i.test(path)
 
-            if (mediaStore.imgServer) {
-              const port = isVideo ? '8006' : '9006'
-              content = `http://${mediaStore.imgServer}:${port}/img/Upload/${path}`
-              if (isVideo) type = 'video'
-              else if (isImage) type = 'image'
-              else type = 'file'
+              if (mediaStore.imgServer) {
+                const port = isVideo ? '8006' : '9006'
+                content = `http://${mediaStore.imgServer}:${port}/img/Upload/${path}`
+                if (isVideo) type = 'video'
+                else if (isImage) type = 'image'
+                else type = 'file'
+              }
             }
           }
 
