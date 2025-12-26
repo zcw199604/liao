@@ -20,8 +20,7 @@
       <button
         type="button"
         @click.stop="$emit('showUpload')"
-        :disabled="disabled"
-        class="text-gray-400 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed p-1"
+        class="text-gray-400 hover:text-white transition p-1"
         aria-label="图片"
       >
         <i class="fas fa-plus-circle text-2xl"></i>
@@ -29,8 +28,7 @@
       <button
         type="button"
         @click.stop="$emit('showEmoji')"
-        :disabled="disabled"
-        class="text-gray-400 hover:text-yellow-400 transition disabled:opacity-50 disabled:cursor-not-allowed p-1"
+        class="text-gray-400 hover:text-yellow-400 transition p-1"
         aria-label="表情"
       >
         <i class="fas fa-smile text-2xl"></i>
@@ -48,8 +46,7 @@
         @focus="handleFocus"
         @blur="handleBlur"
         placeholder="发消息..."
-        class="w-full bg-transparent text-white outline-none text-base resize-none overflow-hidden h-6 leading-6 disabled:text-gray-500 disabled:cursor-not-allowed placeholder-gray-500"
-        :disabled="disabled"
+        class="w-full bg-transparent text-white outline-none text-base resize-none overflow-hidden h-6 leading-6 placeholder-gray-500"
         rows="1"
         ref="textareaRef"
       ></textarea>
@@ -130,7 +127,9 @@ const handleKeydown = (e: KeyboardEvent) => {
     if (e.ctrlKey || e.metaKey) {
       // Ctrl+Enter or Cmd+Enter to send
       e.preventDefault()
-      emit('send')
+      if (!props.disabled) {
+        emit('send')
+      }
     } else if (!e.shiftKey) {
        // Regular Enter sends too (current behavior), shift+enter inserts newline (default)
        // If you want ONLY Ctrl+Enter to send, remove this block. 
@@ -140,7 +139,9 @@ const handleKeydown = (e: KeyboardEvent) => {
        
        // Current implementation: Enter sends, Shift+Enter new line
        e.preventDefault()
-       emit('send')
+       if (!props.disabled) {
+         emit('send')
+       }
     }
   }
 }
