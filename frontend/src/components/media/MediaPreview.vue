@@ -3,18 +3,18 @@
     <transition name="fade">
       <div
         v-if="visible"
-        class="fixed inset-0 bg-black/95 flex items-center justify-center z-[100]"
+        class="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] overflow-hidden"
         @click.self="handleClose"
       >
         <!-- 顶部工具栏 -->
-        <div class="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-20 bg-gradient-to-b from-black/50 to-transparent">
+        <div class="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-20 bg-gradient-to-b from-black/50 to-transparent pointer-events-none">
            <!-- 缩放提示/状态 -->
-           <div v-if="type === 'image'" class="text-white/50 text-xs px-2">
-              {{ isZoomed ? '点击缩小' : '点击放大' }}
+           <div v-if="type === 'image'" class="text-white/50 text-xs px-2 pointer-events-auto">
+              {{ scale > 1 ? '拖动查看 · 点击还原' : '点击放大' }}
            </div>
            <div v-else></div>
 
-           <div class="flex items-center gap-4">
+           <div class="flex items-center gap-4 pointer-events-auto">
               <!-- 下载按钮 -->
               <a 
                 :href="url" 
@@ -37,18 +37,22 @@
            </div>
         </div>
 
-        <!-- 图片预览 (支持点击放大) -->
+        <!-- 图片预览 (支持点击放大和拖动) -->
         <div 
           v-if="type === 'image'" 
-          class="relative w-full h-full flex items-center justify-center overflow-auto p-4"
+          class="relative w-full h-full flex items-center justify-center p-0"
           @click.self="handleClose"
         >
           <img
             :src="url"
-            class="transition-all duration-300 ease-out cursor-zoom-in shadow-2xl"
-            :class="isZoomed ? 'max-w-none scale-150 cursor-zoom-out' : 'max-w-[95%] max-h-[95%] object-contain'"
+            class="max-w-full max-h-full object-contain cursor-grab active:cursor-grabbing select-none"
+            :class="{ 'transition-transform duration-300 ease-out': !isDragging }"
+            :style="imageStyle"
             alt="预览"
-            @click.stop="toggleZoom"
+            draggable="false"
+            @mousedown="startDrag"
+            @touchstart="startDrag"
+            @click.stop="handleClick"
           />
         </div>
 
@@ -65,7 +69,7 @@
         <button
           v-if="canUpload"
           @click="$emit('upload')"
-          class="absolute bottom-8 left-1/2 transform -translate-x-1/2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-medium transition shadow-lg shadow-indigo-600/30 flex items-center gap-2"
+          class="absolute bottom-8 left-1/2 transform -translate-x-1/2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-medium transition shadow-lg shadow-indigo-600/30 flex items-center gap-2 z-30"
         >
           <i class="fas fa-cloud-upload-alt"></i>
           <span>上传此{{ type === 'image' ? '图片' : '视频' }}</span>
@@ -76,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 
 interface Props {
   visible: boolean
@@ -94,20 +98,99 @@ const emit = defineEmits<{
   'upload': []
 }>()
 
-const isZoomed = ref(false)
+// 状态管理
+const scale = ref(1)
+const translateX = ref(0)
+const translateY = ref(0)
+const isDragging = ref(false)
+
+// 拖动辅助变量
+let startX = 0
+let startY = 0
+let initialTranslateX = 0
+let initialTranslateY = 0
+let hasMoved = false
+
+const imageStyle = computed(() => {
+  return {
+    transform: `translate3d(${translateX.value}px, ${translateY.value}px, 0) scale(${scale.value})`
+  }
+})
 
 const handleClose = () => {
-  isZoomed.value = false
+  resetZoom()
   emit('update:visible', false)
 }
 
-const toggleZoom = () => {
-  isZoomed.value = !isZoomed.value
+const resetZoom = () => {
+  scale.value = 1
+  translateX.value = 0
+  translateY.value = 0
+  isDragging.value = false
 }
 
-// 每次打开重置缩放状态
+const handleClick = () => {
+  // 如果发生了移动（拖动），则不触发点击缩放逻辑
+  if (hasMoved && scale.value > 1) return
+
+  if (scale.value > 1) {
+    resetZoom()
+  } else {
+    scale.value = 3 // 放大倍数
+  }
+}
+
+const startDrag = (e: MouseEvent | TouchEvent) => {
+  if (scale.value <= 1) return // 只有放大时才能拖动
+  
+  e.preventDefault() // 防止默认行为
+  isDragging.value = true
+  hasMoved = false
+  
+  const clientX = e instanceof MouseEvent ? e.clientX : (e.touches?.[0]?.clientX || 0)
+  const clientY = e instanceof MouseEvent ? e.clientY : (e.touches?.[0]?.clientY || 0)
+  
+  startX = clientX
+  startY = clientY
+  initialTranslateX = translateX.value
+  initialTranslateY = translateY.value
+  
+  window.addEventListener('mousemove', onDrag)
+  window.addEventListener('mouseup', stopDrag)
+  window.addEventListener('touchmove', onDrag, { passive: false })
+  window.addEventListener('touchend', stopDrag)
+}
+
+const onDrag = (e: MouseEvent | TouchEvent) => {
+  if (!isDragging.value) return
+  e.preventDefault()
+  
+  const clientX = e instanceof MouseEvent ? e.clientX : (e.touches?.[0]?.clientX || 0)
+  const clientY = e instanceof MouseEvent ? e.clientY : (e.touches?.[0]?.clientY || 0)
+  
+  const deltaX = clientX - startX
+  const deltaY = clientY - startY
+  
+  // 简单的防抖，移动超过一点距离才算拖动
+  if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
+      hasMoved = true
+  }
+
+  translateX.value = initialTranslateX + deltaX
+  translateY.value = initialTranslateY + deltaY
+}
+
+const stopDrag = () => {
+  isDragging.value = false
+  window.removeEventListener('mousemove', onDrag)
+  window.removeEventListener('mouseup', stopDrag)
+  window.removeEventListener('touchmove', onDrag)
+  window.removeEventListener('touchend', stopDrag)
+}
+
+// 每次打开/关闭重置状态
 watch(() => props.visible, (val) => {
-  if (val) isZoomed.value = false
+  if (val) resetZoom()
 })
 </script>
 
