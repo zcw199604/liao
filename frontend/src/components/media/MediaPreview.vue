@@ -3,21 +3,25 @@
     <transition name="fade">
       <div
         v-if="visible"
-        class="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] overflow-hidden"
+        class="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] overflow-hidden select-none"
         @click.self="handleClose"
       >
         <!-- 顶部工具栏 -->
         <div class="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-20 bg-gradient-to-b from-black/50 to-transparent pointer-events-none">
-           <!-- 缩放提示/状态 -->
-           <div v-if="type === 'image'" class="text-white/50 text-xs px-2 pointer-events-auto">
-              {{ scale > 1 ? '拖动查看 · 点击还原' : '点击放大' }}
+           <!-- 缩放提示/状态/计数 -->
+           <div class="flex items-center gap-3 px-2 pointer-events-auto">
+              <span v-if="realMediaList.length > 1" class="text-white/90 font-medium text-sm drop-shadow-md">
+                {{ currentIndex + 1 }} / {{ realMediaList.length }}
+              </span>
+              <span v-if="currentMedia.type === 'image'" class="text-white/50 text-xs shadow-black/50 drop-shadow-md">
+                {{ scale > 1 ? '拖动查看 · 点击还原' : '点击放大' }}
+              </span>
            </div>
-           <div v-else></div>
 
            <div class="flex items-center gap-4 pointer-events-auto">
               <!-- 下载按钮 -->
               <a 
-                :href="url" 
+                :href="currentMedia.url" 
                 download 
                 target="_blank"
                 class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition backdrop-blur-sm"
@@ -37,14 +41,34 @@
            </div>
         </div>
 
+        <!-- 左右切换按钮 -->
+        <template v-if="realMediaList.length > 1">
+          <button 
+            class="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/10 hover:bg-white/20 text-white/70 hover:text-white flex items-center justify-center backdrop-blur-md transition z-30 focus:outline-none"
+            @click.stop="prev"
+            title="上一张 (←)"
+          >
+            <i class="fas fa-chevron-left text-lg sm:text-xl"></i>
+          </button>
+          
+          <button 
+            class="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/10 hover:bg-white/20 text-white/70 hover:text-white flex items-center justify-center backdrop-blur-md transition z-30 focus:outline-none"
+            @click.stop="next"
+            title="下一张 (→)"
+          >
+            <i class="fas fa-chevron-right text-lg sm:text-xl"></i>
+          </button>
+        </template>
+
         <!-- 图片预览 (支持点击放大和拖动) -->
         <div 
-          v-if="type === 'image'" 
-          class="relative w-full h-full flex items-center justify-center p-0"
+          v-if="currentMedia.type === 'image'" 
+          class="relative w-full h-full flex items-center justify-center p-0 transition-opacity duration-200 pb-20"
           @click.self="handleClose"
         >
           <img
-            :src="url"
+            :key="currentMedia.url"
+            :src="currentMedia.url"
             class="max-w-full max-h-full object-contain cursor-grab active:cursor-grabbing select-none"
             :class="{ 'transition-transform duration-300 ease-out': !isDragging }"
             :style="imageStyle"
@@ -57,22 +81,51 @@
         </div>
 
         <!-- 视频预览 -->
-        <video
-          v-else-if="type === 'video'"
-          :src="url"
-          controls
-          autoplay
-          class="max-w-[95%] max-h-[95%] shadow-2xl rounded-lg"
-        ></video>
+        <div v-else-if="currentMedia.type === 'video'" class="relative w-full h-full flex items-center justify-center pb-20">
+             <video
+              :key="currentMedia.url + '-video'"
+              :src="currentMedia.url"
+              controls
+              autoplay
+              class="max-w-[95%] max-h-[95%] shadow-2xl rounded-lg bg-black"
+            ></video>
+        </div>
+
+        <!-- 底部缩略图栏 -->
+        <div 
+          v-if="realMediaList.length > 1"
+          class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-end justify-center z-40 pb-6 pointer-events-auto"
+          @click.stop
+        >
+           <div 
+             ref="thumbnailContainer"
+             class="flex gap-3 px-4 overflow-x-auto no-scrollbar max-w-full items-center h-16 w-full sm:w-auto sm:max-w-[80vw]"
+           >
+             <div 
+               v-for="(item, idx) in realMediaList" 
+               :key="'thumb-' + idx"
+               class="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden cursor-pointer border-2 transition-all duration-200 shadow-lg"
+               :class="idx === currentIndex ? 'border-indigo-500 scale-110 opacity-100 ring-2 ring-indigo-500/30' : 'border-transparent opacity-40 hover:opacity-80 hover:scale-105'"
+               @click="jumpTo(idx)"
+             >
+                <img v-if="item.type === 'image'" :src="item.url" class="w-full h-full object-cover" loading="lazy" />
+                <video v-else :src="item.url" class="w-full h-full object-cover"></video>
+                <!-- Video indicator -->
+                <div v-if="item.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/40">
+                  <i class="fas fa-play text-[8px] text-white/90"></i>
+                </div>
+             </div>
+           </div>
+        </div>
 
         <!-- 上传按钮（如果允许上传） -->
         <button
           v-if="canUpload"
           @click="$emit('upload')"
-          class="absolute bottom-8 left-1/2 transform -translate-x-1/2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-medium transition shadow-lg shadow-indigo-600/30 flex items-center gap-2 z-30"
+          class="absolute bottom-28 left-1/2 transform -translate-x-1/2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-medium transition shadow-lg shadow-indigo-600/30 flex items-center gap-2 z-50"
         >
           <i class="fas fa-cloud-upload-alt"></i>
-          <span>上传此{{ type === 'image' ? '图片' : '视频' }}</span>
+          <span>上传此{{ currentMedia.type === 'image' ? '图片' : '视频' }}</span>
         </button>
       </div>
     </transition>
@@ -80,17 +133,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onUnmounted, nextTick } from 'vue'
+import type { UploadedMedia } from '@/types'
 
 interface Props {
   visible: boolean
   url: string
   type: 'image' | 'video'
   canUpload?: boolean
+  mediaList?: UploadedMedia[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  canUpload: false
+  canUpload: false,
+  mediaList: () => []
 })
 
 const emit = defineEmits<{
@@ -103,6 +159,82 @@ const scale = ref(1)
 const translateX = ref(0)
 const translateY = ref(0)
 const isDragging = ref(false)
+const currentIndex = ref(0)
+const thumbnailContainer = ref<HTMLElement | null>(null)
+
+// 整合后的媒体列表
+const realMediaList = computed<UploadedMedia[]>(() => {
+  if (props.mediaList && props.mediaList.length > 0) {
+    return props.mediaList
+  }
+  // 兼容旧模式：单张图片构造成列表
+  return [{ url: props.url, type: props.type }]
+})
+
+const currentMedia = computed<UploadedMedia>(() => {
+  if (realMediaList.value.length === 0) {
+    return { url: '', type: 'image' }
+  }
+  const item = realMediaList.value[currentIndex.value]
+  if (item) return item
+  return realMediaList.value[0] || { url: '', type: 'image' }
+})
+
+// 导航逻辑
+const next = () => {
+  resetZoom()
+  if (currentIndex.value < realMediaList.value.length - 1) {
+    currentIndex.value++
+  } else {
+    currentIndex.value = 0 // 循环
+  }
+}
+
+const prev = () => {
+  resetZoom()
+  if (currentIndex.value > 0) {
+    currentIndex.value--
+  } else {
+    currentIndex.value = realMediaList.value.length - 1 // 循环
+  }
+}
+
+const jumpTo = (index: number) => {
+  if (index === currentIndex.value) return
+  resetZoom()
+  currentIndex.value = index
+}
+
+const handleKeydown = (e: KeyboardEvent) => {
+  if (!props.visible) return
+  
+  if (e.key === 'ArrowRight') next()
+  if (e.key === 'ArrowLeft') prev()
+  if (e.key === 'Escape') handleClose()
+}
+
+// 自动滚动缩略图
+watch(currentIndex, (newIndex) => {
+  if (!props.visible) return
+  nextTick(() => {
+    if (thumbnailContainer.value && realMediaList.value.length > 1) {
+      const container = thumbnailContainer.value
+      const children = container.children
+      if (children[newIndex]) {
+        const target = children[newIndex] as HTMLElement
+        // Scroll to center
+        const containerWidth = container.clientWidth
+        const targetLeft = target.offsetLeft
+        const targetWidth = target.clientWidth
+        
+        container.scrollTo({
+          left: targetLeft - containerWidth / 2 + targetWidth / 2,
+          behavior: 'smooth'
+        })
+      }
+    }
+  })
+})
 
 // 拖动辅助变量
 let startX = 0
@@ -130,17 +262,18 @@ const resetZoom = () => {
 }
 
 const handleClick = () => {
-  // 仅处理未放大时的点击放大逻辑
-  // 放大状态下的点击还原由 stopDrag 处理
   if (scale.value === 1) {
     scale.value = 3 // 放大倍数
+  } else {
+    // 再次点击还原
+    resetZoom()
   }
 }
 
 const startDrag = (e: MouseEvent | TouchEvent) => {
   if (scale.value <= 1) return // 只有放大时才能拖动
   
-  e.preventDefault() // 防止默认行为
+  e.preventDefault() 
   isDragging.value = true
   hasMoved = false
   
@@ -168,7 +301,6 @@ const onDrag = (e: MouseEvent | TouchEvent) => {
   const deltaX = clientX - startX
   const deltaY = clientY - startY
   
-  // 防抖阈值增加到 5px
   if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
       hasMoved = true
   }
@@ -184,15 +316,53 @@ const stopDrag = () => {
   window.removeEventListener('touchmove', onDrag)
   window.removeEventListener('touchend', stopDrag)
   
-  // 如果是放大状态且没有发生实质性移动，视为点击，执行还原
   if (!hasMoved && scale.value > 1) {
-      resetZoom()
+      // 拖动结束但没移动，不做操作，等待点击事件处理还原
+      // 或者：如果为了更灵敏的体验，可以在这里处理。
+      // 目前 logic 是 click 处理还原
   }
 }
 
-// 每次打开/关闭重置状态
+// 监听visible变化
 watch(() => props.visible, (val) => {
-  if (val) resetZoom()
+  if (val) {
+    resetZoom()
+    window.addEventListener('keydown', handleKeydown)
+    
+    // 初始化 currentIndex
+    // 如果有传入 mediaList，尝试找到 url 对应的 index
+    if (props.mediaList && props.mediaList.length > 0 && props.url) {
+      const idx = props.mediaList.findIndex(m => m.url === props.url)
+      currentIndex.value = idx >= 0 ? idx : 0
+      
+      // Initial scroll to active thumbnail
+      nextTick(() => {
+        if (thumbnailContainer.value && realMediaList.value.length > 1) {
+             const idx = currentIndex.value
+             const container = thumbnailContainer.value
+             const children = container.children
+             if (children[idx]) {
+                const target = children[idx] as HTMLElement
+                const containerWidth = container.clientWidth
+                const targetLeft = target.offsetLeft
+                const targetWidth = target.clientWidth
+                container.scrollTo({
+                    left: targetLeft - containerWidth / 2 + targetWidth / 2,
+                    behavior: 'instant' as ScrollBehavior // Instant for initial load
+                })
+             }
+        }
+      })
+    } else {
+      currentIndex.value = 0
+    }
+  } else {
+    window.removeEventListener('keydown', handleKeydown)
+  }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
