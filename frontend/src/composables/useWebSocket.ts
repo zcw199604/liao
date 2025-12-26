@@ -135,11 +135,15 @@ export const useWebSocket = () => {
         if (code === -3 && data.forceout === true) {
           console.error('收到forceout消息，停止重连:', data.content)
           forceoutFlag.value = true
-          alert(data.content || '请不要在同一个浏览器下重复登录')
+          // 使用 Router 或直接跳转到登录页，带上错误信息
           chatStore.wsConnected = false
           if (ws) {
             ws.close()
           }
+          // 清除Token并跳转
+          localStorage.removeItem('authToken')
+          // 这里使用 reload 或 href 跳转来确保彻底断开和重置状态
+          window.location.href = `/?error=${encodeURIComponent(data.content || '请不要在同一个浏览器下重复登录')}`
           return
         }
 
@@ -147,7 +151,7 @@ export const useWebSocket = () => {
         if (code === -4 && data.forceout === true) {
           console.error('后端拒绝连接:', data.content)
           forceoutFlag.value = true
-          alert(data.content || '连接被拒绝，请稍后再试')
+          window.location.href = `/?error=${encodeURIComponent(data.content || '连接被拒绝，请稍后再试')}`
           return
         }
 

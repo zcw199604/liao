@@ -68,6 +68,17 @@
 
     <Toast />
 
+    <!-- 清空聊天记录确认弹窗 -->
+    <Dialog
+      v-model:visible="showClearDialog"
+      title="清空聊天记录"
+      confirm-text="清空"
+      :show-warning="true"
+      @confirm="executeClearAndReload"
+    >
+      确定要清空并重新加载聊天记录吗？<br/>本地缓存的消息将被清除。
+    </Dialog>
+
     <!-- 聊天历史图片/视频弹窗 -->
     <teleport to="body">
       <div
@@ -154,6 +165,7 @@ import UploadMenu from '@/components/chat/UploadMenu.vue'
 import EmojiPanel from '@/components/chat/EmojiPanel.vue'
 import MediaPreview from '@/components/media/MediaPreview.vue'
 import Toast from '@/components/common/Toast.vue'
+import Dialog from '@/components/common/Dialog.vue'
 import type { UploadedMedia } from '@/types'
 
 const router = useRouter()
@@ -178,6 +190,8 @@ const previewCanUpload = ref(false)
 const previewTarget = ref<UploadedMedia | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 const messageListRef = ref<any>(null)
+
+const showClearDialog = ref(false)
 
 const showHistoryMediaModal = ref(false)
 const historyMediaLoading = ref(false)
@@ -294,13 +308,13 @@ const handleToggleFavorite = () => {
   toggleFavorite(chatStore.currentChatUser)
 }
 
-const handleClearAndReload = async () => {
+const handleClearAndReload = () => {
   if (!chatStore.currentChatUser || !userStore.currentUser) return
+  showClearDialog.value = true
+}
 
-  // 确认对话框
-  if (!confirm('确定要清空并重新加载聊天记录吗？本地缓存的消息将被清除。')) {
-    return
-  }
+const executeClearAndReload = async () => {
+  if (!chatStore.currentChatUser || !userStore.currentUser) return
 
   const userId = chatStore.currentChatUser.id
 

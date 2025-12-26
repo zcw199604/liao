@@ -42,12 +42,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import Toast from '@/components/common/Toast.vue'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const { show } = useToast()
 
@@ -78,6 +79,15 @@ const handleLogin = async () => {
 }
 
 onMounted(async () => {
+  // 检查是否有错误参数（如被踢下线）
+  const errorMsg = route.query.error
+  if (errorMsg) {
+    show(decodeURIComponent(String(errorMsg)))
+    // 清除URL中的参数
+    router.replace('/')
+    return // 如果有错误，不自动检查Token，等待用户手动重新登录
+  }
+
   const isValid = await authStore.checkToken()
   if (isValid) {
     router.push('/identity')
