@@ -126,9 +126,22 @@ const autoResize = () => {
 }
 
 const handleKeydown = (e: KeyboardEvent) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    emit('send')
+  if (e.key === 'Enter') {
+    if (e.ctrlKey || e.metaKey) {
+      // Ctrl+Enter or Cmd+Enter to send
+      e.preventDefault()
+      emit('send')
+    } else if (!e.shiftKey) {
+       // Regular Enter sends too (current behavior), shift+enter inserts newline (default)
+       // If you want ONLY Ctrl+Enter to send, remove this block. 
+       // But usually, standard Enter sends, Shift+Enter new line.
+       // Let's keep standard Enter behavior but ensure Ctrl+Enter also works explicitly if needed
+       // (though standard Enter usually covers it unless we want to change standard behavior)
+       
+       // Current implementation: Enter sends, Shift+Enter new line
+       e.preventDefault()
+       emit('send')
+    }
   }
 }
 

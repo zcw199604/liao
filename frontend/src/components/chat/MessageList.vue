@@ -27,9 +27,15 @@
         <span v-if="msg.time">{{ formatTime(msg.time) }}</span>
       </div>
 
-      <div class="msg-bubble" :class="msg.isSelf ? 'msg-right' : 'msg-left'">
-        <!-- 文本（支持表情解析） -->
-        <span v-if="!msg.isImage && !msg.isVideo" v-html="parseEmoji(msg.content, emojiMap)"></span>
+      <div class="msg-bubble shadow-sm" :class="msg.isSelf ? 'msg-right' : 'msg-left'">
+        <!-- 文本（支持表情解析，双击复制） -->
+        <span 
+          v-if="!msg.isImage && !msg.isVideo" 
+          v-html="parseEmoji(msg.content, emojiMap)"
+          @dblclick="copyToClipboard(msg.content)"
+          class="cursor-text select-text"
+          title="双击复制"
+        ></span>
 
         <!-- 图片 -->
         <img
@@ -61,16 +67,21 @@
       </div>
     </div>
 
-    <!-- 回到底部按钮 -->
+    <!-- 底部空间，防止最新消息被遮挡 -->
+    <div class="h-4"></div>
+
+    <!-- 回到底部/新消息悬浮按钮 -->
     <transition name="fade">
       <button
-        v-if="!isAtBottom"
-        @click="scrollToBottom"
-        class="fixed bottom-24 right-6 w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white shadow-lg hover:bg-indigo-700 active:scale-95 transition-all z-10"
-        title="回到最新消息"
-        aria-label="回到最新消息"
+        v-if="!isAtBottom || hasNewMessages"
+        @click="scrollToBottom(true)"
+        class="fixed bottom-24 right-6 rounded-full shadow-xl flex items-center justify-center text-white transition-all z-10 overflow-hidden group"
+        :class="hasNewMessages ? 'bg-indigo-600 hover:bg-indigo-700 px-4 py-2 gap-2 h-10 w-auto' : 'bg-[#27272a] hover:bg-[#3f3f46] w-10 h-10'"
+        :title="hasNewMessages ? '有新消息' : '回到底部'"
       >
-        <i class="fas fa-arrow-down text-lg"></i>
+        <i class="fas fa-arrow-down text-sm transition-transform group-hover:translate-y-0.5"></i>
+        <span v-if="hasNewMessages" class="text-xs font-bold whitespace-nowrap">新消息</span>
+        <span v-if="hasNewMessages" class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
       </button>
     </transition>
   </div>
@@ -84,8 +95,10 @@ import { parseEmoji } from '@/utils/string'
 import { emojiMap } from '@/constants/emoji'
 import { useUpload } from '@/composables/useUpload'
 import { useMessageStore } from '@/stores/message'
+import { useToast } from '@/composables/useToast'
 
 const messageStore = useMessageStore()
+const { show } = useToast()
 
 interface Props {
   messages: ChatMessage[]
@@ -103,6 +116,7 @@ defineEmits<{
 const chatBox = ref<HTMLElement | null>(null)
 const { getMediaUrl } = useUpload()
 const isAtBottom = ref(true)
+const hasNewMessages = ref(false)
 
 // 检测滚动位置
 let scrollTimer: ReturnType<typeof setTimeout> | null = null
@@ -112,16 +126,20 @@ const handleScroll = () => {
   scrollTimer = setTimeout(() => {
     if (!chatBox.value) return
     const { scrollTop, scrollHeight, clientHeight } = chatBox.value
-    // 距离底部小于50px认为在底部
+    // 距离底部小于100px认为在底部
     const distanceToBottom = scrollHeight - scrollTop - clientHeight
-    isAtBottom.value = distanceToBottom < 50
+    const isBottom = distanceToBottom < 100
+    
+    isAtBottom.value = isBottom
+    if (isBottom) {
+      hasNewMessages.value = false
+    }
   }, 100)
 }
 
 const getMessageKey = (msg: ChatMessage): string => {
   const tid = String(msg.tid || '').trim()
   if (tid) return `tid:${tid}`
-
   const fromUserId = String(msg.fromuser?.id || '')
   const type = String(msg.type || '')
   const time = String(msg.time || '')
@@ -129,10 +147,14 @@ const getMessageKey = (msg: ChatMessage): string => {
   return `fallback:${fromUserId}|${type}|${time}|${content}`
 }
 
-const scrollToBottom = () => {
+const scrollToBottom = (force = false) => {
   nextTick(() => {
     if (chatBox.value) {
-      chatBox.value.scrollTop = chatBox.value.scrollHeight
+      chatBox.value.scrollTo({
+        top: chatBox.value.scrollHeight,
+        behavior: force ? 'smooth' : 'auto'
+      })
+      hasNewMessages.value = false
     }
   })
 }
@@ -152,17 +174,35 @@ const previewMedia = (url: string, type: 'image' | 'video') => {
   }))
 }
 
-watch(() => props.messages.length, () => {
-  // 如果正在加载历史消息，不自动滚动
-  if (messageStore.isLoadingHistory) {
-    return
+const copyToClipboard = async (text: string) => {
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    show('已复制')
+  } catch (err) {
+    console.error('复制失败:', err)
+    show('复制失败')
   }
-  scrollToBottom()
+}
+
+watch(() => props.messages.length, (newVal, oldVal) => {
+  // 忽略加载历史消息时的长度变化
+  if (messageStore.isLoadingHistory) return
+
+  // 如果是收到新消息（数量增加且不是历史记录加载）
+  if (newVal > oldVal) {
+    if (isAtBottom.value) {
+      // 如果已经在底部，直接滚动
+      scrollToBottom(true)
+    } else {
+      // 否则显示新消息提示
+      hasNewMessages.value = true
+    }
+  }
 }, { flush: 'post' })
 
 onMounted(() => {
   scrollToBottom()
-  // 初始化时认为在底部
   isAtBottom.value = true
 })
 
@@ -188,4 +228,3 @@ defineExpose({
   transform: translateY(10px);
 }
 </style>
-

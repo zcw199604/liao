@@ -8,12 +8,12 @@
     </div>
 
     <!-- 表情网格 -->
-    <div class="grid grid-cols-6 gap-2 max-h-64 overflow-y-auto">
+    <div class="grid grid-cols-6 gap-2 max-h-64 overflow-y-auto p-1">
       <div
         v-for="(emojiUrl, text) in emojiMap"
         :key="text"
         @click="handleSelect(text)"
-        class="flex flex-col items-center gap-1 p-2 hover:bg-[#27272a] rounded-lg cursor-pointer transition"
+        class="flex flex-col items-center gap-1 p-3 hover:bg-[#27272a] rounded-xl cursor-pointer transition active:scale-95"
       >
         <img :src="emojiUrl" :alt="text" class="w-8 h-8" />
         <span class="text-[10px] text-gray-500 text-center leading-tight">{{ text }}</span>
