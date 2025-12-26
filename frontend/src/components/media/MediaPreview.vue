@@ -130,12 +130,9 @@ const resetZoom = () => {
 }
 
 const handleClick = () => {
-  // 如果发生了移动（拖动），则不触发点击缩放逻辑
-  if (hasMoved && scale.value > 1) return
-
-  if (scale.value > 1) {
-    resetZoom()
-  } else {
+  // 仅处理未放大时的点击放大逻辑
+  // 放大状态下的点击还原由 stopDrag 处理
+  if (scale.value === 1) {
     scale.value = 3 // 放大倍数
   }
 }
@@ -171,8 +168,8 @@ const onDrag = (e: MouseEvent | TouchEvent) => {
   const deltaX = clientX - startX
   const deltaY = clientY - startY
   
-  // 简单的防抖，移动超过一点距离才算拖动
-  if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
+  // 防抖阈值增加到 5px
+  if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
       hasMoved = true
   }
 
@@ -186,6 +183,11 @@ const stopDrag = () => {
   window.removeEventListener('mouseup', stopDrag)
   window.removeEventListener('touchmove', onDrag)
   window.removeEventListener('touchend', stopDrag)
+  
+  // 如果是放大状态且没有发生实质性移动，视为点击，执行还原
+  if (!hasMoved && scale.value > 1) {
+      resetZoom()
+  }
 }
 
 // 每次打开/关闭重置状态
