@@ -42,6 +42,20 @@
         </div>
       </div>
 
+      <!-- 文件消息 -->
+      <div v-else-if="message.isFile" class="p-3 bg-white/10 rounded-lg flex items-center gap-3 min-w-[200px] max-w-sm cursor-pointer hover:bg-white/20 transition border border-white/10" @click="downloadFile">
+        <div class="w-12 h-12 bg-gray-800 rounded-lg flex items-center justify-center text-indigo-400 shrink-0">
+           <i class="fas fa-file text-2xl"></i>
+        </div>
+        <div class="flex-1 overflow-hidden min-w-0">
+           <div class="text-sm truncate text-white/90 font-medium" :title="fileName">{{ fileName }}</div>
+           <div class="text-xs text-white/50 mt-0.5">点击下载</div>
+        </div>
+        <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400 group-hover:bg-white/10 group-hover:text-white transition">
+          <i class="fas fa-download text-sm"></i>
+        </div>
+      </div>
+
       <!-- 时间戳 -->
       <div
         class="text-[10px] mt-1.5 opacity-50 select-none"
@@ -80,6 +94,31 @@ const imageUrl = computed(() => {
 const videoUrl = computed(() => {
   return getMediaUrl(props.message.videoUrl || props.message.content || '')
 })
+
+const fileUrl = computed(() => {
+  return getMediaUrl(props.message.fileUrl || props.message.content || '')
+})
+
+const fileName = computed(() => {
+  if (props.message.isFile) {
+     try {
+       const url = new URL(fileUrl.value)
+       return decodeURIComponent(url.pathname.split('/').pop() || '未知文件')
+     } catch {
+       return fileUrl.value.split('/').pop() || '未知文件'
+     }
+  }
+  return ''
+})
+
+const downloadFile = () => {
+  const link = document.createElement('a')
+  link.href = fileUrl.value
+  link.download = fileName.value
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
 
 const previewImage = () => {
   window.dispatchEvent(new CustomEvent('preview-media', {

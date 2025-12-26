@@ -17,6 +17,9 @@
           <div v-if="media.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/30">
             <i class="fas fa-play-circle text-white text-2xl"></i>
           </div>
+          <div v-if="media.type === 'file'" class="w-full h-full flex items-center justify-center bg-gray-800 text-gray-400">
+            <i class="fas fa-file text-2xl"></i>
+          </div>
         </div>
       </div>
     </div>

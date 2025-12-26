@@ -37,7 +37,10 @@ export const useUpload = () => {
       const res = await mediaApi.uploadMedia(formData)
 
       if (res?.state === 'OK' && res.msg) {
-        const type = file.type.startsWith('video/') ? 'video' : 'image'
+        let type: 'image' | 'video' | 'file' = 'file'
+        if (file.type.startsWith('image/')) type = 'image'
+        else if (file.type.startsWith('video/')) type = 'video'
+        
         const port = type === 'video' ? IMG_SERVER_VIDEO_PORT : IMG_SERVER_IMAGE_PORT
         const url = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
 

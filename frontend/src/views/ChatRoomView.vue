@@ -62,7 +62,6 @@
     <input
       ref="fileInput"
       type="file"
-      accept="image/*,video/*"
       @change="handleFileChange"
       style="display: none"
     />
@@ -261,7 +260,6 @@ const handleEmojiSelect = (text: string) => {
 
 const handleUploadFile = () => {
   if (fileInput.value) {
-    fileInput.value.accept = 'image/*,video/*'
     fileInput.value.click()
   }
 }
@@ -275,7 +273,10 @@ const handleFileChange = async (e: Event) => {
 
   const media = await uploadFile(file, userStore.currentUser.id, userStore.currentUser.name)
   if (media) {
-    show(media.type === 'video' ? '视频上传成功' : '图片上传成功')
+    let msg = '文件上传成功'
+    if (media.type === 'video') msg = '视频上传成功'
+    else if (media.type === 'image') msg = '图片上传成功'
+    show(msg)
   } else {
     show('文件上传失败')
   }
@@ -290,10 +291,11 @@ const handleSendMedia = (media: UploadedMedia) => {
     return
   }
 
-  if (media.type === 'image') {
-    void sendImage(media.url, chatStore.currentChatUser, media.localFilename)
-  } else {
+  if (media.type === 'video') {
     void sendVideo(media.url, chatStore.currentChatUser, media.localFilename)
+  } else {
+    // 图片和普通文件都走这个通道
+    void sendImage(media.url, chatStore.currentChatUser, media.localFilename)
   }
 
   showUploadMenu.value = false

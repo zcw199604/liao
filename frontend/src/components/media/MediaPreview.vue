@@ -91,6 +91,13 @@
             ></video>
         </div>
 
+        <!-- 文件预览 -->
+        <div v-else-if="currentMedia.type === 'file'" class="relative w-full h-full flex flex-col items-center justify-center pb-20 text-white">
+            <i class="fas fa-file text-9xl mb-4 text-gray-400"></i>
+            <p class="text-xl max-w-md text-center break-all px-4">{{ currentMedia.url.split('/').pop() }}</p>
+            <p class="text-sm text-gray-400 mt-2">暂不支持预览此文件类型</p>
+        </div>
+
         <!-- 底部缩略图栏 -->
         <div 
           v-if="realMediaList.length > 1"
@@ -109,7 +116,10 @@
                @click="jumpTo(idx)"
              >
                 <img v-if="item.type === 'image'" :src="item.url" class="w-full h-full object-cover" loading="lazy" />
-                <video v-else :src="item.url" class="w-full h-full object-cover"></video>
+                <video v-else-if="item.type === 'video'" :src="item.url" class="w-full h-full object-cover"></video>
+                <div v-else class="w-full h-full flex items-center justify-center bg-gray-800 text-gray-400">
+                    <i class="fas fa-file text-sm"></i>
+                </div>
                 <!-- Video indicator -->
                 <div v-if="item.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/40">
                   <i class="fas fa-play text-[8px] text-white/90"></i>
@@ -125,7 +135,7 @@
           class="absolute bottom-28 left-1/2 transform -translate-x-1/2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-medium transition shadow-lg shadow-indigo-600/30 flex items-center gap-2 z-50"
         >
           <i class="fas fa-cloud-upload-alt"></i>
-          <span>上传此{{ currentMedia.type === 'image' ? '图片' : '视频' }}</span>
+          <span>上传此{{ currentMedia.type === 'image' ? '图片' : (currentMedia.type === 'video' ? '视频' : '文件') }}</span>
         </button>
       </div>
     </transition>

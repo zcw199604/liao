@@ -204,10 +204,12 @@ export const useMessageStore = defineStore('message', () => {
             const isVideo = path.toLowerCase().includes('.mp4')
             const isImage = !isVideo && /\.(jpg|jpeg|png|gif|webp)$/i.test(path)
 
-            if (mediaStore.imgServer && (isVideo || isImage)) {
+            if (mediaStore.imgServer) {
               const port = isVideo ? '8006' : '9006'
               content = `http://${mediaStore.imgServer}:${port}/img/Upload/${path}`
-              type = isVideo ? 'video' : 'image'
+              if (isVideo) type = 'video'
+              else if (isImage) type = 'image'
+              else type = 'file'
             }
           }
 
@@ -231,8 +233,10 @@ export const useMessageStore = defineStore('message', () => {
             isSelf,
             isImage: type === 'image',
             isVideo: type === 'video',
+            isFile: type === 'file',
             imageUrl: type === 'image' ? content : '',
-            videoUrl: type === 'video' ? content : ''
+            videoUrl: type === 'video' ? content : '',
+            fileUrl: type === 'file' ? content : ''
           } as ChatMessage
         })
 

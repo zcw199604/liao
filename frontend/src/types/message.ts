@@ -16,6 +16,8 @@ export interface ChatMessage extends Message {
   isSelf: boolean
   isImage?: boolean
   isVideo?: boolean
+  isFile?: boolean
   imageUrl?: string
   videoUrl?: string
+  fileUrl?: string
 }
