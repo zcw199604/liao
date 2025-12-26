@@ -149,7 +149,7 @@ import type { UploadedMedia } from '@/types'
 interface Props {
   visible: boolean
   url: string
-  type: 'image' | 'video'
+  type: 'image' | 'video' | 'file'
   canUpload?: boolean
   mediaList?: UploadedMedia[]
 }

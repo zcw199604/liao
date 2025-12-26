@@ -191,7 +191,7 @@ const deleteTargets = ref<string[]>([])
 
 const showPreview = ref(false)
 const previewUrl = ref('')
-const previewType = ref<'image' | 'video'>('image')
+const previewType = ref<'image' | 'video' | 'file'>('image')
 const previewCanUpload = ref(false)
 const previewTarget = ref<UploadedMedia | null>(null)
 
