@@ -1,13 +1,25 @@
 <template>
   <div class="bg-[#18181b]/90 backdrop-blur-md border-b border-gray-800 sticky top-0 z-20 px-4 py-2 shadow-sm">
     <div class="flex items-center justify-between mb-1">
-      <button
-        @click="$emit('back')"
-        class="w-10 h-10 -ml-2 flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/5 rounded-full transition"
-        aria-label="返回"
-      >
-        <i class="fas fa-chevron-left text-lg"></i>
-      </button>
+      <div class="flex items-center">
+        <!-- 侧边栏开关 -->
+        <button
+          @click="$emit('toggleSidebar')"
+          class="w-10 h-10 -ml-2 flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/5 rounded-full transition mr-1"
+          aria-label="显示列表"
+        >
+          <i class="fas fa-bars text-lg"></i>
+        </button>
+
+        <!-- 返回按钮 -->
+        <button
+          @click="$emit('back')"
+          class="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/5 rounded-full transition"
+          aria-label="返回"
+        >
+          <i class="fas fa-chevron-left text-lg"></i>
+        </button>
+      </div>
       
       <div class="flex flex-col items-center">
         <div class="font-bold text-base text-white leading-tight mb-0.5">{{ user?.nickname || '未知用户' }}</div>
@@ -72,5 +84,6 @@ defineEmits<{
   'back': []
   'toggleFavorite': []
   'clearAndReload': []
+  'toggleSidebar': []
 }>()
 </script>

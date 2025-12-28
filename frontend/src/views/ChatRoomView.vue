@@ -1,11 +1,32 @@
 <template>
-  <div class="page-container bg-[#0f0f13]">
+  <div class="page-container bg-[#0f0f13] relative overflow-hidden">
+    <!-- 侧边栏抽屉 -->
+    <Transition name="slide-right">
+      <div v-if="showSidebar" class="absolute inset-y-0 left-0 w-[80%] max-w-sm z-50 shadow-2xl bg-[#0f0f13] border-r border-gray-800">
+        <ChatSidebar
+          :current-user-id="chatStore.currentChatUser?.id"
+          @select="handleSidebarSelect"
+          @match-success="handleSidebarMatchSuccess"
+        />
+      </div>
+    </Transition>
+    
+    <!-- 侧边栏遮罩 -->
+    <Transition name="fade">
+      <div
+        v-if="showSidebar"
+        class="absolute inset-0 z-40 bg-black/50 backdrop-blur-sm"
+        @click="showSidebar = false"
+      ></div>
+    </Transition>
+
     <ChatHeader
       :user="chatStore.currentChatUser"
       :connected="chatStore.wsConnected"
       @back="handleBack"
       @toggle-favorite="handleToggleFavorite"
       @clear-and-reload="handleClearAndReload"
+      @toggle-sidebar="showSidebar = !showSidebar"
     />
 
     <MessageList
@@ -159,6 +180,7 @@ import { generateCookie } from '@/utils/cookie'
 import { IMG_SERVER_IMAGE_PORT, IMG_SERVER_VIDEO_PORT } from '@/constants/config'
 import * as mediaApi from '@/api/media'
 import ChatHeader from '@/components/chat/ChatHeader.vue'
+import ChatSidebar from '@/components/chat/ChatSidebar.vue'
 import MessageList from '@/components/chat/MessageList.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import UploadMenu from '@/components/chat/UploadMenu.vue'
@@ -166,7 +188,7 @@ import EmojiPanel from '@/components/chat/EmojiPanel.vue'
 import MediaPreview from '@/components/media/MediaPreview.vue'
 import Toast from '@/components/common/Toast.vue'
 import Dialog from '@/components/common/Dialog.vue'
-import type { UploadedMedia } from '@/types'
+import type { UploadedMedia, User } from '@/types'
 
 const router = useRouter()
 const chatStore = useChatStore()
@@ -193,6 +215,7 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const messageListRef = ref<any>(null)
 
 const showClearDialog = ref(false)
+const showSidebar = ref(false)
 
 const showHistoryMediaModal = ref(false)
 const historyMediaLoading = ref(false)
@@ -206,6 +229,25 @@ const messages = computed(() => {
 const canLoadMore = computed(() => {
   return !!chatStore.currentChatUser
 })
+
+const handleSidebarSelect = (user: User) => {
+  if (user.id === chatStore.currentChatUser?.id) {
+    showSidebar.value = false
+    return
+  }
+  
+  // 切换聊天对象
+  showSidebar.value = false
+  enterChat(user, true)
+  // 更新路由参数但不刷新页面
+  router.replace(`/chat/${user.id}`)
+}
+
+const handleSidebarMatchSuccess = (user: User) => {
+  showSidebar.value = false
+  enterChat(user, false)
+  router.replace(`/chat/${user.id}`)
+}
 
 const handleSend = () => {
   if (!inputText.value.trim() || !chatStore.currentChatUser) return
@@ -577,3 +619,15 @@ watch(
   { immediate: true }
 )
 </script>
+
+<style scoped>
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform 0.3s ease;
+}
+
+.slide-right-enter-from,
+.slide-right-leave-to {
+  transform: translateX(-100%);
+}
+</style>
