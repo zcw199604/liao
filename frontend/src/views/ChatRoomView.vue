@@ -608,12 +608,18 @@ watch(
 
 watch(
   () => chatStore.currentChatUser,
-  (user) => {
+  async (user) => {
     if (!user) return
     messageStore.isTyping = false
     // 进入聊天时清零未读
     if (user.unreadCount && user.unreadCount > 0) {
       user.unreadCount = 0
+    }
+
+    // 切换用户后，等待数据渲染完成，然后滚动到底部
+    await nextTick()
+    if (messageListRef.value) {
+      messageListRef.value.scrollToBottom()
     }
   },
   { immediate: true }
