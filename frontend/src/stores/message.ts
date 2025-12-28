@@ -111,153 +111,11 @@ export const useMessageStore = defineStore('message', () => {
     return minTidRaw
   }
 
-  // 获取增量新消息 - 只返回比缓存最后一条更新的消息
-  const getIncrementalMessages = (
-    cached: ChatMessage[],
-    fresh: ChatMessage[]
-  ): ChatMessage[] => {
-    if (cached.length === 0) return fresh // 无缓存，返回所有新消息
-
-    // 获取缓存中最后一条消息的tid（最大的tid）
-    const maxCachedTid = Math.max(...cached.map(m => parseInt(m.tid) || 0))
-
-    // 只返回tid比缓存更大的消息
-    const newMessages = fresh.filter(msg => {
-      const msgTid = parseInt(msg.tid) || 0
-      return msgTid > maxCachedTid
-    })
-
-    return newMessages
-  }
-
-  const getMessages = (userId: string): ChatMessage[] => {
-    return chatHistory.value.get(userId) || []
-  }
-
-  const addMessage = (userId: string, message: ChatMessage) => {
-    const messages = chatHistory.value.get(userId) || []
-    const updated = normalizeMessages([...messages, message])
-    chatHistory.value.set(userId, updated)
-
-    const minTid = getMinTid(updated)
-    if (minTid) {
-      firstTidMap.value[userId] = minTid
-    }
-  }
-
-  const loadHistory = async (
-    myUserID: string,
-    UserToID: string,
-    options?: { isFirst?: boolean; firstTid?: string; myUserName?: string; incremental?: boolean }
-  ): Promise<number> => {
-    loadingMore.value = true
-    isLoadingHistory.value = true
-    try {
-      const mediaStore = useMediaStore()
-      const isFirst = options?.isFirst ?? true
-      const firstTid = options?.firstTid ?? '0'
-      const myUserName = options?.myUserName || 'User'
-      const incremental = options?.incremental ?? false
-
-      if (!mediaStore.imgServer) {
-        try {
-          await mediaStore.loadImgServer()
-        } catch {
-          // ignore
-        }
-      }
-
-      const cookieData = generateCookie(myUserID, myUserName)
-      const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
-      const userAgent = navigator.userAgent
-
-      const data = await chatApi.getMessageHistory(
-        myUserID,
-        UserToID,
-        isFirst ? '1' : '0',
-        firstTid,
-        cookieData,
-        referer,
-        userAgent
-      )
-      console.log(isFirst ? '聊天历史数据:' : '更多历史消息数据:', data)
-
-      if (data?.error) {
-        console.warn('聊天历史加载失败:', data.error)
-        if (!chatHistory.value.get(UserToID)) {
-          chatHistory.value.set(UserToID, [])
-        }
-        return 0
-      }
-
-      if (data && data.code === 0 && Array.isArray(data.contents_list)) {
-        const mapped: ChatMessage[] = data.contents_list.reverse().map((msg: any) => {
-          const rawContent = String(msg?.content || '')
-          const msgTid = String(msg?.Tid || msg?.tid || '')
-          const msgTime = String(msg?.time || '')
-
-          const isSelf = String(msg?.id || '') !== String(UserToID)
-          let content = rawContent
-          let type = 'text'
-
-          if (rawContent.startsWith('[') && rawContent.endsWith(']')) {
-            // 如果是表情包，不处理为文件
-            if (emojiMap[rawContent]) {
-              type = 'text'
-              content = rawContent
-            } else {
-              const path = rawContent.substring(1, rawContent.length - 1)
-              const isVideo = path.toLowerCase().includes('.mp4')
-              const isImage = !isVideo && /\.(jpg|jpeg|png|gif|webp)$/i.test(path)
-
-              if (mediaStore.imgServer) {
-                const port = isVideo ? '8006' : '9006'
-                content = `http://${mediaStore.imgServer}:${port}/img/Upload/${path}`
-                if (isVideo) type = 'video'
-                else if (isImage) type = 'image'
-                else type = 'file'
-              }
-            }
-          }
-
-          const nickname = String(msg?.nickname || (isSelf ? myUserName : ''))
-          const fromuser = {
-            id: String(msg?.id || ''),
-            name: nickname,
-            nickname,
-            sex: '未知',
-            ip: ''
-          }
-
-          return {
-            code: 7,
-            fromuser,
-            touser: undefined,
-            type,
-            content,
-            time: msgTime,
-            tid: msgTid,
-            isSelf,
-            isImage: type === 'image',
-            isVideo: type === 'video',
-            isFile: type === 'file',
-            imageUrl: type === 'image' ? content : '',
-            videoUrl: type === 'video' ? content : '',
-            fileUrl: type === 'file' ? content : ''
-          } as ChatMessage
-        })
-
-        const existing = chatHistory.value.get(UserToID) || []
-
         if (isFirst) {
           if (incremental && existing.length > 0) {
-            // 增量模式 + 有缓存：只追加新消息
-            const newMessages = getIncrementalMessages(existing, mapped)
-
-            const combined = newMessages.length > 0
-              ? [...existing, ...newMessages]
-              : [...existing]
-
+            // 增量模式 + 有缓存：合并去重（以服务端数据为准）
+            // 将新数据 mapped 放在前面，deduplicateMessages 会保留首次出现的版本
+            const combined = [...mapped, ...existing]
             const normalized = normalizeMessages(combined)
             chatHistory.value.set(UserToID, normalized)
 
@@ -266,7 +124,8 @@ export const useMessageStore = defineStore('message', () => {
               firstTidMap.value[UserToID] = minTid
             }
 
-            return newMessages.length  // 返回新增消息数量
+            // 返回新增消息数量（近似值，通过长度变化计算）
+            return Math.max(0, normalized.length - existing.length)
           } else {
             // 首次加载 或 无缓存：直接设置
             const normalized = normalizeMessages(mapped)
