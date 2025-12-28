@@ -232,8 +232,23 @@ export const useMessageStore = defineStore('message', () => {
 
         if (isFirst) {
           if (incremental && existing.length > 0) {
-            // 增量模式 + 有缓存：合并去重（以服务端数据为准）
-            const combined = [...mapped, ...existing]
+            // 增量模式 + 有缓存：合并去重
+            // 特殊处理：清理本地缓存中可能是 WebSocket 推送的临时消息
+            // (这些消息内容相同、时间相近，但 TID 不同，会导致常规去重失效)
+            const cleanExisting = existing.filter(oldMsg => {
+              const oldTime = parseMessageTime(oldMsg.time) || 0
+              // 检查 mapped 中是否有对应的“正式版”消息
+              const hasDuplicateInMapped = mapped.some(newMsg => {
+                const newTime = parseMessageTime(newMsg.time) || 0
+                return newMsg.content === oldMsg.content && 
+                       Math.abs(newTime - oldTime) < 5000 // 5秒误差容忍
+              })
+              // 如果有对应正式版，则移除本地临时版
+              return !hasDuplicateInMapped
+            })
+
+            // 将新数据 mapped 放在前面，deduplicateMessages 会保留首次出现的版本
+            const combined = [...mapped, ...cleanExisting]
             const normalized = normalizeMessages(combined)
             chatHistory.value.set(UserToID, normalized)
 
@@ -242,6 +257,7 @@ export const useMessageStore = defineStore('message', () => {
               firstTidMap.value[UserToID] = minTid
             }
 
+            // 返回新增消息数量（近似值，通过长度变化计算）
             return Math.max(0, normalized.length - existing.length)
           } else {
             // 首次加载 或 无缓存：直接设置
