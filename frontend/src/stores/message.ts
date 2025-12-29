@@ -5,6 +5,7 @@ import * as chatApi from '@/api/chat'
 import { generateCookie } from '@/utils/cookie'
 import { useMediaStore } from '@/stores/media'
 import { emojiMap } from '@/constants/emoji'
+import { isImageFile, isVideoFile } from '@/utils/file'
 
 export const useMessageStore = defineStore('message', () => {
   const chatHistory = ref<Map<string, ChatMessage[]>>(new Map())
@@ -188,8 +189,8 @@ export const useMessageStore = defineStore('message', () => {
               content = rawContent
             } else {
               const path = rawContent.substring(1, rawContent.length - 1)
-              const isVideo = path.toLowerCase().includes('.mp4')
-              const isImage = !isVideo && /\.(jpg|jpeg|png|gif|webp)$/i.test(path)
+              const isVideo = isVideoFile(path)
+              const isImage = isImageFile(path)
 
               if (mediaStore.imgServer) {
                 const port = isVideo ? '8006' : '9006'

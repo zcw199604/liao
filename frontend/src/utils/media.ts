@@ -1,3 +1,5 @@
+import { isImageFile, isVideoFile } from './file'
+
 export const extractUploadLocalPath = (url: string): string => {
   if (!url) return ''
 
@@ -19,8 +21,12 @@ export const extractRemoteFilePathFromImgUploadUrl = (url: string): string => {
   return url
 }
 
-export const inferMediaTypeFromUrl = (url: string): 'image' | 'video' => {
-  const lower = (url || '').toLowerCase()
-  return lower.includes('.mp4') ? 'video' : 'image'
+export const inferMediaTypeFromUrl = (url: string): 'image' | 'video' | 'file' => {
+  if (!url) return 'file'
+  // 移除 URL 参数干扰
+  const cleanUrl = (url.split('?')[0] || '').split('#')[0] || ''
+  if (isVideoFile(cleanUrl)) return 'video'
+  if (isImageFile(cleanUrl)) return 'image'
+  return 'file'
 }
 
