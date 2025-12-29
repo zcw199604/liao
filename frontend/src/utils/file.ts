@@ -21,7 +21,7 @@ export const isImageFile = (filename: string): boolean => {
 // 判断是否为视频文件
 export const isVideoFile = (filename: string): boolean => {
   const ext = getFileExtension(filename)
-  return ['mp4', 'webm', 'ogg', 'mov', 'avi'].includes(ext)
+  return ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'].includes(ext)
 }
 
 // 格式化文件大小
