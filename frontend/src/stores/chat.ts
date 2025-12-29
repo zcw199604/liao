@@ -4,6 +4,24 @@ import type { User } from '@/types'
 import * as chatApi from '@/api/chat'
 import { generateCookie } from '@/utils/cookie'
 
+// 辅助函数：标准化用户数据
+const normalizeUser = (user: any, isFavorite: boolean = false): User => {
+  return {
+    id: user.id,
+    name: user.nickname || user.name || '未知',
+    nickname: user.nickname || user.name || '未知',
+    sex: user.sex || user.userSex || '未知',
+    age: user.age || user.userAge || '0',
+    area: user.address || user.userAddress || '未知',
+    address: user.address || user.userAddress || '未知',
+    ip: user.ip || '',
+    isFavorite: isFavorite,
+    lastMsg: '暂无消息',
+    lastTime: '刚刚',
+    unreadCount: 0
+  }
+}
+
 export const useChatStore = defineStore('chat', () => {
   // === 单一数据源架构 ===
   const userMap = ref<Map<string, User>>(new Map())  // userId -> User对象（唯一数据源）
@@ -75,25 +93,11 @@ export const useChatStore = defineStore('chat', () => {
       const userAgent = navigator.userAgent
 
       const data = await chatApi.getHistoryUserList(userId, cookieData, referer, userAgent)
-      console.log('历史用户数据:', data)
 
       if (data && Array.isArray(data)) {
         const users: User[] = data
           .filter(user => user.id !== userId)
-          .map(user => ({
-            id: user.id,
-            name: user.nickname || user.name || '未知',
-            nickname: user.nickname || user.name || '未知',
-            sex: user.sex || user.userSex || '未知',
-            age: user.age || user.userAge || '0',
-            area: user.address || user.userAddress || '未知',
-            address: user.address || user.userAddress || '未知',
-            ip: user.ip || '',
-            isFavorite: false,
-            lastMsg: '暂无消息',
-            lastTime: '刚刚',
-            unreadCount: 0
-          }))
+          .map(user => normalizeUser(user, false))
 
         // 更新 userMap 和 historyUserIds
         const newHistoryIds: string[] = []
@@ -113,7 +117,6 @@ export const useChatStore = defineStore('chat', () => {
         })
 
         historyUserIds.value = newHistoryIds
-        console.log('历史用户列表加载完成:', historyUserIds.value.length)
       }
     } catch (error) {
       console.error('加载历史用户失败:', error)
@@ -129,23 +132,9 @@ export const useChatStore = defineStore('chat', () => {
       const userAgent = navigator.userAgent
 
       const data = await chatApi.getFavoriteUserList(userId, cookieData, referer, userAgent)
-      console.log('收藏用户数据:', data)
 
       if (data && Array.isArray(data)) {
-        const users: User[] = data.map(user => ({
-          id: user.id,
-          name: user.nickname || user.name || '未知',
-          nickname: user.nickname || user.name || '未知',
-          sex: user.sex || user.userSex || '未知',
-          age: user.age || user.userAge || '0',
-          area: user.address || user.userAddress || '未知',
-          address: user.address || user.userAddress || '未知',
-          ip: user.ip || '',
-          isFavorite: true,
-          lastMsg: '暂无消息',
-          lastTime: '刚刚',
-          unreadCount: 0
-        }))
+        const users: User[] = data.map(user => normalizeUser(user, true))
 
         // 更新 userMap 和 favoriteUserIds
         const newFavoriteIds: string[] = []
@@ -165,7 +154,6 @@ export const useChatStore = defineStore('chat', () => {
         })
 
         favoriteUserIds.value = newFavoriteIds
-        console.log('收藏用户列表加载完成:', favoriteUserIds.value.length)
       }
     } catch (error) {
       console.error('加载收藏用户失败:', error)

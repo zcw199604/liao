@@ -47,3 +47,10 @@ auth:
   jwt-secret: ${JWT_SECRET:your-jwt-secret-key-at-least-256-bits-long-please-change-this-to-random-string}
   # Token过期时间（小时）
   token-expire-hours: ${TOKEN_EXPIRE_HOURS:24}
+
+# 应用配置
+app:
+  image-server:
+    host: ${IMG_SERVER_HOST:149.88.79.98}
+    port: ${IMG_SERVER_PORT:9003}
+    upstream-url: ${IMG_SERVER_UPSTREAM_URL:http://v1.chat2019.cn/asmx/method.asmx/getImgServer}
