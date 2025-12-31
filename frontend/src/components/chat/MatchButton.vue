@@ -1,5 +1,6 @@
 <template>
-  <div class="fixed bottom-6 right-6 z-20">
+  <div class="absolute bottom-6 left-0 right-0 flex justify-center z-20 pointer-events-none">
+    <div class="pointer-events-auto">
     <!-- 匹配按钮 -->
     <button
       v-if="!chatStore.isMatching"
@@ -33,7 +34,7 @@
     <!-- 长按菜单 -->
     <div
       v-if="showMenu"
-      class="absolute bottom-full right-0 mb-3 bg-[#18181b] rounded-xl shadow-2xl border border-gray-700 overflow-hidden"
+      class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 bg-[#18181b] rounded-xl shadow-2xl border border-gray-700 overflow-hidden"
     >
       <button
         v-for="option in menuOptions"
@@ -44,6 +45,7 @@
         <i :class="option.icon" class="text-blue-400"></i>
         <span>连续匹配 {{ option.count }} 次</span>
       </button>
+    </div>
     </div>
   </div>
 </template>
