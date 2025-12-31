@@ -3,20 +3,6 @@
   <div class="bg-[#18181b] px-4 py-3 pb-safe flex items-end border-t border-gray-800">
     <!-- 左侧工具栏 -->
     <div class="flex items-center gap-3 mr-3 mb-1.5">
-      <!-- 随机匹配按钮 (移至左侧以防误触) -->
-      <button
-        type="button"
-        @click="$emit('startMatch')"
-        :disabled="!wsConnected"
-        class="w-9 h-9 rounded-full bg-[#27272a] hover:bg-[#3f3f46] text-purple-500 hover:text-purple-400 flex items-center justify-center transition active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
-        title="匹配新用户"
-        aria-label="匹配"
-      >
-        <i class="fas fa-random text-sm"></i>
-      </button>
-
-      <div class="w-[1px] h-6 bg-gray-700 mx-1"></div>
-
       <button
         type="button"
         @click.stop="$emit('showUpload')"
@@ -51,6 +37,18 @@
         ref="textareaRef"
       ></textarea>
     </div>
+
+    <!-- 随机匹配按钮 -->
+    <button
+      type="button"
+      @click="$emit('startMatch')"
+      :disabled="!wsConnected"
+      class="mb-1 mr-2 w-10 h-10 rounded-full bg-[#27272a] hover:bg-[#3f3f46] text-purple-500 hover:text-purple-400 flex items-center justify-center transition active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+      title="匹配新用户"
+      aria-label="匹配"
+    >
+      <i class="fas fa-random text-sm"></i>
+    </button>
 
     <!-- 发送按钮 -->
     <button
