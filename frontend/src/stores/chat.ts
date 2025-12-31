@@ -35,6 +35,21 @@ export const useChatStore = defineStore('chat', () => {
   const wsConnected = ref(false)
   const listScrollTop = ref(0)
 
+  // === 连续匹配状态 ===
+  // 连续匹配配置
+  const continuousMatchConfig = ref<{
+    enabled: boolean        // 是否启用连续匹配
+    total: number          // 总次数
+    current: number        // 当前第几次
+  }>({
+    enabled: false,
+    total: 0,
+    current: 0
+  })
+
+  // 当前匹配到的用户（用于蒙层显示）
+  const currentMatchedUser = ref<User | null>(null)
+
   // === Computed：从单一数据源派生列表 ===
   const historyUsers = computed(() =>
     historyUserIds.value
@@ -177,6 +192,41 @@ export const useChatStore = defineStore('chat', () => {
     isMatching.value = false
   }
 
+  // === 连续匹配方法 ===
+  // 开始连续匹配
+  const startContinuousMatch = (total: number) => {
+    continuousMatchConfig.value = {
+      enabled: true,
+      total,
+      current: 1
+    }
+    isMatching.value = true
+    currentMatchedUser.value = null
+  }
+
+  // 取消连续匹配
+  const cancelContinuousMatch = () => {
+    continuousMatchConfig.value = {
+      enabled: false,
+      total: 0,
+      current: 0
+    }
+    isMatching.value = false
+    currentMatchedUser.value = null
+  }
+
+  // 增加匹配计数
+  const incrementMatchCount = () => {
+    if (continuousMatchConfig.value.enabled) {
+      continuousMatchConfig.value.current++
+    }
+  }
+
+  // 设置当前匹配用户
+  const setCurrentMatchedUser = (user: User | null) => {
+    currentMatchedUser.value = user
+  }
+
   return {
     // 状态
     currentChatUser,
@@ -184,6 +234,10 @@ export const useChatStore = defineStore('chat', () => {
     isMatching,
     wsConnected,
     listScrollTop,
+
+    // 连续匹配状态
+    continuousMatchConfig,
+    currentMatchedUser,
 
     // Computed（向后兼容）
     historyUsers,
@@ -201,6 +255,12 @@ export const useChatStore = defineStore('chat', () => {
     exitChat,
     startMatch,
     cancelMatch,
+
+    // 连续匹配方法
+    startContinuousMatch,
+    cancelContinuousMatch,
+    incrementMatchCount,
+    setCurrentMatchedUser,
 
     // 新增工具方法
     upsertUser,

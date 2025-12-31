@@ -114,49 +114,11 @@
       </div>
     </div>
 
-    <!-- 底部悬浮匹配按钮 -->
-    <div class="absolute bottom-6 left-0 right-0 flex justify-center z-20 pointer-events-none">
-      <div class="pointer-events-auto">
-        <button
-          v-if="!chatStore.isMatching"
-          @click="handleStartMatch"
-          class="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-full text-white font-bold shadow-lg transition active:scale-95"
-        >
-          <i class="fas fa-random mr-2"></i> 匹配新用户
-        </button>
-        <button
-          v-else
-          @click="handleCancelMatch"
-          class="flex items-center px-6 py-3 bg-red-600 rounded-full text-white font-bold shadow-xl animate-pulse"
-        >
-          <i class="fas fa-stop mr-2"></i> 取消匹配
-        </button>
-      </div>
-    </div>
+    <!-- 匹配按钮 -->
+    <MatchButton />
 
     <!-- 匹配蒙层 -->
-    <teleport to="body">
-      <div
-        v-if="chatStore.isMatching"
-        class="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center text-center"
-      >
-        <div class="relative w-32 h-32 mb-8">
-          <div class="absolute inset-0 border-4 border-blue-500/30 rounded-full animate-ping"></div>
-          <div class="absolute inset-0 border-4 border-blue-500 rounded-full flex items-center justify-center">
-            <i class="fas fa-satellite-dish text-4xl text-blue-400"></i>
-          </div>
-        </div>
-        <h2 class="text-xl font-bold mb-2 text-white">正在寻找有缘人...</h2>
-        <p class="text-gray-400 text-sm">匹配完全匿名</p>
-        <button
-          type="button"
-          @click="handleCancelMatch"
-          class="mt-8 px-6 py-2 border border-gray-600 rounded-full text-gray-200 text-sm hover:bg-white/5 transition"
-        >
-          取消
-        </button>
-      </div>
-    </teleport>
+    <MatchOverlay />
 
     <Toast />
 
@@ -184,6 +146,8 @@ import { getColorClass } from '@/constants/colors'
 import Toast from '@/components/common/Toast.vue'
 import SettingsDrawer from '@/components/settings/SettingsDrawer.vue'
 import Dialog from '@/components/common/Dialog.vue'
+import MatchButton from '@/components/chat/MatchButton.vue'
+import MatchOverlay from '@/components/chat/MatchOverlay.vue'
 import type { User } from '@/types'
 
 const props = defineProps<{
@@ -199,7 +163,7 @@ const router = useRouter()
 const chatStore = useChatStore()
 const userStore = useUserStore()
 const messageStore = useMessageStore()
-const { loadUsers, startMatch, cancelMatch } = useChat()
+const { loadUsers } = useChat()
 const { connect, disconnect } = useWebSocket()
 const { show } = useToast()
 
@@ -254,18 +218,6 @@ const handleUserClick = (user: User) => {
   emit('select', user)
 }
 
-const handleStartMatch = () => {
-  const ok = startMatch()
-  if (ok) {
-    show('正在匹配...')
-  }
-}
-
-const handleCancelMatch = () => {
-  cancelMatch()
-  show('已取消匹配')
-}
-
 const handleOpenSettings = () => {
   showTopMenu.value = false
   settingsMode.value = 'identity'
@@ -290,6 +242,7 @@ const confirmSwitchIdentity = () => {
   chatStore.clearAllUsers()
   chatStore.activeTab = 'history'
   chatStore.isMatching = false
+  chatStore.cancelContinuousMatch()
   userStore.clearCurrentUser()
   router.push('/identity')
 }

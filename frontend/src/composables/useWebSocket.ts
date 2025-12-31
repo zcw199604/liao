@@ -208,8 +208,6 @@ export const useWebSocket = () => {
             unreadCount: 0
           }
 
-          chatStore.isMatching = false
-
           // 更新单一数据源
           chatStore.upsertUser(matchedUser)
 
@@ -221,11 +219,22 @@ export const useWebSocket = () => {
           }
           historyIds.unshift(matchedUser.id)
 
-          // 初始化聊天记录为空，并进入聊天（不加载历史）
+          // 初始化聊天记录为空
           messageStore.clearHistory(matchedUser.id)
-          chatStore.enterChat(matchedUser as any)
 
-          window.dispatchEvent(new CustomEvent('match-success', { detail: matchedUser }))
+          // 判断是否为连续匹配模式
+          if (chatStore.continuousMatchConfig.enabled) {
+            // 连续匹配模式：不进入聊天，只更新蒙层显示
+            chatStore.setCurrentMatchedUser(matchedUser)
+            // 触发自动匹配检查
+            window.dispatchEvent(new CustomEvent('match-auto-check'))
+          } else {
+            // 单次匹配模式：进入聊天
+            chatStore.isMatching = false
+            chatStore.enterChat(matchedUser as any)
+            window.dispatchEvent(new CustomEvent('match-success', { detail: matchedUser }))
+          }
+
           return
         }
 
@@ -494,6 +503,12 @@ export const useWebSocket = () => {
     ws.onclose = () => {
       console.log('WebSocket 连接关闭')
       chatStore.wsConnected = false
+
+      // WebSocket断开时取消连续匹配
+      if (chatStore.continuousMatchConfig.enabled) {
+        chatStore.cancelContinuousMatch()
+        show('连接断开，连续匹配已取消')
+      }
 
       // 如果是手动关闭（切换身份），不重连
       if (manualClose) {

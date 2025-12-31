@@ -14,6 +14,9 @@ export const useChat = () => {
   const { send } = useWebSocket()
   const { show } = useToast()
 
+  // 自动匹配定时器
+  let autoMatchTimer: ReturnType<typeof setTimeout> | null = null
+
   const loadUsers = async () => {
     const currentUser = userStore.currentUser
     if (!currentUser) return
@@ -24,14 +27,17 @@ export const useChat = () => {
     ])
   }
 
-  const startMatch = () => {
+  const startMatch = (isContinuous: boolean = false) => {
     if (!userStore.currentUser) return false
     if (!chatStore.wsConnected) {
       show('WebSocket 未连接，无法匹配')
       return false
     }
 
-    chatStore.startMatch()
+    // 只在非连续模式下更新状态
+    if (!isContinuous) {
+      chatStore.startMatch()
+    }
 
     const message = {
       act: 'random',
@@ -47,7 +53,14 @@ export const useChat = () => {
   const cancelMatch = () => {
     if (!userStore.currentUser) return
 
-    chatStore.cancelMatch()
+    // 清除自动匹配定时器
+    if (autoMatchTimer) {
+      clearTimeout(autoMatchTimer)
+      autoMatchTimer = null
+    }
+
+    // 取消连续匹配状态
+    chatStore.cancelContinuousMatch()
 
     if (!chatStore.wsConnected) return
 
@@ -59,6 +72,54 @@ export const useChat = () => {
 
     send(message)
     console.log('取消匹配')
+  }
+
+  // 开始连续匹配
+  const startContinuousMatch = (count: number) => {
+    if (!userStore.currentUser) return false
+    if (!chatStore.wsConnected) {
+      show('WebSocket 未连接，无法匹配')
+      return false
+    }
+
+    chatStore.startContinuousMatch(count)
+    return startMatch(true)
+  }
+
+  // 处理自动匹配（匹配成功后触发）
+  const handleAutoMatch = () => {
+    const config = chatStore.continuousMatchConfig
+
+    if (!config.enabled) return
+
+    if (config.current >= config.total) {
+      // 完成所有匹配
+      chatStore.cancelContinuousMatch()
+      show(`连续匹配完成！共匹配 ${config.total} 次`)
+      return
+    }
+
+    // 等待2秒后开始下一次匹配
+    autoMatchTimer = setTimeout(() => {
+      chatStore.incrementMatchCount()
+      chatStore.setCurrentMatchedUser(null) // 清空上一个用户信息
+      startMatch(true)
+    }, 2000)
+  }
+
+  // 进入聊天并中断连续匹配
+  const enterChatAndStopMatch = (user: any) => {
+    // 清除定时器
+    if (autoMatchTimer) {
+      clearTimeout(autoMatchTimer)
+      autoMatchTimer = null
+    }
+
+    // 取消连续匹配
+    chatStore.cancelContinuousMatch()
+
+    // 进入聊天
+    enterChat(user, true)
   }
 
   const enterChat = (user: any, loadHistory: boolean = true) => {
@@ -159,6 +220,9 @@ export const useChat = () => {
     loadUsers,
     startMatch,
     cancelMatch,
+    startContinuousMatch,
+    handleAutoMatch,
+    enterChatAndStopMatch,
     enterChat,
     exitChat,
     toggleFavorite

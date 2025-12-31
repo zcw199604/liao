@@ -170,6 +170,12 @@ docker run -d -p 8080:8080 \
 - **必须使用完整绝对路径**，包含盘符和反斜杠（Windows）
 - 示例：`D:\workspace-idea\liao\src\main\java\...`
 
+### 前端开发流程
+- **写完前端代码后必须执行编译验证**
+- 执行 `npm run build` 确保编译成功无错误
+- 只有编译成功后才能认为任务完成
+- 如有编译错误，必须修复后重新验证
+
 ## 关键业务逻辑
 
 ### ForceoutManager机制
