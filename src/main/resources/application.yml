@@ -13,6 +13,16 @@ spring:
     password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+  # JPA 配置
+  jpa:
+    hibernate:
+      ddl-auto: update # 自动更新表结构
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+
   # 文件上传配置
   servlet:
     multipart:
