@@ -28,6 +28,9 @@ public interface MediaFileRepository extends JpaRepository<MediaFile, Long> {
 
     // 查询用户的所有文件，按更新时间倒序
     Page<MediaFile> findByUserIdOrderByUpdateTimeDesc(String userId, Pageable pageable);
+
+    // 查询所有文件，按更新时间倒序（不区分用户）
+    Page<MediaFile> findAllByOrderByUpdateTimeDesc(Pageable pageable);
     
     // 获取所有文件（用于全局列表，如果有去重需求，还是建议按 MD5 分组）
     // 但 MediaFile 表设计上应该是去重的（每个用户每个MD5一条），所以直接查即可
@@ -40,6 +43,9 @@ public interface MediaFileRepository extends JpaRepository<MediaFile, Long> {
 
     // 统计 MD5 引用计数（用于判断物理删除）
     long countByFileMd5(String fileMd5);
+
+    // 统计用户文件总数
+    int countByUserId(String userId);
     
     // 删除
     @Modifying

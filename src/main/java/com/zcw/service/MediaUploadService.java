@@ -291,12 +291,14 @@ public class MediaUploadService {
 
     /**
      * 获取所有上传图片 -> 查 MediaFile
+     * (不按用户ID过滤，显示所有图片)
      */
     public List<String> getAllUploadImages(String userId, int page, int pageSize, String hostHeader) {
         if (page < 1) page = 1;
         Pageable pageable = PageRequest.of(page - 1, pageSize);
 
-        Page<MediaFile> resultPage = mediaFileRepository.findAllUserFiles(userId, pageable);
+        // 使用 JPA 命名方法查询所有文件，按更新时间倒序
+        Page<MediaFile> resultPage = mediaFileRepository.findAllByOrderByUpdateTimeDesc(pageable);
         List<String> localPaths = resultPage.getContent().stream()
                 .map(MediaFile::getLocalPath)
                 .collect(Collectors.toList());
@@ -305,10 +307,8 @@ public class MediaUploadService {
     }
 
     public int getAllUploadImagesCount(String userId) {
-        // 由于 MediaFile 已经是去重的（按 MD5），直接 count
-        // 注意：findAllUserFiles 是带 userId 的，这里也应该带
-        // 暂且用 count() 代替，实际应该写 countByUserId
-        return (int) mediaFileRepository.count(); 
+        // 统计所有文件总数
+        return (int) mediaFileRepository.count();
     }
 
     /**
