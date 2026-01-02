@@ -125,6 +125,13 @@
                 class="absolute right-0 top-8 w-32 bg-[#27272a] rounded-lg shadow-xl border border-gray-700 z-50 overflow-hidden"
               >
                 <button
+                  @click="handleCheckOnlineStatus(user)"
+                  class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#3f3f46] hover:text-white flex items-center gap-2 transition border-b border-gray-700"
+                >
+                  <i class="fas fa-signal text-xs text-green-500"></i>
+                  <span>在线记录</span>
+                </button>
+                <button
                   @click="confirmDeleteUser(user)"
                   class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-[#3f3f46] hover:text-red-300 flex items-center gap-2 transition"
                 >
@@ -166,6 +173,27 @@
       content="确定要删除与该用户的会话吗？"
       @confirm="executeDeleteUser"
     />
+
+    <!-- 在线状态弹窗 -->
+    <Dialog
+      v-model:visible="showOnlineStatusDialog"
+      title="用户在线状态"
+      :show-cancel="false"
+      confirm-text="关闭"
+      @confirm="showOnlineStatusDialog = false"
+    >
+      <div class="text-center py-4 space-y-3">
+        <div class="flex items-center justify-center gap-2">
+           <div class="text-gray-400">当前状态:</div>
+           <div :class="onlineStatusData.isOnline ? 'text-green-500 font-bold' : 'text-gray-500 font-bold'">
+             {{ onlineStatusData.isOnline ? '在线' : '离线' }}
+           </div>
+        </div>
+        <div class="text-sm text-gray-500">
+          最近登录: {{ onlineStatusData.lastTime || '未知' }}
+        </div>
+      </div>
+    </Dialog>
   </div>
 </template>
 
@@ -201,7 +229,7 @@ const chatStore = useChatStore()
 const userStore = useUserStore()
 const messageStore = useMessageStore()
 const { loadUsers } = useChat()
-const { connect, disconnect } = useWebSocket()
+const { connect, disconnect, checkUserOnlineStatus } = useWebSocket()
 const { show } = useToast()
 
 const showTopMenu = ref(false)
@@ -213,6 +241,13 @@ const userToDelete = ref<User | null>(null)
 const activeMenuUserId = ref<string | null>(null)
 const listAreaRef = ref<HTMLElement | null>(null)
 const isRefreshing = ref(false)
+
+// 在线状态弹窗数据
+const showOnlineStatusDialog = ref(false)
+const onlineStatusData = ref({
+  isOnline: false,
+  lastTime: ''
+})
 
 // 刷新当前tab的数据
 const refreshCurrentTab = async () => {
@@ -249,6 +284,23 @@ const toggleUserMenu = (userId: string) => {
 
 const closeUserMenu = () => {
   activeMenuUserId.value = null
+}
+
+const handleCheckOnlineStatus = (user: User) => {
+  closeUserMenu()
+  checkUserOnlineStatus(user.id)
+  show('正在查询...')
+}
+
+const onCheckOnlineResult = (e: any) => {
+  const data = e.detail
+  if (data && data.data) {
+    onlineStatusData.value = {
+      isOnline: data.data.IF_Online === '1',
+      lastTime: data.data.TimeAll
+    }
+    showOnlineStatusDialog.value = true
+  }
 }
 
 const confirmDeleteUser = (user: User) => {
@@ -339,11 +391,13 @@ onMounted(async () => {
     listAreaRef.value.scrollTop = chatStore.listScrollTop
   }
   window.addEventListener('match-success', handleMatchSuccess)
+  window.addEventListener('check-online-result', onCheckOnlineResult)
   document.addEventListener('click', closeUserMenu)
 })
 
 onUnmounted(() => {
   window.removeEventListener('match-success', handleMatchSuccess)
+  window.removeEventListener('check-online-result', onCheckOnlineResult)
   document.removeEventListener('click', closeUserMenu)
 })
 </script>

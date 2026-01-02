@@ -238,6 +238,13 @@ export const useWebSocket = () => {
           return
         }
 
+        // 处理在线状态查询结果 (code: 30)
+        if (code === 30) {
+          console.log('收到在线状态查询结果:', data)
+          window.dispatchEvent(new CustomEvent('check-online-result', { detail: data }))
+          return
+        }
+
         // 处理聊天消息 (code: 7)
         if (code === 7 && data.fromuser) {
           console.log('收到聊天消息:', data)
@@ -550,11 +557,25 @@ export const useWebSocket = () => {
     }
   }
 
+  const checkUserOnlineStatus = (targetUserId: string) => {
+    const currentUser = userStore.currentUser
+    if (!currentUser) return
+
+    const msg = {
+      "act": "ShowUserLoginInfo",
+      "id": currentUser.id,
+      "msg": targetUserId,
+      "randomvipcode": "vipali67fbff86676e361016812533"
+    }
+    send(msg)
+  }
+
   return {
     connect,
     send,
     disconnect,
     setScrollToBottom,
-    forceoutFlag
+    forceoutFlag,
+    checkUserOnlineStatus
   }
 }
