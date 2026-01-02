@@ -100,6 +100,22 @@ export const useChatStore = defineStore('chat', () => {
     currentChatUser.value = null
   }
 
+  // === 工具方法：删除用户 ===
+  const removeUser = (userId: string) => {
+    // 从 ID 列表中移除
+    historyUserIds.value = historyUserIds.value.filter(id => id !== userId)
+    favoriteUserIds.value = favoriteUserIds.value.filter(id => id !== userId)
+    
+    // 如果是当前聊天用户，退出聊天
+    if (currentChatUser.value?.id === userId) {
+      currentChatUser.value = null
+    }
+
+    // 从 Map 中移除（可选，如果不移除，再次加载时可能还有缓存，但移除更干净）
+    // 注意：如果其他地方引用了 User 对象，移除 Map 不会影响已引用的对象
+    userMap.value.delete(userId)
+  }
+
   // === 加载历史用户列表 ===
   const loadHistoryUsers = async (userId: string, userName: string) => {
     try {
@@ -266,6 +282,7 @@ export const useChatStore = defineStore('chat', () => {
     upsertUser,
     getUser,
     updateUser,
-    clearAllUsers
+    clearAllUsers,
+    removeUser
   }
 })

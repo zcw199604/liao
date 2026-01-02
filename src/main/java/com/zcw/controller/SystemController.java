@@ -4,7 +4,13 @@ import com.zcw.websocket.ForceoutManager;
 import com.zcw.websocket.UpstreamWebSocketManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,6 +28,47 @@ public class SystemController {
 
     @Autowired
     private ForceoutManager forceoutManager;
+
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    /**
+     * 删除上游用户
+     * POST /api/deleteUpstreamUser
+     */
+    @PostMapping("/deleteUpstreamUser")
+    public Map<String, Object> deleteUpstreamUser(@RequestParam String myUserId, @RequestParam String userToId) {
+        log.info("删除上游用户: myUserId={}, userToId={}", myUserId, userToId);
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String url = "http://v1.chat2019.cn/asmx/method.asmx/Del_User";
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+            MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
+            map.add("myUserID", myUserId);
+            map.add("UserToID", userToId);
+            map.add("vipcode", "");
+            map.add("serverPort", "1001");
+
+            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(map, headers);
+
+            String result = restTemplate.postForObject(url, request, String.class);
+            log.info("删除上游用户结果: {}", result);
+
+            response.put("code", 0);
+            response.put("msg", "success");
+            response.put("data", result);
+
+        } catch (Exception e) {
+            log.error("删除上游用户失败", e);
+            response.put("code", -1);
+            response.put("msg", "删除失败: " + e.getMessage());
+        }
+
+        return response;
+    }
 
     /**
      * 获取连接统计信息

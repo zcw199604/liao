@@ -98,13 +98,42 @@
           </div>
         </div>
 
-        <!-- 未读消息数气泡 -->
-        <span
-          v-if="user.unreadCount && user.unreadCount > 0"
-          class="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full min-w-[20px] text-center font-medium ml-2"
-        >
-          {{ user.unreadCount }}
-        </span>
+        <!-- 右侧操作栏 -->
+        <div class="flex flex-col items-end justify-center ml-2 gap-2 relative">
+            <!-- 未读消息数气泡 -->
+            <span
+              v-if="user.unreadCount && user.unreadCount > 0"
+              class="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full min-w-[20px] text-center font-medium"
+            >
+              {{ user.unreadCount }}
+            </span>
+            <!-- 更多操作按钮 -->
+            <div class="relative">
+              <button
+                @click.stop="toggleUserMenu(user.id)"
+                class="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-white transition rounded-full hover:bg-white/10"
+                :class="{'text-white': activeMenuUserId === user.id}"
+                title="更多操作"
+              >
+                <i class="fas fa-ellipsis-v text-xs"></i>
+              </button>
+              
+              <!-- 下拉菜单 -->
+              <div
+                v-if="activeMenuUserId === user.id"
+                @click.stop
+                class="absolute right-0 top-8 w-32 bg-[#27272a] rounded-lg shadow-xl border border-gray-700 z-50 overflow-hidden"
+              >
+                <button
+                  @click="confirmDeleteUser(user)"
+                  class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-[#3f3f46] hover:text-red-300 flex items-center gap-2 transition"
+                >
+                  <i class="fas fa-trash-alt text-xs"></i>
+                  <span>删除会话</span>
+                </button>
+              </div>
+            </div>
+        </div>
       </div>
 
       <!-- 空状态提示 -->
@@ -130,6 +159,13 @@
       content="切换身份将断开当前连接，当前聊天会话将关闭"
       @confirm="confirmSwitchIdentity"
     />
+
+    <Dialog
+      v-model:visible="showDeleteUserDialog"
+      title="删除会话"
+      content="确定要删除与该用户的会话吗？"
+      @confirm="executeDeleteUser"
+    />
   </div>
 </template>
 
@@ -149,6 +185,7 @@ import Dialog from '@/components/common/Dialog.vue'
 import MatchButton from '@/components/chat/MatchButton.vue'
 import MatchOverlay from '@/components/chat/MatchOverlay.vue'
 import type { User } from '@/types'
+import { deleteUser } from '@/api/chat'
 
 const props = defineProps<{
   currentUserId?: string // 当前选中的用户ID（用于高亮）
@@ -171,6 +208,9 @@ const showTopMenu = ref(false)
 const showSettings = ref(false)
 const settingsMode = ref<'identity' | 'system'>('identity')
 const showSwitchIdentityDialog = ref(false)
+const showDeleteUserDialog = ref(false)
+const userToDelete = ref<User | null>(null)
+const activeMenuUserId = ref<string | null>(null)
 const listAreaRef = ref<HTMLElement | null>(null)
 const isRefreshing = ref(false)
 
@@ -196,6 +236,40 @@ const refreshCurrentTab = async () => {
     show('刷新失败，请稍后重试')
   } finally {
     isRefreshing.value = false
+  }
+}
+
+const toggleUserMenu = (userId: string) => {
+  if (activeMenuUserId.value === userId) {
+    activeMenuUserId.value = null
+  } else {
+    activeMenuUserId.value = userId
+  }
+}
+
+const closeUserMenu = () => {
+  activeMenuUserId.value = null
+}
+
+const confirmDeleteUser = (user: User) => {
+  closeUserMenu()
+  userToDelete.value = user
+  showDeleteUserDialog.value = true
+}
+
+const executeDeleteUser = async () => {
+  if (!userToDelete.value || !userStore.currentUser) return
+  
+  try {
+    await deleteUser(userStore.currentUser.id, userToDelete.value.id)
+    chatStore.removeUser(userToDelete.value.id)
+    show('删除成功')
+  } catch (error) {
+    console.error('删除失败', error)
+    show('删除失败')
+  } finally {
+    showDeleteUserDialog.value = false
+    userToDelete.value = null
   }
 }
 
@@ -265,9 +339,11 @@ onMounted(async () => {
     listAreaRef.value.scrollTop = chatStore.listScrollTop
   }
   window.addEventListener('match-success', handleMatchSuccess)
+  document.addEventListener('click', closeUserMenu)
 })
 
 onUnmounted(() => {
   window.removeEventListener('match-success', handleMatchSuccess)
+  document.removeEventListener('click', closeUserMenu)
 })
 </script>

@@ -122,3 +122,14 @@ export const updateImgServer = (server: string) => {
 export const getCachedImages = (userid: string) => {
   return request.get<any, any>('/getCachedImages', { params: { userid } })
 }
+
+// 删除上游用户
+export const deleteUser = (myUserId: string, userToId: string) => {
+  const formData = createFormData({
+    myUserId,
+    userToId
+  })
+  return request.post<any, ApiResponse>('/deleteUpstreamUser', formData, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+  })
+}
