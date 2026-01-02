@@ -483,7 +483,14 @@ const confirmPreviewUpload = async () => {
     if (res?.state === 'OK' && res.msg) {
       const port = previewTarget.value.type === 'video' ? IMG_SERVER_VIDEO_PORT : IMG_SERVER_IMAGE_PORT
       const remoteUrl = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
-      mediaStore.addUploadedMedia({ url: remoteUrl, type: previewTarget.value.type })
+      
+      const filename = localPath.substring(localPath.lastIndexOf('/') + 1)
+      mediaStore.addUploadedMedia({ 
+        url: remoteUrl, 
+        type: previewTarget.value.type,
+        localFilename: filename
+      })
+      
       show('图片已加载，点击可发送')
       showMediaPreview.value = false
       previewCanUpload.value = false

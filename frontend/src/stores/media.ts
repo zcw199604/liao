@@ -48,11 +48,12 @@ export const useMediaStore = defineStore('media', () => {
           const type = inferMediaTypeFromUrl(localUrl)
           // 将本地URL转换为上游URL：/upload/images/... -> /img/Upload/...
           const localPath = extractUploadLocalPath(localUrl)
+          const filename = localPath.substring(localPath.lastIndexOf('/') + 1)
           const relativePath = localPath.replace(/^\//, '')
           const uploadPath = relativePath.replace(/^images\//, '').replace(/^videos\//, '')
           const port = type === 'video' ? '8006' : '9006'
           const url = imgServer.value ? `http://${imgServer.value}:${port}/img/Upload/${uploadPath}` : localUrl
-          return { url, type }
+          return { url, type, localFilename: filename }
         })
     } catch (error) {
       console.error('获取缓存图片失败', error)
@@ -67,7 +68,15 @@ export const useMediaStore = defineStore('media', () => {
       if (res && Array.isArray(res.data)) {
         const newItems: UploadedMedia[] = res.data
           .filter((url: unknown) => typeof url === 'string' && !!url)
-          .map((url: string) => ({ url, type: inferMediaTypeFromUrl(url) }))
+          .map((url: string) => {
+            const localPath = extractUploadLocalPath(url)
+            const filename = localPath.substring(localPath.lastIndexOf('/') + 1)
+            return { 
+              url, 
+              type: inferMediaTypeFromUrl(url),
+              localFilename: filename
+            }
+          })
 
         if (page === 1) {
           allUploadImages.value = newItems
