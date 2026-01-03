@@ -362,7 +362,7 @@ export const useWebSocket = () => {
           }
 
           const targetUserId = isSelf
-            ? (toUserId || String(chatStore.currentChatUser?.id || ''))
+            ? (chatStore.currentChatUser?.id || toUserId || '')
             : fromUserId
 
           if (targetUserId) {
