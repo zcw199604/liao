@@ -30,7 +30,7 @@
 
               <!-- Favorites Grid -->
               <div class="grid grid-cols-1 gap-2">
-                 <div v-for="fav in favs" :key="fav.id" class="group flex items-center justify-between p-3 bg-[#2d2d33] hover:bg-[#35353d] rounded-lg border border-transparent hover:border-indigo-500/30 transition-all">
+                 <div v-for="fav in favs" :key="fav.id" @click="openPreview(fav)" class="group flex items-center justify-between p-3 bg-[#2d2d33] hover:bg-[#35353d] rounded-lg border border-transparent hover:border-indigo-500/30 transition-all cursor-pointer">
                     <div class="flex items-center gap-3 overflow-hidden">
                        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-lg">
                           {{ (fav.targetUserName || fav.targetUserId || '?').slice(0, 1).toUpperCase() }}
@@ -42,13 +42,13 @@
                     </div>
 
                     <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <button @click="openPreview(fav)" class="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-indigo-400 transition" title="预览聊天">
+                       <button @click.stop="openPreview(fav)" class="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-indigo-400 transition" title="预览聊天">
                           <i class="fas fa-eye"></i>
                        </button>
-                       <button @click="directSwitch(fav)" class="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-green-400 transition" title="切换并聊天">
+                       <button @click.stop="directSwitch(fav)" class="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-green-400 transition" title="切换并聊天">
                           <i class="fas fa-comment-dots"></i>
                        </button>
-                       <button @click="confirmDelete(fav)" class="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-red-400 transition" title="取消收藏">
+                       <button @click.stop="confirmDelete(fav)" class="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-red-400 transition" title="取消收藏">
                           <i class="fas fa-trash-alt"></i>
                        </button>
                     </div>
