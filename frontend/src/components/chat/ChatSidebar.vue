@@ -139,6 +139,14 @@
                   <span>在线记录</span>
                 </button>
                 <button
+                  @click="handleToggleGlobalFavorite(user)"
+                  class="w-full px-4 py-2 text-left text-sm hover:bg-[#3f3f46] hover:text-white flex items-center gap-2 transition border-b border-gray-700"
+                  :class="isGlobalFavorite(user) ? 'text-yellow-500' : 'text-gray-300'"
+                >
+                  <i class="fas fa-star text-xs"></i>
+                  <span>{{ isGlobalFavorite(user) ? '取消全局收藏' : '全局收藏' }}</span>
+                </button>
+                <button
                   @click="confirmDeleteUser(user)"
                   class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-[#3f3f46] hover:text-red-300 flex items-center gap-2 transition"
                 >
@@ -210,6 +218,7 @@ import { useRouter } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { useMessageStore } from '@/stores/message'
+import { useFavoriteStore } from '@/stores/favorite'
 import { useChat } from '@/composables/useChat'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useToast } from '@/composables/useToast'
@@ -235,6 +244,7 @@ const router = useRouter()
 const chatStore = useChatStore()
 const userStore = useUserStore()
 const messageStore = useMessageStore()
+const favoriteStore = useFavoriteStore()
 const { loadUsers } = useChat()
 const { connect, disconnect, checkUserOnlineStatus } = useWebSocket()
 const { show } = useToast()
@@ -297,6 +307,25 @@ const handleCheckOnlineStatus = (user: User) => {
   closeUserMenu()
   checkUserOnlineStatus(user.id)
   show('正在查询...')
+}
+
+const isGlobalFavorite = (user: User) => {
+  if (!userStore.currentUser) return false
+  return favoriteStore.isFavorite(userStore.currentUser.id, user.id)
+}
+
+const handleToggleGlobalFavorite = async (user: User) => {
+  closeUserMenu()
+  if (!userStore.currentUser) return
+
+  const isFav = isGlobalFavorite(user)
+  if (isFav) {
+    await favoriteStore.removeFavorite(userStore.currentUser.id, user.id)
+    show('已取消全局收藏')
+  } else {
+    await favoriteStore.addFavorite(userStore.currentUser.id, user.id, user.nickname || user.name)
+    show('已加入全局收藏')
+  }
 }
 
 const onCheckOnlineResult = (e: any) => {
@@ -399,6 +428,11 @@ onMounted(async () => {
   if (chatStore.historyUsers.length === 0 && chatStore.favoriteUsers.length === 0) {
     await loadUsers()
   }
+  // 加载全局收藏数据
+  if (favoriteStore.allFavorites.length === 0) {
+    favoriteStore.loadAllFavorites()
+  }
+
   await nextTick()
   if (listAreaRef.value && chatStore.listScrollTop > 0) {
     listAreaRef.value.scrollTop = chatStore.listScrollTop
