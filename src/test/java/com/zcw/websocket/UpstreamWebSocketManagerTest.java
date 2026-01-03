@@ -44,7 +44,7 @@ class UpstreamWebSocketManagerTest {
         public UpstreamWebSocketClient mockClient;
 
         public TestableUpstreamWebSocketManager(WebSocketAddressService addressService, ForceoutManager forceoutManager, UpstreamWebSocketClient mockClient) {
-            super(addressService, forceoutManager);
+            super(addressService, forceoutManager, null); // 传入 null 作为 cacheService
             this.mockClient = mockClient;
         }
 
