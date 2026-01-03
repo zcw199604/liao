@@ -22,9 +22,9 @@ public class WebSocketAddressService {
     private static final String GET_SERVER_URL =
         "http://v1.chat2019.cn/Act/WebService.asmx/getRandServer?ServerInfo=serversdeskry&_=";
 
-    public WebSocketAddressService() {
-        this.restTemplate = new RestTemplate();
-        this.objectMapper = new ObjectMapper();
+    public WebSocketAddressService(RestTemplate restTemplate, ObjectMapper objectMapper) {
+        this.restTemplate = restTemplate;
+        this.objectMapper = objectMapper;
     }
 
     /**

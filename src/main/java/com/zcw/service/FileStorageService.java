@@ -33,7 +33,7 @@ public class FileStorageService {
     /**
      * 基础上传目录（使用项目根目录）
      */
-    private static final String BASE_UPLOAD_PATH = System.getProperty("user.dir") + "/upload";
+    private static String BASE_UPLOAD_PATH = System.getProperty("user.dir") + "/upload";
 
     /**
      * 支持的媒体类型（图片/视频）

@@ -29,7 +29,8 @@ public class SystemController {
     @Autowired
     private ForceoutManager forceoutManager;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    @Autowired
+    private RestTemplate restTemplate;
 
     /**
      * 删除上游用户

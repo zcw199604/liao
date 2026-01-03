@@ -59,8 +59,8 @@ public class UserHistoryController {
     @Autowired
     private MediaUploadService mediaUploadService;
 
-    public UserHistoryController() {
-        this.restTemplate = new RestTemplate();
+    public UserHistoryController(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
     }
 
     /**

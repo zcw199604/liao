@@ -247,14 +247,14 @@ public class UpstreamWebSocketManager {
      * @param userId 用户ID
      * @param signMessage 登录消息（可以为null）
      */
-    private void createUpstreamConnection(String userId, String signMessage) {
+    protected void createUpstreamConnection(String userId, String signMessage) {
         try {
             // 获取上游 WebSocket 地址
             String upstreamUrl = addressService.getUpstreamWebSocketUrl();
             log.info("为用户 {} 创建上游连接: {}", userId, upstreamUrl);
 
             // 创建上游客户端
-            UpstreamWebSocketClient client = new UpstreamWebSocketClient(upstreamUrl, userId, this);
+            UpstreamWebSocketClient client = createWebSocketClient(upstreamUrl, userId);
 
             // 如果有 sign 消息，缓存等连接建立后发送
             if (signMessage != null) {
@@ -273,6 +273,13 @@ public class UpstreamWebSocketManager {
         } catch (Exception e) {
             log.error("创建上游连接失败: userId={}", userId, e);
         }
+    }
+
+    /**
+     * 创建 WebSocket 客户端实例（工厂方法，用于测试 Mock）
+     */
+    protected UpstreamWebSocketClient createWebSocketClient(String url, String userId) throws java.net.URISyntaxException {
+        return new UpstreamWebSocketClient(url, userId, this);
     }
 
     /**
