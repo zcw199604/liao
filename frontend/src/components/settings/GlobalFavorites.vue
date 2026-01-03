@@ -88,6 +88,7 @@ import { useFavoriteStore } from '@/stores/favorite'
 import { useIdentityStore } from '@/stores/identity'
 import { useIdentity } from '@/composables/useIdentity'
 import { useChat } from '@/composables/useChat'
+import { useWebSocket } from '@/composables/useWebSocket'
 import type { Favorite } from '@/types'
 import ChatHistoryPreview from '@/components/chat/ChatHistoryPreview.vue'
 import Loading from '@/components/common/Loading.vue'
@@ -98,6 +99,7 @@ const favoriteStore = useFavoriteStore()
 const identityStore = useIdentityStore()
 const { select } = useIdentity()
 const { enterChat } = useChat()
+const { disconnect } = useWebSocket()
 const { show } = useToast()
 const router = useRouter()
 
@@ -125,7 +127,7 @@ const handlePreviewSwitch = () => {
    // Switch using the preview data
    const identity = identityStore.identityList.find(i => i.id === previewIdentityId.value)
    if (identity) {
-      switchToIdentityAndChat(identity, previewTargetId.value)
+      switchToIdentityAndChat(identity, previewTargetId.value, previewTargetName.value)
       showPreview.value = false
    } else {
       show('身份不存在，无法切换')
@@ -135,22 +137,26 @@ const handlePreviewSwitch = () => {
 const directSwitch = (fav: Favorite) => {
    const identity = identityStore.identityList.find(i => i.id === fav.identityId)
    if (identity) {
-      switchToIdentityAndChat(identity, fav.targetUserId)
+      switchToIdentityAndChat(identity, fav.targetUserId, fav.targetUserName)
    } else {
       show('身份不存在，无法切换')
    }
 }
 
-const switchToIdentityAndChat = async (identity: any, targetUserId: string) => {
+const switchToIdentityAndChat = async (identity: any, targetUserId: string, targetUserName?: string) => {
    try {
+      // Disconnect current socket to force reconnection with new identity
+      disconnect(true)
+      
       await select(identity)
       // Wait a bit for router push and store updates
       setTimeout(() => {
          // Create a temporary user object for the target
+         const name = targetUserName || '用户' + targetUserId.slice(0, 4)
          const targetUser = {
             id: targetUserId,
-            name: '用户' + targetUserId.slice(0, 4), // Placeholder name if unknown
-            nickname: '用户' + targetUserId.slice(0, 4),
+            name: name,
+            nickname: name,
             sex: '未知',
             ip: '',
             isFavorite: true 
