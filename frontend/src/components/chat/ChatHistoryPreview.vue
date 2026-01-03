@@ -143,10 +143,61 @@ const loadHistory = async () => {
       userAgent
     )
 
-    if (res.code === 0 && res.data) {
-        if (typeof res.data === 'string' && res.data.includes('<ArrayOfMsg')) {
+    // Handle JSON response (new format)
+    if (res && res.code === 0 && Array.isArray(res.contents_list)) {
+        const mapped: ChatMessage[] = res.contents_list.reverse().map((msg: any) => {
+          const rawContent = String(msg?.content || '')
+          const msgTid = String(msg?.Tid || msg?.tid || '')
+          const msgTime = String(msg?.time || '')
+          const isSelf = String(msg?.id || '') !== props.targetUserId 
+          
+          let content = rawContent
+          let type = 'text'
+          
+          if (rawContent.startsWith('[') && rawContent.endsWith(']')) {
+             if (emojiMap[rawContent]) {
+               type = 'text'
+             } else {
+               const path = rawContent.substring(1, rawContent.length - 1)
+               const isVideo = path.match(/\.(mp4|mov|avi)$/i)
+               const isImage = path.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+               
+               if (isVideo) type = 'video'
+               else if (isImage) type = 'image'
+               else type = 'file'
+             }
+          }
+          
+          return {
+             code: 0,
+             tid: msgTid,
+             fromuser: {
+                id: String(msg?.id || ''),
+                name: isSelf ? '我' : (props.targetUserName || '对方'),
+                nickname: isSelf ? '我' : (props.targetUserName || '对方'),
+                sex: '未知',
+                ip: ''
+             },
+             content,
+             time: msgTime,
+             isSelf: String(msg?.id || '') !== props.targetUserId,
+             type,
+             isImage: type === 'image',
+             isVideo: type === 'video',
+             isFile: type === 'file',
+             imageUrl: type === 'image' ? content : '',
+             videoUrl: type === 'video' ? content : '',
+             fileUrl: type === 'file' ? content : ''
+          }
+        })
+        messages.value = mapped
+    }
+    // Handle XML response (legacy format)
+    else if (res && (typeof res === 'string' || typeof res.data === 'string')) {
+       const xmlStr = typeof res === 'string' ? res : res.data
+       if (xmlStr.includes('<ArrayOfMsg')) {
            const parser = new DOMParser()
-           const xmlDoc = parser.parseFromString(res.data, 'text/xml')
+           const xmlDoc = parser.parseFromString(xmlStr, 'text/xml')
            const msgs = xmlDoc.getElementsByTagName('Msg')
            
            const parsed: ChatMessage[] = []
@@ -157,7 +208,7 @@ const loadHistory = async () => {
               const from = msg.querySelector('From')?.textContent || ''
               const body = msg.querySelector('Body')?.textContent || ''
               const time = msg.querySelector('Time')?.textContent || ''
-              const tid = time // Use time as tid fallback if tid not available
+              const tid = time 
               
               const isImage = body.startsWith('[img]')
               const isVideo = body.startsWith('[video]')
@@ -168,11 +219,11 @@ const loadHistory = async () => {
               
               if (isImage) {
                  imageUrl = body.replace('[img]', '').replace('[/img]', '')
-                 content = ''
+                 content = imageUrl
               }
               if (isVideo) {
                  videoUrl = body.replace('[video]', '').replace('[/video]', '')
-                 content = ''
+                 content = videoUrl
               }
               
               parsed.push({
@@ -183,8 +234,7 @@ const loadHistory = async () => {
                     name: from === props.identityId ? '我' : '对方',
                     nickname: from === props.identityId ? '我' : '对方',
                     sex: '未知',
-                    ip: '',
-                    area: ''
+                    ip: ''
                  },
                  content,
                  time,
@@ -199,11 +249,9 @@ const loadHistory = async () => {
               })
            }
            messages.value = parsed
-        } else {
-           // 可能是 JSON
+       } else {
            messages.value = Array.isArray(res.data) ? res.data : []
-        }
-
+       }
     } else {
         error.value = '获取消息失败'
     }

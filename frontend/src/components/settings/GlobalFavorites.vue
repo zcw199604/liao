@@ -146,7 +146,6 @@ const switchToIdentityAndChat = async (identity: any, targetUserId: string) => {
       await select(identity)
       // Wait a bit for router push and store updates
       setTimeout(() => {
-         // Manually trigger entering chat
          // Create a temporary user object for the target
          const targetUser = {
             id: targetUserId,
@@ -154,20 +153,15 @@ const switchToIdentityAndChat = async (identity: any, targetUserId: string) => {
             nickname: '用户' + targetUserId.slice(0, 4),
             sex: '未知',
             ip: '',
-            isFavorite: true // assuming since it is a favorite
+            isFavorite: true 
          }
          
-         // We need to navigate to chat view and set current user
-         // Since select() pushes to /list, we override it
-         // But select() uses await identityStore.selectIdentity(id)
+         // Set the current chat user in the store
+         enterChat(targetUser, true)
          
-         router.push('/list').then(() => {
-             // After list loaded, enter chat
-             // This might be tricky because enterChat expects user object
-             // And we might need to fetch user info or just rely on ID
-             enterChat(targetUser, true)
-         })
-      }, 100)
+         // Navigate directly to the chat room
+         router.push(`/chat/${targetUserId}`)
+      }, 500)
    } catch (e) {
       console.error(e)
       show('切换失败')
