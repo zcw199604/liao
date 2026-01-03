@@ -266,9 +266,11 @@ export const useWebSocket = () => {
           console.log('消息内容:', messageContent)
           console.log('当前聊天对象:', chatStore.currentChatUser ? chatStore.currentChatUser.id : '无')
 
-          // 判断是不是自己发送的消息（对齐 loadHistory：按 userId 判断）
-          const isSelf = fromUserId === currentUserId
-          console.log('isSelf=', isSelf, '(通过userId判断)')
+          // 判断是不是自己发送的消息：如果toUserId是当前聊天对象，说明是自己发的
+          const isSelf = chatStore.currentChatUser?.id
+            ? String(chatStore.currentChatUser.id) === toUserId
+            : fromUserId === currentUserId
+          console.log('isSelf=', isSelf, '(通过currentChatUser判断)')
 
           // 判断是否应该显示这条消息（对齐 loadHistory：按 userId 判断）
           const shouldDisplay = !!chatStore.currentChatUser && (
