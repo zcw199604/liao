@@ -400,11 +400,12 @@ export const useWebSocket = () => {
             setTimeout(scrollToBottom, 100)
           } else if (!isSelf) {
             // 不在当前聊天界面，但收到消息 - 使用单一数据源更新
-            const existingUser = chatStore.getUser(fromUserId)
+            // 使用 nickname 查找用户（与 shouldDisplay 判断逻辑一致）
+            const existingUser = chatStore.getUserByNickname(fromUserNickname)
 
             if (existingUser) {
               // 用户已存在 - 更新状态
-              chatStore.updateUser(fromUserId, {
+              chatStore.updateUser(existingUser.id, {
                 lastMsg,
                 lastTime: '刚刚',
                 unreadCount: (existingUser.unreadCount || 0) + 1
@@ -412,13 +413,13 @@ export const useWebSocket = () => {
 
               // 移到历史列表最前面
               const historyIds = chatStore.historyUserIds
-              const existingIndex = historyIds.indexOf(fromUserId)
+              const existingIndex = historyIds.indexOf(existingUser.id)
               if (existingIndex > -1) {
                 historyIds.splice(existingIndex, 1)
               }
-              historyIds.unshift(fromUserId)
+              historyIds.unshift(existingUser.id)
 
-            } else if (fromUserId !== currentUserId) {
+            } else if (fromUserId && fromUserId !== currentUserId) {
               // 新用户 - 创建并添加
               const newUser: User = {
                 id: fromUserId,

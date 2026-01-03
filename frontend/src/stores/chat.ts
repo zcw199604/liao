@@ -84,6 +84,16 @@ export const useChatStore = defineStore('chat', () => {
     return userMap.value.get(userId)
   }
 
+  // === 工具方法：通过 nickname 获取用户 ===
+  const getUserByNickname = (nickname: string): User | undefined => {
+    for (const user of userMap.value.values()) {
+      if (user.nickname === nickname) {
+        return user
+      }
+    }
+    return undefined
+  }
+
   // === 工具方法：更新用户的部分字段 ===
   const updateUser = (userId: string, updates: Partial<User>) => {
     const user = userMap.value.get(userId)
@@ -281,6 +291,7 @@ export const useChatStore = defineStore('chat', () => {
     // 新增工具方法
     upsertUser,
     getUser,
+    getUserByNickname,
     updateUser,
     clearAllUsers,
     removeUser
