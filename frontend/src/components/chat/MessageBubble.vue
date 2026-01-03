@@ -8,7 +8,7 @@
       :class="message.isSelf ? 'msg-right' : 'msg-left'"
     >
       <!-- 文本消息 -->
-      <div v-if="!message.isImage && !message.isVideo" v-html="parsedContent"></div>
+      <div v-if="!message.isImage && !message.isVideo && !message.isFile" v-html="parsedContent"></div>
 
       <!-- 图片消息 -->
       <div v-else-if="message.isImage" class="cursor-pointer group relative" @click="previewImage">

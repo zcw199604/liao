@@ -139,7 +139,10 @@
                 @click="openPreviewUpload(media)"
               >
                 <img v-if="media.type === 'image'" :src="media.url" class="w-full h-full object-cover" />
-                <video v-else :src="media.url" class="w-full h-full object-cover"></video>
+                <video v-else-if="media.type === 'video'" :src="media.url" class="w-full h-full object-cover"></video>
+                <div v-else class="w-full h-full flex items-center justify-center bg-gray-800 text-gray-400">
+                  <i class="fas fa-file text-3xl"></i>
+                </div>
                 <div v-if="media.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/30">
                   <i class="fas fa-play-circle text-white text-3xl"></i>
                 </div>
@@ -175,7 +178,7 @@ import { useUpload } from '@/composables/useUpload'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useToast } from '@/composables/useToast'
 import { useChat } from '@/composables/useChat'
-import { extractUploadLocalPath } from '@/utils/media'
+import { extractUploadLocalPath, inferMediaTypeFromUrl } from '@/utils/media'
 import { generateCookie } from '@/utils/cookie'
 import { IMG_SERVER_IMAGE_PORT, IMG_SERVER_VIDEO_PORT } from '@/constants/config'
 import * as mediaApi from '@/api/media'
@@ -433,7 +436,7 @@ const handleOpenChatHistory = async () => {
     const list: string[] = Array.isArray(res) ? res : []
     historyMedia.value = list.map(url => ({
       url,
-      type: url.toLowerCase().includes('.mp4') ? 'video' : 'image'
+      type: inferMediaTypeFromUrl(url)
     }))
   } catch (e) {
     console.error('加载聊天历史图片失败:', e)

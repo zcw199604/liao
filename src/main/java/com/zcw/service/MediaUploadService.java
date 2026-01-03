@@ -106,17 +106,44 @@ public class MediaUploadService {
     public MediaUploadHistory recordImageSend(String remoteUrl, String fromUserId, String toUserId, String localFilename) {
         MediaFile original = null;
 
-        // 1. 查找原始文件信息
-        if (localFilename != null && !localFilename.isEmpty()) {
-            original = mediaFileRepository.findFirstByLocalFilenameAndUserId(localFilename, fromUserId).orElse(null);
+        String normalizedRemoteUrl = (remoteUrl != null) ? remoteUrl.trim() : "";
+
+        // 1. 优先使用 localFilename 精确匹配（兼容：全站图片库可能不属于 fromUserId）
+        if (localFilename != null && !localFilename.trim().isEmpty()) {
+            String normalizedLocalFilename = localFilename.trim();
+            original = mediaFileRepository.findFirstByLocalFilenameAndUserId(normalizedLocalFilename, fromUserId).orElse(null);
+            if (original == null) {
+                original = mediaFileRepository.findFirstByLocalFilename(normalizedLocalFilename).orElse(null);
+            }
         }
-        if (original == null) {
-            original = mediaFileRepository.findFirstByRemoteUrlAndUserId(remoteUrl, fromUserId).orElse(null);
+
+        // 2. 再尝试 remoteUrl 精确匹配（兼容端口变化时可能失败）
+        if (original == null && !normalizedRemoteUrl.isEmpty()) {
+            original = mediaFileRepository.findFirstByRemoteUrlAndUserId(normalizedRemoteUrl, fromUserId).orElse(null);
+            if (original == null) {
+                original = mediaFileRepository.findFirstByRemoteUrl(normalizedRemoteUrl).orElse(null);
+            }
         }
-        if (original == null) {
-            String filename = extractFilenameFromUrl(remoteUrl);
-            if (filename != null) {
+
+        // 3. 再尝试 remoteFilename（/img/Upload/ 后面的相对路径）
+        if (original == null && !normalizedRemoteUrl.isEmpty()) {
+            String remoteFilename = extractRemoteFilenameFromUrl(normalizedRemoteUrl);
+            if (remoteFilename != null && !remoteFilename.isEmpty()) {
+                original = mediaFileRepository.findFirstByRemoteFilenameAndUserId(remoteFilename, fromUserId).orElse(null);
+                if (original == null) {
+                    original = mediaFileRepository.findFirstByRemoteFilename(remoteFilename).orElse(null);
+                }
+            }
+        }
+
+        // 4. 兜底：仅取最后的文件名（兼容历史存储只保存 basename 的情况）
+        if (original == null && !normalizedRemoteUrl.isEmpty()) {
+            String filename = extractFilenameFromUrl(normalizedRemoteUrl);
+            if (filename != null && !filename.isEmpty()) {
                 original = mediaFileRepository.findFirstByRemoteFilenameAndUserId(filename, fromUserId).orElse(null);
+                if (original == null) {
+                    original = mediaFileRepository.findFirstByRemoteFilename(filename).orElse(null);
+                }
             }
         }
 
@@ -164,6 +191,16 @@ public class MediaUploadService {
         int lastSlash = url.lastIndexOf('/');
         if (lastSlash >= 0 && lastSlash < url.length() - 1) {
             return url.substring(lastSlash + 1);
+        }
+        return null;
+    }
+
+    private String extractRemoteFilenameFromUrl(String url) {
+        if (url == null || url.isEmpty()) return null;
+        String marker = "/img/Upload/";
+        int idx = url.indexOf(marker);
+        if (idx >= 0 && idx + marker.length() < url.length()) {
+            return url.substring(idx + marker.length());
         }
         return null;
     }
@@ -283,8 +320,23 @@ public class MediaUploadService {
         ResponseEntity<String> response = restTemplate.postForEntity(uploadUrl, new HttpEntity<>(body, headers), String.class);
         log.info("重新上传成功: {}", response.getBody());
         
-        // 更新时间
-        mediaFileRepository.updateTimeByLocalPath(localPath, userId);
+        // 更新时间（全局：不按 user_id 限制，用于“所有上传图片”按活跃度排序）
+        int updatedRows = 0;
+        if (localPath != null && !localPath.trim().isEmpty()) {
+            String normalizedPath = localPath.trim().replace("\\", "/");
+            updatedRows += mediaFileRepository.updateTimeByLocalPathIgnoreUser(normalizedPath);
+
+            // 兼容历史数据：local_path 可能存在无前导 "/" 的存储
+            String altPath = normalizedPath.startsWith("/") ? normalizedPath.substring(1) : "/" + normalizedPath;
+            if (!altPath.equals(normalizedPath)) {
+                updatedRows += mediaFileRepository.updateTimeByLocalPathIgnoreUser(altPath);
+            }
+        }
+        if (updatedRows == 0) {
+            log.warn("未找到 media_file 记录用于更新时间: userId={}, localPath={}", userId, localPath);
+        } else {
+            log.info("媒体库时间已更新: userId={}, localPath={}, updatedRows={}", userId, localPath, updatedRows);
+        }
         
         return response.getBody();
     }

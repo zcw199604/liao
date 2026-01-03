@@ -8,6 +8,8 @@ import type { WebSocketMessage, ChatMessage, User } from '@/types'
 import * as chatApi from '@/api/chat'
 import { useMediaStore } from '@/stores/media'
 import { useToast } from '@/composables/useToast'
+import { emojiMap } from '@/constants/emoji'
+import { isImageFile, isVideoFile } from '@/utils/file'
 
 let ws: WebSocket | null = null
 let manualClose = false
@@ -124,7 +126,7 @@ export const useWebSocket = () => {
       }
     }
 
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
       console.log('收到消息:', event.data)
 
       try {
@@ -249,52 +251,76 @@ export const useWebSocket = () => {
         if (code === 7 && data.fromuser) {
           console.log('收到聊天消息:', data)
 
-          const fromUserId = data.fromuser.id
-          const toUserId = data.touser ? data.touser.id : null
-          let messageContent = data.fromuser.content
-          const fromUserNickname = data.fromuser.nickname
+          const currentUserId = String(currentUser.id || '')
+          const fromUserId = String((data as any)?.fromuser?.id ?? '')
+          const toUserId = String((data as any)?.touser?.id ?? '')
+          let messageContent = String(
+            (data as any)?.fromuser?.content ??
+            (data as any)?.content ??
+            (data as any)?.msg ??
+            ''
+          )
+          const fromUserNickname = String((data as any)?.fromuser?.nickname ?? (data as any)?.fromuser?.name ?? '')
 
           console.log('解析消息 - fromUserId=', fromUserId, 'toUserId=', toUserId, 'currentUserId=', currentUser.id)
           console.log('消息内容:', messageContent)
           console.log('当前聊天对象:', chatStore.currentChatUser ? chatStore.currentChatUser.id : '无')
 
-          // 判断是不是自己发送的消息（通过nickname判断）
-          const isSelf = data.fromuser.nickname === currentUser.nickname
-          console.log('isSelf=', isSelf, '(通过nickname判断)')
+          // 判断是不是自己发送的消息（对齐 loadHistory：按 userId 判断）
+          const isSelf = fromUserId === currentUserId
+          console.log('isSelf=', isSelf, '(通过userId判断)')
 
-          // 判断是否应该显示这条消息（通过nickname判断）
-          const shouldDisplay = chatStore.currentChatUser &&
-            (data.fromuser.nickname === chatStore.currentChatUser.nickname ||
-             (data.touser && data.touser.nickname === chatStore.currentChatUser.nickname))
+          // 判断是否应该显示这条消息（对齐 loadHistory：按 userId 判断）
+          const shouldDisplay = !!chatStore.currentChatUser && (
+            String(chatStore.currentChatUser.id) === fromUserId ||
+            String(chatStore.currentChatUser.id) === toUserId
+          )
 
           console.log('shouldDisplay=', shouldDisplay)
 
           // 解析消息类型
           let isImage = false
           let isVideo = false
+          let isFile = false
           let imageUrl = ''
           let videoUrl = ''
+          let fileUrl = ''
 
           if (messageContent && typeof messageContent === 'string') {
             const raw = messageContent
 
-            // 检查是否是图片/视频消息（格式：[path/to/file.jpg]）
+            // 检查是否是媒体消息（格式：[path/to/file.ext]），对齐 loadHistory 的解析逻辑
             if (raw.startsWith('[') && raw.endsWith(']')) {
-              const path = raw.substring(1, raw.length - 1)
-              const isMp4 = path.toLowerCase().includes('.mp4')
-              const isImg = !isMp4 && /\.(jpg|jpeg|png|gif|webp)$/i.test(path)
+              // 如果是表情包，不处理为文件
+              if (!emojiMap[raw]) {
+                const path = raw.substring(1, raw.length - 1)
+                const isVideoPath = isVideoFile(path)
+                const isImagePath = isImageFile(path)
 
-              if (mediaStore.imgServer && (isMp4 || isImg)) {
-                const port = isMp4 ? '8006' : '9006'
-                const url = `http://${mediaStore.imgServer}:${port}/img/Upload/${path}`
-                messageContent = url
+                // 对齐 loadHistory：需要时尝试补全 imgServer，避免消息先到导致无法拼接URL
+                if (!mediaStore.imgServer) {
+                  try {
+                    await mediaStore.loadImgServer()
+                  } catch {
+                    // ignore
+                  }
+                }
 
-                if (isMp4) {
-                  isVideo = true
-                  videoUrl = url
-                } else {
-                  isImage = true
-                  imageUrl = url
+                if (mediaStore.imgServer) {
+                  const port = isVideoPath ? '8006' : '9006'
+                  const url = `http://${mediaStore.imgServer}:${port}/img/Upload/${path}`
+                  messageContent = url
+
+                  if (isVideoPath) {
+                    isVideo = true
+                    videoUrl = url
+                  } else if (isImagePath) {
+                    isImage = true
+                    imageUrl = url
+                  } else {
+                    isFile = true
+                    fileUrl = url
+                  }
                 }
               }
             }
@@ -322,19 +348,21 @@ export const useWebSocket = () => {
             code,
             fromuser: data.fromuser,
             touser: data.touser,
-            type: isImage ? 'image' : isVideo ? 'video' : (data.type || 'text'),
+            type: isImage ? 'image' : isVideo ? 'video' : isFile ? 'file' : (data.type || 'text'),
             content: messageContent,
             time,
             tid,
             isSelf,
             isImage,
             isVideo,
+            isFile,
             imageUrl,
-            videoUrl
+            videoUrl,
+            fileUrl
           }
 
           const targetUserId = isSelf
-            ? (chatStore.currentChatUser?.id || data.touser?.id || '')
+            ? (toUserId || String(chatStore.currentChatUser?.id || ''))
             : fromUserId
 
           if (targetUserId) {
@@ -352,7 +380,7 @@ export const useWebSocket = () => {
             }
           }
 
-          const lastMsg = isImage ? '[图片]' : (isVideo ? '[视频]' : messageContent)
+          const lastMsg = isImage ? '[图片]' : (isVideo ? '[视频]' : (isFile ? '[文件]' : messageContent))
 
           if (shouldDisplay) {
             // 收到消息，隐藏正在输入提示
@@ -370,11 +398,11 @@ export const useWebSocket = () => {
             }
 
             setTimeout(scrollToBottom, 100)
-          } else if (!isSelf) {
-            // 不在当前聊天界面，但收到消息 - 使用单一数据源更新
-            const existingUser = chatStore.getUser(fromUserId)
+            } else if (!isSelf) {
+              // 不在当前聊天界面，但收到消息 - 使用单一数据源更新
+              const existingUser = chatStore.getUser(fromUserId)
 
-            if (existingUser) {
+              if (existingUser) {
               // 用户已存在 - 更新状态
               chatStore.updateUser(fromUserId, {
                 lastMsg,
@@ -390,7 +418,7 @@ export const useWebSocket = () => {
               }
               historyIds.unshift(fromUserId)
 
-            } else if (fromUserId !== currentUser.id) {
+            } else if (fromUserId !== currentUserId) {
               // 新用户 - 创建并添加
               const newUser: User = {
                 id: fromUserId,

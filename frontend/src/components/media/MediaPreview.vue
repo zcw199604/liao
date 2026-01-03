@@ -68,7 +68,7 @@
         >
           <img
             :key="currentMedia.url"
-            :src="currentMedia.url"
+            :src="currentMediaDisplayUrl"
             class="max-w-full max-h-full object-contain cursor-grab active:cursor-grabbing select-none"
             :class="{ 'transition-transform duration-300 ease-out': !isDragging }"
             :style="imageStyle"
@@ -77,6 +77,7 @@
             @mousedown="startDrag"
             @touchstart="startDrag"
             @click.stop="handleClick"
+            @error="handleMediaError"
           />
         </div>
 
@@ -84,10 +85,11 @@
         <div v-else-if="currentMedia.type === 'video'" class="relative w-full h-full flex items-center justify-center pb-20">
              <video
               :key="currentMedia.url + '-video'"
-              :src="currentMedia.url"
+              :src="currentMediaDisplayUrl"
               controls
               autoplay
               class="max-w-[95%] max-h-[95%] shadow-2xl rounded-lg bg-black"
+              @error="handleMediaError"
             ></video>
         </div>
 
@@ -190,6 +192,43 @@ const currentMedia = computed<UploadedMedia>(() => {
   return realMediaList.value[0] || { url: '', type: 'image' }
 })
 
+const mediaReloadSeq = ref(0)
+const mediaRetryCount = ref(0)
+let mediaRetryTimer: ReturnType<typeof setTimeout> | null = null
+
+const currentMediaDisplayUrl = computed(() => {
+  const baseUrl = currentMedia.value.url || ''
+  if (!baseUrl) return ''
+  if (mediaReloadSeq.value === 0) return baseUrl
+  const sep = baseUrl.includes('?') ? '&' : '?'
+  return `${baseUrl}${sep}_=${mediaReloadSeq.value}`
+})
+
+const resetMediaLoadState = () => {
+  if (mediaRetryTimer) {
+    clearTimeout(mediaRetryTimer)
+    mediaRetryTimer = null
+  }
+  mediaReloadSeq.value = 0
+  mediaRetryCount.value = 0
+}
+
+const handleMediaError = () => {
+  // 图片/视频刚上传到上游时，短时间内可能 404；这里做轻量重试，避免用户需要重复“重传”
+  if (mediaRetryCount.value >= 2) return
+  mediaRetryCount.value += 1
+
+  if (mediaRetryTimer) {
+    clearTimeout(mediaRetryTimer)
+    mediaRetryTimer = null
+  }
+
+  const delay = 600 * mediaRetryCount.value
+  mediaRetryTimer = setTimeout(() => {
+    mediaReloadSeq.value = Date.now()
+  }, delay)
+}
+
 // 导航逻辑
 const next = () => {
   resetZoom()
@@ -245,6 +284,13 @@ watch(currentIndex, (newIndex) => {
     }
   })
 })
+
+watch(
+  () => currentMedia.value.url,
+  () => {
+    resetMediaLoadState()
+  }
+)
 
 // 拖动辅助变量
 let startX = 0
@@ -369,6 +415,7 @@ const stopDrag = () => {
 watch(() => props.visible, (val) => {
   if (val) {
     resetZoom()
+    resetMediaLoadState()
     window.addEventListener('keydown', handleKeydown)
     
     // 初始化 currentIndex
@@ -405,6 +452,7 @@ watch(() => props.visible, (val) => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
+  resetMediaLoadState()
 })
 </script>
 

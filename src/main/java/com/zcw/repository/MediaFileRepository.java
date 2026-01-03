@@ -17,10 +17,13 @@ public interface MediaFileRepository extends JpaRepository<MediaFile, Long> {
     Optional<MediaFile> findFirstByUserIdAndFileMd5(String userId, String fileMd5);
 
     Optional<MediaFile> findFirstByLocalFilenameAndUserId(String localFilename, String userId);
+    Optional<MediaFile> findFirstByLocalFilename(String localFilename);
 
     Optional<MediaFile> findFirstByRemoteFilenameAndUserId(String remoteFilename, String userId);
+    Optional<MediaFile> findFirstByRemoteFilename(String remoteFilename);
 
     Optional<MediaFile> findFirstByRemoteUrlAndUserId(String remoteUrl, String userId);
+    Optional<MediaFile> findFirstByRemoteUrl(String remoteUrl);
     
     // 通过 local_path 查找（这是最准确的）
     Optional<MediaFile> findFirstByLocalPathAndUserId(String localPath, String userId);
@@ -55,4 +58,8 @@ public interface MediaFileRepository extends JpaRepository<MediaFile, Long> {
     @Modifying
     @Query("UPDATE MediaFile m SET m.updateTime = CURRENT_TIMESTAMP WHERE m.localPath = ?1 AND m.userId = ?2")
     int updateTimeByLocalPath(String localPath, String userId);
+
+    @Modifying
+    @Query("UPDATE MediaFile m SET m.updateTime = CURRENT_TIMESTAMP WHERE m.localPath = ?1")
+    int updateTimeByLocalPathIgnoreUser(String localPath);
 }
