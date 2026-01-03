@@ -363,7 +363,10 @@ export const useWebSocket = () => {
             fileUrl
           }
 
-          const targetUserId = chatStore.currentChatUser?.id || (isSelf ? toUserId : fromUserId)
+          // 只有与当前聊天对象相关的消息，才存储到currentChatUser.id下
+          const targetUserId = shouldDisplay && chatStore.currentChatUser?.id
+            ? String(chatStore.currentChatUser.id)
+            : (isSelf ? toUserId : fromUserId)
 
           if (targetUserId) {
             // WebSocket消息去重 - 基于tid
