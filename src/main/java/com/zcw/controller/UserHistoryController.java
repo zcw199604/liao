@@ -37,6 +37,9 @@ public class UserHistoryController {
     @Autowired
     private ImageCacheService imageCacheService;
 
+    @Autowired(required = false)
+    private com.zcw.service.UserInfoCacheService userInfoCacheService;
+
     // 上游接口地址
     private static final String UPSTREAM_API_URL =
         "http://v1.chat2019.cn/asmx/method.asmx/randomVIPGetHistoryUserList_Random";
@@ -115,6 +118,38 @@ public class UserHistoryController {
             ResponseEntity<String> response = restTemplate.postForEntity(UPSTREAM_API_URL, request, String.class);
 
             log.info("上游接口返回: status={}, body={}", response.getStatusCode(), response.getBody());
+
+            // 增强数据：补充用户信息
+            if (response.getStatusCode() == HttpStatus.OK && userInfoCacheService != null && response.getBody() != null) {
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(response.getBody());
+                    
+                    if (root.isArray()) {
+                        java.util.List<Map<String, Object>> list = new ArrayList<>();
+                        for (com.fasterxml.jackson.databind.JsonNode node : root) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> map = mapper.convertValue(node, Map.class);
+                            list.add(map);
+                        }
+                        
+                        // 批量增强数据
+                        // 明确指定使用 "id" 字段作为用户ID
+                        // 为了兼容性，如果 id 不存在，尝试 userid (视实际情况而定，但既然确认是 id，我们可以优先)
+                        String idKey = "id";
+                        if (!list.isEmpty() && !list.get(0).containsKey("id")) {
+                             if (list.get(0).containsKey("UserID")) idKey = "UserID";
+                             else if (list.get(0).containsKey("userid")) idKey = "userid";
+                        }
+                        
+                        list = userInfoCacheService.batchEnrichUserInfo(list, idKey);
+                        
+                        return ResponseEntity.ok(mapper.writeValueAsString(list));
+                    }
+                } catch (Exception e) {
+                    log.error("增强历史用户列表失败", e);
+                }
+            }
 
             return ResponseEntity.ok(response.getBody());
 
@@ -310,6 +345,32 @@ public class UserHistoryController {
             ResponseEntity<String> response = restTemplate.postForEntity(UPSTREAM_MSG_HISTORY_URL, request, String.class);
 
 //            log.info("消息历史接口返回: status={}, body={}", response.getStatusCode(), response.getBody());
+
+            // 增强数据：补充用户信息
+            // 注意：消息列表可能包含对方的信息，虽然主要是消息内容，但如果有用户信息字段也可以补充
+            if (response.getStatusCode() == HttpStatus.OK && userInfoCacheService != null && response.getBody() != null) {
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(response.getBody());
+                    
+                    if (root.isArray()) {
+                        java.util.List<Map<String, Object>> list = new ArrayList<>();
+                        for (com.fasterxml.jackson.databind.JsonNode node : root) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> map = mapper.convertValue(node, Map.class);
+                            list.add(map);
+                        }
+                        
+                        // 批量增强数据，消息列表中的用户ID字段通常是 userid
+                        // 这样会把发送方的信息（无论自己还是对方）都尝试补充，如果缓存有的话
+                        list = userInfoCacheService.batchEnrichUserInfo(list, "userid");
+                        
+                        return ResponseEntity.ok(mapper.writeValueAsString(list));
+                    }
+                } catch (Exception e) {
+                    log.error("增强消息历史失败", e);
+                }
+            }
 
             return ResponseEntity.ok(response.getBody());
 

@@ -95,13 +95,32 @@
         <!-- 文本信息 -->
         <div class="ml-4 flex-1 min-w-0">
           <div class="flex justify-between items-baseline mb-1">
-            <span class="font-bold text-base text-white truncate">{{ user.nickname }}</span>
-            <span class="text-xs text-gray-500">{{ user.lastTime }}</span>
+            <div class="flex items-center gap-2 truncate">
+              <span class="font-bold text-base text-white truncate">{{ user.nickname }}</span>
+              <!-- 性别年龄标签 -->
+              <span 
+                v-if="user.sex !== '未知' || (user.age && user.age !== '0')"
+                class="px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1 shrink-0"
+                :class="user.sex === '男' ? 'bg-blue-500/20 text-blue-400' : (user.sex === '女' ? 'bg-pink-500/20 text-pink-400' : 'bg-gray-500/20 text-gray-400')"
+              >
+                <i v-if="user.sex === '男'" class="fas fa-mars"></i>
+                <i v-else-if="user.sex === '女'" class="fas fa-venus"></i>
+                <span v-if="user.age && user.age !== '0'">{{ user.age }}</span>
+              </span>
+            </div>
+            <span class="text-xs text-gray-500 shrink-0 ml-2">{{ user.lastTime }}</span>
           </div>
+          
           <div class="flex justify-between items-center">
-            <p class="text-sm text-gray-400 truncate pr-2">{{ user.lastMsg }}</p>
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+               <!-- 地址显示 (如果有) -->
+               <span v-if="user.address && user.address !== '未知' && user.address !== '保密'" class="px-1.5 py-0.5 bg-gray-700/50 rounded text-[10px] text-gray-400 truncate max-w-[80px]">
+                 {{ user.address }}
+               </span>
+               <p class="text-sm text-gray-400 truncate flex-1">{{ user.lastMsg }}</p>
+            </div>
             <!-- 收藏标识 -->
-            <i v-if="user.isFavorite && chatStore.activeTab === 'history'" class="fas fa-star text-xs text-yellow-500"></i>
+            <i v-if="user.isFavorite && chatStore.activeTab === 'history'" class="fas fa-star text-xs text-yellow-500 ml-2 shrink-0"></i>
           </div>
         </div>
 

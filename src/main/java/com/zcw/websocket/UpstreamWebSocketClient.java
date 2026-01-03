@@ -125,9 +125,10 @@ public class UpstreamWebSocketClient extends WebSocketClient {
     public void onMessage(String message) {
         log.info("收到上游服务消息: userId={}, message={}", userId, message);
 
-        // 检查是否是forceout消息
         try {
             com.fasterxml.jackson.databind.JsonNode jsonNode = objectMapper.readTree(message);
+            
+            // 1. 检查是否是forceout消息
             if (jsonNode.has("code") && jsonNode.get("code").asInt() == -3 &&
                 jsonNode.has("forceout") && jsonNode.get("forceout").asBoolean()) {
 
@@ -136,6 +137,32 @@ public class UpstreamWebSocketClient extends WebSocketClient {
                 manager.handleForceout(userId, message);
                 return;
             }
+
+            // 2. 检查是否是匹配成功消息 (code=15)，捕获用户信息
+            // 格式: {"code":15,"sel_userid":"...","sel_userNikename":"...","sel_userSex":"...","sel_userAge":"...","sel_userAddress":"..."}
+            if (jsonNode.has("code") && jsonNode.get("code").asInt() == 15) {
+                try {
+                    String targetUserId = jsonNode.has("sel_userid") ? jsonNode.get("sel_userid").asText() : null;
+                    if (targetUserId != null && !targetUserId.isEmpty()) {
+                        com.zcw.model.CachedUserInfo userInfo = new com.zcw.model.CachedUserInfo(
+                            targetUserId,
+                            jsonNode.has("sel_userNikename") ? jsonNode.get("sel_userNikename").asText() : "",
+                            jsonNode.has("sel_userSex") ? jsonNode.get("sel_userSex").asText() : "",
+                            jsonNode.has("sel_userAge") ? jsonNode.get("sel_userAge").asText() : "",
+                            jsonNode.has("sel_userAddress") ? jsonNode.get("sel_userAddress").asText() : ""
+                        );
+                        
+                        // 异步保存到缓存
+                        if (manager.getCacheService() != null) {
+                            manager.getCacheService().saveUserInfo(userInfo);
+                            log.info("捕获并缓存用户信息: userId={}", targetUserId);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("解析匹配用户信息失败", e);
+                }
+            }
+
         } catch (Exception e) {
             // 解析失败，按普通消息处理
             log.debug("消息不是JSON格式或解析失败，按普通消息处理: userId={}", userId);

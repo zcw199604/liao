@@ -22,6 +22,7 @@ public class UpstreamWebSocketManager {
 
     private final WebSocketAddressService addressService;
     private final ForceoutManager forceoutManager;
+    private final com.zcw.service.UserInfoCacheService cacheService;
 
     // 用户ID -> 上游WebSocket客户端
     private final Map<String, UpstreamWebSocketClient> upstreamClients = new ConcurrentHashMap<>();
@@ -45,9 +46,15 @@ public class UpstreamWebSocketManager {
     private final Map<String, Long> connectionCreationTime = new ConcurrentHashMap<>();
 
     public UpstreamWebSocketManager(WebSocketAddressService addressService,
-                                    ForceoutManager forceoutManager) {
+                                    ForceoutManager forceoutManager,
+                                    @org.springframework.beans.factory.annotation.Autowired(required = false) com.zcw.service.UserInfoCacheService cacheService) {
         this.addressService = addressService;
         this.forceoutManager = forceoutManager;
+        this.cacheService = cacheService;
+    }
+
+    public com.zcw.service.UserInfoCacheService getCacheService() {
+        return cacheService;
     }
 
     /**

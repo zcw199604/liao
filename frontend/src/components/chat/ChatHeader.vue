@@ -31,16 +31,21 @@
               <span v-if="connected" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-2 w-2" :class="connected ? 'bg-emerald-500' : 'bg-rose-500'"></span>
             </span>
-            <span>{{ connected ? '已连接' : '未连接' }}</span>
+            <span>{{ connected ? '在线' : '离线' }}</span>
           </div>
 
-          <span v-if="user?.sex || (user?.age && user.age !== '0')" class="text-gray-600">|</span>
-
-          <div v-if="user?.sex" class="flex items-center">
-            <i class="fas fa-venus-mars mr-1 opacity-70"></i>{{ user.sex }}
+          <!-- 性别年龄 -->
+          <div v-if="user?.sex && user.sex !== '未知'" class="flex items-center gap-1 px-1.5 py-0.5 rounded"
+             :class="user.sex === '男' ? 'bg-blue-500/10 text-blue-400' : (user.sex === '女' ? 'bg-pink-500/10 text-pink-400' : 'bg-gray-700/50')">
+            <i :class="user.sex === '男' ? 'fas fa-mars' : (user.sex === '女' ? 'fas fa-venus' : 'fas fa-genderless')"></i>
+            <span v-if="user.age && user.age !== '0'">{{ user.age }}</span>
           </div>
-          <div v-if="user?.age && user.age !== '0'" class="flex items-center">
-            {{ user.age }}岁
+          
+          <!-- 地址 -->
+          <div v-if="user?.address && user.address !== '未知' && user.address !== '保密'" class="flex items-center gap-1">
+             <span class="text-gray-600">|</span>
+             <i class="fas fa-map-marker-alt text-[10px]"></i>
+             <span>{{ user.address }}</span>
           </div>
         </div>
       </div>
