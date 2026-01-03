@@ -361,9 +361,7 @@ export const useWebSocket = () => {
             fileUrl
           }
 
-          const targetUserId = isSelf
-            ? (chatStore.currentChatUser?.id || toUserId || '')
-            : fromUserId
+          const targetUserId = chatStore.currentChatUser?.id || (isSelf ? toUserId : fromUserId)
 
           if (targetUserId) {
             // WebSocket消息去重 - 基于tid
