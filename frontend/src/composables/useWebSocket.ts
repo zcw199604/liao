@@ -398,11 +398,11 @@ export const useWebSocket = () => {
             }
 
             setTimeout(scrollToBottom, 100)
-            } else if (!isSelf) {
-              // 不在当前聊天界面，但收到消息 - 使用单一数据源更新
-              const existingUser = chatStore.getUser(fromUserId)
+          } else if (!isSelf) {
+            // 不在当前聊天界面，但收到消息 - 使用单一数据源更新
+            const existingUser = chatStore.getUser(fromUserId)
 
-              if (existingUser) {
+            if (existingUser) {
               // 用户已存在 - 更新状态
               chatStore.updateUser(fromUserId, {
                 lastMsg,
