@@ -103,8 +103,19 @@ public class ProxyWebSocketHandler extends TextWebSocketHandler {
      */
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
-        log.error("WebSocket 传输错误: sessionId={}", session.getId(), exception);
-        session.close(CloseStatus.SERVER_ERROR);
+        if (exception instanceof java.io.IOException) {
+            log.error("WebSocket 传输错误: sessionId={}, error={}", session.getId(), exception.getMessage());
+        } else {
+            log.error("WebSocket 传输错误: sessionId={}", session.getId(), exception);
+        }
+
+        try {
+            if (session.isOpen()) {
+                session.close(CloseStatus.SERVER_ERROR);
+            }
+        } catch (Exception e) {
+            // ignore
+        }
     }
 }
 
