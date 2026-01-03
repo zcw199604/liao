@@ -1,6 +1,7 @@
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { useMessageStore } from '@/stores/message'
+import { useFavoriteStore } from '@/stores/favorite'
 import { useWebSocket } from './useWebSocket'
 import * as chatApi from '@/api/chat'
 import { generateCookie } from '@/utils/cookie'
@@ -11,6 +12,7 @@ export const useChat = () => {
   const chatStore = useChatStore()
   const userStore = useUserStore()
   const messageStore = useMessageStore()
+  const favoriteStore = useFavoriteStore()
   const { send } = useWebSocket()
   const { show } = useToast()
 
@@ -199,12 +201,16 @@ export const useChat = () => {
         if (!chatStore.favoriteUserIds.includes(user.id)) {
           chatStore.favoriteUserIds.unshift(user.id)
         }
+        // 同步到全局收藏
+        void favoriteStore.addFavorite(myUserID, user.id, user.nickname || user.name)
       } else {
         // 取消收藏 - 从收藏列表移除
         const index = chatStore.favoriteUserIds.indexOf(user.id)
         if (index > -1) {
           chatStore.favoriteUserIds.splice(index, 1)
         }
+        // 从全局收藏移除
+        void favoriteStore.removeFavorite(myUserID, user.id)
       }
 
       show(newFavoriteState ? '收藏成功' : '取消收藏成功')

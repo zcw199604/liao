@@ -3,8 +3,10 @@
     <div v-if="visible" class="fixed inset-0 z-[70] bg-black/50" @click="close">
       <div class="absolute right-0 top-0 bottom-0 w-80 bg-[#18181b] shadow-2xl overflow-y-auto" @click.stop>
         <!-- 头部 -->
-        <div class="h-14 flex items-center justify-between px-4 border-b border-gray-800">
-          <h2 class="text-lg font-bold text-white">{{ mode === 'identity' ? '身份信息' : '系统设置' }}</h2>
+        <div class="h-14 flex items-center justify-between px-4 border-b border-gray-800 shrink-0">
+          <h2 class="text-lg font-bold text-white">
+            {{ mode === 'identity' ? '身份信息' : mode === 'system' ? '系统设置' : '全局收藏' }}
+          </h2>
           <div class="flex items-center gap-2">
             <button
               v-if="mode === 'identity' && !editMode"
@@ -107,7 +109,7 @@
         </div>
 
         <!-- 系统设置 -->
-        <div v-else class="p-6 space-y-6">
+        <div v-else-if="mode === 'system'" class="p-6 space-y-6">
           <SystemSettings
             :stats="connectionStats"
             :forceout-count="forceoutUserCount"
@@ -149,6 +151,9 @@
           </div>
         </div>
 
+        <!-- 全局收藏 -->
+        <GlobalFavorites v-else-if="mode === 'favorites'" />
+
         <Dialog
           v-model:visible="showDisconnectAllDialog"
           title="确认断开所有连接"
@@ -182,9 +187,10 @@ import { useToast } from '@/composables/useToast'
 import { generateCookie } from '@/utils/cookie'
 import * as identityApi from '@/api/identity'
 import SystemSettings from '@/components/settings/SystemSettings.vue'
+import GlobalFavorites from '@/components/settings/GlobalFavorites.vue'
 import Dialog from '@/components/common/Dialog.vue'
 
-type Mode = 'identity' | 'system'
+type Mode = 'identity' | 'system' | 'favorites'
 
 interface Props {
   visible: boolean

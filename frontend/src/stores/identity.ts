@@ -13,6 +13,21 @@ export const useIdentityStore = defineStore('identity', () => {
   })
   const deleteConfirmIdentity = ref<Identity | null>(null)
 
+  // 身份ID -> Cookie 映射 (用于预览历史记录)
+  const identityCookies = ref<Record<string, string>>(
+    JSON.parse(localStorage.getItem('identityCookies') || '{}')
+  )
+
+  const saveIdentityCookie = (id: string, cookie: string) => {
+    if (!id || !cookie) return
+    identityCookies.value[id] = cookie
+    localStorage.setItem('identityCookies', JSON.stringify(identityCookies.value))
+  }
+
+  const getIdentityCookie = (id: string) => {
+    return identityCookies.value[id] || ''
+  }
+
   const loadList = async () => {
     loading.value = true
     try {
@@ -60,6 +75,9 @@ export const useIdentityStore = defineStore('identity', () => {
     loadList,
     createIdentity,
     deleteIdentity,
-    selectIdentity
+    selectIdentity,
+    identityCookies,
+    saveIdentityCookie,
+    getIdentityCookie
   }
 })

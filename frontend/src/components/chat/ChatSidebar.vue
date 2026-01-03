@@ -32,6 +32,13 @@
             <span>系统设置</span>
           </button>
           <button
+            @click="handleOpenFavorites"
+            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-gray-700 transition"
+          >
+            <i class="fas fa-star text-yellow-500"></i>
+            <span>全局收藏</span>
+          </button>
+          <button
             @click="handleSwitchIdentity"
             class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-gray-700 rounded-b-xl transition"
           >
@@ -234,7 +241,7 @@ const { show } = useToast()
 
 const showTopMenu = ref(false)
 const showSettings = ref(false)
-const settingsMode = ref<'identity' | 'system'>('identity')
+const settingsMode = ref<'identity' | 'system' | 'favorites'>('identity')
 const showSwitchIdentityDialog = ref(false)
 const showDeleteUserDialog = ref(false)
 const userToDelete = ref<User | null>(null)
@@ -353,6 +360,12 @@ const handleOpenSettings = () => {
 const handleOpenSystemSettings = () => {
   showTopMenu.value = false
   settingsMode.value = 'system'
+  showSettings.value = true
+}
+
+const handleOpenFavorites = () => {
+  showTopMenu.value = false
+  settingsMode.value = 'favorites'
   showSettings.value = true
 }
 
