@@ -252,13 +252,23 @@ public class RedisUserInfoCacheService implements UserInfoCacheService {
     @Override
     public List<Map<String, Object>> batchEnrichWithLastMessage(List<Map<String, Object>> userList, String myUserId) {
         if (userList == null || userList.isEmpty()) return userList;
+        if (myUserId == null || myUserId.isBlank()) return userList;
 
         // 1. 收集所有会话 Key
         List<String> conversationKeys = new ArrayList<>();
         for (Map<String, Object> user : userList) {
-            String otherUserId = String.valueOf(user.get("id"));
+            String otherUserId = extractUserId(user);
+            if (otherUserId == null || otherUserId.isBlank()) {
+                continue;
+            }
             String key = CachedLastMessage.generateConversationKey(myUserId, otherUserId);
-            conversationKeys.add(key);
+            if (key != null && !key.isBlank()) {
+                conversationKeys.add(key);
+            }
+        }
+
+        if (conversationKeys.isEmpty()) {
+            return userList;
         }
 
         // 2. 批量查询（优化：一次 MultiGet）
@@ -266,8 +276,14 @@ public class RedisUserInfoCacheService implements UserInfoCacheService {
 
         // 3. 填充数据
         for (Map<String, Object> user : userList) {
-            String otherUserId = String.valueOf(user.get("id"));
+            String otherUserId = extractUserId(user);
+            if (otherUserId == null || otherUserId.isBlank()) {
+                continue;
+            }
             String key = CachedLastMessage.generateConversationKey(myUserId, otherUserId);
+            if (key == null || key.isBlank()) {
+                continue;
+            }
             CachedLastMessage msg = messageMap.get(key);
 
             if (msg != null) {
@@ -278,6 +294,19 @@ public class RedisUserInfoCacheService implements UserInfoCacheService {
         }
 
         return userList;
+    }
+
+    private String extractUserId(Map<String, Object> user) {
+        if (user == null) {
+            return null;
+        }
+
+        Object idVal = user.get("id");
+        if (idVal == null) idVal = user.get("UserID");
+        if (idVal == null) idVal = user.get("userid");
+        if (idVal == null) idVal = user.get("userId");
+
+        return idVal == null ? null : String.valueOf(idVal);
     }
 
     /**

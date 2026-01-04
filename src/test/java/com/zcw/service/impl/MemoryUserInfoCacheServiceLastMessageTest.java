@@ -98,6 +98,28 @@ class MemoryUserInfoCacheServiceLastMessageTest {
     }
 
     @Test
+    @DisplayName("批量增强用户列表 - 支持UserID字段")
+    void batchEnrichWithLastMessage_UserIDKey_Success() {
+        // Arrange
+        cacheService.saveLastMessage(new CachedLastMessage(
+            "user1", "user2", "Hello", "text", "2026-01-04 10:00:00"
+        ));
+
+        List<Map<String, Object>> userList = new ArrayList<>();
+        Map<String, Object> user = new HashMap<>();
+        user.put("UserID", "user2");
+        userList.add(user);
+
+        // Act
+        List<Map<String, Object>> result = cacheService.batchEnrichWithLastMessage(userList, "user1");
+
+        // Assert
+        assertEquals(1, result.size());
+        assertEquals("我: Hello", result.get(0).get("lastMsg"));
+        assertEquals("2026-01-04 10:00:00", result.get(0).get("lastTime"));
+    }
+
+    @Test
     @DisplayName("格式化消息 - 图片消息显示标签")
     void formatLastMessage_ImageMessage() {
         // Arrange

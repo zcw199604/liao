@@ -86,7 +86,10 @@ public class MemoryUserInfoCacheService implements UserInfoCacheService {
         if (userList == null) return java.util.Collections.emptyList();
 
         for (Map<String, Object> user : userList) {
-            String otherUserId = String.valueOf(user.get("id"));
+            String otherUserId = extractUserId(user);
+            if (otherUserId == null || otherUserId.isBlank()) {
+                continue;
+            }
             CachedLastMessage lastMsg = getLastMessage(myUserId, otherUserId);
 
             if (lastMsg != null) {
@@ -97,6 +100,19 @@ public class MemoryUserInfoCacheService implements UserInfoCacheService {
             }
         }
         return userList;
+    }
+
+    private String extractUserId(Map<String, Object> user) {
+        if (user == null) {
+            return null;
+        }
+
+        Object idVal = user.get("id");
+        if (idVal == null) idVal = user.get("UserID");
+        if (idVal == null) idVal = user.get("userid");
+        if (idVal == null) idVal = user.get("userId");
+
+        return idVal == null ? null : String.valueOf(idVal);
     }
 
     /**

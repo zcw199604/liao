@@ -163,6 +163,33 @@ class RedisUserInfoCacheServiceLastMessageTest {
     }
 
     @Test
+    @DisplayName("批量增强用户列表 - 支持UserID字段")
+    void batchEnrichWithLastMessage_UserIDKey_UsesMultiGet() throws Exception {
+        // Arrange
+        CachedLastMessage msg = new CachedLastMessage(
+            "user1", "user2", "Hello", "text", "2026-01-04 10:00:00"
+        );
+
+        when(valueOperations.multiGet(anyList())).thenReturn(List.of(
+            objectMapper.writeValueAsString(msg)
+        ));
+
+        List<Map<String, Object>> userList = new ArrayList<>();
+        Map<String, Object> user = new HashMap<>();
+        user.put("UserID", "user2");
+        userList.add(user);
+
+        // Act
+        List<Map<String, Object>> result = cacheService.batchEnrichWithLastMessage(userList, "user1");
+
+        // Assert
+        assertEquals(1, result.size());
+        assertEquals("我: Hello", result.get(0).get("lastMsg"));
+        assertEquals("2026-01-04 10:00:00", result.get(0).get("lastTime"));
+        verify(valueOperations, times(1)).multiGet(anyList());
+    }
+
+    @Test
     @DisplayName("批量增强 - 处理部分消息不存在")
     void batchEnrichWithLastMessage_PartialResults() throws Exception {
         // Arrange
