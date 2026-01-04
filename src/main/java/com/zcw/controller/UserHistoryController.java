@@ -141,9 +141,13 @@ public class UserHistoryController {
                              if (list.get(0).containsKey("UserID")) idKey = "UserID";
                              else if (list.get(0).containsKey("userid")) idKey = "userid";
                         }
-                        
+
+                        // 1. 批量增强用户信息（昵称、性别、年龄、地址）
                         list = userInfoCacheService.batchEnrichUserInfo(list, idKey);
-                        
+
+                        // 2. 批量增强最后消息（lastMsg、lastTime）
+                        list = userInfoCacheService.batchEnrichWithLastMessage(list, myUserID);
+
                         return ResponseEntity.ok(mapper.writeValueAsString(list));
                     }
                 } catch (Exception e) {

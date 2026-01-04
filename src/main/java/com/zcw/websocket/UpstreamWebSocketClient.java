@@ -151,7 +151,7 @@ public class UpstreamWebSocketClient extends WebSocketClient {
                             jsonNode.has("sel_userAge") ? jsonNode.get("sel_userAge").asText() : "",
                             jsonNode.has("sel_userAddress") ? jsonNode.get("sel_userAddress").asText() : ""
                         );
-                        
+
                         // 异步保存到缓存
                         if (manager.getCacheService() != null) {
                             manager.getCacheService().saveUserInfo(userInfo);
@@ -160,6 +160,31 @@ public class UpstreamWebSocketClient extends WebSocketClient {
                     }
                 } catch (Exception e) {
                     log.error("解析匹配用户信息失败", e);
+                }
+            }
+
+            // 3. 检查是否是聊天消息 (code=7)，缓存最后一条消息
+            // 格式: {"code":7,"fromuser":{"id":"..."},"touser":{"id":"..."},"content":"...","type":"text","time":"..."}
+            if (jsonNode.has("code") && jsonNode.get("code").asInt() == 7) {
+                try {
+                    String fromUserId = jsonNode.path("fromuser").path("id").asText();
+                    String toUserId = jsonNode.path("touser").path("id").asText();
+                    String content = jsonNode.path("content").asText();
+                    String type = jsonNode.path("type").asText("text");
+                    String time = jsonNode.path("time").asText();
+
+                    if (!fromUserId.isEmpty() && !toUserId.isEmpty()) {
+                        com.zcw.model.CachedLastMessage lastMsg = new com.zcw.model.CachedLastMessage(
+                            fromUserId, toUserId, content, type, time
+                        );
+
+                        if (manager.getCacheService() != null) {
+                            manager.getCacheService().saveLastMessage(lastMsg);
+                            log.debug("缓存最后消息: {} -> {}", fromUserId, toUserId);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("缓存聊天消息失败", e);
                 }
             }
 

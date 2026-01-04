@@ -16,8 +16,8 @@ const normalizeUser = (user: any, isFavorite: boolean = false): User => {
     address: user.address || user.userAddress || '未知',
     ip: user.ip || '',
     isFavorite: isFavorite,
-    lastMsg: '暂无消息',
-    lastTime: '刚刚',
+    lastMsg: user.lastMsg || '暂无消息',
+    lastTime: user.lastTime || '刚刚',
     unreadCount: 0
   }
 }
