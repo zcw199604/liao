@@ -191,6 +191,20 @@ public class UpstreamWebSocketClient extends WebSocketClient {
                         if (manager.getCacheService() != null) {
                             manager.getCacheService().saveLastMessage(lastMsg);
                             log.debug("缓存最后消息: {} -> {}, content={}, time={}", fromUserId, toUserId, content, time);
+
+                            // 兼容：上游返回的toUserId有时不是本地身份userId，补写一份保证 (userId <-> 对方) 能命中
+                            if (!userId.equals(fromUserId) && !userId.equals(toUserId)) {
+                                com.zcw.model.CachedLastMessage normalizedLastMsg = new com.zcw.model.CachedLastMessage(
+                                    fromUserId, userId, content, type, time
+                                );
+                                manager.getCacheService().saveLastMessage(normalizedLastMsg);
+
+                                com.zcw.model.CachedLastMessage normalizedLastMsg2 = new com.zcw.model.CachedLastMessage(
+                                    userId, toUserId, content, type, time
+                                );
+                                manager.getCacheService().saveLastMessage(normalizedLastMsg2);
+                                log.debug("补写最后消息缓存(修正会话Key): {} -> {}, rawToUserId={}", fromUserId, userId, toUserId);
+                            }
                         }
                     } else {
                         log.warn("聊天消息字段不完整: fromUserId={}, toUserId={}, content={}, time={}",
@@ -243,4 +257,3 @@ public class UpstreamWebSocketClient extends WebSocketClient {
         super.close();
     }
 }
-

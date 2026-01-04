@@ -32,3 +32,4 @@
 
 ## 变更历史
 - [202601041818_fix_history_userlist_lastmsg](../../history/2026-01/202601041818_fix_history_userlist_lastmsg/) - 修复 lastMsg/lastTime 增强在 `UserID/userid` 场景失效
+- [202601041854_fix_lastmsg_key_normalize](../../history/2026-01/202601041854_fix_lastmsg_key_normalize/) - 修复消息id/toid与myUserID不一致导致 lastMsg/lastTime 无法命中

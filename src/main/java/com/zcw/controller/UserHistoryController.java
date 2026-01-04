@@ -372,12 +372,24 @@ public class UserHistoryController {
                             String type = inferMessageType(content);
 
                             if (!fromUserId.isEmpty() && !toUserId.isEmpty() && !content.isEmpty() && !time.isEmpty()) {
+                                // 兼容：上游返回的id/toid有时不包含myUserID（例如使用了别名ID），
+                                // 这里以请求参数的(myUserID, UserToID)为准补写，确保历史列表按myUserID能命中最后消息缓存
+                                String cacheFromUserId = fromUserId;
+                                String cacheToUserId = toUserId;
+                                if (!myUserID.equals(fromUserId) && !myUserID.equals(toUserId)) {
+                                    if (UserToID.equals(fromUserId)) {
+                                        cacheToUserId = myUserID;
+                                    } else if (UserToID.equals(toUserId)) {
+                                        cacheFromUserId = myUserID;
+                                    }
+                                }
+
                                 com.zcw.model.CachedLastMessage lastMsg = new com.zcw.model.CachedLastMessage(
-                                    fromUserId, toUserId, content, type, time
+                                    cacheFromUserId, cacheToUserId, content, type, time
                                 );
                                 userInfoCacheService.saveLastMessage(lastMsg);
                                 log.debug("缓存历史消息中的最后一条: {} -> {}, content={}, time={}",
-                                          fromUserId, toUserId, content, time);
+                                          cacheFromUserId, cacheToUserId, content, time);
                             } else {
                                 log.warn("历史消息字段不完整: fromUserId={}, toUserId={}, content={}, time={}",
                                          fromUserId, toUserId, content, time);
