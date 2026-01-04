@@ -2,25 +2,48 @@
 export const formatTime = (timeStr: string): string => {
   if (!timeStr) return ''
 
-  // 上游常见格式：2025-12-18 03:02:11.721 → 2025-12-18 03:02:11
-  const match = timeStr.match(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/)
-  if (match) return `${match[1]} ${match[2]}`
-
-  const date = new Date(timeStr)
+  let date = new Date(timeStr)
+  // 兼容 iOS/Safari 的日期格式 (yyyy-MM-dd)
+  if (Number.isNaN(date.getTime())) {
+    date = new Date(timeStr.replace(/-/g, '/'))
+  }
   if (Number.isNaN(date.getTime())) return timeStr
+
   const now = new Date()
-  const diff = now.getTime() - date.getTime()
+  
+  // 获取当天0点时间戳
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  // 获取昨天0点时间戳
+  const yesterday = new Date(today)
+  yesterday.setDate(today.getDate() - 1)
+  // 获取今年1月1日0点时间戳
+  const thisYear = new Date(now.getFullYear(), 0, 1)
 
-  if (diff < 60000) return '刚刚'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
+  const targetTime = date.getTime()
+  
+  // 1. 今天：显示 HH:mm
+  if (targetTime >= today.getTime()) {
+    const hour = date.getHours().toString().padStart(2, '0')
+    const minute = date.getMinutes().toString().padStart(2, '0')
+    return `${hour}:${minute}`
+  }
 
-  const month = date.getMonth() + 1
-  const day = date.getDate()
-  const hour = date.getHours().toString().padStart(2, '0')
-  const minute = date.getMinutes().toString().padStart(2, '0')
+  // 2. 昨天：显示 昨天
+  if (targetTime >= yesterday.getTime()) {
+    return '昨天'
+  }
 
-  return `${month}月${day}日 ${hour}:${minute}`
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const day = date.getDate().toString().padStart(2, '0')
+
+  // 3. 今年其他时间：显示 MM/DD
+  if (targetTime >= thisYear.getTime()) {
+    return `${month}/${day}`
+  }
+
+  // 4. 非今年：显示 YY/MM/DD
+  const year = date.getFullYear().toString().slice(-2)
+  return `${year}/${month}/${day}`
 }
 
 // 格式化完整时间
