@@ -272,8 +272,8 @@ public class RedisUserInfoCacheService implements UserInfoCacheService {
 
             if (msg != null) {
                 String displayContent = formatLastMessage(msg, myUserId);
-                user.putIfAbsent("lastMsg", displayContent);
-                user.putIfAbsent("lastTime", formatTime(msg.getTime()));
+                user.put("lastMsg", displayContent);           // 强制覆盖，确保缓存数据优先
+                user.put("lastTime", formatTime(msg.getTime())); // 强制覆盖，确保缓存数据优先
             }
         }
 
