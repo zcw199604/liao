@@ -164,27 +164,40 @@ public class UpstreamWebSocketClient extends WebSocketClient {
             }
 
             // 3. 检查是否是聊天消息 (code=7)，缓存最后一条消息
-            // 格式: {"code":7,"fromuser":{"id":"..."},"touser":{"id":"..."},"content":"...","type":"text","time":"..."}
+            // 格式: {"code":7,"fromuser":{"id":"...","nickname":"...","content":"...","time":"..."},"touser":{"id":"...","nickname":"..."}}
             if (jsonNode.has("code") && jsonNode.get("code").asInt() == 7) {
                 try {
                     String fromUserId = jsonNode.path("fromuser").path("id").asText();
                     String toUserId = jsonNode.path("touser").path("id").asText();
-                    String content = jsonNode.path("content").asText();
-                    String type = jsonNode.path("type").asText("text");
-                    String time = jsonNode.path("time").asText();
 
-                    if (!fromUserId.isEmpty() && !toUserId.isEmpty()) {
+                    // 优先从fromuser提取content、time、type，如果不存在则从顶级fallback
+                    com.fasterxml.jackson.databind.JsonNode fromuserNode = jsonNode.path("fromuser");
+                    String content = fromuserNode.has("content") ?
+                                     fromuserNode.path("content").asText() :
+                                     jsonNode.path("content").asText();
+                    String time = fromuserNode.has("time") ?
+                                  fromuserNode.path("time").asText() :
+                                  jsonNode.path("time").asText();
+                    String type = fromuserNode.has("type") ?
+                                  fromuserNode.path("type").asText() :
+                                  (jsonNode.has("type") ? jsonNode.path("type").asText() : "text");
+
+                    // 确保所有必要字段都存在
+                    if (!fromUserId.isEmpty() && !toUserId.isEmpty() && !content.isEmpty() && !time.isEmpty()) {
                         com.zcw.model.CachedLastMessage lastMsg = new com.zcw.model.CachedLastMessage(
                             fromUserId, toUserId, content, type, time
                         );
 
                         if (manager.getCacheService() != null) {
                             manager.getCacheService().saveLastMessage(lastMsg);
-                            log.debug("缓存最后消息: {} -> {}", fromUserId, toUserId);
+                            log.debug("缓存最后消息: {} -> {}, content={}, time={}", fromUserId, toUserId, content, time);
                         }
+                    } else {
+                        log.warn("聊天消息字段不完整: fromUserId={}, toUserId={}, content={}, time={}",
+                                 fromUserId, toUserId, content, time);
                     }
                 } catch (Exception e) {
-                    log.error("缓存聊天消息失败", e);
+                    log.error("缓存聊天消息失败: userId={}, message={}", userId, message, e);
                 }
             }
 

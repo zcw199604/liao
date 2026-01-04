@@ -350,13 +350,45 @@ public class UserHistoryController {
 
 //            log.info("消息历史接口返回: status={}, body={}", response.getStatusCode(), response.getBody());
 
-            // 增强数据：补充用户信息
+            // 增强数据：补充用户信息，并更新最后消息缓存
             // 注意：消息列表可能包含对方的信息，虽然主要是消息内容，但如果有用户信息字段也可以补充
             if (response.getStatusCode() == HttpStatus.OK && userInfoCacheService != null && response.getBody() != null) {
                 try {
                     com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
                     com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(response.getBody());
-                    
+
+                    // 检查是否有 contents_list 字段（新格式）
+                    if (root.has("contents_list")) {
+                        com.fasterxml.jackson.databind.JsonNode contentsList = root.get("contents_list");
+
+                        // 缓存最后一条消息（列表第一条，按时间倒序）
+                        if (contentsList.isArray() && contentsList.size() > 0) {
+                            com.fasterxml.jackson.databind.JsonNode firstMsg = contentsList.get(0);
+
+                            String fromUserId = firstMsg.path("id").asText();
+                            String toUserId = firstMsg.path("toid").asText();
+                            String content = firstMsg.path("content").asText();
+                            String time = firstMsg.path("time").asText();
+                            String type = inferMessageType(content);
+
+                            if (!fromUserId.isEmpty() && !toUserId.isEmpty() && !content.isEmpty() && !time.isEmpty()) {
+                                com.zcw.model.CachedLastMessage lastMsg = new com.zcw.model.CachedLastMessage(
+                                    fromUserId, toUserId, content, type, time
+                                );
+                                userInfoCacheService.saveLastMessage(lastMsg);
+                                log.debug("缓存历史消息中的最后一条: {} -> {}, content={}, time={}",
+                                          fromUserId, toUserId, content, time);
+                            } else {
+                                log.warn("历史消息字段不完整: fromUserId={}, toUserId={}, content={}, time={}",
+                                         fromUserId, toUserId, content, time);
+                            }
+                        }
+
+                        // 返回原始响应，保持接口兼容性
+                        return ResponseEntity.ok(response.getBody());
+                    }
+
+                    // 兼容旧格式：直接是数组
                     if (root.isArray()) {
                         java.util.List<Map<String, Object>> list = new ArrayList<>();
                         for (com.fasterxml.jackson.databind.JsonNode node : root) {
@@ -364,11 +396,11 @@ public class UserHistoryController {
                             Map<String, Object> map = mapper.convertValue(node, Map.class);
                             list.add(map);
                         }
-                        
+
                         // 批量增强数据，消息列表中的用户ID字段通常是 userid
                         // 这样会把发送方的信息（无论自己还是对方）都尝试补充，如果缓存有的话
                         list = userInfoCacheService.batchEnrichUserInfo(list, "userid");
-                        
+
                         return ResponseEntity.ok(mapper.writeValueAsString(list));
                     }
                 } catch (Exception e) {
@@ -782,5 +814,34 @@ public class UserHistoryController {
             log.error("取消收藏操作失败", e);
             return ResponseEntity.ok("{\"state\":\"ERROR\",\"msg\":\"" + e.getMessage() + "\"}");
         }
+    }
+
+    /**
+     * 根据消息内容推断消息类型
+     * @param content 消息内容
+     * @return 消息类型：text/image/video/audio/file
+     */
+    private String inferMessageType(String content) {
+        if (content == null || content.isEmpty()) {
+            return "text";
+        }
+
+        // 检查是否是媒体路径格式 [path/to/file.ext]
+        if (content.startsWith("[") && content.endsWith("]")) {
+            String path = content.substring(1, content.length() - 1).toLowerCase();
+
+            if (path.matches(".*\\.(jpg|jpeg|png|gif|bmp)$")) {
+                return "image";
+            }
+            if (path.matches(".*\\.(mp4|avi|mov|wmv|flv)$")) {
+                return "video";
+            }
+            if (path.matches(".*\\.(mp3|wav|aac|flac)$")) {
+                return "audio";
+            }
+            return "file";
+        }
+
+        return "text";
     }
 }
