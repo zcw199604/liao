@@ -224,6 +224,13 @@ export const useWebSocket = () => {
           // 初始化聊天记录为空
           messageStore.clearHistory(matchedUser.id)
 
+          // 检查匹配是否已被取消（用户点击了取消按钮）
+          if (!chatStore.isMatching) {
+            // 匹配已取消，只更新用户列表，不自动进入聊天
+            console.log('匹配已取消，忽略自动进入聊天')
+            return
+          }
+
           // 判断是否为连续匹配模式
           if (chatStore.continuousMatchConfig.enabled) {
             // 连续匹配模式：不进入聊天，只更新蒙层显示

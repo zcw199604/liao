@@ -95,9 +95,11 @@ export const useChat = () => {
     if (!config.enabled) return
 
     if (config.current >= config.total) {
-      // 完成所有匹配
-      chatStore.cancelContinuousMatch()
-      show(`连续匹配完成！共匹配 ${config.total} 次`)
+      // 最后一个用户：也等待2秒显示用户信息后再取消
+      autoMatchTimer = setTimeout(() => {
+        chatStore.cancelContinuousMatch()
+        show(`连续匹配完成！共匹配 ${config.total} 次`)
+      }, 2000)
       return
     }
 

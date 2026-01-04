@@ -62,7 +62,7 @@
       <!-- 倒计时提示（连续匹配且已匹配到用户） -->
       <p v-if="chatStore.currentMatchedUser && chatStore.continuousMatchConfig.enabled"
          class="text-gray-400 text-sm mb-4">
-        2秒后自动开始下一次匹配...
+        {{ isLastMatch ? '2秒后返回列表...' : '2秒后自动开始下一次匹配...' }}
       </p>
 
       <!-- 取消按钮 -->
@@ -78,6 +78,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
 import { useChat } from '@/composables/useChat'
@@ -88,6 +89,12 @@ const router = useRouter()
 const chatStore = useChatStore()
 const { cancelMatch, enterChatAndStopMatch } = useChat()
 const { show } = useToast()
+
+// 判断是否是最后一个匹配用户
+const isLastMatch = computed(() => {
+  const config = chatStore.continuousMatchConfig
+  return config.current >= config.total
+})
 
 // 进入聊天并中断连续匹配
 const handleEnterChat = () => {
