@@ -24,4 +24,5 @@
 
 ## 测试与流程
 - **测试:** `mvn test`（需要 JDK 17）
+- **前端单元测试:** `cd frontend && npm test`（Vitest / jsdom）
 - **提交:** Conventional Commits：`feat:` / `fix:` / `refactor:` / `chore:`

@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
 
@@ -26,5 +26,11 @@ export default defineConfig({
   build: {
     outDir: '../src/main/resources/static',
     emptyOutDir: true
+  },
+  test: {
+    environment: 'jsdom',
+    include: ['src/__tests__/**/*.test.ts'],
+    clearMocks: true,
+    restoreMocks: true
   }
 })

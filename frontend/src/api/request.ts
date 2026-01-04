@@ -7,6 +7,12 @@ const request = axios.create({
   timeout: 10000
 })
 
+export const navigation = {
+  toLogin: () => {
+    window.location.assign('/login')
+  }
+}
+
 // 请求拦截器：添加Token
 request.interceptors.request.use(
   config => {
@@ -41,7 +47,7 @@ request.interceptors.response.use(
   (error: AxiosError) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('authToken')
-      window.location.href = '/login'
+      navigation.toLogin()
     }
     return Promise.reject(error)
   }
