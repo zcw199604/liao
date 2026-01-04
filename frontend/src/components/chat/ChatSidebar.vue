@@ -76,12 +76,19 @@
     <div v-if="isRefreshing" class="h-1 bg-blue-500 animate-pulse shrink-0"></div>
 
     <!-- 列表内容 -->
-    <div class="flex-1 overflow-y-auto no-scrollbar px-4 pt-2" ref="listAreaRef" @click="showTopMenu = false">
+    <div class="flex-1 overflow-y-auto no-scrollbar px-4 pt-2" ref="listAreaRef" @click="closeContextMenu">
       <div
         v-for="user in chatStore.displayList"
         :key="user.id"
-        @click="handleUserClick(user)"
-        class="flex items-center p-4 mb-3 bg-[#18181b] rounded-2xl active:scale-[0.98] transition-transform duration-100 cursor-pointer"
+        @click="handleClick(user)"
+        @touchstart="startLongPress(user, $event)"
+        @touchend="endLongPress"
+        @touchmove="cancelLongPress"
+        @mousedown="startLongPress(user, $event)"
+        @mouseup="endLongPress"
+        @mouseleave="cancelLongPress"
+        @contextmenu.prevent="handleContextMenu(user, $event)"
+        class="flex items-center p-4 mb-3 bg-[#18181b] rounded-2xl active:scale-[0.98] transition-transform duration-100 cursor-pointer select-none"
         :class="{ 'border border-blue-500/30': currentUserId === user.id }"
       >
         <!-- 纯色块代替头像 -->
@@ -133,47 +140,6 @@
             >
               {{ user.unreadCount }}
             </span>
-            <!-- 更多操作按钮 -->
-            <div class="relative">
-              <button
-                @click.stop="toggleUserMenu(user.id)"
-                class="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-white transition rounded-full hover:bg-white/10"
-                :class="{'text-white': activeMenuUserId === user.id}"
-                title="更多操作"
-              >
-                <i class="fas fa-ellipsis-v text-xs"></i>
-              </button>
-              
-              <!-- 下拉菜单 -->
-              <div
-                v-if="activeMenuUserId === user.id"
-                @click.stop
-                class="absolute right-0 top-8 w-32 bg-[#27272a] rounded-lg shadow-xl border border-gray-700 z-50 overflow-hidden"
-              >
-                <button
-                  @click="handleCheckOnlineStatus(user)"
-                  class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#3f3f46] hover:text-white flex items-center gap-2 transition border-b border-gray-700"
-                >
-                  <i class="fas fa-signal text-xs text-green-500"></i>
-                  <span>在线记录</span>
-                </button>
-                <button
-                  @click="handleToggleGlobalFavorite(user)"
-                  class="w-full px-4 py-2 text-left text-sm hover:bg-[#3f3f46] hover:text-white flex items-center gap-2 transition border-b border-gray-700"
-                  :class="isGlobalFavorite(user) ? 'text-yellow-500' : 'text-gray-300'"
-                >
-                  <i class="fas fa-star text-xs"></i>
-                  <span>{{ isGlobalFavorite(user) ? '取消全局收藏' : '全局收藏' }}</span>
-                </button>
-                <button
-                  @click="confirmDeleteUser(user)"
-                  class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-[#3f3f46] hover:text-red-300 flex items-center gap-2 transition"
-                >
-                  <i class="fas fa-trash-alt text-xs"></i>
-                  <span>删除会话</span>
-                </button>
-              </div>
-            </div>
         </div>
       </div>
 
@@ -182,6 +148,37 @@
         <i class="far fa-comments text-5xl mb-4 opacity-50"></i>
         <p class="text-sm">暂无{{ chatStore.activeTab === 'history' ? '消息' : '收藏' }}</p>
       </div>
+    </div>
+
+    <!-- 上下文菜单 (长按/右键触发) -->
+    <div
+      v-if="showContextMenu && contextMenuUser"
+      class="fixed z-50 w-32 bg-[#27272a] rounded-lg shadow-xl border border-gray-700 overflow-hidden"
+      :style="{ top: contextMenuPos.y + 'px', left: contextMenuPos.x + 'px' }"
+      @click.stop
+    >
+      <button
+        @click="handleCheckOnlineStatus(contextMenuUser!)"
+        class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#3f3f46] hover:text-white flex items-center gap-2 transition border-b border-gray-700"
+      >
+        <i class="fas fa-signal text-xs text-green-500"></i>
+        <span>在线记录</span>
+      </button>
+      <button
+        @click="handleToggleGlobalFavorite(contextMenuUser!)"
+        class="w-full px-4 py-2 text-left text-sm hover:bg-[#3f3f46] hover:text-white flex items-center gap-2 transition border-b border-gray-700"
+        :class="isGlobalFavorite(contextMenuUser!) ? 'text-yellow-500' : 'text-gray-300'"
+      >
+        <i class="fas fa-star text-xs"></i>
+        <span>{{ isGlobalFavorite(contextMenuUser!) ? '取消全局收藏' : '全局收藏' }}</span>
+      </button>
+      <button
+        @click="confirmDeleteUser(contextMenuUser!)"
+        class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-[#3f3f46] hover:text-red-300 flex items-center gap-2 transition"
+      >
+        <i class="fas fa-trash-alt text-xs"></i>
+        <span>删除会话</span>
+      </button>
     </div>
 
     <!-- 匹配按钮 -->
@@ -274,9 +271,15 @@ const settingsMode = ref<'identity' | 'system' | 'favorites'>('identity')
 const showSwitchIdentityDialog = ref(false)
 const showDeleteUserDialog = ref(false)
 const userToDelete = ref<User | null>(null)
-const activeMenuUserId = ref<string | null>(null)
 const listAreaRef = ref<HTMLElement | null>(null)
 const isRefreshing = ref(false)
+
+// 上下文菜单状态
+const showContextMenu = ref(false)
+const contextMenuPos = ref({ x: 0, y: 0 })
+const contextMenuUser = ref<User | null>(null)
+let longPressTimer: any = null
+let isLongPressHandled = false
 
 // 在线状态弹窗数据
 const showOnlineStatusDialog = ref(false)
@@ -310,20 +313,88 @@ const refreshCurrentTab = async () => {
   }
 }
 
-const toggleUserMenu = (userId: string) => {
-  if (activeMenuUserId.value === userId) {
-    activeMenuUserId.value = null
+// 长按/右键菜单逻辑
+const startLongPress = (user: User, event: MouseEvent | TouchEvent) => {
+  isLongPressHandled = false
+  
+  // 记录点击位置
+  let clientX, clientY
+  if (window.TouchEvent && event instanceof TouchEvent) {
+    // @ts-ignore
+    if (event.touches && event.touches.length > 0) {
+      // @ts-ignore
+      clientX = event.touches[0].clientX
+      // @ts-ignore
+      clientY = event.touches[0].clientY
+    } else {
+      return
+    }
+  } else if (event instanceof MouseEvent) {
+    clientX = event.clientX
+    clientY = event.clientY
   } else {
-    activeMenuUserId.value = userId
+    return
+  }
+
+  longPressTimer = setTimeout(() => {
+    isLongPressHandled = true
+    showContextMenu.value = true
+    contextMenuUser.value = user
+    // 简单的边界处理，避免溢出屏幕
+    const menuWidth = 128
+    const menuHeight = 120
+    let x = clientX
+    let y = clientY
+    
+    if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10
+    if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 10
+    
+    contextMenuPos.value = { x, y }
+    // 触发震动反馈 (如果支持)
+    if (navigator.vibrate) navigator.vibrate(50)
+  }, 500)
+}
+
+const endLongPress = () => {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer)
+    longPressTimer = null
   }
 }
 
-const closeUserMenu = () => {
-  activeMenuUserId.value = null
+const cancelLongPress = () => {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+}
+
+const handleContextMenu = (user: User, event: MouseEvent) => {
+  // PC端右键直接触发
+  cancelLongPress() // 清除长按定时器，避免冲突
+  isLongPressHandled = true // 标记为已处理，阻止点击进入
+  
+  showContextMenu.value = true
+  contextMenuUser.value = user
+  
+  const menuWidth = 128
+  const menuHeight = 120
+  let x = event.clientX
+  let y = event.clientY
+  
+  if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10
+  if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 10
+  
+  contextMenuPos.value = { x, y }
+}
+
+const closeContextMenu = () => {
+  showContextMenu.value = false
+  contextMenuUser.value = null
 }
 
 const handleCheckOnlineStatus = (user: User) => {
-  closeUserMenu()
+  closeContextMenu()
   checkUserOnlineStatus(user.id)
   show('正在查询...')
 }
@@ -334,7 +405,7 @@ const isGlobalFavorite = (user: User) => {
 }
 
 const handleToggleGlobalFavorite = async (user: User) => {
-  closeUserMenu()
+  closeContextMenu()
   if (!userStore.currentUser) return
 
   const isFav = isGlobalFavorite(user)
@@ -359,7 +430,7 @@ const onCheckOnlineResult = (e: any) => {
 }
 
 const confirmDeleteUser = (user: User) => {
-  closeUserMenu()
+  closeContextMenu()
   userToDelete.value = user
   showDeleteUserDialog.value = true
 }
@@ -394,7 +465,11 @@ const handleMatchSuccess = (e: any) => {
   emit('match-success', matchedUser)
 }
 
-const handleUserClick = (user: User) => {
+const handleClick = (user: User) => {
+  if (isLongPressHandled) {
+    isLongPressHandled = false
+    return
+  }
   chatStore.listScrollTop = listAreaRef.value?.scrollTop || 0
   emit('select', user)
 }
@@ -458,12 +533,12 @@ onMounted(async () => {
   }
   window.addEventListener('match-success', handleMatchSuccess)
   window.addEventListener('check-online-result', onCheckOnlineResult)
-  document.addEventListener('click', closeUserMenu)
+  document.addEventListener('click', closeContextMenu)
 })
 
 onUnmounted(() => {
   window.removeEventListener('match-success', handleMatchSuccess)
   window.removeEventListener('check-online-result', onCheckOnlineResult)
-  document.removeEventListener('click', closeUserMenu)
+  document.removeEventListener('click', closeContextMenu)
 })
 </script>
