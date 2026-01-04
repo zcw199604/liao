@@ -115,7 +115,7 @@
                 <span v-if="user.age && user.age !== '0'">{{ user.age }}</span>
               </span>
             </div>
-            <span class="text-xs text-gray-500 shrink-0 ml-2">{{ user.lastTime }}</span>
+            <span class="text-xs text-gray-500 shrink-0 ml-2">{{ formatTime(user.lastTime || '') }}</span>
           </div>
           
           <div class="flex justify-between items-center">
@@ -239,6 +239,7 @@ import { useChat } from '@/composables/useChat'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useToast } from '@/composables/useToast'
 import { getColorClass } from '@/constants/colors'
+import { formatTime } from '@/utils/time'
 import Toast from '@/components/common/Toast.vue'
 import SettingsDrawer from '@/components/settings/SettingsDrawer.vue'
 import Dialog from '@/components/common/Dialog.vue'

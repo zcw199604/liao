@@ -4,15 +4,15 @@
 提供历史用户列表与消息历史代理，并在本地补充缓存信息（头像/昵称/最后消息）。
 
 ## 模块概述
-- **职责:** 代理上游历史接口；对返回列表进行缓存增强（用户信息、lastMsg/lastTime）
+- **职责:** 代理上游历史/收藏接口；对返回列表进行缓存增强（用户信息、lastMsg/lastTime）
 - **状态:** ✅稳定
 - **最后更新:** 2026-01-04
 
 ## 规范
 
-### 需求: 历史用户列表补充最后消息
+### 需求: 历史/收藏用户列表补充最后消息
 **模块:** User History
-历史用户列表 `/api/getHistoryUserList` 需要在响应中包含 `lastMsg` 和 `lastTime`，优先使用缓存数据。
+历史/收藏用户列表 `/api/getHistoryUserList`、`/api/getFavoriteUserList` 需要在响应中包含 `lastMsg` 和 `lastTime`，优先使用缓存数据。
 
 #### 场景: 上游用户ID字段不固定
 上游返回用户ID字段可能为 `id` / `UserID` / `userid` 等。
@@ -23,6 +23,11 @@
 
 ### [POST] /api/getHistoryUserList
 **描述:** 获取历史用户列表，并对列表进行缓存增强
+**输入:** `myUserID`, `vipcode`, `serverPort`（表单参数）
+**输出:** 用户列表（JSON），元素包含 `lastMsg`, `lastTime`（如缓存命中）
+
+### [POST] /api/getFavoriteUserList
+**描述:** 获取收藏用户列表，并对列表进行缓存增强
 **输入:** `myUserID`, `vipcode`, `serverPort`（表单参数）
 **输出:** 用户列表（JSON），元素包含 `lastMsg`, `lastTime`（如缓存命中）
 
