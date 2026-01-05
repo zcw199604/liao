@@ -157,12 +157,18 @@ export const useWebSocket = () => {
           return
         }
 
-        // 过滤系统消息（code: 12, 13, 16, 19 等），用 toast 显示
-        if (code === 12 || code === 13 || code === 16 || code === 19) {
-          console.log('系统消息，toast显示:', data)
+        // Code=12 单独处理（保留Toast提示）
+        if (code === 12) {
+          console.log('连接成功提示:', data)
           if (data.content) {
             show(data.content)
           }
+          return
+        }
+
+        // Code=13, 14, 16, 19 静默处理（不Toast，不加入聊天记录）
+        if (code === 13 || code === 14 || code === 16 || code === 19) {
+          console.log('系统消息（静默处理）[code=' + code + ']:', data)
           return
         }
 
