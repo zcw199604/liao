@@ -7,56 +7,58 @@
      </div>
 
      <!-- List -->
-     <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
-        <div v-if="favoriteStore.loading && favoriteStore.allFavorites.length === 0" class="flex justify-center py-4">
-           <Loading class="w-8 h-8 text-indigo-500" />
-        </div>
-        
-        <div v-else-if="Object.keys(favoriteStore.groupedFavorites).length === 0" class="flex flex-col items-center justify-center mt-20 text-gray-500">
-           <i class="fas fa-star text-4xl mb-3 opacity-20"></i>
-           <p>暂无收藏</p>
-        </div>
-
-        <div v-else class="space-y-6">
-           <div v-for="(favs, identityId) in favoriteStore.groupedFavorites" :key="identityId" class="animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <!-- Identity Header -->
-              <div class="flex items-center gap-2 mb-2 px-2 sticky top-0 bg-[#1e1e24]/95 backdrop-blur-sm py-2 z-10">
-                 <div class="w-1 h-4 bg-indigo-500 rounded-full"></div>
-                 <h3 class="text-sm font-bold text-gray-300">
-                    {{ getIdentityName(identityId) }}
-                 </h3>
-                 <span class="text-xs text-gray-600 font-mono hidden sm:inline">({{ identityId.slice(0, 6) }}...)</span>
-              </div>
-
-              <!-- Favorites Grid -->
-              <div class="grid grid-cols-1 gap-2">
-                 <div v-for="fav in favs" :key="fav.id" @click="openPreview(fav)" class="group flex items-center justify-between p-3 bg-[#2d2d33] hover:bg-[#35353d] rounded-lg border border-transparent hover:border-indigo-500/30 transition-all cursor-pointer">
-                    <div class="flex items-center gap-3 overflow-hidden">
-                       <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-lg">
-                          {{ (fav.targetUserName || fav.targetUserId || '?').slice(0, 1).toUpperCase() }}
+     <PullToRefresh :on-refresh="handleRefresh" class="flex-1 min-h-0">
+        <div class="h-full overflow-y-auto p-4 custom-scrollbar">
+           <div v-if="favoriteStore.loading && favoriteStore.allFavorites.length === 0" class="flex justify-center py-4">
+              <Loading class="w-8 h-8 text-indigo-500" />
+           </div>
+           
+           <div v-else-if="Object.keys(favoriteStore.groupedFavorites).length === 0" class="flex flex-col items-center justify-center mt-20 text-gray-500">
+              <i class="fas fa-star text-4xl mb-3 opacity-20"></i>
+              <p>暂无收藏</p>
+           </div>
+   
+           <div v-else class="space-y-6">
+              <div v-for="(favs, identityId) in favoriteStore.groupedFavorites" :key="identityId" class="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                 <!-- Identity Header -->
+                 <div class="flex items-center gap-2 mb-2 px-2 sticky top-0 bg-[#1e1e24]/95 backdrop-blur-sm py-2 z-10">
+                    <div class="w-1 h-4 bg-indigo-500 rounded-full"></div>
+                    <h3 class="text-sm font-bold text-gray-300">
+                       {{ getIdentityName(identityId) }}
+                    </h3>
+                    <span class="text-xs text-gray-600 font-mono hidden sm:inline">({{ identityId.slice(0, 6) }}...)</span>
+                 </div>
+   
+                 <!-- Favorites Grid -->
+                 <div class="grid grid-cols-1 gap-2">
+                    <div v-for="fav in favs" :key="fav.id" @click="openPreview(fav)" class="group flex items-center justify-between p-3 bg-[#2d2d33] hover:bg-[#35353d] rounded-lg border border-transparent hover:border-indigo-500/30 transition-all cursor-pointer">
+                       <div class="flex items-center gap-3 overflow-hidden">
+                          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-lg">
+                             {{ (fav.targetUserName || fav.targetUserId || '?').slice(0, 1).toUpperCase() }}
+                          </div>
+                          <div class="min-w-0">
+                             <div class="text-sm text-white font-medium truncate">{{ fav.targetUserName || '未知用户' }}</div>
+                             <div class="text-xs text-gray-500 truncate font-mono">{{ fav.targetUserId }}</div>
+                          </div>
                        </div>
-                       <div class="min-w-0">
-                          <div class="text-sm text-white font-medium truncate">{{ fav.targetUserName || '未知用户' }}</div>
-                          <div class="text-xs text-gray-500 truncate font-mono">{{ fav.targetUserId }}</div>
+   
+                       <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button @click.stop="openPreview(fav)" class="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-indigo-400 transition" title="预览聊天">
+                             <i class="fas fa-eye"></i>
+                          </button>
+                          <button @click.stop="directSwitch(fav)" class="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-green-400 transition" title="切换并聊天">
+                             <i class="fas fa-comment-dots"></i>
+                          </button>
+                          <button @click.stop="confirmDelete(fav)" class="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-red-400 transition" title="取消收藏">
+                             <i class="fas fa-trash-alt"></i>
+                          </button>
                        </div>
-                    </div>
-
-                    <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <button @click.stop="openPreview(fav)" class="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-indigo-400 transition" title="预览聊天">
-                          <i class="fas fa-eye"></i>
-                       </button>
-                       <button @click.stop="directSwitch(fav)" class="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-green-400 transition" title="切换并聊天">
-                          <i class="fas fa-comment-dots"></i>
-                       </button>
-                       <button @click.stop="confirmDelete(fav)" class="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-red-400 transition" title="取消收藏">
-                          <i class="fas fa-trash-alt"></i>
-                       </button>
                     </div>
                  </div>
               </div>
            </div>
         </div>
-     </div>
+     </PullToRefresh>
     
      <!-- Preview Modal -->
      <ChatHistoryPreview 
@@ -92,6 +94,7 @@ import { useWebSocket } from '@/composables/useWebSocket'
 import type { Favorite } from '@/types'
 import ChatHistoryPreview from '@/components/chat/ChatHistoryPreview.vue'
 import Loading from '@/components/common/Loading.vue'
+import PullToRefresh from '@/components/common/PullToRefresh.vue'
 import { useToast } from '@/composables/useToast'
 import { useRouter } from 'vue-router'
 
@@ -190,6 +193,10 @@ const executeDelete = async () => {
    }
    showDeleteDialog.value = false
    deleteTarget.value = null
+}
+
+const handleRefresh = async () => {
+  await favoriteStore.loadAllFavorites()
 }
 
 onMounted(() => {

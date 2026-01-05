@@ -170,7 +170,10 @@ describe('components/chat/ChatSidebar.vue', () => {
           SettingsDrawer: true,
           Dialog: true,
           MatchButton: true,
-          MatchOverlay: true
+          MatchOverlay: true,
+          PullToRefresh: {
+            template: '<div><slot /></div>'
+          }
         }
       }
     })
