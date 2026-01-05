@@ -531,6 +531,39 @@ const handleStartMatch = () => {
   }
 }
 
+const handlePreview = (e: any) => {
+  const clickedUrl = e.detail.url
+  previewUrl.value = clickedUrl
+  previewType.value = e.detail.type
+  previewCanUpload.value = false
+  previewTarget.value = null
+  
+  // 构造媒体列表（仅在查看聊天消息时有效）
+  // 通过检测 url 是否在当前消息列表的媒体中来判断
+  // 1. 提取所有媒体消息
+  const mediaMsgs = messages.value.filter(m => m.isImage || m.isVideo)
+  
+  // 2. 转换为 UploadedMedia 列表
+  const list: UploadedMedia[] = mediaMsgs.map(m => {
+     const rawUrl = m.imageUrl || m.videoUrl || m.content || ''
+     return {
+       url: getMediaUrl(rawUrl), // 确保是完整URL
+       type: m.isVideo ? 'video' : 'image'
+     }
+  })
+  
+  // 3. 只有当点击的URL在列表中找到时，才启用画廊模式
+  // 这是为了防止在"已上传文件"等其他地方预览时出现奇怪的列表
+  const found = list.some(m => m.url === clickedUrl)
+  if (found && list.length > 0) {
+    previewMediaList.value = list
+  } else {
+    previewMediaList.value = [] // 为空时 MediaPreview 会回退到单图模式
+  }
+  
+  showMediaPreview.value = true
+}
+
 onMounted(async () => {
   if (!userStore.currentUser) {
     router.push('/identity')
@@ -567,43 +600,11 @@ onMounted(async () => {
     })
   }
 
-  const handlePreview = (e: any) => {
-    const clickedUrl = e.detail.url
-    previewUrl.value = clickedUrl
-    previewType.value = e.detail.type
-    previewCanUpload.value = false
-    previewTarget.value = null
-    
-    // 构造媒体列表（仅在查看聊天消息时有效）
-    // 通过检测 url 是否在当前消息列表的媒体中来判断
-    // 1. 提取所有媒体消息
-    const mediaMsgs = messages.value.filter(m => m.isImage || m.isVideo)
-    
-    // 2. 转换为 UploadedMedia 列表
-    const list: UploadedMedia[] = mediaMsgs.map(m => {
-       const rawUrl = m.imageUrl || m.videoUrl || m.content || ''
-       return {
-         url: getMediaUrl(rawUrl), // 确保是完整URL
-         type: m.isVideo ? 'video' : 'image'
-       }
-    })
-    
-    // 3. 只有当点击的URL在列表中找到时，才启用画廊模式
-    // 这是为了防止在"已上传文件"等其他地方预览时出现奇怪的列表
-    const found = list.some(m => m.url === clickedUrl)
-    if (found && list.length > 0) {
-      previewMediaList.value = list
-    } else {
-      previewMediaList.value = [] // 为空时 MediaPreview 会回退到单图模式
-    }
-    
-    showMediaPreview.value = true
-  }
   window.addEventListener('preview-media', handlePreview)
+})
 
-  onUnmounted(() => {
-    window.removeEventListener('preview-media', handlePreview)
-  })
+onUnmounted(() => {
+  window.removeEventListener('preview-media', handlePreview)
 })
 
 watch(
