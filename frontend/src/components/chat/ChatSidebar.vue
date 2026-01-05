@@ -72,6 +72,11 @@
       </div>
     </div>
 
+    <!-- 加载状态指示器 (用于 Tab 切换刷新时的反馈) -->
+    <div v-if="isRefreshing" class="h-0.5 w-full bg-[#18181b] overflow-hidden shrink-0">
+       <div class="h-full bg-blue-500 animate-progress-indeterminate"></div>
+    </div>
+
     <!-- 列表内容 -->
     <PullToRefresh :on-refresh="refreshCurrentTab" class="flex-1 min-h-0">
       <div class="h-full overflow-y-auto no-scrollbar px-4 pt-2" ref="listAreaRef" @click="closeContextMenu">

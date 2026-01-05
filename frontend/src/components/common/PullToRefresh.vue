@@ -4,6 +4,7 @@
     @touchstart="handleTouchStart"
     @touchmove="handleTouchMove"
     @touchend="handleTouchEnd"
+    @touchcancel="handleTouchEnd"
   >
     <!-- 下拉指示器 (绝对定位在顶部上方) -->
     <div 
@@ -38,7 +39,7 @@
       ref="contentRef"
       class="flex-1 h-full relative"
       :style="{ 
-        transform: `translateY(${currentPull}px)`,
+        transform: currentPull > 0 ? `translateY(${currentPull}px)` : 'none',
         transition: isTouching ? 'none' : 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
       }"
     >
@@ -72,7 +73,7 @@ const scrollContainer = ref<HTMLElement | null>(null)
 const status = ref<'idle' | 'pulling' | 'reaching' | 'refreshing'>('idle')
 const currentPull = ref(0)
 const isTouching = ref(false)
-let startY = 0
+let startY: number | null = null
 let startScrollTop = 0
 
 // 尝试查找内部的滚动容器
@@ -111,14 +112,14 @@ const handleTouchStart = (e: TouchEvent) => {
 }
 
 const handleTouchMove = (e: TouchEvent) => {
-  if (status.value === 'refreshing' || startY === 0 || e.touches.length === 0) return
+  if (status.value === 'refreshing' || startY === null || e.touches.length === 0) return
   
   const container = scrollContainer.value
   if (!container) return
   
   // 如果过程中滚动条不再是0，说明用户在往回滚或者列表自己动了，取消下拉逻辑
   if (container.scrollTop > 0) {
-    startY = 0 // 重置，防止后续误判
+    startY = null // 重置，防止后续误判
     currentPull.value = 0
     status.value = 'idle'
     return
@@ -153,7 +154,7 @@ const handleTouchMove = (e: TouchEvent) => {
 
 const handleTouchEnd = async () => {
   isTouching.value = false
-  startY = 0
+  startY = null
   
   if (status.value === 'reaching') {
     status.value = 'refreshing'
