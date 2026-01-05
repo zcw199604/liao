@@ -29,6 +29,10 @@ public class UserHistoryController {
 
     private static final Logger log = LoggerFactory.getLogger(UserHistoryController.class);
 
+    private static long elapsedMs(long startNs) {
+        return (System.nanoTime() - startNs) / 1_000_000;
+    }
+
     private final RestTemplate restTemplate;
 
     @Autowired
@@ -85,6 +89,14 @@ public class UserHistoryController {
             @RequestParam(required = false, defaultValue = "http://v1.chat2019.cn/randomdeskrynew4m1phj.html?v=4m1phj") String referer,
             @RequestParam(required = false, defaultValue = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36") String userAgent) {
 
+        long totalStartNs = System.nanoTime();
+        long upstreamMs = -1L;
+        long enrichUserInfoMs = -1L;
+        long lastMsgMs = -1L;
+        int resultSize = -1;
+        HttpStatusCode upstreamStatus = null;
+        boolean cacheEnabled = userInfoCacheService != null;
+
         log.info("获取历史用户列表请求: myUserID={}, vipcode={}, serverPort={}", myUserID, vipcode, serverPort);
 
         try {
@@ -115,15 +127,20 @@ public class UserHistoryController {
             HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
 
             // 调用上游接口
+            long upstreamStartNs = System.nanoTime();
             ResponseEntity<String> response = restTemplate.postForEntity(UPSTREAM_API_URL, request, String.class);
+            upstreamMs = elapsedMs(upstreamStartNs);
+            upstreamStatus = response.getStatusCode();
+            String responseBody = response.getBody();
 
-            log.info("上游接口返回: status={}, body={}", response.getStatusCode(), response.getBody());
+            log.info("上游接口返回: status={}, bodyLength={}", response.getStatusCode(), responseBody == null ? 0 : responseBody.length());
+            log.debug("上游接口 body: {}", responseBody);
 
             // 增强数据：补充用户信息
-            if (response.getStatusCode() == HttpStatus.OK && userInfoCacheService != null && response.getBody() != null) {
+            if (response.getStatusCode() == HttpStatus.OK && cacheEnabled && responseBody != null) {
                 try {
                     com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                    com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(response.getBody());
+                    com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(responseBody);
                     
                     if (root.isArray()) {
                         java.util.List<Map<String, Object>> list = new ArrayList<>();
@@ -143,10 +160,15 @@ public class UserHistoryController {
                         }
 
                         // 1. 批量增强用户信息（昵称、性别、年龄、地址）
+                        long enrichUserInfoStartNs = System.nanoTime();
                         list = userInfoCacheService.batchEnrichUserInfo(list, idKey);
+                        enrichUserInfoMs = elapsedMs(enrichUserInfoStartNs);
 
                         // 2. 批量增强最后消息（lastMsg、lastTime）
+                        long enrichLastMsgStartNs = System.nanoTime();
                         list = userInfoCacheService.batchEnrichWithLastMessage(list, myUserID);
+                        lastMsgMs = elapsedMs(enrichLastMsgStartNs);
+                        resultSize = list.size();
 
                         return ResponseEntity.ok(mapper.writeValueAsString(list));
                     }
@@ -155,11 +177,24 @@ public class UserHistoryController {
                 }
             }
 
-            return ResponseEntity.ok(response.getBody());
+            return ResponseEntity.ok(responseBody);
 
         } catch (Exception e) {
             log.error("调用上游接口失败", e);
             return ResponseEntity.status(500).body("{\"error\":\"调用上游接口失败: " + e.getMessage() + "\"}");
+        } finally {
+            long totalMs = elapsedMs(totalStartNs);
+            log.info(
+                    "[timing] /api/getHistoryUserList myUserID={} status={} size={} upstreamMs={} enrichUserInfoMs={} lastMsgMs={} totalMs={} cacheEnabled={}",
+                    myUserID,
+                    upstreamStatus,
+                    resultSize,
+                    upstreamMs,
+                    enrichUserInfoMs,
+                    lastMsgMs,
+                    totalMs,
+                    cacheEnabled
+            );
         }
     }
 
@@ -181,6 +216,14 @@ public class UserHistoryController {
             @RequestParam(required = false, defaultValue = "") String cookieData,
             @RequestParam(required = false, defaultValue = "http://v1.chat2019.cn/randomdeskrynew4m1phj.html?v=4m1phj") String referer,
             @RequestParam(required = false, defaultValue = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36") String userAgent) {
+
+        long totalStartNs = System.nanoTime();
+        long upstreamMs = -1L;
+        long enrichUserInfoMs = -1L;
+        long lastMsgMs = -1L;
+        int resultSize = -1;
+        HttpStatusCode upstreamStatus = null;
+        boolean cacheEnabled = userInfoCacheService != null;
 
         log.info("获取收藏用户列表请求: myUserID={}, vipcode={}, serverPort={}", myUserID, vipcode, serverPort);
 
@@ -212,15 +255,20 @@ public class UserHistoryController {
             HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
 
             // 调用上游接口
+            long upstreamStartNs = System.nanoTime();
             ResponseEntity<String> response = restTemplate.postForEntity(UPSTREAM_FAVORITE_API_URL, request, String.class);
+            upstreamMs = elapsedMs(upstreamStartNs);
+            upstreamStatus = response.getStatusCode();
+            String responseBody = response.getBody();
 
-            log.info("上游收藏接口返回: status={}, body={}", response.getStatusCode(), response.getBody());
+            log.info("上游收藏接口返回: status={}, bodyLength={}", response.getStatusCode(), responseBody == null ? 0 : responseBody.length());
+            log.debug("上游收藏接口 body: {}", responseBody);
 
             // 增强数据：补充用户信息
-            if (response.getStatusCode() == HttpStatus.OK && userInfoCacheService != null && response.getBody() != null) {
+            if (response.getStatusCode() == HttpStatus.OK && cacheEnabled && responseBody != null) {
                 try {
                     com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                    com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(response.getBody());
+                    com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(responseBody);
 
                     if (root.isArray()) {
                         java.util.List<Map<String, Object>> list = new ArrayList<>();
@@ -240,10 +288,15 @@ public class UserHistoryController {
                         }
 
                         // 1. 批量增强用户信息（昵称、性别、年龄、地址）
+                        long enrichUserInfoStartNs = System.nanoTime();
                         list = userInfoCacheService.batchEnrichUserInfo(list, idKey);
+                        enrichUserInfoMs = elapsedMs(enrichUserInfoStartNs);
 
                         // 2. 批量增强最后消息（lastMsg、lastTime）
+                        long enrichLastMsgStartNs = System.nanoTime();
                         list = userInfoCacheService.batchEnrichWithLastMessage(list, myUserID);
+                        lastMsgMs = elapsedMs(enrichLastMsgStartNs);
+                        resultSize = list.size();
 
                         return ResponseEntity.ok(mapper.writeValueAsString(list));
                     }
@@ -252,11 +305,24 @@ public class UserHistoryController {
                 }
             }
 
-            return ResponseEntity.ok(response.getBody());
+            return ResponseEntity.ok(responseBody);
 
         } catch (Exception e) {
             log.error("调用上游收藏接口失败", e);
             return ResponseEntity.status(500).body("{\"error\":\"调用上游接口失败: " + e.getMessage() + "\"}");
+        } finally {
+            long totalMs = elapsedMs(totalStartNs);
+            log.info(
+                    "[timing] /api/getFavoriteUserList myUserID={} status={} size={} upstreamMs={} enrichUserInfoMs={} lastMsgMs={} totalMs={} cacheEnabled={}",
+                    myUserID,
+                    upstreamStatus,
+                    resultSize,
+                    upstreamMs,
+                    enrichUserInfoMs,
+                    lastMsgMs,
+                    totalMs,
+                    cacheEnabled
+            );
         }
     }
 

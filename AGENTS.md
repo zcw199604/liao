@@ -13,6 +13,13 @@ Backend (Java 17, Spring Boot 3):
 - `mvn test` run JUnit tests.
 - `mvn clean package -DskipTests` build the runnable jar.
 
+编译项目（使用指定的 JDK 17）：
+```sh
+export JAVA_HOME="C:\Users\MyPC\.jdks\corretto-17.0.16"
+export PATH="$JAVA_HOME/bin:$PATH"
+mvn clean compile
+```
+
 Frontend (Node 20 in CI, Vite dev on `http://localhost:3000`):
 - `cd frontend && npm ci` install dependencies.
 - `npm run dev` start dev server (proxies `/api` and `/ws` to `:8080`).

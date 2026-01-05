@@ -15,6 +15,7 @@
 | 202601051001 | vue-component-tests | 测试 | ✅已完成 | [链接](2026-01/202601051001_vue-component-tests/) |
 | 202601051025 | vue-view-tests | 测试 | ✅已完成 | [链接](2026-01/202601051025_vue-view-tests/) |
 | 202601051105 | frontend-test-coverage | 测试 | ✅已完成 | [链接](2026-01/202601051105_frontend-test-coverage/) |
+| 202601051213 | perf_userlist_timing_logs | 优化 | ⚠️待复验 | [链接](2026-01/202601051213_perf_userlist_timing_logs/) |
 
 ---
 
@@ -29,3 +30,4 @@
 - [202601051001_vue-component-tests](2026-01/202601051001_vue-component-tests/) - 前端补充 Vue 组件级测试（SFC 渲染/交互）
 - [202601051025_vue-view-tests](2026-01/202601051025_vue-view-tests/) - 前端补充视图级页面测试（LoginPage/IdentityPicker/ChatListView/ChatRoomView）
 - [202601051105_frontend-test-coverage](2026-01/202601051105_frontend-test-coverage/) - 前端补充核心聊天业务与关键组件测试覆盖（composables/store/components/utils）
+- [202601051213_perf_userlist_timing_logs](2026-01/202601051213_perf_userlist_timing_logs/) - 为历史/收藏用户列表增加分段耗时日志（上游/补充用户信息/最后消息/总耗时）

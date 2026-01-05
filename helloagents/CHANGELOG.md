@@ -13,6 +13,7 @@
 - 前端：补充核心聊天业务测试（useChat/useMessage/useWebSocket、chat/message store）。
 - 前端：补充核心聊天与设置/媒体组件测试（ChatInput/MessageList/MessageBubble/EmojiPanel/UploadMenu/MatchButton/SettingsDrawer/MediaPreview）。
 - 前端：补充 utils 测试（cookie/file/media）。
+- 后端：为 `/api/getHistoryUserList` 与 `/api/getFavoriteUserList` 增加分段耗时日志（上游/补充用户信息/最后消息/总耗时）。
 
 ### 修复
 - 后端：`/api/getFavoriteUserList` 对齐 `/api/getHistoryUserList` 的缓存增强逻辑，补全用户信息并补齐 `lastMsg/lastTime`。
