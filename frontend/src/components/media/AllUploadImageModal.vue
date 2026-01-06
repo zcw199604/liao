@@ -160,6 +160,7 @@
         :url="previewUrl"
         :type="previewType"
         :can-upload="previewCanUpload"
+        :media-list="mediaStore.allUploadImages"
         @upload="confirmPreviewUpload"
       />
     </div>
