@@ -4,10 +4,12 @@ import * as mediaApi from '@/api/media'
 import { IMG_SERVER_IMAGE_PORT, IMG_SERVER_VIDEO_PORT } from '@/constants/config'
 import type { UploadedMedia } from '@/types'
 import { generateCookie } from '@/utils/cookie'
+import { useToast } from '@/composables/useToast'
 
 export const useUpload = () => {
   const mediaStore = useMediaStore()
   const uploadLoading = ref(false)
+  const { error: showError } = useToast()
 
   const uploadFile = async (file: File, userId: string, userName: string): Promise<UploadedMedia | null> => {
     uploadLoading.value = true
@@ -55,8 +57,22 @@ export const useUpload = () => {
       }
 
       return null
-    } catch (error) {
+    } catch (error: any) {
       console.error('上传失败:', error)
+
+      // 解析错误信息
+      let errorMessage = '上传失败，请稍后重试'
+      if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error
+        // 如果后端返回了localPath，说明本地文件已保存
+        if (error.response.data.localPath) {
+          errorMessage += '。文件已保存到本地，可在"全站图片库"中重试'
+        }
+      } else if (error?.message) {
+        errorMessage = `上传失败: ${error.message}`
+      }
+
+      showError(errorMessage)
       return null
     } finally {
       uploadLoading.value = false

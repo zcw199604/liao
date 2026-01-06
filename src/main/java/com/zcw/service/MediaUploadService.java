@@ -364,6 +364,51 @@ public class MediaUploadService {
     }
 
     /**
+     * 获取所有上传图片（带详细信息）-> 查 MediaFile
+     * 返回完整的MediaFileDTO对象，包含文件元数据
+     */
+    public List<MediaFileDTO> getAllUploadImagesWithDetails(String userId, int page, int pageSize, String hostHeader) {
+        if (page < 1) page = 1;
+        Pageable pageable = PageRequest.of(page - 1, pageSize);
+
+        // 查询所有文件，按更新时间倒序
+        Page<MediaFile> resultPage = mediaFileRepository.findAllByOrderByUpdateTimeDesc(pageable);
+
+        // 转换为DTO
+        return resultPage.getContent().stream()
+                .map(file -> convertToDTO(file, hostHeader))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 将MediaFile转换为MediaFileDTO
+     */
+    private MediaFileDTO convertToDTO(MediaFile file, String hostHeader) {
+        MediaFileDTO dto = new MediaFileDTO();
+        dto.setUrl(convertToLocalUrl(file.getLocalPath(), hostHeader));
+        dto.setType(inferTypeFromExtension(file.getFileExtension()));
+        dto.setLocalFilename(file.getLocalFilename());
+        dto.setOriginalFilename(file.getOriginalFilename());
+        dto.setFileSize(file.getFileSize());
+        dto.setFileType(file.getFileType());
+        dto.setFileExtension(file.getFileExtension());
+        dto.setUploadTime(file.getUploadTime());
+        dto.setUpdateTime(file.getUpdateTime());
+        return dto;
+    }
+
+    /**
+     * 根据文件扩展名推断媒体类型
+     */
+    private String inferTypeFromExtension(String extension) {
+        if (extension == null) return "file";
+        String ext = extension.toLowerCase();
+        if (ext.matches("\\.(jpg|jpeg|png|gif|webp|bmp)")) return "image";
+        if (ext.matches("\\.(mp4|mov|avi|mkv|webm)")) return "video";
+        return "file";
+    }
+
+    /**
      * 删除媒体
      */
     @Transactional

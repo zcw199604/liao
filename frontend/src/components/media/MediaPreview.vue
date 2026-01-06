@@ -19,6 +19,16 @@
            </div>
 
            <div class="flex items-center gap-4 pointer-events-auto">
+              <!-- 信息按钮 -->
+              <button
+                v-if="hasMediaDetails"
+                @click.stop="showDetails = true"
+                class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition backdrop-blur-sm"
+                title="查看详细信息"
+              >
+                <i class="fas fa-info-circle text-sm"></i>
+              </button>
+
               <!-- 下载按钮 -->
               <a 
                 :href="currentMedia.url" 
@@ -141,12 +151,16 @@
         </button>
       </div>
     </transition>
+
+    <!-- 详情面板 -->
+    <MediaDetailPanel v-model:visible="showDetails" :media="currentMedia" />
   </teleport>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, computed, onUnmounted, nextTick } from 'vue'
 import type { UploadedMedia } from '@/types'
+import MediaDetailPanel from './MediaDetailPanel.vue'
 
 interface Props {
   visible: boolean
@@ -173,6 +187,14 @@ const translateY = ref(0)
 const isDragging = ref(false)
 const currentIndex = ref(0)
 const thumbnailContainer = ref<HTMLElement | null>(null)
+
+// 详情面板状态
+const showDetails = ref(false)
+
+// 判断是否有详细信息
+const hasMediaDetails = computed(() => {
+  return currentMedia.value?.fileSize !== undefined
+})
 
 // 整合后的媒体列表
 const realMediaList = computed<UploadedMedia[]>(() => {

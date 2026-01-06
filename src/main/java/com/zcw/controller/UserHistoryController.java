@@ -731,13 +731,16 @@ public class UserHistoryController {
             return ResponseEntity.ok(response.getBody());
 
         } catch (Exception e) {
-            // 上游上传失败，删除本地文件
-            if (localPath != null) {
-                fileStorageService.deleteFile(localPath);
-                log.info("上传失败，已清理本地文件: {}", localPath);
-            }
-            log.error("上传媒体失败: contentType={}", file.getContentType(), e);
-            return ResponseEntity.status(500).body("{\"error\":\"上传媒体失败: " + e.getMessage() + "\"}");
+            // 上游上传失败，保留本地文件供用户在"全站图片库"中重试
+            log.error("上传媒体到上游失败，本地文件已保存: localPath={}, contentType={}", localPath, file.getContentType(), e);
+
+            // 返回错误信息，包含本地路径供前端使用
+            String errorMessage = e.getMessage() != null ? e.getMessage() : "上传到上游服务器失败";
+            return ResponseEntity.status(500).body(String.format(
+                "{\"error\":\"上传媒体失败: %s\",\"localPath\":\"%s\"}",
+                errorMessage,
+                localPath != null ? localPath : ""
+            ));
         }
     }
 

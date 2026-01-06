@@ -357,8 +357,8 @@ public class MediaHistoryController {
         log.info("获取所有上传图片: userId={}, page={}, pageSize={}", userId, page, pageSize);
 
         try {
-            // 查询图片列表
-            List<String> imageUrls = mediaUploadService.getAllUploadImages(userId, page, pageSize, hostHeader);
+            // 查询图片列表（返回完整MediaFileDTO对象）
+            List<com.zcw.model.MediaFileDTO> mediaList = mediaUploadService.getAllUploadImagesWithDetails(userId, page, pageSize, hostHeader);
 
             // 查询总数
             int total = mediaUploadService.getAllUploadImagesCount(userId);
@@ -370,13 +370,13 @@ public class MediaHistoryController {
             // 构造分页响应
             Map<String, Object> response = new HashMap<>();
             response.put("port", availablePort);
-            response.put("data", imageUrls);
+            response.put("data", mediaList);  // 返回对象数组而非URL字符串数组
             response.put("total", total);
             response.put("page", page);
             response.put("pageSize", pageSize);
             response.put("totalPages", (int) Math.ceil((double) total / pageSize));
 
-            log.info("返回 {} 张图片，总共 {} 张，第{}/{}页", imageUrls.size(), total, page, response.get("totalPages"));
+            log.info("返回 {} 个媒体文件，总共 {} 个，第{}/{}页", mediaList.size(), total, page, response.get("totalPages"));
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
