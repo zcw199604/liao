@@ -66,17 +66,18 @@ export const useMediaStore = defineStore('media', () => {
     try {
       const res = await mediaApi.getAllUploadImages(userId, page, allUploadPageSize.value)
       if (res && Array.isArray(res.data)) {
-        const newItems: UploadedMedia[] = res.data
-          .filter((url: unknown) => typeof url === 'string' && !!url)
-          .map((url: string) => {
-            const localPath = extractUploadLocalPath(url)
-            const filename = localPath.substring(localPath.lastIndexOf('/') + 1)
-            return { 
-              url, 
-              type: inferMediaTypeFromUrl(url),
-              localFilename: filename
-            }
-          })
+        // 后端现在返回MediaFileDTO对象数组，直接使用
+        const newItems: UploadedMedia[] = res.data.map((item: any) => ({
+          url: item.url,
+          type: item.type,
+          localFilename: item.localFilename,
+          originalFilename: item.originalFilename,
+          fileSize: item.fileSize,
+          fileType: item.fileType,
+          fileExtension: item.fileExtension,
+          uploadTime: item.uploadTime,
+          updateTime: item.updateTime
+        }))
 
         if (page === 1) {
           allUploadImages.value = newItems
