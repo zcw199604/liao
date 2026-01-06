@@ -79,7 +79,15 @@
 
     <!-- 列表内容 -->
     <PullToRefresh :on-refresh="refreshCurrentTab" class="flex-1 min-h-0">
-      <div class="h-full overflow-y-auto no-scrollbar px-4 pt-2" ref="listAreaRef" @click="closeContextMenu">
+      <div 
+        class="h-full overflow-y-auto no-scrollbar px-4 pt-2" 
+        ref="listAreaRef" 
+        @click="closeContextMenu"
+        :style="{ 
+          transform: `translateX(${listTranslateX}px)`, 
+          transition: isAnimating ? 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none' 
+        }"
+      >
         <div
           v-for="user in chatStore.displayList"
           :key="user.id"
@@ -233,9 +241,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useSwipe } from '@vueuse/core'
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { useMessageStore } from '@/stores/message'
@@ -243,7 +250,9 @@ import { useFavoriteStore } from '@/stores/favorite'
 import { useChat } from '@/composables/useChat'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useToast } from '@/composables/useToast'
+import { useSwipeAction } from '@/composables/useInteraction'
 import { getColorClass } from '@/constants/colors'
+import { TAB_SWIPE_THRESHOLD, CONTEXT_MENU_WIDTH, CONTEXT_MENU_HEIGHT } from '@/constants/interaction'
 import { formatTime } from '@/utils/time'
 import Toast from '@/components/common/Toast.vue'
 import SettingsDrawer from '@/components/settings/SettingsDrawer.vue'
@@ -280,6 +289,10 @@ const showDeleteUserDialog = ref(false)
 const userToDelete = ref<User | null>(null)
 const listAreaRef = ref<HTMLElement | null>(null)
 const isRefreshing = ref(false)
+
+// 列表偏移量 (用于跟手滑动)
+const listTranslateX = ref(0)
+const isAnimating = ref(false)
 
 // 上下文菜单状态
 const showContextMenu = ref(false)
@@ -348,13 +361,11 @@ const startLongPress = (user: User, event: MouseEvent | TouchEvent) => {
     showContextMenu.value = true
     contextMenuUser.value = user
     // 简单的边界处理，避免溢出屏幕
-    const menuWidth = 128
-    const menuHeight = 120
     let x = clientX
     let y = clientY
     
-    if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10
-    if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 10
+    if (x + CONTEXT_MENU_WIDTH > window.innerWidth) x = window.innerWidth - CONTEXT_MENU_WIDTH - 10
+    if (y + CONTEXT_MENU_HEIGHT > window.innerHeight) y = window.innerHeight - CONTEXT_MENU_HEIGHT - 10
     
     contextMenuPos.value = { x, y }
     // 触发震动反馈 (如果支持)
@@ -384,13 +395,11 @@ const handleContextMenu = (user: User, event: MouseEvent) => {
   showContextMenu.value = true
   contextMenuUser.value = user
   
-  const menuWidth = 128
-  const menuHeight = 120
   let x = event.clientX
   let y = event.clientY
   
-  if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10
-  if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 10
+  if (x + CONTEXT_MENU_WIDTH > window.innerWidth) x = window.innerWidth - CONTEXT_MENU_WIDTH - 10
+  if (y + CONTEXT_MENU_HEIGHT > window.innerHeight) y = window.innerHeight - CONTEXT_MENU_HEIGHT - 10
   
   contextMenuPos.value = { x, y }
 }
@@ -400,24 +409,50 @@ const closeContextMenu = () => {
   contextMenuUser.value = null
 }
 
-useSwipe(listAreaRef, {
-  threshold: 80,
-  passive: false,
-  onSwipeEnd: (_, direction) => {
-    if (direction !== 'left' && direction !== 'right') return
-
+// 列表滑动交互
+const { isSwiping } = useSwipeAction(listAreaRef, {
+  threshold: TAB_SWIPE_THRESHOLD,
+  passive: true, // 保持滚动流畅，但在横滑判定后需要注意
+  onSwipeProgress: (deltaX, deltaY) => {
+    if (showContextMenu.value) return // 菜单打开时不滑动
+    
+    // 简单的方向锁定：如果垂直移动明显，则忽略水平滑动
+    if (Math.abs(deltaY) > Math.abs(deltaX)) {
+      listTranslateX.value = 0
+      return
+    }
+    
+    // 限制最大滑动距离，增加阻尼感
+    const limit = 120
+    const dampening = 0.5
+    let move = deltaX * dampening
+    if (move > limit) move = limit + (move - limit) * 0.2
+    if (move < -limit) move = -limit + (move + limit) * 0.2
+    
+    listTranslateX.value = move
+  },
+  onSwipeEnd: (direction) => {
     if (showContextMenu.value) {
       closeContextMenu()
+      listTranslateX.value = 0
       return
     }
 
     showTopMenu.value = false
-
+    
+    // 触发切换
     if (direction === 'left' && chatStore.activeTab === 'history') {
       chatStore.activeTab = 'favorite'
     } else if (direction === 'right' && chatStore.activeTab === 'favorite') {
       chatStore.activeTab = 'history'
     }
+
+    // 回弹复位
+    isAnimating.value = true
+    listTranslateX.value = 0
+    setTimeout(() => {
+      isAnimating.value = false
+    }, 300)
   }
 })
 

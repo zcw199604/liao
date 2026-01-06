@@ -1,11 +1,22 @@
 <template>
-  <div ref="pageRef" class="page-container bg-[#0f0f13] relative overflow-hidden">
+  <div 
+    ref="pageRef" 
+    class="page-container bg-[#0f0f13] relative overflow-hidden"
+    :style="{
+      transform: `translateX(${pageTranslateX}px)`,
+      transition: isPageAnimating ? 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none'
+    }"
+  >
     <!-- 侧边栏抽屉 -->
     <Transition name="slide-right">
       <div
         v-if="showSidebar"
         ref="sidebarRef"
         class="absolute inset-y-0 left-0 w-[80%] max-w-sm z-50 shadow-2xl bg-[#0f0f13] border-r border-gray-800"
+        :style="{
+          transform: `translateX(${sidebarTranslateX}px)`,
+          transition: isSidebarAnimating ? 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none'
+        }"
       >
         <ChatSidebar
           :current-user-id="chatStore.currentChatUser?.id"
@@ -173,7 +184,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useSwipe } from '@vueuse/core'
 import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
 import { useMediaStore } from '@/stores/media'
@@ -183,9 +193,18 @@ import { useUpload } from '@/composables/useUpload'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useToast } from '@/composables/useToast'
 import { useChat } from '@/composables/useChat'
+import { useSwipeAction } from '@/composables/useInteraction'
 import { extractUploadLocalPath, inferMediaTypeFromUrl } from '@/utils/media'
 import { generateCookie } from '@/utils/cookie'
 import { IMG_SERVER_IMAGE_PORT, IMG_SERVER_VIDEO_PORT } from '@/constants/config'
+import { 
+  EDGE_BACK_START_PX, 
+  EDGE_BACK_MIN_SWIPE_PX, 
+  EDGE_BACK_MAX_Y_PX, 
+  DRAWER_CLOSE_EDGE_PX, 
+  DRAWER_CLOSE_MIN_SWIPE_PX, 
+  DRAWER_CLOSE_MAX_Y_PX 
+} from '@/constants/interaction'
 import * as mediaApi from '@/api/media'
 import ChatHeader from '@/components/chat/ChatHeader.vue'
 import ChatSidebar from '@/components/chat/ChatSidebar.vue'
@@ -230,6 +249,12 @@ const showSidebar = ref(false)
 const showHistoryMediaModal = ref(false)
 const historyMediaLoading = ref(false)
 const historyMedia = ref<UploadedMedia[]>([])
+
+// 手势动画状态
+const pageTranslateX = ref(0)
+const sidebarTranslateX = ref(0)
+const isPageAnimating = ref(false)
+const isSidebarAnimating = ref(false)
 
 const messages = computed(() => {
   if (!chatStore.currentChatUser) return []
@@ -359,39 +384,85 @@ const handleBack = () => {
   router.push('/list')
 }
 
-const EDGE_BACK_START_PX = 24
-const EDGE_BACK_MIN_SWIPE_PX = 90
-const EDGE_BACK_MAX_Y_PX = 60
-
-const { coordsStart: pageSwipeStart, lengthX: pageSwipeX, lengthY: pageSwipeY } = useSwipe(pageRef, {
-  threshold: 10,
+// 页面边缘右滑返回
+const { coordsStart: pageSwipeStart } = useSwipeAction(pageRef, {
+  threshold: 0, // 手动处理
   passive: true,
-  onSwipeEnd: () => {
-    if (showSidebar.value) return
+  onSwipeProgress: (deltaX, deltaY) => {
+    if (showSidebar.value) return // 抽屉开启时不响应
+    
+    // 起手位置判定
     if (pageSwipeStart.x > EDGE_BACK_START_PX) return
-    if (pageSwipeX.value < -EDGE_BACK_MIN_SWIPE_PX && Math.abs(pageSwipeY.value) < EDGE_BACK_MAX_Y_PX) {
-      handleBack()
+
+    // 方向判定
+    if (Math.abs(deltaY) > Math.abs(deltaX)) return // 垂直主导忽略
+    if (deltaX <= 0) return // 仅处理向右滑
+
+    // 跟手位移
+    // 增加阻尼
+    pageTranslateX.value = Math.min(deltaX, 150) // 限制最大视觉位移
+  },
+  onSwipeEnd: (direction) => {
+    if (showSidebar.value) return
+    if (pageSwipeStart.x > EDGE_BACK_START_PX) {
+      pageTranslateX.value = 0
+      return
+    }
+
+    if (direction === 'right' && pageTranslateX.value > 80) { // 简单阈值
+       // 触发返回
+       handleBack()
+    } else {
+       // 回弹
+       isPageAnimating.value = true
+       pageTranslateX.value = 0
+       setTimeout(() => {
+         isPageAnimating.value = false
+       }, 300)
     }
   }
 })
 
-const DRAWER_CLOSE_EDGE_PX = 32
-const DRAWER_CLOSE_MIN_SWIPE_PX = 80
-const DRAWER_CLOSE_MAX_Y_PX = 60
-
-const { coordsStart: drawerSwipeStart, lengthX: drawerSwipeX, lengthY: drawerSwipeY } = useSwipe(sidebarRef, {
-  threshold: 10,
-  passive: false,
-  onSwipeEnd: () => {
+// 侧边栏抽屉左滑关闭
+const { coordsStart: drawerSwipeStart } = useSwipeAction(sidebarRef, {
+  threshold: 0,
+  passive: true,
+  onSwipeProgress: (deltaX, deltaY) => {
     if (!showSidebar.value) return
     const el = sidebarRef.value
     if (!el) return
 
+    // 起手热区判定 (右侧边缘)
     const rect = el.getBoundingClientRect()
+    // 注意：抽屉是 w-[80%]，right 是抽屉的右边缘
+    // 用户在抽屉内部右侧边缘起手向左滑
     if (drawerSwipeStart.x < rect.right - DRAWER_CLOSE_EDGE_PX) return
 
-    if (drawerSwipeX.value > DRAWER_CLOSE_MIN_SWIPE_PX && Math.abs(drawerSwipeY.value) < DRAWER_CLOSE_MAX_Y_PX) {
+    // 方向判定 (左滑 deltaX < 0)
+    if (deltaX >= 0) return 
+    if (Math.abs(deltaY) > Math.abs(deltaX)) return
+
+    // 跟手位移 (负值)
+    sidebarTranslateX.value = deltaX
+  },
+  onSwipeEnd: (direction) => {
+    if (!showSidebar.value) return
+    
+    // 判定是否关闭
+    // 向左滑且距离足够
+    if (sidebarTranslateX.value < -80) {
       showSidebar.value = false
+      // 关闭后需要重置状态，但 Transition 会处理离场，这里重置位移以便下次打开
+      setTimeout(() => {
+        sidebarTranslateX.value = 0
+      }, 300)
+    } else {
+      // 回弹
+      isSidebarAnimating.value = true
+      sidebarTranslateX.value = 0
+      setTimeout(() => {
+        isSidebarAnimating.value = false
+      }, 300)
     }
   }
 })
