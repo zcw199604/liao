@@ -7,6 +7,7 @@
 ## [Unreleased]
 
 ### 新增
+- 增强聊天交互：会话列表左右滑切换“消息/收藏”、聊天页边缘右滑返回、侧边栏左滑关闭、长按菜单点击外关闭
 - 前端：接入 Vitest + jsdom，并为核心模块补充单元测试（utils/time/string、useToast、request、auth store）。
 - 前端：补充 Vue 组件级测试（Dialog/Toast/Loading/UserList/ChatSidebar）。
 - 前端：补充视图级页面测试（LoginPage/IdentityPicker/ChatListView/ChatRoomView）。

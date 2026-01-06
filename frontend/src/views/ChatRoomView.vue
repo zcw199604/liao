@@ -1,8 +1,12 @@
 <template>
-  <div class="page-container bg-[#0f0f13] relative overflow-hidden">
+  <div ref="pageRef" class="page-container bg-[#0f0f13] relative overflow-hidden">
     <!-- 侧边栏抽屉 -->
     <Transition name="slide-right">
-      <div v-if="showSidebar" class="absolute inset-y-0 left-0 w-[80%] max-w-sm z-50 shadow-2xl bg-[#0f0f13] border-r border-gray-800">
+      <div
+        v-if="showSidebar"
+        ref="sidebarRef"
+        class="absolute inset-y-0 left-0 w-[80%] max-w-sm z-50 shadow-2xl bg-[#0f0f13] border-r border-gray-800"
+      >
         <ChatSidebar
           :current-user-id="chatStore.currentChatUser?.id"
           @select="handleSidebarSelect"
@@ -169,6 +173,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useSwipe } from '@vueuse/core'
 import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
 import { useMediaStore } from '@/stores/media'
@@ -218,6 +223,8 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const messageListRef = ref<any>(null)
 
 const showClearDialog = ref(false)
+const pageRef = ref<HTMLElement | null>(null)
+const sidebarRef = ref<HTMLElement | null>(null)
 const showSidebar = ref(false)
 
 const showHistoryMediaModal = ref(false)
@@ -351,6 +358,43 @@ const handleBack = () => {
   chatStore.exitChat()
   router.push('/list')
 }
+
+const EDGE_BACK_START_PX = 24
+const EDGE_BACK_MIN_SWIPE_PX = 90
+const EDGE_BACK_MAX_Y_PX = 60
+
+const { coordsStart: pageSwipeStart, lengthX: pageSwipeX, lengthY: pageSwipeY } = useSwipe(pageRef, {
+  threshold: 10,
+  passive: true,
+  onSwipeEnd: () => {
+    if (showSidebar.value) return
+    if (pageSwipeStart.x > EDGE_BACK_START_PX) return
+    if (pageSwipeX.value < -EDGE_BACK_MIN_SWIPE_PX && Math.abs(pageSwipeY.value) < EDGE_BACK_MAX_Y_PX) {
+      handleBack()
+    }
+  }
+})
+
+const DRAWER_CLOSE_EDGE_PX = 32
+const DRAWER_CLOSE_MIN_SWIPE_PX = 80
+const DRAWER_CLOSE_MAX_Y_PX = 60
+
+const { coordsStart: drawerSwipeStart, lengthX: drawerSwipeX, lengthY: drawerSwipeY } = useSwipe(sidebarRef, {
+  threshold: 10,
+  passive: false,
+  onSwipeEnd: () => {
+    if (!showSidebar.value) return
+    const el = sidebarRef.value
+    if (!el) return
+
+    const rect = el.getBoundingClientRect()
+    if (drawerSwipeStart.x < rect.right - DRAWER_CLOSE_EDGE_PX) return
+
+    if (drawerSwipeX.value > DRAWER_CLOSE_MIN_SWIPE_PX && Math.abs(drawerSwipeY.value) < DRAWER_CLOSE_MAX_Y_PX) {
+      showSidebar.value = false
+    }
+  }
+})
 
 const handleToggleFavorite = () => {
   if (!chatStore.currentChatUser) return

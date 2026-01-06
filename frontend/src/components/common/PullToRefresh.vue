@@ -73,6 +73,7 @@ const scrollContainer = ref<HTMLElement | null>(null)
 const status = ref<'idle' | 'pulling' | 'reaching' | 'refreshing'>('idle')
 const currentPull = ref(0)
 const isTouching = ref(false)
+let startX: number | null = null
 let startY: number | null = null
 let startScrollTop = 0
 
@@ -105,6 +106,7 @@ const handleTouchStart = (e: TouchEvent) => {
 
   // 只有当滚动条在顶部时才允许下拉
   if (container.scrollTop <= 0 && e.touches.length > 0) {
+    startX = e.touches[0]!.clientX
     startY = e.touches[0]!.clientY
     startScrollTop = container.scrollTop
     // 不立即设置 isTouching，等到 move 确定是下拉意图
@@ -125,8 +127,19 @@ const handleTouchMove = (e: TouchEvent) => {
     return
   }
 
+  const currentX = e.touches[0]!.clientX
   const currentY = e.touches[0]!.clientY
+  const deltaX = startX === null ? 0 : currentX - startX
   const deltaY = currentY - startY
+
+  // 横向滑动优先：避免与左右滑手势冲突
+  if (Math.abs(deltaX) > Math.abs(deltaY)) {
+    startX = null
+    startY = null
+    currentPull.value = 0
+    status.value = 'idle'
+    return
+  }
 
   // 只有向下滑动才处理
   if (deltaY > 0) {
@@ -154,6 +167,7 @@ const handleTouchMove = (e: TouchEvent) => {
 
 const handleTouchEnd = async () => {
   isTouching.value = false
+  startX = null
   startY = null
   
   if (status.value === 'reaching') {

@@ -5,7 +5,7 @@
       <!-- 左侧：菜单按钮（下拉） -->
       <div class="relative">
         <button
-          @click.stop="showTopMenu = !showTopMenu"
+          @click.stop="handleToggleTopMenu"
           class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white transition"
         >
           <i class="fas fa-bars text-xl"></i>
@@ -83,7 +83,7 @@
         <div
           v-for="user in chatStore.displayList"
           :key="user.id"
-          @click="handleClick(user)"
+          @click="handleClick(user, $event)"
           @touchstart="startLongPress(user, $event)"
           @touchend="endLongPress"
           @touchmove="cancelLongPress"
@@ -235,6 +235,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { useSwipe } from '@vueuse/core'
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import { useMessageStore } from '@/stores/message'
@@ -399,6 +400,27 @@ const closeContextMenu = () => {
   contextMenuUser.value = null
 }
 
+useSwipe(listAreaRef, {
+  threshold: 80,
+  passive: false,
+  onSwipeEnd: (_, direction) => {
+    if (direction !== 'left' && direction !== 'right') return
+
+    if (showContextMenu.value) {
+      closeContextMenu()
+      return
+    }
+
+    showTopMenu.value = false
+
+    if (direction === 'left' && chatStore.activeTab === 'history') {
+      chatStore.activeTab = 'favorite'
+    } else if (direction === 'right' && chatStore.activeTab === 'favorite') {
+      chatStore.activeTab = 'history'
+    }
+  }
+})
+
 const handleCheckOnlineStatus = (user: User) => {
   closeContextMenu()
   checkUserOnlineStatus(user.id)
@@ -457,8 +479,14 @@ const executeDeleteUser = async () => {
   }
 }
 
+const handleToggleTopMenu = () => {
+  closeContextMenu()
+  showTopMenu.value = !showTopMenu.value
+}
+
 // 处理tab切换
 const handleTabSwitch = async (tab: 'history' | 'favorite') => {
+  closeContextMenu()
   if (chatStore.activeTab === tab) {
     await refreshCurrentTab()
     return
@@ -471,9 +499,11 @@ const handleMatchSuccess = (e: any) => {
   emit('match-success', matchedUser)
 }
 
-const handleClick = (user: User) => {
+const handleClick = (user: User, event?: MouseEvent) => {
   if (isLongPressHandled) {
     isLongPressHandled = false
+    event?.stopPropagation()
+    event?.preventDefault()
     return
   }
   chatStore.listScrollTop = listAreaRef.value?.scrollTop || 0
@@ -481,24 +511,28 @@ const handleClick = (user: User) => {
 }
 
 const handleOpenSettings = () => {
+  closeContextMenu()
   showTopMenu.value = false
   settingsMode.value = 'identity'
   showSettings.value = true
 }
 
 const handleOpenSystemSettings = () => {
+  closeContextMenu()
   showTopMenu.value = false
   settingsMode.value = 'system'
   showSettings.value = true
 }
 
 const handleOpenFavorites = () => {
+  closeContextMenu()
   showTopMenu.value = false
   settingsMode.value = 'favorites'
   showSettings.value = true
 }
 
 const handleSwitchIdentity = () => {
+  closeContextMenu()
   showTopMenu.value = false
   showSwitchIdentityDialog.value = true
 }
