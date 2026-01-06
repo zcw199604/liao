@@ -45,11 +45,24 @@
 **模块:** Chat UI
 `PullToRefresh` 需在检测到横向滑动优先时退出下拉刷新逻辑，避免误触发与阻塞横向手势。
 
+### 未读: 列表页未读气泡判定（双保险）
+**模块:** Chat UI
+会话列表的未读气泡由 `user.unreadCount > 0` 决定显示。
+
+消息接收时的未读判定（WebSocket `code=7`）：
+- **仅当处于 `/chat` 路由** 且消息属于当前会话时，才将其视为“已读”，更新 `lastMsg/lastTime` 并将 `unreadCount` 置 0
+- 其他情况下（例如在 `/list`），收到对方消息应更新 `lastMsg/lastTime` 并对该会话 `unreadCount + 1`
+
+会话状态清理：
+- 离开聊天页时应调用 `chatStore.exitChat()`，避免 `currentChatUser` 在列表页残留导致误判“正在聊天中”
+
 ## 相关文件
 - `frontend/src/components/chat/ChatSidebar.vue`
+- `frontend/src/composables/useWebSocket.ts`
 - `frontend/src/views/ChatRoomView.vue`
 - `frontend/src/components/common/PullToRefresh.vue`
 
 ## 变更历史
 - [202601060948_chat_gesture_ux](../../history/2026-01/202601060948_chat_gesture_ux/) - 聊天手势与弹层交互增强
-
+- [202601062010_fix_unread_badge_list](../../history/2026-01/202601062010_fix_unread_badge_list/) - 修复列表页未读气泡误判不显示（路由判定 + 会话状态清理双保险）
+- [202601062034_refine_unread_route_cleanup](../../history/2026-01/202601062034_refine_unread_route_cleanup/) - 未读判定改用路由实例，并简化聊天页卸载清理逻辑

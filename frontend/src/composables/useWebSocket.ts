@@ -10,6 +10,7 @@ import { useMediaStore } from '@/stores/media'
 import { useToast } from '@/composables/useToast'
 import { emojiMap } from '@/constants/emoji'
 import { isImageFile, isVideoFile } from '@/utils/file'
+import router from '@/router'
 
 let ws: WebSocket | null = null
 let manualClose = false
@@ -284,7 +285,10 @@ export const useWebSocket = () => {
           console.log('isSelf=', isSelf, '(通过nickname判断)')
 
           // 判断是否应该显示这条消息（通过nickname判断）
-          const shouldDisplay = chatStore.currentChatUser &&
+          // 双保险：必须处于 /chat 路由才视为“正在聊天中”，否则在列表页也会被误判为已读
+          const isInChatPage = router.currentRoute.value.path.startsWith('/chat')
+          const shouldDisplay = isInChatPage &&
+            !!chatStore.currentChatUser &&
             (fromUserNickname === chatStore.currentChatUser.nickname ||
              (data.touser && data.touser.nickname === chatStore.currentChatUser.nickname))
 

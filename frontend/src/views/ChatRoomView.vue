@@ -720,6 +720,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('preview-media', handlePreview)
+  chatStore.exitChat()
 })
 
 watch(

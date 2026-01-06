@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import type { User } from '@/types'
 import * as chatApi from '@/api/chat'
 import { generateCookie } from '@/utils/cookie'
+import { useMessageStore } from '@/stores/message'
 
 // 辅助函数：标准化用户数据
 const normalizeUser = (user: any, isFavorite: boolean = false): User => {
@@ -208,6 +209,10 @@ export const useChatStore = defineStore('chat', () => {
 
   const exitChat = () => {
     currentChatUser.value = null
+    try {
+      const messageStore = useMessageStore()
+      messageStore.isTyping = false
+    } catch {}
   }
 
   const startMatch = () => {

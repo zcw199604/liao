@@ -19,6 +19,8 @@ vi.mock('@/api/chat', () => ({
 }))
 
 import { useWebSocket } from '@/composables/useWebSocket'
+import router from '@/router'
+import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { useMediaStore } from '@/stores/media'
 import { useMessageStore } from '@/stores/message'
@@ -169,6 +171,100 @@ describe('composables/useWebSocket', () => {
 
     await FakeWebSocket.instances[0]!.triggerMessage({ act: 'inputStatusOff_u2_x' })
     expect(messageStore.isTyping).toBe(false)
+  })
+
+  it('increments unreadCount on /list even when currentChatUser is set (double insurance)', async () => {
+    const authStore = useAuthStore()
+    const userStore = useUserStore()
+    authStore.isAuthenticated = true
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+    localStorage.setItem('authToken', 't-1')
+
+    await router.push('/list')
+    await router.isReady()
+
+    const chatStore = useChatStore()
+    chatStore.upsertUser({
+      id: 'u2',
+      name: 'U2',
+      nickname: 'U2',
+      sex: '未知',
+      age: '0',
+      area: '',
+      address: '',
+      ip: '',
+      isFavorite: false,
+      lastMsg: '',
+      lastTime: '',
+      unreadCount: 0
+    } as any)
+    chatStore.enterChat(chatStore.getUser('u2') as any)
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+
+    await FakeWebSocket.instances[0]!.triggerMessage({
+      code: 7,
+      fromuser: { id: 'u2', name: 'U2', nickname: 'U2', sex: '未知', ip: '', content: 'hello', time: '2026-01-01 00:00:00.000', tid: 't-1' },
+      touser: { id: 'me', name: 'Me', nickname: 'Me', sex: '未知', ip: '' },
+      tid: 't-1'
+    })
+
+    const user = chatStore.getUser('u2') as any
+    expect(user.unreadCount).toBe(1)
+    expect(user.lastMsg).toBe('hello')
+  })
+
+  it('clears unreadCount on /chat when message belongs to current chat', async () => {
+    const authStore = useAuthStore()
+    const userStore = useUserStore()
+    authStore.isAuthenticated = true
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+    localStorage.setItem('authToken', 't-1')
+
+    await router.push('/chat/u2')
+    await router.isReady()
+
+    const chatStore = useChatStore()
+    chatStore.upsertUser({
+      id: 'u2',
+      name: 'U2',
+      nickname: 'U2',
+      sex: '未知',
+      age: '0',
+      area: '',
+      address: '',
+      ip: '',
+      isFavorite: false,
+      lastMsg: '',
+      lastTime: '',
+      unreadCount: 3
+    } as any)
+    chatStore.enterChat(chatStore.getUser('u2') as any)
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+
+    await FakeWebSocket.instances[0]!.triggerMessage({
+      code: 7,
+      fromuser: { id: 'u2', name: 'U2', nickname: 'U2', sex: '未知', ip: '', content: 'hello', time: '2026-01-01 00:00:00.000', tid: 't-2' },
+      touser: { id: 'me', name: 'Me', nickname: 'Me', sex: '未知', ip: '' },
+      tid: 't-2'
+    })
+
+    const user = chatStore.getUser('u2') as any
+    expect(user.unreadCount).toBe(0)
+    expect(user.lastMsg).toBe('hello')
   })
 
   it('handles match success (single match) by entering chat and dispatching event', async () => {

@@ -505,4 +505,70 @@ describe('views/ChatRoomView.vue', () => {
     await nextTick()
     expect(wrapper.findComponent({ name: 'ChatSidebar' }).exists()).toBe(false)
   })
+
+  it('clears currentChatUser on unmount to avoid unread mis-detection on list page', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const userStore = useUserStore()
+    userStore.currentUser = {
+      id: 'me',
+      name: 'me',
+      nickname: 'me',
+      sex: '未知',
+      color: '',
+      created_at: '',
+      cookie: '',
+      ip: '',
+      area: ''
+    }
+
+    const chatStore = useChatStore()
+    chatStore.wsConnected = true
+    chatStore.upsertUser({
+      id: 'u2',
+      name: 'U2',
+      nickname: 'U2',
+      sex: '未知',
+      age: '0',
+      area: '',
+      address: '',
+      ip: '',
+      isFavorite: false,
+      lastMsg: '',
+      lastTime: '',
+      unreadCount: 0
+    } as any)
+    chatStore.enterChat(chatStore.getUser('u2') as any)
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const router = createTestRouter()
+    await router.push('/chat/u2')
+    await router.isReady()
+
+    const wrapper = shallowMount(ChatRoomView, {
+      global: {
+        plugins: [pinia, router],
+        stubs: {
+          ChatHeader: true,
+          MessageList: true,
+          UploadMenu: true,
+          EmojiPanel: true,
+          ChatInput: true,
+          MediaPreview: true,
+          Toast: true,
+          Dialog: true,
+          ChatSidebar: true,
+          teleport: true
+        }
+      }
+    })
+
+    expect(chatStore.currentChatUser).not.toBeNull()
+    wrapper.unmount()
+    expect(chatStore.currentChatUser).toBeNull()
+  })
 })
