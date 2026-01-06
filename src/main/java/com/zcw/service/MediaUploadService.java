@@ -403,8 +403,14 @@ public class MediaUploadService {
     private String inferTypeFromExtension(String extension) {
         if (extension == null) return "file";
         String ext = extension.toLowerCase();
-        if (ext.matches("\\.(jpg|jpeg|png|gif|webp|bmp)")) return "image";
-        if (ext.matches("\\.(mp4|mov|avi|mkv|webm)")) return "video";
+        
+        // 移除可能存在的点号
+        if (ext.startsWith(".")) {
+            ext = ext.substring(1);
+        }
+
+        if (ext.matches("^(jpg|jpeg|png|gif|webp|bmp)$")) return "image";
+        if (ext.matches("^(mp4|mov|avi|mkv|webm)$")) return "video";
         return "file";
     }
 
