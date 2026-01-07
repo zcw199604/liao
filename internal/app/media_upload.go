@@ -10,6 +10,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -473,7 +474,12 @@ type DeleteResult struct {
 }
 
 func (s *MediaUploadService) DeleteMediaByPath(ctx context.Context, userID, localPath string) (DeleteResult, error) {
-	file, err := s.findMediaFileByLocalPath(ctx, localPath, userID)
+	normalizedPath := normalizeUploadLocalPathInput(localPath)
+	if normalizedPath == "" {
+		return DeleteResult{}, ErrDeleteForbidden
+	}
+
+	file, err := s.findMediaFileByLocalPath(ctx, normalizedPath, userID)
 	if err != nil {
 		return DeleteResult{}, err
 	}
@@ -481,27 +487,40 @@ func (s *MediaUploadService) DeleteMediaByPath(ctx context.Context, userID, loca
 		return DeleteResult{}, ErrDeleteForbidden
 	}
 
-	if _, err := s.db.ExecContext(ctx, "DELETE FROM media_send_log WHERE user_id = ? AND local_path = ?", userID, localPath); err != nil {
-		return DeleteResult{}, err
+	clean := strings.TrimPrefix(strings.ReplaceAll(strings.TrimSpace(file.LocalPath), "\\", "/"), "/")
+	if clean == "" {
+		return DeleteResult{}, ErrDeleteForbidden
 	}
 
-	res, err := s.db.ExecContext(ctx, "DELETE FROM media_file WHERE user_id = ? AND local_path = ?", userID, localPath)
-	if err != nil {
-		return DeleteResult{}, err
+	pathWithSlash := "/" + clean
+	pathWithoutSlash := clean
+
+	for _, p := range []string{pathWithSlash, pathWithoutSlash} {
+		if _, err := s.db.ExecContext(ctx, "DELETE FROM media_send_log WHERE user_id = ? AND local_path = ?", userID, p); err != nil {
+			return DeleteResult{}, err
+		}
 	}
-	deletedCount64, _ := res.RowsAffected()
-	deletedCount := int(deletedCount64)
+
+	deletedCount := 0
+	for _, p := range []string{pathWithSlash, pathWithoutSlash} {
+		res, err := s.db.ExecContext(ctx, "DELETE FROM media_file WHERE user_id = ? AND local_path = ?", userID, p)
+		if err != nil {
+			return DeleteResult{}, err
+		}
+		deletedCount64, _ := res.RowsAffected()
+		deletedCount += int(deletedCount64)
+	}
 
 	fileDeleted := false
 	if strings.TrimSpace(file.FileMD5) != "" {
 		var remaining int
 		if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM media_file WHERE file_md5 = ?", file.FileMD5).Scan(&remaining); err == nil {
 			if remaining == 0 {
-				fileDeleted = s.fileStore.DeleteFile(localPath)
+				fileDeleted = s.fileStore.DeleteFile(pathWithSlash)
 			}
 		}
 	} else {
-		fileDeleted = s.fileStore.DeleteFile(localPath)
+		fileDeleted = s.fileStore.DeleteFile(pathWithSlash)
 	}
 
 	return DeleteResult{DeletedRecords: deletedCount, FileDeleted: fileDeleted}, nil
@@ -547,6 +566,41 @@ func (s *MediaUploadService) convertToLocalURL(localPath string, hostHeader stri
 		host = fmt.Sprintf("localhost:%d", s.serverPort)
 	}
 	return "http://" + host + "/upload" + path
+}
+
+func normalizeUploadLocalPathInput(localPath string) string {
+	localPath = strings.TrimSpace(localPath)
+	if localPath == "" {
+		return ""
+	}
+
+	localPath = strings.ReplaceAll(localPath, "\\", "/")
+
+	if strings.HasPrefix(localPath, "http://") || strings.HasPrefix(localPath, "https://") {
+		if u, err := url.Parse(localPath); err == nil && u.Path != "" {
+			localPath = u.Path
+		}
+	} else {
+		if idx := strings.IndexAny(localPath, "?#"); idx >= 0 {
+			localPath = localPath[:idx]
+		}
+	}
+
+	// 兼容前端/历史数据：允许传入 /upload/images/... 或完整 URL
+	if strings.HasPrefix(localPath, "/upload/") {
+		localPath = strings.TrimPrefix(localPath, "/upload")
+	} else if strings.HasPrefix(localPath, "upload/") {
+		localPath = strings.TrimPrefix(localPath, "upload")
+	}
+
+	localPath = strings.TrimSpace(localPath)
+	if localPath == "" {
+		return ""
+	}
+	if !strings.HasPrefix(localPath, "/") {
+		localPath = "/" + localPath
+	}
+	return localPath
 }
 
 func scanMediaFileHistory(rows *sql.Rows) (MediaUploadHistory, error) {
@@ -637,18 +691,45 @@ func (s *MediaUploadService) findMediaFileByRemoteFilename(ctx context.Context, 
 }
 
 func (s *MediaUploadService) findMediaFileByLocalPath(ctx context.Context, localPath, userID string) (*MediaUploadHistory, error) {
+	localPath = strings.ReplaceAll(strings.TrimSpace(localPath), "\\", "/")
+	if localPath == "" {
+		return nil, nil
+	}
+
+	alt := ""
+	if strings.HasPrefix(localPath, "/") {
+		alt = strings.TrimPrefix(localPath, "/")
+	} else {
+		alt = "/" + localPath
+	}
+
+	candidates := []string{localPath}
+	if alt != "" && alt != localPath {
+		candidates = append(candidates, alt)
+	}
+
 	query := `SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path,
 		file_size, file_type, file_extension, file_md5, upload_time, update_time
 		FROM media_file
 		WHERE local_path = ?`
-	args := []any{localPath}
-	if strings.TrimSpace(userID) != "" {
-		query += " AND user_id = ?"
-		args = append(args, userID)
+	for _, candidate := range candidates {
+		args := []any{candidate}
+		q := query
+		if strings.TrimSpace(userID) != "" {
+			q += " AND user_id = ?"
+			args = append(args, userID)
+		}
+		q += " ORDER BY id LIMIT 1"
+		row := s.db.QueryRowContext(ctx, q, args...)
+		file, err := scanMediaFileHistoryRow(row)
+		if err != nil {
+			return nil, err
+		}
+		if file != nil {
+			return file, nil
+		}
 	}
-	query += " ORDER BY id LIMIT 1"
-	row := s.db.QueryRowContext(ctx, query, args...)
-	return scanMediaFileHistoryRow(row)
+	return nil, nil
 }
 
 type sendLog struct {
