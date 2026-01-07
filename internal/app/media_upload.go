@@ -479,7 +479,8 @@ func (s *MediaUploadService) DeleteMediaByPath(ctx context.Context, userID, loca
 		return DeleteResult{}, ErrDeleteForbidden
 	}
 
-	file, err := s.findMediaFileByLocalPath(ctx, normalizedPath, userID)
+	// 说明：全站图片库展示不按 userId 过滤，因此删除也不校验上传者归属（userID 参数仅用于兼容旧调用）。
+	file, err := s.findMediaFileByLocalPath(ctx, normalizedPath, "")
 	if err != nil {
 		return DeleteResult{}, err
 	}
@@ -487,7 +488,40 @@ func (s *MediaUploadService) DeleteMediaByPath(ctx context.Context, userID, loca
 		return DeleteResult{}, ErrDeleteForbidden
 	}
 
-	clean := strings.TrimPrefix(strings.ReplaceAll(strings.TrimSpace(file.LocalPath), "\\", "/"), "/")
+	storedNormalized := normalizeUploadLocalPathInput(file.LocalPath)
+
+	candidateSet := make(map[string]struct{}, 8)
+	addCandidate := func(p string) {
+		p = strings.ReplaceAll(strings.TrimSpace(p), "\\", "/")
+		if p == "" {
+			return
+		}
+		if idx := strings.IndexAny(p, "?#"); idx >= 0 {
+			p = p[:idx]
+		}
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return
+		}
+		if strings.HasPrefix(p, "/") {
+			candidateSet[p] = struct{}{}
+			candidateSet[strings.TrimPrefix(p, "/")] = struct{}{}
+		} else {
+			candidateSet[p] = struct{}{}
+			candidateSet["/"+p] = struct{}{}
+		}
+	}
+
+	addCandidate(file.LocalPath)
+	addCandidate(storedNormalized)
+	addCandidate(normalizedPath)
+
+	paths := make([]string, 0, len(candidateSet))
+	for p := range candidateSet {
+		paths = append(paths, p)
+	}
+
+	clean := strings.TrimPrefix(strings.ReplaceAll(strings.TrimSpace(storedNormalized), "\\", "/"), "/")
 	if clean == "" {
 		return DeleteResult{}, ErrDeleteForbidden
 	}
@@ -495,15 +529,17 @@ func (s *MediaUploadService) DeleteMediaByPath(ctx context.Context, userID, loca
 	pathWithSlash := "/" + clean
 	pathWithoutSlash := clean
 
-	for _, p := range []string{pathWithSlash, pathWithoutSlash} {
-		if _, err := s.db.ExecContext(ctx, "DELETE FROM media_send_log WHERE user_id = ? AND local_path = ?", userID, p); err != nil {
+	paths = append(paths, pathWithSlash, pathWithoutSlash)
+
+	for _, p := range paths {
+		if _, err := s.db.ExecContext(ctx, "DELETE FROM media_send_log WHERE local_path = ?", p); err != nil {
 			return DeleteResult{}, err
 		}
 	}
 
 	deletedCount := 0
-	for _, p := range []string{pathWithSlash, pathWithoutSlash} {
-		res, err := s.db.ExecContext(ctx, "DELETE FROM media_file WHERE user_id = ? AND local_path = ?", userID, p)
+	for _, p := range paths {
+		res, err := s.db.ExecContext(ctx, "DELETE FROM media_file WHERE local_path = ?", p)
 		if err != nil {
 			return DeleteResult{}, err
 		}
@@ -516,11 +552,11 @@ func (s *MediaUploadService) DeleteMediaByPath(ctx context.Context, userID, loca
 		var remaining int
 		if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM media_file WHERE file_md5 = ?", file.FileMD5).Scan(&remaining); err == nil {
 			if remaining == 0 {
-				fileDeleted = s.fileStore.DeleteFile(pathWithSlash)
+				fileDeleted = s.fileStore.DeleteFile(storedNormalized)
 			}
 		}
 	} else {
-		fileDeleted = s.fileStore.DeleteFile(pathWithSlash)
+		fileDeleted = s.fileStore.DeleteFile(storedNormalized)
 	}
 
 	return DeleteResult{DeletedRecords: deletedCount, FileDeleted: fileDeleted}, nil
@@ -583,6 +619,14 @@ func normalizeUploadLocalPathInput(localPath string) string {
 	} else {
 		if idx := strings.IndexAny(localPath, "?#"); idx >= 0 {
 			localPath = localPath[:idx]
+		}
+	}
+
+	// 兼容：部分调用方可能会将 localPath 作为普通字符串再做一次 encodeURIComponent，导致这里仍含 %2F 等编码。
+	// 使用 PathUnescape 兜底解码一次（媒体文件名为 uuid+timestamp，不应包含 %）。
+	if strings.Contains(localPath, "%") {
+		if unescaped, err := url.PathUnescape(localPath); err == nil && unescaped != "" {
+			localPath = unescaped
 		}
 	}
 
@@ -696,16 +740,52 @@ func (s *MediaUploadService) findMediaFileByLocalPath(ctx context.Context, local
 		return nil, nil
 	}
 
-	alt := ""
-	if strings.HasPrefix(localPath, "/") {
-		alt = strings.TrimPrefix(localPath, "/")
-	} else {
-		alt = "/" + localPath
+	candidateSet := make(map[string]struct{}, 6)
+
+	addCandidate := func(p string) {
+		p = strings.ReplaceAll(strings.TrimSpace(p), "\\", "/")
+		if p == "" {
+			return
+		}
+
+		// 兼容 localPath 可能包含 query/hash
+		if idx := strings.IndexAny(p, "?#"); idx >= 0 {
+			p = p[:idx]
+		}
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return
+		}
+
+		// 兼容：保存时可能写成 /upload/images/...（历史数据/异常写入），查询时同时尝试保留与去除 /upload 前缀。
+		if strings.HasPrefix(p, "/upload/") {
+			candidateSet[p] = struct{}{}
+			candidateSet[strings.TrimPrefix(p, "/upload")] = struct{}{}
+		} else if strings.HasPrefix(p, "upload/") {
+			candidateSet[p] = struct{}{}
+			candidateSet[strings.TrimPrefix(p, "upload")] = struct{}{}
+		} else {
+			candidateSet[p] = struct{}{}
+			if strings.HasPrefix(p, "/") {
+				candidateSet["/upload"+p] = struct{}{}
+			} else {
+				candidateSet["upload/"+p] = struct{}{}
+			}
+		}
+
+		// 兼容：local_path 有时会缺少前导 /。
+		if strings.HasPrefix(p, "/") {
+			candidateSet[strings.TrimPrefix(p, "/")] = struct{}{}
+		} else {
+			candidateSet["/"+p] = struct{}{}
+		}
 	}
 
-	candidates := []string{localPath}
-	if alt != "" && alt != localPath {
-		candidates = append(candidates, alt)
+	addCandidate(localPath)
+
+	candidates := make([]string, 0, len(candidateSet))
+	for candidate := range candidateSet {
+		candidates = append(candidates, candidate)
 	}
 
 	query := `SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path,

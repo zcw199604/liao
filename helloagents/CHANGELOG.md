@@ -30,3 +30,4 @@
 - 后端：补齐 Go 版 User History/鉴权关键日志，避免容器运行时仅有启动日志。
 - 后端：修复 Go 端错误读取 `Host` 请求头导致媒体 URL 回退 `localhost`，从而出现图片无法加载的问题（影响 `getAllUploadImages/getCachedImages` 等）。
 - 后端：修复 Go 端删除媒体对历史 `localPath`（无前导 `/` 或携带 `/upload` 前缀/完整 URL）兼容不足，导致返回 403 的问题。
+- 后端：修复 Go 端 `/api/deleteMedia` 兼容性：支持 `localPath` 含 `%2F` 编码、兼容 `local_path` 异常带 `/upload` 前缀/缺少前导 `/`，并取消按 `userId` 校验上传者归属以对齐“全站图片库”展示行为，避免误报 403。

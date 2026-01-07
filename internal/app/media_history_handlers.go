@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
@@ -210,10 +211,13 @@ func (a *App) handleDeleteMedia(w http.ResponseWriter, r *http.Request) {
 	localPath := r.FormValue("localPath")
 	userID := r.FormValue("userId")
 
+	slog.Info("删除媒体文件", "userId", userID, "localPath", localPath)
+
 	result, err := a.mediaUpload.DeleteMediaByPath(r.Context(), userID, localPath)
 	if err != nil {
 		// 兼容 Java：RuntimeException -> 403，其它异常 -> 500
 		if errors.Is(err, ErrDeleteForbidden) || strings.Contains(err.Error(), "无权") {
+			slog.Warn("删除媒体文件失败(不存在/业务)", "userId", userID, "localPath", localPath, "error", err)
 			writeJSON(w, http.StatusForbidden, map[string]any{
 				"code": 403,
 				"msg":  err.Error(),
@@ -221,6 +225,7 @@ func (a *App) handleDeleteMedia(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		slog.Error("删除媒体文件失败(异常)", "userId", userID, "localPath", localPath, "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]any{
 			"code": 500,
 			"msg":  "删除失败：" + err.Error(),
@@ -228,6 +233,7 @@ func (a *App) handleDeleteMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.Info("删除媒体文件成功", "userId", userID, "localPath", localPath, "deletedRecords", result.DeletedRecords, "fileDeleted", result.FileDeleted)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"code": 0,
 		"msg":  "删除成功",

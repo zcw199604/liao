@@ -582,7 +582,8 @@
 | userId | 是 |
 
 **兼容性说明**
-- `localPath` 允许传入以下形式（后端会自动归一化后再执行权限校验与删除）：`/images/...`、`images/...`、`/upload/images/...`、`http(s)://{host}/upload/images/...`（视频同理）。
+- `localPath` 允许传入以下形式（后端会自动归一化后再执行删除）：`/images/...`、`images/...`、`/upload/images/...`、`http(s)://{host}/upload/images/...`（视频同理）。
+- 当前 Go 实现中：`/api/getAllUploadImages` 不按 `userId` 过滤，因此 `/api/deleteMedia` 也不校验上传者归属（`userId` 参数仅用于兼容旧调用）。
 
 **响应（成功，HTTP 200）**
 ```json
