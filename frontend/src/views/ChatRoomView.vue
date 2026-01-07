@@ -631,7 +631,7 @@ const handleOpenAllUploads = async () => {
   mediaStore.selectionMode = false
   mediaStore.selectedImages = []
   mediaStore.showAllUploadImageModal = true
-  await mediaStore.loadAllUploadImages(userStore.currentUser.id, 1)
+  await mediaStore.loadAllUploadImages(1)
 }
 
 const handleStartMatch = () => {

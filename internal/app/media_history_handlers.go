@@ -177,17 +177,16 @@ func (a *App) handleReuploadHistoryImage(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *App) handleGetAllUploadImages(w http.ResponseWriter, r *http.Request) {
-	userID := r.URL.Query().Get("userId")
 	page := parseIntDefault(r.URL.Query().Get("page"), 1)
 	pageSize := parseIntDefault(r.URL.Query().Get("pageSize"), 20)
 	hostHeader := requestHostHeader(r)
 
-	list, err := a.mediaUpload.GetAllUploadImagesWithDetails(r.Context(), userID, page, pageSize, hostHeader)
+	list, err := a.mediaUpload.GetAllUploadImagesWithDetails(r.Context(), page, pageSize, hostHeader)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return
 	}
-	total, err := a.mediaUpload.GetAllUploadImagesCount(r.Context(), userID)
+	total, err := a.mediaUpload.GetAllUploadImagesCount(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return

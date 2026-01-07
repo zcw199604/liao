@@ -412,20 +412,20 @@
 
 **能力**
 - 可批量补齐 `media_file.file_md5`（基于本地 `local_path` 读取文件计算 MD5）
-- 可按 `(user_id, file_md5)` 去重（保留“更完整”的记录并删除其余重复行）
-- 可按 `(user_id, local_path)` 去重（仅针对 `file_md5` 仍为空的记录）
-- 默认 dry-run：仅返回统计与样例；必须显式 `commit=true` 才会写入/删除
+- 可按 `file_md5` 全局去重（同一 MD5 仅保留 1 条记录）
+- 可按 `local_path` 去重（仅针对 `file_md5` 仍为空的记录）
+- 默认 dry-run：仅返回统计与样例；必须显式 `commit=true` 才会写入/删除（仅影响 DB，不删除物理文件）
 
 **请求（application/json）**
 | 字段 | 必填 | 默认 | 说明 |
 |---|---|---|---|
 | commit | 否 | false | 是否真实写入/删除（false=dry-run） |
-| userId | 否 | 空 | 仅处理指定用户 |
-| fixMissingMd5 | 否 | true* | 是否补齐缺失 MD5（*当三个开关均为 false 时默认全启用） |
-| deduplicateByMd5 | 否 | true* | 是否按 MD5 去重 |
-| deduplicateByLocalPath | 否 | true* | 是否按本地路径去重（仅针对 MD5 为空） |
-| limitMissingMd5 | 否 | 500 | 本次最多处理多少条“缺失 MD5”的记录 |
-| maxDuplicateGroups | 否 | 500 | 本次最多处理多少个“重复分组” |
+| userId | 否 | 空 | **已废弃/忽略**（当前为全局修复，不按用户过滤） |
+| fixMissingMd5 | 否 | true | 兼容字段：当前默认强制执行“补齐缺失 MD5” |
+| deduplicateByMd5 | 否 | true | 兼容字段：当前默认强制执行“按 MD5 全局去重（同一 MD5 仅保留 1 条）” |
+| deduplicateByLocalPath | 否 | false | 是否按本地路径去重（仅针对 MD5 为空；可选） |
+| limitMissingMd5 | 否 | 500 | 单批扫描缺失 MD5 的数量（commit=true 会自动多批执行直至扫完整表） |
+| maxDuplicateGroups | 否 | 500 | 单批处理重复分组数量（commit=true 会自动多批执行直至无重复分组） |
 | sampleLimit | 否 | 20 | 返回样例数量上限 |
 
 **响应（HTTP 200）**
@@ -556,15 +556,15 @@
 **请求参数**
 | 参数 | 必填 | 默认值 |
 |---|---|---|
-| userId | 是 | - |
+| userId | 否 | - |
 | page | 否 | `1` |
 | pageSize | 否 | `20` |
 
 **处理逻辑**
-- `data`：`mediaUploadService.getAllUploadImagesWithDetails(userId,page,pageSize,hostHeader)`
-  - **现状说明**：该实现当前按 `media_file.update_time DESC` 查询全表，不按 userId 过滤
+- `data`：`mediaUploadService.getAllUploadImagesWithDetails(page,pageSize,hostHeader)`
+  - **现状说明**：该实现按 `media_file.update_time DESC` 查询全表，不按 userId 过滤（userId 参数仅为兼容旧调用）
   - 每条返回为 `MediaFileDTO`：`url/type/localFilename/originalFilename/fileSize/fileType/fileExtension/uploadTime/updateTime`
-- `total`：`mediaUploadService.getAllUploadImagesCount(userId)`（全表 count）
+- `total`：`mediaUploadService.getAllUploadImagesCount()`（全表 count）
 - `port`：通过 `detectAvailablePort(imageServerService.getImgServerHost())` 探测可用端口
 
 **响应（HTTP 200）**

@@ -61,10 +61,10 @@ export const useMediaStore = defineStore('media', () => {
     }
   }
 
-  const loadAllUploadImages = async (userId: string, page: number = 1) => {
+  const loadAllUploadImages = async (page: number = 1) => {
     allUploadLoading.value = true
     try {
-      const res = await mediaApi.getAllUploadImages(userId, page, allUploadPageSize.value)
+      const res = await mediaApi.getAllUploadImages(page, allUploadPageSize.value)
       if (res && Array.isArray(res.data)) {
         // 后端现在返回MediaFileDTO对象数组，直接使用
         const newItems: UploadedMedia[] = res.data.map((item: any) => ({

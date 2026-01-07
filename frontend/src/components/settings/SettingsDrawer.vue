@@ -368,7 +368,7 @@ const openMediaManagement = async () => {
   mediaStore.selectionMode = false
   mediaStore.selectedImages = []
   mediaStore.showAllUploadImageModal = true
-  await mediaStore.loadAllUploadImages(currentUser.value.id, 1)
+  await mediaStore.loadAllUploadImages(1)
 }
 
 watch(
@@ -379,7 +379,7 @@ watch(
     if (props.mode === 'system') {
       await refreshSystem()
       if (currentUser.value) {
-        await mediaStore.loadAllUploadImages(currentUser.value.id, 1)
+        await mediaStore.loadAllUploadImages(1)
       }
     }
   }

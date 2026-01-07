@@ -223,7 +223,7 @@ const handleScroll = async () => {
   if (mediaStore.allUploadPage >= mediaStore.allUploadTotalPages) return
   if (!userStore.currentUser) return
 
-  await mediaStore.loadAllUploadImages(userStore.currentUser.id, mediaStore.allUploadPage + 1)
+  await mediaStore.loadAllUploadImages(mediaStore.allUploadPage + 1)
 }
 
 const toggleSelectionMode = () => {

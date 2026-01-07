@@ -418,7 +418,7 @@ func (s *MediaUploadService) ReuploadLocalFile(ctx context.Context, userID, loca
 	return string(respBody), nil
 }
 
-func (s *MediaUploadService) GetAllUploadImagesWithDetails(ctx context.Context, userID string, page, pageSize int, hostHeader string) ([]MediaFileDTO, error) {
+func (s *MediaUploadService) GetAllUploadImagesWithDetails(ctx context.Context, page, pageSize int, hostHeader string) ([]MediaFileDTO, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -462,7 +462,7 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetails(ctx context.Context, 
 	return out, rows.Err()
 }
 
-func (s *MediaUploadService) GetAllUploadImagesCount(ctx context.Context, userID string) (int, error) {
+func (s *MediaUploadService) GetAllUploadImagesCount(ctx context.Context) (int, error) {
 	var total int
 	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM media_file").Scan(&total)
 	return total, err

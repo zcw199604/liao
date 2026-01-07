@@ -20,10 +20,10 @@ export const updateImgServerAddress = (server: string) => {
   })
 }
 
-// 获取所有上传的图片
-export const getAllUploadImages = (userId: string, page: number, pageSize: number) => {
+// 获取所有上传的图片（全站图片库，不按 userId 过滤）
+export const getAllUploadImages = (page: number, pageSize: number) => {
   return request.get<any, any>('/getAllUploadImages', {
-    params: { userId, page, pageSize }
+    params: { page, pageSize }
   })
 }
 
