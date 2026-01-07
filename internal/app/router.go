@@ -69,6 +69,7 @@ func (a *App) buildRouter() http.Handler {
 		api.Get("/getAllUploadImages", a.handleGetAllUploadImages)
 		api.Post("/deleteMedia", a.handleDeleteMedia)
 		api.Post("/batchDeleteMedia", a.handleBatchDeleteMedia)
+		api.Post("/repairMediaHistory", a.handleRepairMediaHistory)
 
 		// System（依赖 WebSocket 管理器，在后续阶段补齐实现）
 		api.Post("/deleteUpstreamUser", a.handleDeleteUpstreamUser)

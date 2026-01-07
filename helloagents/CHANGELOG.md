@@ -16,6 +16,7 @@
 - 前端：补充 utils 测试（cookie/file/media）。
 - 后端：为 `/api/getHistoryUserList` 与 `/api/getFavoriteUserList` 增加分段耗时日志（上游/补充用户信息/最后消息/总耗时）。
 - 后端：新增 Go 版单进程服务（API + `/ws` WebSocket 代理 100%兼容、MySQL + 可选 Redis、静态前端托管），支持单容器运行并降低运行内存。
+- 后端：新增 `/api/repairMediaHistory` 历史媒体数据修复接口（补齐缺失 `file_md5`、按 MD5/本地路径去重；默认 dry-run，需 `commit=true` 才会写入/删除）。
 - CI：新增 `Release` GitHub Actions 工作流，用于创建 `v*` Tag 并生成 GitHub Release 产物。
 
 ### 修复

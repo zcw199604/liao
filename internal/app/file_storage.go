@@ -94,6 +94,15 @@ func (s *FileStorageService) CalculateMD5(file *multipart.FileHeader) (string, e
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
+func (s *FileStorageService) CalculateMD5FromLocalPath(localPath string) (string, error) {
+	data, err := s.ReadLocalFile(localPath)
+	if err != nil {
+		return "", err
+	}
+	sum := md5.Sum(data)
+	return hex.EncodeToString(sum[:]), nil
+}
+
 func (s *FileStorageService) SaveFile(file *multipart.FileHeader, fileType string) (string, error) {
 	if file == nil || file.Size == 0 {
 		return "", fmt.Errorf("文件为空")

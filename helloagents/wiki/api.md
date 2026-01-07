@@ -407,6 +407,30 @@
 控制器：`com.zcw.controller.MediaHistoryController`（Base：`/api`）  
 存储：`media_file` + `media_send_log`（由 `MediaUploadService` 管理）
 
+#### [POST] /api/repairMediaHistory
+**描述**：历史数据修复/清理接口，用于解决 `media_file` 中 `file_md5` 缺失或重复导致的前端重复展示问题。
+
+**能力**
+- 可批量补齐 `media_file.file_md5`（基于本地 `local_path` 读取文件计算 MD5）
+- 可按 `(user_id, file_md5)` 去重（保留“更完整”的记录并删除其余重复行）
+- 可按 `(user_id, local_path)` 去重（仅针对 `file_md5` 仍为空的记录）
+- 默认 dry-run：仅返回统计与样例；必须显式 `commit=true` 才会写入/删除
+
+**请求（application/json）**
+| 字段 | 必填 | 默认 | 说明 |
+|---|---|---|---|
+| commit | 否 | false | 是否真实写入/删除（false=dry-run） |
+| userId | 否 | 空 | 仅处理指定用户 |
+| fixMissingMd5 | 否 | true* | 是否补齐缺失 MD5（*当三个开关均为 false 时默认全启用） |
+| deduplicateByMd5 | 否 | true* | 是否按 MD5 去重 |
+| deduplicateByLocalPath | 否 | true* | 是否按本地路径去重（仅针对 MD5 为空） |
+| limitMissingMd5 | 否 | 500 | 本次最多处理多少条“缺失 MD5”的记录 |
+| maxDuplicateGroups | 否 | 500 | 本次最多处理多少个“重复分组” |
+| sampleLimit | 否 | 20 | 返回样例数量上限 |
+
+**响应（HTTP 200）**
+- 返回统计：`missingMd5`、`duplicatesByMd5`、`duplicatesByLocalPath`，以及可选 `samples/warnings`。
+
 #### [POST] /api/recordImageSend
 **描述**：记录“媒体发送”关系，用于聊天历史图片查询。
 
