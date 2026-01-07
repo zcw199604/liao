@@ -45,7 +45,7 @@ func (a *App) handleGetUserUploadHistory(w http.ResponseWriter, r *http.Request)
 	userID := r.URL.Query().Get("userId")
 	page := parseIntDefault(r.URL.Query().Get("page"), 1)
 	pageSize := parseIntDefault(r.URL.Query().Get("pageSize"), 20)
-	hostHeader := r.Header.Get("Host")
+	hostHeader := requestHostHeader(r)
 
 	list, err := a.mediaUpload.GetUserUploadHistory(r.Context(), userID, page, pageSize, hostHeader)
 	if err != nil {
@@ -85,7 +85,7 @@ func (a *App) handleGetUserSentImages(w http.ResponseWriter, r *http.Request) {
 	toUserID := r.URL.Query().Get("toUserId")
 	page := parseIntDefault(r.URL.Query().Get("page"), 1)
 	pageSize := parseIntDefault(r.URL.Query().Get("pageSize"), 20)
-	hostHeader := r.Header.Get("Host")
+	hostHeader := requestHostHeader(r)
 
 	list, err := a.mediaUpload.GetUserSentImages(r.Context(), fromUserID, toUserID, page, pageSize, hostHeader)
 	if err != nil {
@@ -145,7 +145,7 @@ func (a *App) handleGetChatImages(w http.ResponseWriter, r *http.Request) {
 	userID1 := r.URL.Query().Get("userId1")
 	userID2 := r.URL.Query().Get("userId2")
 	limit := parseIntDefault(r.URL.Query().Get("limit"), 20)
-	hostHeader := r.Header.Get("Host")
+	hostHeader := requestHostHeader(r)
 
 	images, err := a.mediaUpload.GetChatImages(r.Context(), userID1, userID2, limit, hostHeader)
 	if err != nil {
@@ -180,7 +180,7 @@ func (a *App) handleGetAllUploadImages(w http.ResponseWriter, r *http.Request) {
 	userID := r.URL.Query().Get("userId")
 	page := parseIntDefault(r.URL.Query().Get("page"), 1)
 	pageSize := parseIntDefault(r.URL.Query().Get("pageSize"), 20)
-	hostHeader := r.Header.Get("Host")
+	hostHeader := requestHostHeader(r)
 
 	list, err := a.mediaUpload.GetAllUploadImagesWithDetails(r.Context(), userID, page, pageSize, hostHeader)
 	if err != nil {

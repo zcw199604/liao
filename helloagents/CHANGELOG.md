@@ -25,3 +25,4 @@
 - 前端：修复在列表页收到新消息时，未读气泡可能不显示的问题（路由判定 + 会话状态清理双保险）。
 - 修复 `/api/getHistoryUserList` 在上游用户ID字段为 `UserID/userid` 时，未能填充 `lastMsg` / `lastTime` 的问题。
 - 修复上游返回的消息 `id/toid` 与 `myUserID` 不一致时，最后消息缓存会话Key无法命中导致 `lastMsg` / `lastTime` 缺失的问题。
+- 后端：修复 Go 端错误读取 `Host` 请求头导致媒体 URL 回退 `localhost`，从而出现图片无法加载的问题（影响 `getAllUploadImages/getCachedImages` 等）。
