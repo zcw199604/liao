@@ -408,7 +408,7 @@ func (a *App) handleUploadImage(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleGetCachedImages(w http.ResponseWriter, r *http.Request) {
 	userID := strings.TrimSpace(r.URL.Query().Get("userid"))
-	hostHeader := r.Header.Get("Host")
+	hostHeader := requestHostHeader(r)
 
 	cached := a.imageCache.GetCachedImages(userID)
 	if cached == nil {
