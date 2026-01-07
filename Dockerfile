@@ -1,45 +1,28 @@
-# 多阶段构建：构建阶段
-FROM maven:3.9-eclipse-temurin-17 AS builder
+# 多阶段构建：前端（Vite）+ 后端（Go）
 
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build -- --outDir=dist
+
+FROM golang:1.22-alpine AS backend-builder
 WORKDIR /app
+ENV GOPROXY=https://goproxy.cn,direct
+ENV GOSUMDB=sum.golang.google.cn
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/liao ./cmd/liao
 
-# 配置阿里云 Maven 镜像（解决 403 问题）
-RUN mkdir -p /root/.m2 && \
-    echo '<?xml version="1.0" encoding="UTF-8"?>' > /root/.m2/settings.xml && \
-    echo '<settings>' >> /root/.m2/settings.xml && \
-    echo '  <mirrors>' >> /root/.m2/settings.xml && \
-    echo '    <mirror>' >> /root/.m2/settings.xml && \
-    echo '      <id>aliyun</id>' >> /root/.m2/settings.xml && \
-    echo '      <mirrorOf>central</mirrorOf>' >> /root/.m2/settings.xml && \
-    echo '      <url>https://maven.aliyun.com/repository/public</url>' >> /root/.m2/settings.xml && \
-    echo '    </mirror>' >> /root/.m2/settings.xml && \
-    echo '  </mirrors>' >> /root/.m2/settings.xml && \
-    echo '</settings>' >> /root/.m2/settings.xml
-
-# 复制pom.xml并下载依赖（利用Docker缓存）
-COPY pom.xml .
-RUN mvn dependency:go-offline -B
-
-# 复制源代码并构建
-COPY src ./src
-RUN mvn clean package -DskipTests -B
-
-# 运行阶段
-FROM eclipse-temurin:17-jre-jammy
-
+FROM alpine:3.19
+RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
-
-# 创建upload目录（用于文件上传）
+COPY --from=backend-builder /out/liao /app/liao
+COPY --from=frontend-builder /app/frontend/dist /app/static
 RUN mkdir -p /app/upload
-
-# 从构建阶段复制jar包
-COPY --from=builder /app/target/*.jar app.jar
-
-# 暴露端口
 EXPOSE 8080
-
-# 设置JVM参数
-ENV JAVA_OPTS="-Xms512m -Xmx1024m -XX:+UseG1GC"
-
-# 启动命令
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+ENV SERVER_PORT=8080
+ENTRYPOINT ["/app/liao"]

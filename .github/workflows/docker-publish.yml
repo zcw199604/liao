@@ -23,41 +23,11 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
-      # 2. 设置Node.js环境（新增）
-      - name: 设置Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      # 3. 安装前端依赖（新增）
-      - name: 安装前端依赖
-        working-directory: ./frontend
-        run: npm ci
-
-      # 4. 构建前端（新增）
-      - name: 构建前端
-        working-directory: ./frontend
-        run: npm run build
-
-      # 5. 设置JDK 17
-      - name: 设置JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: maven
-
-      # 6. 使用Maven构建项目
-      - name: 使用Maven构建项目
-        run: mvn -B clean package -DskipTests
-
-      # 7. 设置Docker Buildx
+      # 2. 设置Docker Buildx
       - name: 设置Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 8. 登录Docker Hub
+      # 3. 登录Docker Hub
       - name: 登录Docker Hub
         uses: docker/login-action@v3
         with:
@@ -65,7 +35,7 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 9. 提取Docker元数据
+      # 4. 提取Docker元数据
       - name: 提取Docker元数据
         id: meta
         uses: docker/metadata-action@v5
@@ -78,7 +48,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      # 10. 构建并推送Docker镜像
+      # 5. 构建并推送Docker镜像
       - name: 构建并推送Docker镜像
         uses: docker/build-push-action@v5
         with:

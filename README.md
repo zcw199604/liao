@@ -5,16 +5,12 @@
 ## 技术栈
 
 ### 后端技术
-- **Spring Boot** 3.2.1 - 应用框架
-- **Java** 17 - 开发语言
-- **Spring Boot Web** - REST API支持
-- **Spring Boot WebSocket** - 服务端WebSocket
-- **Java-WebSocket** 1.5.6 - 客户端WebSocket（连接上游服务）
-- **Spring Boot Data JPA** - 数据持久化
-- **MySQL Connector** - 数据库驱动
-- **JWT (jjwt)** 0.11.5 - 身份认证
-- **Jackson** - JSON处理
-- **Lombok** - 代码简化
+- **Go** 1.22 - 开发语言
+- **chi** - HTTP 路由
+- **gorilla/websocket** - WebSocket（下游服务端 + 上游客户端）
+- **MySQL (go-sql-driver/mysql)** - 数据库驱动
+- **Redis (可选：go-redis)** - 用户信息/最后消息缓存
+- **JWT (golang-jwt/jwt)** - 身份认证
 
 ### 前端技术
 - **Vue** 3.5.24 - 前端框架
@@ -28,7 +24,7 @@
 
 ## 核心功能
 
-- **WebSocket双向代理** - 客户端通过Spring WebSocket连接后端，后端通过Java-WebSocket连接上游服务
+- **WebSocket双向代理** - 客户端通过 `/ws` 连接后端，后端连接上游服务并转发消息
 - **连接池管理** - 同一用户ID的多个客户端共享一个上游连接
 - **身份管理** - 支持多身份CRUD操作
 - **消息转发** - 实时消息双向转发
@@ -40,10 +36,9 @@
 
 ### 环境要求
 
-- **JDK 17** (推荐使用 Amazon Corretto 17)
 - **Node.js** 18+ 和 npm
 - **MySQL** 8.0+
-- **Maven** 3.6+
+- **Go** 1.22（本地开发需要；生产建议 Docker）
 
 ### 安装步骤
 
@@ -91,12 +86,7 @@ npm install
 
 **后端**（端口8080）：
 ```bash
-# 设置JDK环境（如需要）
-export JAVA_HOME="C:\Users\MyPC\.jdks\corretto-17.0.16"
-export PATH="$JAVA_HOME/bin:$PATH"
-
-# 运行Spring Boot
-mvn spring-boot:run
+go run ./cmd/liao
 ```
 
 **前端**（端口3000）：
@@ -113,38 +103,25 @@ npm run dev
 ```bash
 cd frontend
 npm run build
-# 输出到 ../src/main/resources/static/
 ```
 
-**打包后端**：
+**构建后端**：
 ```bash
-mvn clean package -DskipTests
+go build ./cmd/liao
 ```
 
-**运行JAR**：
+**运行**：
 ```bash
-java -jar target/liao-1.0-SNAPSHOT.jar
+./liao
 ```
 
 ## 项目结构
 
 ### 后端结构
 ```
-src/main/java/com/zcw/
-├── config/              # 配置类（WebSocket、JWT、CORS）
-├── controller/          # REST API控制器
-│   ├── AuthController           # 访问码认证
-│   ├── IdentityController       # 身份管理
-│   ├── MediaHistoryController   # 媒体历史
-│   └── SystemController         # 系统管理
-├── websocket/           # WebSocket核心逻辑
-│   ├── UpstreamWebSocketManager # 上游连接池管理
-│   ├── UpstreamWebSocketClient  # 上游客户端
-│   ├── ProxyWebSocketHandler    # 下游处理器
-│   └── ForceoutManager          # 防重连机制
-├── service/             # 业务逻辑
-├── model/               # 数据模型
-└── util/                # 工具类
+cmd/liao/                 # Go 服务入口
+internal/
+└── app/                  # 业务实现（HTTP API + /ws 代理 + MySQL/缓存/上传）
 ```
 
 ### 前端结构
@@ -177,7 +154,6 @@ docker run -d -p 8080:8080 \
   -e DB_URL="jdbc:mysql://host:3306/hot_img?useSSL=false&serverTimezone=Asia/Shanghai" \
   -e DB_USERNAME=root \
   -e DB_PASSWORD=yourpassword \
-  -e WEBSOCKET_UPSTREAM_URL=ws://upstream-host:9999 \
   -e AUTH_ACCESS_CODE=your-access-code \
   -e JWT_SECRET=your-jwt-secret-at-least-256-bits \
   liao:latest
@@ -189,13 +165,15 @@ docker run -d -p 8080:8080 \
 - `DB_URL` - MySQL数据库连接地址
 - `DB_USERNAME` - 数据库用户名
 - `DB_PASSWORD` - 数据库密码
-- `WEBSOCKET_UPSTREAM_URL` - 上游WebSocket服务地址
 - `AUTH_ACCESS_CODE` - 访问码（用于登录）
 - `JWT_SECRET` - JWT密钥（至少256位）
 
 ### 可选环境变量
 - `SERVER_PORT` - 服务端口（默认8080）
 - `TOKEN_EXPIRE_HOURS` - Token过期时间（默认24小时）
+- `WEBSOCKET_UPSTREAM_URL` - 上游 WebSocket 地址降级值（默认 `ws://localhost:9999`；正常情况会动态获取）
+- `CACHE_TYPE` - `memory` 或 `redis`（默认 `memory`）
+- `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB` - Redis 连接参数（当 `CACHE_TYPE=redis`）
 
 ## 开发规范
 
@@ -210,9 +188,12 @@ docker run -d -p 8080:8080 \
 - 触发条件：推送到master分支或打tag（`v*`）
 - 构建流程：
   1. 构建前端（npm run build）
-  2. Maven打包后端（含前端静态文件）
+  2. 构建 Go 后端
   3. 构建Docker镜像
   4. 推送到Docker Hub（`a7413498/liao`）
+
+发布（GitHub Release）：
+- 在 Actions 中运行 `Release` 工作流：默认创建并推送 `v1.0.0` Tag，编译打包产物并创建对应 Release。
 
 ## 许可证
 

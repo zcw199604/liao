@@ -1,0 +1,142 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag（例如 v1.0.0）"
+        required: true
+        default: "v1.0.0"
+      create_tag:
+        description: "自动创建并推送 Git Tag"
+        type: boolean
+        required: true
+        default: true
+      draft:
+        description: "创建为 Draft Release"
+        type: boolean
+        required: true
+        default: false
+      prerelease:
+        description: "标记为 Pre-release"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: 确定 Release 参数
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            TAG="${{ inputs.tag }}"
+            CREATE_TAG="${{ inputs.create_tag }}"
+            DRAFT="${{ inputs.draft }}"
+            PRERELEASE="${{ inputs.prerelease }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+            CREATE_TAG="false"
+            DRAFT="false"
+            PRERELEASE="false"
+          fi
+
+          echo "TAG=${TAG}" >> "${GITHUB_ENV}"
+          echo "CREATE_TAG=${CREATE_TAG}" >> "${GITHUB_ENV}"
+          echo "DRAFT=${DRAFT}" >> "${GITHUB_ENV}"
+          echo "PRERELEASE=${PRERELEASE}" >> "${GITHUB_ENV}"
+
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+
+      - name: 校验 Tag 格式
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${TAG}"
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag 格式非法: ${TAG}（期望 v1.0.0）"
+            exit 1
+          fi
+
+      - name: 创建并推送 Tag
+        if: ${{ env.CREATE_TAG == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${TAG}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "远端已存在 Tag: ${TAG}"
+            exit 1
+          fi
+
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin "${TAG}"
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 构建前端静态资源
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm run build -- --outDir=dist
+
+      - name: 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: 编译并打包 Release 产物
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${TAG}"
+
+          mkdir -p dist/linux_amd64 dist/windows_amd64
+          cp -r frontend/dist dist/linux_amd64/static
+          cp -r frontend/dist dist/windows_amd64/static
+
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/linux_amd64/liao ./cmd/liao
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/windows_amd64/liao.exe ./cmd/liao
+
+          tar -czf "dist/liao_${TAG}_linux_amd64.tar.gz" -C dist/linux_amd64 .
+          (cd dist/windows_amd64 && zip -r "../liao_${TAG}_windows_amd64.zip" .)
+
+          sha256sum "dist/liao_${TAG}_linux_amd64.tar.gz" "dist/liao_${TAG}_windows_amd64.zip" > "dist/checksums_${TAG}.txt"
+
+      - name: 创建 GitHub Release 并上传产物
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: ${{ env.TAG }}
+          draft: ${{ env.DRAFT == 'true' }}
+          prerelease: ${{ env.PRERELEASE == 'true' }}
+          files: |
+            dist/liao_${{ env.TAG }}_linux_amd64.tar.gz
+            dist/liao_${{ env.TAG }}_windows_amd64.zip
+            dist/checksums_${{ env.TAG }}.txt

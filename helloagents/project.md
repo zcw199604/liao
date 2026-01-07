@@ -3,14 +3,14 @@
 ---
 
 ## 技术栈
-- **后端:** Java 17 / Spring Boot 3
+- **后端:** Go 1.22（HTTP: chi；WebSocket: gorilla/websocket；MySQL: go-sql-driver/mysql；Redis 可选: go-redis）
 - **前端:** Vue 3 / Vite / TypeScript
 - **缓存:** Redis（可选）/ 内存（默认）
 
 ---
 
 ## 开发约定
-- **Java:** 4 空格缩进；包名 `com.zcw.*`
+- **Go:** 以 `cmd/liao` 为入口，业务代码在 `internal/app`；保持接口/返回体与原 Spring Boot 行为一致
 - **接口路径:** 使用 camelCase（项目约定）
 - **配置:** 以 `src/main/resources/application.yml` 为默认，优先通过环境变量覆盖
 
@@ -23,6 +23,6 @@
 ---
 
 ## 测试与流程
-- **测试:** `mvn test`（需要 JDK 17）
-- **前端单元测试:** `cd frontend && npm test`（Vitest / jsdom）
+- **测试:** `go test ./...`
+- **前端单元测试:** `cd frontend && npm test`（如有）
 - **提交:** Conventional Commits：`feat:` / `fix:` / `refactor:` / `chore:`
