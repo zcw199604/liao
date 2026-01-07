@@ -72,7 +72,7 @@
 - `idx_mf_local_path (local_path)`
 
 **维护建议**
-- 若历史数据存在 `file_md5` 为空或出现多条相同 `file_md5` 的情况，可使用 `/api/repairMediaHistory` 批量补齐与去重（默认 dry-run，需 `commit=true` 才会写入/删除）。
+- 若遗留表 `media_upload_history` 存在 `file_md5` 为空或出现多条相同 `file_md5` 的情况，可使用 `/api/repairMediaHistory` 批量补齐与去重（默认 dry-run，需 `commit=true` 才会写入/删除）。
 
 ---
 

@@ -123,6 +123,7 @@ func (s *MediaUploadService) RepairMediaHistory(ctx context.Context, req RepairM
 	}
 	if req.DeduplicateByMD5 {
 		for {
+			prevDeleted := res.DuplicatesByMD5.Deleted
 			groups, err := s.dedupByMD5Batch(ctx, &req, &res)
 			if err != nil {
 				return res, err
@@ -134,10 +135,15 @@ func (s *MediaUploadService) RepairMediaHistory(ctx context.Context, req RepairM
 				res.Warnings = append(res.Warnings, "dry-run 模式仅统计一批重复 MD5 分组；如需全量去重请使用 commit=true")
 				break
 			}
+			if res.DuplicatesByMD5.Deleted == prevDeleted {
+				res.Warnings = append(res.Warnings, "MD5 去重未产生删除进展，可能存在删除失败或约束问题，已停止循环以避免无限重试")
+				break
+			}
 		}
 	}
 	if req.DeduplicateByLocalPath {
 		for {
+			prevDeleted := res.DuplicatesByLocalPath.Deleted
 			groups, err := s.dedupByLocalPathBatch(ctx, &req, &res)
 			if err != nil {
 				return res, err
@@ -147,6 +153,10 @@ func (s *MediaUploadService) RepairMediaHistory(ctx context.Context, req RepairM
 			}
 			if !req.Commit {
 				res.Warnings = append(res.Warnings, "dry-run 模式仅统计一批重复 local_path 分组；如需全量去重请使用 commit=true")
+				break
+			}
+			if res.DuplicatesByLocalPath.Deleted == prevDeleted {
+				res.Warnings = append(res.Warnings, "local_path 去重未产生删除进展，可能存在删除失败或约束问题，已停止循环以避免无限重试")
 				break
 			}
 		}
@@ -159,7 +169,7 @@ func (s *MediaUploadService) repairMissingMD5Batch(ctx context.Context, startAft
 	var b strings.Builder
 	b.WriteString(`
 SELECT id, user_id, local_path
-FROM media_file
+FROM media_upload_history
 WHERE (file_md5 IS NULL OR file_md5 = '')
   AND local_path IS NOT NULL AND local_path <> ''`)
 	args := make([]any, 0, 3)
@@ -209,8 +219,8 @@ WHERE (file_md5 IS NULL OR file_md5 = '')
 		}
 
 		r, err := s.db.ExecContext(ctx, `
-UPDATE media_file
-SET file_md5 = ?, update_time = NOW()
+UPDATE media_upload_history
+SET file_md5 = ?
 WHERE id = ? AND (file_md5 IS NULL OR file_md5 = '')`, md5Value, id)
 		if err != nil {
 			if len(res.Warnings) < 200 {
@@ -232,7 +242,7 @@ func (s *MediaUploadService) dedupByMD5Batch(ctx context.Context, req *RepairMed
 	var b strings.Builder
 	b.WriteString(`
 SELECT file_md5, COUNT(*) AS cnt
-FROM media_file
+FROM media_upload_history
 WHERE file_md5 IS NOT NULL AND file_md5 <> ''`)
 	args := make([]any, 0, 1)
 	b.WriteString(`
@@ -267,7 +277,7 @@ LIMIT ?`)
 		var keepUserID string
 		if err := s.db.QueryRowContext(ctx, `
 SELECT id, user_id
-FROM media_file
+FROM media_upload_history
 WHERE file_md5 = ?
 ORDER BY
   (CASE WHEN remote_url IS NULL OR remote_url = '' THEN 0 ELSE 1 END) DESC,
@@ -295,7 +305,7 @@ LIMIT 1`, md5Value).Scan(&keepID, &keepUserID); err != nil {
 		}
 
 		r, err := s.db.ExecContext(ctx, `
-DELETE FROM media_file
+DELETE FROM media_upload_history
 WHERE file_md5 = ? AND id <> ?`, md5Value, keepID)
 		if err != nil {
 			if len(res.Warnings) < 200 {
@@ -317,7 +327,7 @@ func (s *MediaUploadService) dedupByLocalPathBatch(ctx context.Context, req *Rep
 	var b strings.Builder
 	b.WriteString(`
 SELECT local_path, COUNT(*) AS cnt
-FROM media_file
+FROM media_upload_history
 WHERE (file_md5 IS NULL OR file_md5 = '')
   AND local_path IS NOT NULL AND local_path <> ''`)
 	args := make([]any, 0, 1)
@@ -353,7 +363,7 @@ LIMIT ?`)
 		var keepUserID string
 		if err := s.db.QueryRowContext(ctx, `
 SELECT id, user_id
-FROM media_file
+FROM media_upload_history
 WHERE local_path = ? AND (file_md5 IS NULL OR file_md5 = '')
 ORDER BY
   (CASE WHEN remote_url IS NULL OR remote_url = '' THEN 0 ELSE 1 END) DESC,
@@ -380,7 +390,7 @@ LIMIT 1`, localPath).Scan(&keepID, &keepUserID); err != nil {
 		}
 
 		r, err := s.db.ExecContext(ctx, `
-DELETE FROM media_file
+DELETE FROM media_upload_history
 WHERE local_path = ? AND (file_md5 IS NULL OR file_md5 = '') AND id <> ?`, localPath, keepID)
 		if err != nil {
 			if len(res.Warnings) < 200 {

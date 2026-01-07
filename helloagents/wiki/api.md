@@ -408,10 +408,10 @@
 存储：`media_file` + `media_send_log`（由 `MediaUploadService` 管理）
 
 #### [POST] /api/repairMediaHistory
-**描述**：历史数据修复/清理接口，用于解决 `media_file` 中 `file_md5` 缺失或重复导致的前端重复展示问题。
+**描述**：历史数据修复/清理接口，用于修复遗留表 `media_upload_history` 中 `file_md5` 缺失或重复的问题（补齐 MD5 + 按 MD5 去重）。
 
 **能力**
-- 可批量补齐 `media_file.file_md5`（基于本地 `local_path` 读取文件计算 MD5）
+- 可批量补齐 `media_upload_history.file_md5`（基于本地 `local_path` 读取文件计算 MD5）
 - 可按 `file_md5` 全局去重（同一 MD5 仅保留 1 条记录）
 - 可按 `local_path` 去重（仅针对 `file_md5` 仍为空的记录）
 - 默认 dry-run：仅返回统计与样例；必须显式 `commit=true` 才会写入/删除（仅影响 DB，不删除物理文件）
