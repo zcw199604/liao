@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -22,6 +23,14 @@ const (
 )
 
 func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
+	totalStart := time.Now()
+	upstreamMs := int64(-1)
+	enrichUserInfoMs := int64(-1)
+	lastMsgMs := int64(-1)
+	resultSize := -1
+	var upstreamStatus int
+	cacheEnabled := a.userInfoCache != nil
+
 	_ = r.ParseForm()
 
 	myUserID := defaultString(r.FormValue("myUserID"), "5be810d731d340f090b098392f9f0a31")
@@ -31,10 +40,28 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 	referer := defaultString(r.FormValue("referer"), "http://v1.chat2019.cn/randomdeskrynew4m1phj.html?v=4m1phj")
 	userAgent := defaultString(r.FormValue("userAgent"), "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
+	defer func() {
+		slog.Info(
+			"[timing] /api/getHistoryUserList",
+			"myUserID", myUserID,
+			"status", upstreamStatus,
+			"size", resultSize,
+			"upstreamMs", upstreamMs,
+			"enrichUserInfoMs", enrichUserInfoMs,
+			"lastMsgMs", lastMsgMs,
+			"totalMs", time.Since(totalStart).Milliseconds(),
+			"cacheEnabled", cacheEnabled,
+		)
+	}()
+
+	slog.Info("获取历史用户列表请求", "myUserID", myUserID, "vipcode", vipcode, "serverPort", serverPort)
+
 	form := url.Values{}
 	form.Set("myUserID", myUserID)
 	form.Set("vipcode", vipcode)
 	form.Set("serverPort", serverPort)
+
+	slog.Info("请求参数", "myUserID", myUserID, "vipcode", vipcode, "serverPort", serverPort)
 
 	headers := map[string]string{
 		"Host":       "v1.chat2019.cn",
@@ -46,19 +73,29 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 		headers["Cookie"] = cookieData
 	}
 
+	upstreamStart := time.Now()
 	status, body, err := a.postForm(r.Context(), upstreamHistoryURL, form, headers)
+	upstreamMs = time.Since(upstreamStart).Milliseconds()
+	upstreamStatus = status
 	if err != nil {
+		slog.Error("调用上游接口失败", "api", "/api/getHistoryUserList", "error", err)
 		writeText(w, http.StatusInternalServerError, "{\"error\":\"调用上游接口失败: "+err.Error()+"\"}")
 		return
 	}
 	if status != http.StatusOK {
+		slog.Error("调用上游接口失败", "api", "/api/getHistoryUserList", "status", status)
 		writeText(w, http.StatusInternalServerError, "{\"error\":\"调用上游接口失败: upstream status "+fmt.Sprint(status)+"\"}")
 		return
 	}
 
-	if a.userInfoCache != nil && strings.TrimSpace(body) != "" {
+	slog.Info("上游接口返回", "status", status, "bodyLength", len(body))
+	slog.Debug("上游接口 body", "api", "/api/getHistoryUserList", "body", body)
+
+	if cacheEnabled && strings.TrimSpace(body) != "" {
 		var list []map[string]any
-		if err := json.Unmarshal([]byte(body), &list); err == nil {
+		if err := json.Unmarshal([]byte(body), &list); err != nil {
+			slog.Error("解析上游历史用户列表失败", "error", err)
+		} else {
 			idKey := "id"
 			if len(list) > 0 {
 				if _, ok := list[0]["id"]; !ok {
@@ -70,13 +107,23 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
+			enrichUserInfoStart := time.Now()
 			list = a.userInfoCache.BatchEnrichUserInfo(list, idKey)
-			list = a.userInfoCache.BatchEnrichWithLastMessage(list, myUserID)
+			enrichUserInfoMs = time.Since(enrichUserInfoStart).Milliseconds()
 
-			if enhanced, err := json.Marshal(list); err == nil {
+			enrichLastMsgStart := time.Now()
+			list = a.userInfoCache.BatchEnrichWithLastMessage(list, myUserID)
+			lastMsgMs = time.Since(enrichLastMsgStart).Milliseconds()
+
+			resultSize = len(list)
+
+			enhanced, marshalErr := json.Marshal(list)
+			if marshalErr == nil {
 				writeText(w, http.StatusOK, string(enhanced))
 				return
 			}
+
+			slog.Error("增强历史用户列表失败", "error", marshalErr)
 		}
 	}
 
@@ -84,6 +131,14 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) {
+	totalStart := time.Now()
+	upstreamMs := int64(-1)
+	enrichUserInfoMs := int64(-1)
+	lastMsgMs := int64(-1)
+	resultSize := -1
+	var upstreamStatus int
+	cacheEnabled := a.userInfoCache != nil
+
 	_ = r.ParseForm()
 
 	myUserID := defaultString(r.FormValue("myUserID"), "5be810d731d340f090b098392f9f0a31")
@@ -93,10 +148,28 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 	referer := defaultString(r.FormValue("referer"), "http://v1.chat2019.cn/randomdeskrynew4m1phj.html?v=4m1phj")
 	userAgent := defaultString(r.FormValue("userAgent"), "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
+	defer func() {
+		slog.Info(
+			"[timing] /api/getFavoriteUserList",
+			"myUserID", myUserID,
+			"status", upstreamStatus,
+			"size", resultSize,
+			"upstreamMs", upstreamMs,
+			"enrichUserInfoMs", enrichUserInfoMs,
+			"lastMsgMs", lastMsgMs,
+			"totalMs", time.Since(totalStart).Milliseconds(),
+			"cacheEnabled", cacheEnabled,
+		)
+	}()
+
+	slog.Info("获取收藏用户列表请求", "myUserID", myUserID, "vipcode", vipcode, "serverPort", serverPort)
+
 	form := url.Values{}
 	form.Set("myUserID", myUserID)
 	form.Set("vipcode", vipcode)
 	form.Set("serverPort", serverPort)
+
+	slog.Info("请求参数", "myUserID", myUserID, "vipcode", vipcode, "serverPort", serverPort)
 
 	headers := map[string]string{
 		"Host":       "v1.chat2019.cn",
@@ -108,19 +181,29 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 		headers["Cookie"] = cookieData
 	}
 
+	upstreamStart := time.Now()
 	status, body, err := a.postForm(r.Context(), upstreamFavoriteURL, form, headers)
+	upstreamMs = time.Since(upstreamStart).Milliseconds()
+	upstreamStatus = status
 	if err != nil {
+		slog.Error("调用上游接口失败", "api", "/api/getFavoriteUserList", "error", err)
 		writeText(w, http.StatusInternalServerError, "{\"error\":\"调用上游接口失败: "+err.Error()+"\"}")
 		return
 	}
 	if status != http.StatusOK {
+		slog.Error("调用上游接口失败", "api", "/api/getFavoriteUserList", "status", status)
 		writeText(w, http.StatusInternalServerError, "{\"error\":\"调用上游接口失败: upstream status "+fmt.Sprint(status)+"\"}")
 		return
 	}
 
-	if a.userInfoCache != nil && strings.TrimSpace(body) != "" {
+	slog.Info("上游接口返回", "status", status, "bodyLength", len(body))
+	slog.Debug("上游接口 body", "api", "/api/getFavoriteUserList", "body", body)
+
+	if cacheEnabled && strings.TrimSpace(body) != "" {
 		var list []map[string]any
-		if err := json.Unmarshal([]byte(body), &list); err == nil {
+		if err := json.Unmarshal([]byte(body), &list); err != nil {
+			slog.Error("解析上游收藏用户列表失败", "error", err)
+		} else {
 			idKey := "id"
 			if len(list) > 0 {
 				if _, ok := list[0]["id"]; !ok {
@@ -132,13 +215,23 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 				}
 			}
 
+			enrichUserInfoStart := time.Now()
 			list = a.userInfoCache.BatchEnrichUserInfo(list, idKey)
-			list = a.userInfoCache.BatchEnrichWithLastMessage(list, myUserID)
+			enrichUserInfoMs = time.Since(enrichUserInfoStart).Milliseconds()
 
-			if enhanced, err := json.Marshal(list); err == nil {
+			enrichLastMsgStart := time.Now()
+			list = a.userInfoCache.BatchEnrichWithLastMessage(list, myUserID)
+			lastMsgMs = time.Since(enrichLastMsgStart).Milliseconds()
+
+			resultSize = len(list)
+
+			enhanced, marshalErr := json.Marshal(list)
+			if marshalErr == nil {
 				writeText(w, http.StatusOK, string(enhanced))
 				return
 			}
+
+			slog.Error("增强收藏用户列表失败", "error", marshalErr)
 		}
 	}
 
@@ -155,10 +248,23 @@ func (a *App) handleReportReferrer(w http.ResponseWriter, r *http.Request) {
 	referer := defaultString(r.FormValue("referer"), "http://v1.chat2019.cn/randomdeskrynew4m1phj.html?v=4m1phj")
 	userAgent := defaultString(r.FormValue("userAgent"), "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
+	slog.Info("上报访问记录", "referrerUrl", referrerURL, "currUrl", currURL, "userid", userID)
+	slog.Info(
+		"请求 Headers",
+		"host", "v1.chat2019.cn",
+		"origin", "http://v1.chat2019.cn",
+		"referer", referer,
+		"userAgent", userAgent,
+		"cookiePresent", strings.TrimSpace(cookieData) != "",
+		"cookieLength", len(cookieData),
+	)
+
 	form := url.Values{}
 	form.Set("referrer_url", referrerURL)
 	form.Set("curr_url", currURL)
 	form.Set("userid", userID)
+
+	slog.Info("上报参数", "referrer_url", referrerURL, "curr_url", currURL, "userid", userID)
 
 	headers := map[string]string{
 		"Host":       "v1.chat2019.cn",
@@ -168,15 +274,20 @@ func (a *App) handleReportReferrer(w http.ResponseWriter, r *http.Request) {
 		"Cookie":     cookieData,
 	}
 
+	upstreamStart := time.Now()
 	status, body, err := a.postForm(r.Context(), upstreamReportURL, form, headers)
+	upstreamMs := time.Since(upstreamStart).Milliseconds()
 	if err != nil || status != http.StatusOK {
 		if err == nil {
 			err = fmt.Errorf("upstream status %d", status)
 		}
+		slog.Error("上报访问记录失败", "status", status, "upstreamMs", upstreamMs, "error", err)
 		writeText(w, http.StatusInternalServerError, "{\"error\":\"上报失败: "+err.Error()+"\"}")
 		return
 	}
 
+	slog.Info("上报接口返回", "status", status, "bodyLength", len(body), "upstreamMs", upstreamMs)
+	slog.Debug("上报接口 body", "body", body)
 	writeText(w, http.StatusOK, body)
 }
 
@@ -192,6 +303,8 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 	cookieData := defaultString(r.FormValue("cookieData"), "")
 	referer := defaultString(r.FormValue("referer"), "http://v1.chat2019.cn/randomdeskrynew4m1phj.html?v=4m1phj")
 	userAgent := defaultString(r.FormValue("userAgent"), "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
+	slog.Info("获取消息历史请求", "myUserID", myUserID, "UserToID", userToID, "isFirst", isFirst, "firstTid", firstTid)
 
 	form := url.Values{}
 	form.Set("myUserID", myUserID)
@@ -211,14 +324,22 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 		headers["Cookie"] = cookieData
 	}
 
+	slog.Info("请求参数", "myUserID", myUserID, "UserToID", userToID, "isFirst", isFirst, "firstTid", firstTid, "vipcode", vipcode, "serverPort", serverPort)
+
+	upstreamStart := time.Now()
 	status, body, err := a.postForm(r.Context(), upstreamMsgURL, form, headers)
+	upstreamMs := time.Since(upstreamStart).Milliseconds()
 	if err != nil || status != http.StatusOK {
 		if err == nil {
 			err = fmt.Errorf("upstream status %d", status)
 		}
+		slog.Error("获取消息历史失败", "status", status, "upstreamMs", upstreamMs, "error", err)
 		writeText(w, http.StatusInternalServerError, "{\"error\":\"获取消息历史失败: "+err.Error()+"\"}")
 		return
 	}
+
+	slog.Info("上游接口返回", "status", status, "bodyLength", len(body), "upstreamMs", upstreamMs)
+	slog.Debug("上游接口 body", "api", "/api/getMessageHistory", "body", body)
 
 	if a.userInfoCache != nil && strings.TrimSpace(body) != "" {
 		var root any
@@ -281,30 +402,38 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleGetImgServer(w http.ResponseWriter, r *http.Request) {
+	slog.Info("获取图片服务器地址请求")
 	urlWithTS := upstreamImgServer + "?_=" + fmt.Sprint(time.Now().UnixMilli())
+	slog.Info("请求 URL", "url", urlWithTS)
 	resp, err := a.httpClient.Get(urlWithTS)
 	if err != nil {
+		slog.Error("获取图片服务器失败", "error", err)
 		writeText(w, http.StatusInternalServerError, "{\"error\":\"获取图片服务器失败: "+err.Error()+"\"}")
 		return
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		slog.Error("获取图片服务器失败", "status", resp.StatusCode, "upstreamStatus", resp.Status)
 		writeText(w, http.StatusInternalServerError, "{\"error\":\"获取图片服务器失败: upstream status "+resp.Status+"\"}")
 		return
 	}
+	slog.Info("上游接口返回", "status", resp.StatusCode, "bodyLength", len(body))
 	writeText(w, http.StatusOK, string(body))
 }
 
 func (a *App) handleUpdateImgServer(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	server := strings.TrimSpace(r.FormValue("server"))
+	slog.Info("更新图片服务器", "server", server)
 	a.imageServer.SetImgServerHost(server)
 	writeText(w, http.StatusOK, "{\"success\":true}")
 }
 
 func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
+	totalStart := time.Now()
 	if err := r.ParseMultipartForm(110 << 20); err != nil {
+		slog.Error("上传媒体请求解析失败", "error", err)
 		writeText(w, http.StatusInternalServerError, "{\"error\":\"本地存储失败: "+err.Error()+"\"}")
 		return
 	}
@@ -316,19 +445,30 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 
 	files := r.MultipartForm.File["file"]
 	if len(files) == 0 {
+		slog.Warn("上传媒体缺少文件", "userid", userID)
 		writeText(w, http.StatusBadRequest, "{\"error\":\"不支持的文件类型\"}")
 		return
 	}
 	fileHeader := files[0]
 
 	contentType := fileHeader.Header.Get("Content-Type")
+	slog.Info(
+		"上传媒体请求",
+		"userid", userID,
+		"fileName", fileHeader.Filename,
+		"fileSize", fileHeader.Size,
+		"contentType", contentType,
+		"cookiePresent", strings.TrimSpace(cookieData) != "",
+	)
 	if !a.fileStorage.IsValidMediaType(contentType) {
+		slog.Warn("不支持的文件类型", "contentType", contentType, "fileName", fileHeader.Filename)
 		writeText(w, http.StatusBadRequest, "{\"error\":\"不支持的文件类型\"}")
 		return
 	}
 
 	md5Value, err := a.fileStorage.CalculateMD5(fileHeader)
 	if err != nil {
+		slog.Error("MD5计算失败", "error", err)
 		writeText(w, http.StatusInternalServerError, "{\"error\":\"MD5计算失败\"}")
 		return
 	}
@@ -341,6 +481,7 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 		category := a.fileStorage.CategoryFromContentType(contentType)
 		saved, err := a.fileStorage.SaveFile(fileHeader, category)
 		if err != nil {
+			slog.Error("本地存储失败", "error", err)
 			writeText(w, http.StatusInternalServerError, "{\"error\":\"本地存储失败: "+err.Error()+"\"}")
 			return
 		}
@@ -349,9 +490,11 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 
 	imgServerHost := a.imageServer.GetImgServerHost()
 	uploadURL := fmt.Sprintf("http://%s/asmx/upload.asmx/ProcessRequest?act=uploadImgRandom&userid=%s", imgServerHost, userID)
+	slog.Info("上传请求 Headers", "host", strings.Split(imgServerHost, ":")[0], "origin", "http://v1.chat2019.cn")
 
 	respBody, err := a.uploadToUpstream(r.Context(), uploadURL, imgServerHost, fileHeader, cookieData, referer, userAgent)
 	if err != nil {
+		slog.Error("上传媒体失败", "error", err, "localPath", localPath)
 		writeJSON(w, http.StatusInternalServerError, map[string]any{
 			"error":     "上传媒体失败: " + err.Error(),
 			"localPath": localPath,
@@ -392,6 +535,7 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 					"localFilename": localFilename,
 				}
 				if b, err := json.Marshal(enhanced); err == nil {
+					slog.Info("上传媒体成功", "userid", userID, "remoteFilename", msg, "localPath", localPath, "totalMs", time.Since(totalStart).Milliseconds())
 					writeText(w, http.StatusOK, string(b))
 					return
 				}
@@ -399,6 +543,7 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	slog.Info("上传媒体完成(未增强)", "userid", userID, "bodyLength", len(respBody), "totalMs", time.Since(totalStart).Milliseconds())
 	writeText(w, http.StatusOK, respBody)
 }
 
@@ -410,6 +555,7 @@ func (a *App) handleGetCachedImages(w http.ResponseWriter, r *http.Request) {
 	userID := strings.TrimSpace(r.URL.Query().Get("userid"))
 	hostHeader := requestHostHeader(r)
 
+	slog.Info("获取缓存图片", "userid", userID, "host", hostHeader)
 	cached := a.imageCache.GetCachedImages(userID)
 	if cached == nil {
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -439,6 +585,8 @@ func (a *App) handleToggleFavorite(w http.ResponseWriter, r *http.Request) {
 	referer := defaultString(r.FormValue("referer"), "http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko")
 	userAgent := defaultString(r.FormValue("userAgent"), "Mozilla/5.0")
 
+	slog.Info("收藏操作", "myUserID", myUserID, "UserToID", userToID)
+
 	form := url.Values{}
 	form.Set("myUserID", myUserID)
 	form.Set("UserToID", userToID)
@@ -453,14 +601,18 @@ func (a *App) handleToggleFavorite(w http.ResponseWriter, r *http.Request) {
 		"Cookie":     cookieData,
 	}
 
+	upstreamStart := time.Now()
 	status, body, err := a.postForm(r.Context(), "http://v1.chat2019.cn/asmx/method.asmx/random_MyHeart_Do", form, headers)
+	upstreamMs := time.Since(upstreamStart).Milliseconds()
 	if err != nil || status != http.StatusOK {
 		if err == nil {
 			err = fmt.Errorf("upstream status %d", status)
 		}
+		slog.Error("收藏操作失败", "status", status, "upstreamMs", upstreamMs, "error", err)
 		writeText(w, http.StatusOK, "{\"state\":\"ERROR\",\"msg\":\""+err.Error()+"\"}")
 		return
 	}
+	slog.Info("收藏操作响应", "status", status, "bodyLength", len(body), "upstreamMs", upstreamMs)
 	writeText(w, http.StatusOK, body)
 }
 
@@ -472,6 +624,8 @@ func (a *App) handleCancelFavorite(w http.ResponseWriter, r *http.Request) {
 	cookieData := defaultString(r.FormValue("cookieData"), "")
 	referer := defaultString(r.FormValue("referer"), "http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko")
 	userAgent := defaultString(r.FormValue("userAgent"), "Mozilla/5.0")
+
+	slog.Info("取消收藏操作", "myUserID", myUserID, "UserToID", userToID)
 
 	form := url.Values{}
 	form.Set("myUserID", myUserID)
@@ -486,14 +640,18 @@ func (a *App) handleCancelFavorite(w http.ResponseWriter, r *http.Request) {
 		"Cookie":     cookieData,
 	}
 
+	upstreamStart := time.Now()
 	status, body, err := a.postForm(r.Context(), "http://v1.chat2019.cn/asmx/method.asmx/random_MyHeart_Cancle", form, headers)
+	upstreamMs := time.Since(upstreamStart).Milliseconds()
 	if err != nil || status != http.StatusOK {
 		if err == nil {
 			err = fmt.Errorf("upstream status %d", status)
 		}
+		slog.Error("取消收藏操作失败", "status", status, "upstreamMs", upstreamMs, "error", err)
 		writeText(w, http.StatusOK, "{\"state\":\"ERROR\",\"msg\":\""+err.Error()+"\"}")
 		return
 	}
+	slog.Info("取消收藏操作响应", "status", status, "bodyLength", len(body), "upstreamMs", upstreamMs)
 	writeText(w, http.StatusOK, body)
 }
 

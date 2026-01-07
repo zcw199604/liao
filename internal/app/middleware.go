@@ -1,6 +1,7 @@
 package app
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -50,6 +51,7 @@ func (a *App) jwtMiddleware(next http.Handler) http.Handler {
 
 		authHeader := r.Header.Get("Authorization")
 		if !strings.HasPrefix(authHeader, "Bearer ") {
+			slog.Warn("请求缺少Token", "method", r.Method, "path", r.URL.Path)
 			writeJSON(w, http.StatusUnauthorized, map[string]any{
 				"code": 401,
 				"msg":  "未登录或Token缺失",
@@ -59,6 +61,7 @@ func (a *App) jwtMiddleware(next http.Handler) http.Handler {
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if !a.jwt.ValidateToken(tokenString) {
+			slog.Warn("Token验证失败", "method", r.Method, "path", r.URL.Path)
 			writeJSON(w, http.StatusUnauthorized, map[string]any{
 				"code": 401,
 				"msg":  "Token无效或已过期",

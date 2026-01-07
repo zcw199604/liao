@@ -21,6 +21,7 @@
 | 202601062034 | refine_unread_route_cleanup | 修复 | ✅已完成 | [链接](2026-01/202601062034_refine_unread_route_cleanup/) |
 | 202601071248 | go_backend_rewrite | 重构 | ✅已完成 | [链接](2026-01/202601071248_go_backend_rewrite/) |
 | 202601071533 | release_v1_0_0 | 发布 | ✅已完成 | [链接](2026-01/202601071533_release_v1_0_0/) |
+| 202601072015 | go_logging_align_java | 修复 | ⚠️待复验 | [链接](2026-01/202601072015_go_logging_align_java/) |
 
 ---
 
@@ -41,3 +42,4 @@
 - [202601062034_refine_unread_route_cleanup](2026-01/202601062034_refine_unread_route_cleanup/) - 未读判定改用路由实例，并简化聊天页卸载清理逻辑
 - [202601071248_go_backend_rewrite](2026-01/202601071248_go_backend_rewrite/) - 后端重构为 Go（API + /ws 100%兼容，MySQL + 可选 Redis，单容器运行）
 - [202601071533_release_v1_0_0](2026-01/202601071533_release_v1_0_0/) - 新增 GitHub Actions Release 工作流（创建/推送 Tag 并生成 GitHub Release 产物）
+- [202601072015_go_logging_align_java](2026-01/202601072015_go_logging_align_java/) - Go 日志对齐 Java 版（User History 分段耗时/鉴权告警等）

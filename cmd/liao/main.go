@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -15,9 +16,29 @@ import (
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
+	logLevel := slog.LevelInfo
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL"))) {
+	case "debug":
+		logLevel = slog.LevelDebug
+	case "info":
+		logLevel = slog.LevelInfo
+	case "warn", "warning":
+		logLevel = slog.LevelWarn
+	case "error":
+		logLevel = slog.LevelError
+	}
+
+	handlerOptions := &slog.HandlerOptions{
+		Level: logLevel,
+	}
+	var handler slog.Handler
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("LOG_FORMAT")), "text") {
+		handler = slog.NewTextHandler(os.Stdout, handlerOptions)
+	} else {
+		handler = slog.NewJSONHandler(os.Stdout, handlerOptions)
+	}
+
+	logger := slog.New(handler)
 	slog.SetDefault(logger)
 
 	cfg, err := config.Load()

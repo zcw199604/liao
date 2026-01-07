@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** 代理上游历史/收藏接口；对返回列表进行缓存增强（用户信息、lastMsg/lastTime）
 - **状态:** ✅稳定
-- **最后更新:** 2026-01-05
+- **最后更新:** 2026-01-07
 
 ## 规范
 
@@ -42,8 +42,9 @@
 **输出:** 用户列表（JSON），元素包含 `lastMsg`, `lastTime`（如缓存命中）
 
 ## 依赖
-- `com.zcw.controller.UserHistoryController`
-- `com.zcw.service.UserInfoCacheService`（Redis/Memory 实现）
+- `internal/app/user_history_handlers.go`
+- `internal/app/user_info_cache.go`（接口定义）
+- `internal/app/user_info_cache_redis.go` / `internal/app/user_info_cache.go`（Redis/Memory 实现）
 
 ## 变更历史
 - [202601041818_fix_history_userlist_lastmsg](../../history/2026-01/202601041818_fix_history_userlist_lastmsg/) - 修复 lastMsg/lastTime 增强在 `UserID/userid` 场景失效
