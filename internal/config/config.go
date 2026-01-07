@@ -1,0 +1,161 @@
+package config
+
+import (
+	"fmt"
+	"net/url"
+	"os"
+	"strconv"
+	"strings"
+)
+
+// Config 表示服务运行所需配置。
+// 设计目标：与现有 application.yml 的 env 覆盖规则保持一致。
+type Config struct {
+	ServerPort int
+
+	DBURL      string
+	DBUsername string
+	DBPassword string
+
+	RedisHost     string
+	RedisPort     int
+	RedisPassword string
+	RedisDB       int
+
+	AuthAccessCode    string
+	JWTSecret         string
+	TokenExpireHours  int
+	WebSocketFallback string
+
+	CacheType                   string
+	CacheRedisKeyPrefix         string
+	CacheRedisLastMessagePrefix string
+	CacheRedisExpireDays        int
+
+	ImageServerHost       string
+	ImageServerPort       string
+	ImageServerUpstreamURL string
+}
+
+func Load() (Config, error) {
+	cfg := Config{
+		ServerPort: getEnvInt("SERVER_PORT", 8080),
+
+		DBURL:      getEnv("DB_URL", "jdbc:mysql://10.10.10.90:3306/hot_img?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true"),
+		DBUsername: getEnv("DB_USERNAME", "root"),
+		DBPassword: getEnv("DB_PASSWORD", "123456"),
+
+		RedisHost:     getEnv("REDIS_HOST", "localhost"),
+		RedisPort:     getEnvInt("REDIS_PORT", 6379),
+		RedisPassword: getEnv("REDIS_PASSWORD", ""),
+		RedisDB:       getEnvInt("REDIS_DB", 0),
+
+		AuthAccessCode:   getEnv("AUTH_ACCESS_CODE", "Aa305512775."),
+		JWTSecret:        getEnv("JWT_SECRET", "your-jwt-secret-key-at-least-256-bits-long-please-change-this-to-random-string"),
+		TokenExpireHours: getEnvInt("TOKEN_EXPIRE_HOURS", 24),
+
+		WebSocketFallback: getEnv("WEBSOCKET_UPSTREAM_URL", "ws://localhost:9999"),
+
+		CacheType:                   getEnv("CACHE_TYPE", "memory"),
+		CacheRedisKeyPrefix:         getEnv("CACHE_REDIS_PREFIX", "user:info:"),
+		CacheRedisLastMessagePrefix: getEnv("CACHE_REDIS_LASTMSG_PREFIX", "user:lastmsg:"),
+		CacheRedisExpireDays:        getEnvInt("CACHE_REDIS_EXPIRE_DAYS", 7),
+
+		ImageServerHost:        getEnv("IMG_SERVER_HOST", "149.88.79.98"),
+		ImageServerPort:        getEnv("IMG_SERVER_PORT", "9003"),
+		ImageServerUpstreamURL: getEnv("IMG_SERVER_UPSTREAM_URL", "http://v1.chat2019.cn/asmx/method.asmx/getImgServer"),
+	}
+
+	if cfg.ServerPort <= 0 || cfg.ServerPort > 65535 {
+		return Config{}, fmt.Errorf("SERVER_PORT 非法: %d", cfg.ServerPort)
+	}
+
+	if strings.TrimSpace(cfg.JWTSecret) == "" {
+		return Config{}, fmt.Errorf("JWT_SECRET 不能为空")
+	}
+
+	if cfg.TokenExpireHours <= 0 {
+		return Config{}, fmt.Errorf("TOKEN_EXPIRE_HOURS 非法: %d", cfg.TokenExpireHours)
+	}
+
+	if strings.TrimSpace(cfg.CacheType) == "" {
+		cfg.CacheType = "memory"
+	}
+
+	switch cfg.CacheType {
+	case "memory", "redis":
+	default:
+		return Config{}, fmt.Errorf("CACHE_TYPE 非法: %s（仅支持 memory/redis）", cfg.CacheType)
+	}
+
+	return cfg, nil
+}
+
+func (c Config) ListenAddr() string {
+	return fmt.Sprintf(":%d", c.ServerPort)
+}
+
+func getEnv(key, defaultValue string) string {
+	val := os.Getenv(key)
+	if strings.TrimSpace(val) == "" {
+		return defaultValue
+	}
+	return val
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	val := strings.TrimSpace(os.Getenv(key))
+	if val == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.Atoi(val)
+	if err != nil {
+		return defaultValue
+	}
+	return parsed
+}
+
+// ParseJDBCMySQLURL 将 JDBC MySQL URL（jdbc:mysql://host:port/db?x=y）解析为 host/port/db/params。
+func ParseJDBCMySQLURL(jdbcURL string) (host string, port int, database string, params url.Values, err error) {
+	raw := strings.TrimSpace(jdbcURL)
+	if raw == "" {
+		return "", 0, "", nil, fmt.Errorf("DB_URL 为空")
+	}
+
+	// 支持 jdbc:mysql://... 与 mysql://... 两种形式（以便本地灵活配置）。
+	if strings.HasPrefix(raw, "jdbc:") {
+		raw = strings.TrimPrefix(raw, "jdbc:")
+	}
+
+	u, parseErr := url.Parse(raw)
+	if parseErr != nil {
+		return "", 0, "", nil, fmt.Errorf("解析 DB_URL 失败: %w", parseErr)
+	}
+
+	if u.Scheme != "mysql" {
+		return "", 0, "", nil, fmt.Errorf("DB_URL scheme 非法: %s", u.Scheme)
+	}
+
+	host = u.Hostname()
+	if host == "" {
+		return "", 0, "", nil, fmt.Errorf("DB_URL 缺少 host")
+	}
+
+	if u.Port() == "" {
+		port = 3306
+	} else {
+		port, err = strconv.Atoi(u.Port())
+		if err != nil {
+			return "", 0, "", nil, fmt.Errorf("DB_URL port 非法: %w", err)
+		}
+	}
+
+	database = strings.TrimPrefix(u.Path, "/")
+	if database == "" {
+		return "", 0, "", nil, fmt.Errorf("DB_URL 缺少数据库名")
+	}
+
+	return host, port, database, u.Query(), nil
+}
+

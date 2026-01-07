@@ -14,7 +14,7 @@ target/
 
 # Node.js（如果前端资源已打包到static）
 node_modules/
-package-lock.json
+/package-lock.json
 
 # 日志文件
 *.log
