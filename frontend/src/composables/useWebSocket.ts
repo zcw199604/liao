@@ -12,8 +12,12 @@ import { emojiMap } from '@/constants/emoji'
 import { isImageFile, isVideoFile } from '@/utils/file'
 import router from '@/router'
 
-let ws: WebSocket | null = null
-let manualClose = false
+type ActiveWebSocketConnection = {
+  socket: WebSocket
+  userId: string
+}
+
+let activeConnection: ActiveWebSocketConnection | null = null
 const forceoutFlag = ref(false)
 
 // 滚动到底部的方法引用（全局单例）
@@ -51,11 +55,6 @@ export const useWebSocket = () => {
   }
 
   const connect = () => {
-    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-      console.log('WebSocket 已连接/正在连接，跳过重复连接')
-      return
-    }
-
     const token = localStorage.getItem('authToken')
     if (!token) {
       console.error('没有Token，无法连接WebSocket')
@@ -68,14 +67,34 @@ export const useWebSocket = () => {
       return
     }
 
+    const desiredUserId = String(currentUser.id || '')
+    const existing = activeConnection
+    if (existing && (existing.socket.readyState === WebSocket.OPEN || existing.socket.readyState === WebSocket.CONNECTING)) {
+      if (existing.userId === desiredUserId) {
+        console.log('WebSocket 已连接/正在连接，跳过重复连接')
+        return
+      }
+      console.log('检测到身份已切换，重建 WebSocket 连接:', existing.userId, '->', desiredUserId)
+      disconnect(true)
+    } else if (existing) {
+      activeConnection = null
+    }
+
     // WebSocket URL中添加token参数
     const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const wsUrlWithToken = `${scheme}://${window.location.host}${WS_URL}?token=${encodeURIComponent(token)}`
     console.log('正在连接 WebSocket (已携带Token):', wsUrlWithToken)
 
-    ws = new WebSocket(wsUrlWithToken)
+    const socket = new WebSocket(wsUrlWithToken)
+    const connection: ActiveWebSocketConnection = {
+      socket,
+      userId: desiredUserId
+    }
+    activeConnection = connection
 
-    ws.onopen = async () => {
+    socket.onopen = async () => {
+      if (activeConnection !== connection) return
+
       console.log('WebSocket 连接成功')
       chatStore.wsConnected = true
       forceoutFlag.value = false
@@ -96,7 +115,7 @@ export const useWebSocket = () => {
       }
 
       const signMsg = JSON.stringify(signMessage)
-      ws?.send(signMsg)
+      socket.send(signMsg)
       console.log('已发送登录消息:', signMsg)
 
       // 上报访问记录 -> 获取图片服务器地址 -> 刷新缓存图片
@@ -127,7 +146,9 @@ export const useWebSocket = () => {
       }
     }
 
-    ws.onmessage = async (event) => {
+    socket.onmessage = async (event) => {
+      if (activeConnection !== connection) return
+
       console.log('收到消息:', event.data)
 
       try {
@@ -140,9 +161,7 @@ export const useWebSocket = () => {
           forceoutFlag.value = true
           // 使用 Router 或直接跳转到登录页，带上错误信息
           chatStore.wsConnected = false
-          if (ws) {
-            ws.close()
-          }
+          socket.close()
           // 清除Token并跳转
           localStorage.removeItem('authToken')
           // 这里使用 reload 或 href 跳转来确保彻底断开和重置状态
@@ -548,26 +567,23 @@ export const useWebSocket = () => {
       }
     }
 
-    ws.onerror = (error) => {
+    socket.onerror = (error) => {
+      if (activeConnection !== connection) return
       console.error('WebSocket 错误:', error)
       chatStore.wsConnected = false
     }
 
-    ws.onclose = () => {
+    socket.onclose = () => {
+      if (activeConnection !== connection) return
+
       console.log('WebSocket 连接关闭')
+      activeConnection = null
       chatStore.wsConnected = false
 
       // WebSocket断开时取消连续匹配
       if (chatStore.continuousMatchConfig.enabled) {
         chatStore.cancelContinuousMatch()
         show('连接断开，连续匹配已取消')
-      }
-
-      // 如果是手动关闭（切换身份），不重连
-      if (manualClose) {
-        console.log('手动关闭，跳过重连')
-        manualClose = false
-        return
       }
 
       // 检查forceout标志
@@ -585,9 +601,10 @@ export const useWebSocket = () => {
   }
 
   const send = (message: any) => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
+    const socket = activeConnection?.socket
+    if (socket && socket.readyState === WebSocket.OPEN) {
       const msg = JSON.stringify(message)
-      ws.send(msg)
+      socket.send(msg)
       console.log('发送消息:', msg)
     } else {
       console.error('WebSocket未连接，无法发送消息')
@@ -596,10 +613,25 @@ export const useWebSocket = () => {
   }
 
   const disconnect = (manual: boolean = false) => {
-    manualClose = manual
-    if (ws) {
-      ws.close()
-      ws = null
+    const existing = activeConnection
+    if (!existing) return
+
+    // 先切断引用，确保后续新连接不受旧连接 onclose 影响
+    activeConnection = null
+    chatStore.wsConnected = false
+
+    // WebSocket断开时取消连续匹配（保持与 onclose 行为一致）
+    if (chatStore.continuousMatchConfig.enabled) {
+      chatStore.cancelContinuousMatch()
+      show('连接断开，连续匹配已取消')
+    }
+
+    // 关闭旧连接（manual 参数用于语义兼容，实际不触发自动重连）
+    void manual
+    try {
+      existing.socket.close()
+    } catch {
+      // ignore
     }
   }
 

@@ -133,6 +133,53 @@ describe('composables/useWebSocket', () => {
     expect(FakeWebSocket.instances[0]!.sent.some(s => s === JSON.stringify({ a: 1 }))).toBe(true)
   })
 
+  it('reconnects and re-signs when identity changes', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = {
+      id: 'a',
+      name: 'A',
+      nickname: 'A',
+      sex: '男',
+      ip: '127.0.0.1',
+      area: 'CN'
+    } as any
+
+    localStorage.setItem('authToken', 't-1')
+
+    const chatStore = useChatStore()
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+    expect(FakeWebSocket.instances).toHaveLength(1)
+
+    await FakeWebSocket.instances[0]!.triggerOpen()
+    expect(chatStore.wsConnected).toBe(true)
+
+    const signA = JSON.parse(FakeWebSocket.instances[0]!.sent[0] || '{}')
+    expect(signA.act).toBe('sign')
+    expect(signA.id).toBe('a')
+
+    userStore.currentUser = {
+      id: 'b',
+      name: 'B',
+      nickname: 'B',
+      sex: '女',
+      ip: '127.0.0.2',
+      area: 'CN'
+    } as any
+
+    socket.connect()
+    expect(FakeWebSocket.instances).toHaveLength(2)
+
+    await FakeWebSocket.instances[1]!.triggerOpen()
+    const signB = JSON.parse(FakeWebSocket.instances[1]!.sent[0] || '{}')
+    expect(signB.act).toBe('sign')
+    expect(signB.id).toBe('b')
+  })
+
   it('handles typing status messages for current chat user and triggers scroll callback', async () => {
     const userStore = useUserStore()
     userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
