@@ -31,3 +31,4 @@
 - 后端：修复 Go 端错误读取 `Host` 请求头导致媒体 URL 回退 `localhost`，从而出现图片无法加载的问题（影响 `getAllUploadImages/getCachedImages` 等）。
 - 后端：修复 Go 端删除媒体对历史 `localPath`（无前导 `/` 或携带 `/upload` 前缀/完整 URL）兼容不足，导致返回 403 的问题。
 - 后端：修复 Go 端 `/api/deleteMedia` 兼容性：支持 `localPath` 含 `%2F` 编码、兼容 `local_path` 异常带 `/upload` 前缀/缺少前导 `/`，并取消按 `userId` 校验上传者归属以对齐“全站图片库”展示行为，避免误报 403。
+- 后端：修复 Go 版 WebSocket 下游广播在存在僵尸连接时可能写阻塞，导致匹配/消息回包延迟或丢失的问题（增加下游写超时并在发送失败时清理会话）。

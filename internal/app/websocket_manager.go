@@ -21,6 +21,7 @@ const (
 	wsUpstreamPingInterval     = 600 * time.Second
 	wsUpstreamConnectionLost   = 700 * time.Second
 	wsUpstreamWriteDeadline    = 10 * time.Second
+	wsDownstreamWriteDeadline  = 5 * time.Second
 	wsUpstreamConnectTimeout   = 15 * time.Second
 	wsUpstreamCloseWait        = 5 * time.Second
 	wsEvictionCloseDelay       = 1 * time.Second
@@ -182,7 +183,13 @@ func (m *UpstreamWebSocketManager) SendToUpstream(userID string, message string)
 func (m *UpstreamWebSocketManager) BroadcastToDownstream(userID string, message string) {
 	sessions := m.snapshotDownstream(userID)
 	for _, session := range sessions {
-		_ = session.SendText(message)
+		if session == nil {
+			continue
+		}
+		if err := session.SendText(message); err != nil {
+			_ = session.Close()
+			m.UnregisterDownstream(userID, session)
+		}
 	}
 }
 

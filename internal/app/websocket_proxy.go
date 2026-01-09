@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -20,6 +21,7 @@ func (s *DownstreamSession) SendText(message string) error {
 	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+	_ = s.conn.SetWriteDeadline(time.Now().Add(wsDownstreamWriteDeadline))
 	return s.conn.WriteMessage(websocket.TextMessage, []byte(message))
 }
 
