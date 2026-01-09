@@ -12,7 +12,7 @@
 ## 开发约定
 - **Go:** 以 `cmd/liao` 为入口，业务代码在 `internal/app`；保持接口/返回体与原 Spring Boot 行为一致
 - **接口路径:** 使用 camelCase（项目约定）
-- **配置:** 以 `src/main/resources/application.yml` 为默认，优先通过环境变量覆盖
+- **配置:** Go 服务不直接读取 `application.yml`；其环境变量命名与默认值对齐 `src/main/resources/application.yml`，运行时优先使用环境变量覆盖
 
 ---
 
