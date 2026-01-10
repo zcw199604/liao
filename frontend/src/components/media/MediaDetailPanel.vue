@@ -2,7 +2,7 @@
   <teleport to="body">
     <transition name="slide-up">
       <div v-if="visible" class="fixed inset-0 z-[110] flex items-end justify-center" @click.self="close">
-        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="close"></div>
 
         <div class="relative w-full max-w-lg bg-[#18181b] rounded-t-3xl shadow-2xl p-6 max-h-[70vh] overflow-y-auto" @click.stop>
           <button @click="close" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors">
