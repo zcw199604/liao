@@ -161,15 +161,23 @@
                   class="bg-[#1f1f23] rounded-xl p-3 flex gap-4 hover:bg-[#27272a] transition border border-transparent hover:border-gray-700 group"
                 >
                   <!-- Thumb -->
-                  <div class="w-24 h-24 shrink-0 bg-black rounded-lg overflow-hidden relative">
-                    <img 
-                      :src="getImgUrl(item.filePath)" 
-                      class="w-full h-full object-contain" 
+                  <div
+                    class="w-24 h-24 shrink-0 bg-black rounded-lg overflow-hidden relative cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
+                    @click="openPreview(item)"
+                    title="点击预览大图"
+                  >
+                    <img
+                      :src="getImgUrl(item.filePath)"
+                      class="w-full h-full object-contain"
                       loading="lazy"
                       @error="handleImgError"
                     />
                     <div class="absolute bottom-0 left-0 right-0 bg-black/60 text-[10px] text-white text-center py-0.5 backdrop-blur-sm">
                       ID: {{ item.id }}
+                    </div>
+                    <!-- 预览提示 -->
+                    <div class="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <i class="fas fa-search-plus text-white text-lg"></i>
                     </div>
                   </div>
 
@@ -231,17 +239,27 @@
       v-model:visible="showDetail"
       :media="detailMedia"
     />
+
+    <!-- Preview Panel -->
+    <MediaPreview
+      v-model:visible="showPreview"
+      :url="mediaPreviewUrl"
+      :type="mediaPreviewType"
+      :can-upload="false"
+      :media-list="resultMediaList"
+    />
   </teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { checkDuplicateMedia } from '@/api/media'
 import type { CheckDuplicateData, DuplicateCheckItem, UploadedMedia } from '@/types'
 import { IMG_SERVER_IMAGE_PORT } from '@/constants/config'
 import { useMediaStore } from '@/stores/media'
 import MediaDetailPanel from './MediaDetailPanel.vue'
+import MediaPreview from './MediaPreview.vue'
 
 const props = defineProps<{
   visible: boolean
@@ -268,6 +286,27 @@ const resultsPanelRef = ref<HTMLElement | null>(null)
 // Detail Panel
 const showDetail = ref(false)
 const detailMedia = ref<UploadedMedia | null>(null)
+
+// Preview Panel
+const showPreview = ref(false)
+const mediaPreviewUrl = ref('')
+const mediaPreviewType = ref<'image' | 'video' | 'file'>('image')
+
+// 将查重结果转换为 MediaPreview 需要的 UploadedMedia 格式
+const resultMediaList = computed<UploadedMedia[]>(() => {
+  if (!result.value?.items) return []
+  return result.value.items.map(item => ({
+    url: getImgUrl(item.filePath),
+    type: 'image' as const,
+    originalFilename: item.fileName,
+    localFilename: item.fileName,
+    fileSize: item.fileSize,
+    uploadTime: item.createdAt,
+    md5: item.md5Hash,
+    pHash: item.pHash,
+    similarity: item.similarity
+  }))
+})
 
 // Ensure server address is loaded
 if (!mediaStore.imgServer) {
@@ -359,6 +398,13 @@ const openDetail = (item: DuplicateCheckItem) => {
     similarity: item.similarity
   }
   showDetail.value = true
+}
+
+// 打开图片预览
+const openPreview = (item: DuplicateCheckItem) => {
+  mediaPreviewUrl.value = getImgUrl(item.filePath)
+  mediaPreviewType.value = 'image'
+  showPreview.value = true
 }
 
 const getMatchTypeText = (type: string) => {
