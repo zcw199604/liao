@@ -25,3 +25,28 @@ export interface MediaPreview {
   canUpload: boolean
   uploadTarget?: any
 }
+
+export interface DuplicateCheckItem {
+  id: number
+  filePath: string
+  fileName: string
+  fileDir?: string
+  md5Hash: string
+  pHash: string
+  fileSize?: number
+  createdAt?: string
+  distance: number
+  similarity: number
+}
+
+export interface CheckDuplicateData {
+  matchType: 'md5' | 'phash' | 'none'
+  md5: string
+  pHash?: string
+  thresholdType: string
+  similarityThreshold: number
+  distanceThreshold: number
+  limit: number
+  items: DuplicateCheckItem[]
+  reason?: string
+}

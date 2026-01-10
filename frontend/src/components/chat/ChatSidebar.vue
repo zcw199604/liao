@@ -39,6 +39,13 @@
             <span>全局收藏</span>
           </button>
           <button
+            @click="handleOpenDuplicateCheck"
+            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-gray-700 transition"
+          >
+            <i class="fas fa-search text-blue-400"></i>
+            <span>图片查重</span>
+          </button>
+          <button
             @click="handleSwitchIdentity"
             class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-gray-700 rounded-b-xl transition"
           >
@@ -237,6 +244,8 @@
         </div>
       </div>
     </Dialog>
+
+    <DuplicateCheckModal v-model:visible="showDuplicateCheck" />
   </div>
 </template>
 
@@ -260,6 +269,7 @@ import Dialog from '@/components/common/Dialog.vue'
 import PullToRefresh from '@/components/common/PullToRefresh.vue'
 import MatchButton from '@/components/chat/MatchButton.vue'
 import MatchOverlay from '@/components/chat/MatchOverlay.vue'
+import DuplicateCheckModal from '@/components/media/DuplicateCheckModal.vue'
 import type { User } from '@/types'
 import { deleteUser } from '@/api/chat'
 
@@ -283,6 +293,7 @@ const { show } = useToast()
 
 const showTopMenu = ref(false)
 const showSettings = ref(false)
+const showDuplicateCheck = ref(false)
 const settingsMode = ref<'identity' | 'system' | 'favorites'>('identity')
 const showSwitchIdentityDialog = ref(false)
 const showDeleteUserDialog = ref(false)
@@ -564,6 +575,12 @@ const handleOpenFavorites = () => {
   showTopMenu.value = false
   settingsMode.value = 'favorites'
   showSettings.value = true
+}
+
+const handleOpenDuplicateCheck = () => {
+  closeContextMenu()
+  showTopMenu.value = false
+  showDuplicateCheck.value = true
 }
 
 const handleSwitchIdentity = () => {
