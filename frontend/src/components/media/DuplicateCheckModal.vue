@@ -377,28 +377,16 @@ const getSimilarityClass = (score: number) => {
 }
 
 const getImgUrl = (filePath: string) => {
-  // Logic to convert filePath to URL
-  // If filePath starts with http, use it.
+  // 如果已经是完整 URL，直接返回
   if (filePath.startsWith('http')) return filePath
-  
-  // If filePath starts with /upload or similar, prepend server
+
+  // 本地文件路径（可能是 /upload/... 或 /lsp/tg/... 等），拼接当前页面的 origin
   if (filePath.startsWith('/')) {
-      // Use mediaStore.imgServer if available, else assume relative to current host
-      if (mediaStore.imgServer) {
-           return `http://${mediaStore.imgServer}:${IMG_SERVER_IMAGE_PORT}${filePath.startsWith('/img') ? '' : '/img/Upload'}${filePath}`
-           // Note: The backend returns filePath. If it's a relative path from DB, we need to know the format.
-           // Internal app: item.FilePath.
-           // Usually image server serves files. 
-           // Let's try basic concatenation first.
-           // The backend's FilePath often includes /upload/... 
-           // If it is just a filename, we need to know the dir.
-           // The API returns FileDir as well?
-      }
-      return filePath
+    return `${window.location.origin}${filePath}`
   }
-  
-  // Fallback
-  return filePath
+
+  // 如果路径不以 / 开头，添加前缀
+  return `${window.location.origin}/${filePath}`
 }
 
 const handleImgError = (e: Event) => {
