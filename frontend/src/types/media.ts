@@ -9,6 +9,9 @@ export interface UploadedMedia {
   fileExtension?: string      // 扩展名
   uploadTime?: string         // ISO时间字符串
   updateTime?: string         // ISO时间字符串
+  md5?: string
+  pHash?: string
+  similarity?: number
 }
 
 export interface MediaItem {

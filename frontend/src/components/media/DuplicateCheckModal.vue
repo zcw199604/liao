@@ -196,6 +196,13 @@
 
                   <!-- Actions -->
                   <div class="flex flex-col justify-center gap-2">
+                    <button
+                      @click="openDetail(item)"
+                      class="p-2 rounded-lg bg-[#27272a] hover:bg-gray-600 text-gray-400 hover:text-white transition"
+                      title="查看详情"
+                    >
+                      <i class="fas fa-exclamation-circle text-blue-400"></i>
+                    </button>
                     <a 
                       :href="getImgUrl(item.filePath)" 
                       target="_blank"
@@ -217,6 +224,13 @@
         </div>
       </div>
     </div>
+
+    <!-- Detail Panel -->
+    <MediaDetailPanel
+      v-if="detailMedia"
+      v-model:visible="showDetail"
+      :media="detailMedia"
+    />
   </teleport>
 </template>
 
@@ -224,9 +238,10 @@
 import { ref, watch, nextTick } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { checkDuplicateMedia } from '@/api/media'
-import type { CheckDuplicateData } from '@/types/media'
-import { IMG_SERVER_IMAGE_PORT } from '@/constants/config' // Assuming we can use this or need to fetch dynamically
+import type { CheckDuplicateData, DuplicateCheckItem, UploadedMedia } from '@/types'
+import { IMG_SERVER_IMAGE_PORT } from '@/constants/config'
 import { useMediaStore } from '@/stores/media'
+import MediaDetailPanel from './MediaDetailPanel.vue'
 
 const props = defineProps<{
   visible: boolean
@@ -248,8 +263,11 @@ const similarityThreshold = ref(0.85)
 const limit = ref(20)
 
 const result = ref<CheckDuplicateData | null>(null)
-
 const resultsPanelRef = ref<HTMLElement | null>(null)
+
+// Detail Panel
+const showDetail = ref(false)
+const detailMedia = ref<UploadedMedia | null>(null)
 
 // Ensure server address is loaded
 if (!mediaStore.imgServer) {
@@ -326,6 +344,21 @@ const checkDuplicate = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const openDetail = (item: DuplicateCheckItem) => {
+  detailMedia.value = {
+    url: getImgUrl(item.filePath),
+    type: 'image', // Assuming image since it's image deduplication
+    originalFilename: item.fileName,
+    localFilename: item.fileName, // Using fileName as localFilename too
+    fileSize: item.fileSize,
+    uploadTime: item.createdAt,
+    md5: item.md5Hash,
+    pHash: item.pHash,
+    similarity: item.similarity
+  }
+  showDetail.value = true
 }
 
 const getMatchTypeText = (type: string) => {

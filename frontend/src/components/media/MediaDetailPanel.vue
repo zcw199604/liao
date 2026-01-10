@@ -44,6 +44,21 @@
               <label>最后更新</label>
               <div class="value">{{ formatFullTime(media.updateTime || '') }}</div>
             </div>
+
+            <div v-if="media.md5" class="detail-item">
+              <label>MD5</label>
+              <div class="value font-mono text-xs">{{ media.md5 }}</div>
+            </div>
+
+            <div v-if="media.pHash" class="detail-item">
+              <label>pHash</label>
+              <div class="value font-mono text-xs">{{ media.pHash }}</div>
+            </div>
+
+            <div v-if="media.similarity !== undefined" class="detail-item">
+              <label>相似度</label>
+              <div class="value font-bold text-blue-400">{{ (media.similarity * 100).toFixed(2) }}%</div>
+            </div>
           </div>
         </div>
       </div>
