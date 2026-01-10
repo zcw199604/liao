@@ -41,7 +41,7 @@ class MockFileReader {
     }, 10)
   }
 }
-global.FileReader = MockFileReader as any
+globalThis.FileReader = MockFileReader as any
 
 describe('components/media/DuplicateCheckModal.vue', () => {
   beforeEach(() => {
@@ -144,7 +144,7 @@ describe('components/media/DuplicateCheckModal.vue', () => {
     await nextTick()
 
     expect(checkDuplicateMediaMock).toHaveBeenCalled()
-    const formData = checkDuplicateMediaMock.mock.calls[0][0] as FormData
+    const formData = checkDuplicateMediaMock.mock.calls[0]![0] as FormData
     expect(formData.get('file')).toBe(file)
     expect(formData.get('similarityThreshold')).toBe('0.85')
     expect(formData.get('limit')).toBe('20')
@@ -256,8 +256,8 @@ describe('components/media/DuplicateCheckModal.vue', () => {
     })
 
     const sliders = wrapper.findAll('input[type="range"]')
-    const thresholdSlider = sliders[0]
-    const limitSlider = sliders[1]
+    const thresholdSlider = sliders[0]!
+    const limitSlider = sliders[1]!
 
     await thresholdSlider.setValue(0.9)
     await limitSlider.setValue(50)
@@ -283,7 +283,7 @@ describe('components/media/DuplicateCheckModal.vue', () => {
     await nextTick()
     await nextTick()
 
-    const formData = checkDuplicateMediaMock.mock.calls[0][0] as FormData
+    const formData = checkDuplicateMediaMock.mock.calls[0]![0] as FormData
     expect(formData.get('similarityThreshold')).toBe('0.9')
     expect(formData.get('limit')).toBe('50')
     
