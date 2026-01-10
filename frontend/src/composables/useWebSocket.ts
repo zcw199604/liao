@@ -54,6 +54,16 @@ export const useWebSocket = () => {
     }
   }
 
+  const promoteHistoryUser = (userId: string) => {
+    const historyIds = chatStore.historyUserIds
+    let idx = historyIds.indexOf(userId)
+    while (idx > -1) {
+      historyIds.splice(idx, 1)
+      idx = historyIds.indexOf(userId)
+    }
+    historyIds.unshift(userId)
+  }
+
   const connect = () => {
     const token = localStorage.getItem('authToken')
     if (!token) {
@@ -240,12 +250,7 @@ export const useWebSocket = () => {
           chatStore.upsertUser(matchedUser)
 
           // 移到历史列表最前面
-          const historyIds = chatStore.historyUserIds
-          const existingIndex = historyIds.indexOf(matchedUser.id)
-          if (existingIndex > -1) {
-            historyIds.splice(existingIndex, 1)
-          }
-          historyIds.unshift(matchedUser.id)
+          promoteHistoryUser(matchedUser.id)
 
           // 初始化聊天记录为空
           messageStore.clearHistory(matchedUser.id)
@@ -294,22 +299,32 @@ export const useWebSocket = () => {
             ''
           )
           const fromUserNickname = String((data as any)?.fromuser?.nickname ?? (data as any)?.fromuser?.name ?? '')
+          const toUserNickname = String((data as any)?.touser?.nickname ?? (data as any)?.touser?.name ?? '')
 
           console.log('解析消息 - fromUserId=', fromUserId, 'toUserId=', toUserId, 'currentUserId=', currentUser.id)
           console.log('消息内容:', messageContent)
           console.log('当前聊天对象:', chatStore.currentChatUser ? chatStore.currentChatUser.id : '无')
 
-          // 判断是不是自己发送的消息（通过nickname判断）
-          const isSelf = fromUserNickname === currentUser.nickname
-          console.log('isSelf=', isSelf, '(通过nickname判断)')
+          // 判断是不是自己发送的消息（优先通过id判断，兜底通过nickname）
+          const isSelf = (fromUserId && fromUserId === currentUserId) ||
+            (!fromUserId && fromUserNickname === currentUser.nickname)
+          console.log('isSelf=', isSelf, '(优先通过id判断)')
 
-          // 判断是否应该显示这条消息（通过nickname判断）
+          // 判断是否应该显示这条消息（优先通过id判断，兜底通过nickname）
           // 双保险：必须处于 /chat 路由才视为“正在聊天中”，否则在列表页也会被误判为已读
           const isInChatPage = router.currentRoute.value.path.startsWith('/chat')
-          const shouldDisplay = isInChatPage &&
+          const peerId = chatStore.currentChatUser ? String(chatStore.currentChatUser.id) : ''
+          const shouldDisplayById = isInChatPage &&
+            !!peerId &&
+            !!fromUserId &&
+            !!toUserId &&
+            ((fromUserId === currentUserId && toUserId === peerId) ||
+             (fromUserId === peerId && toUserId === currentUserId))
+          const shouldDisplayByNickname = isInChatPage &&
             !!chatStore.currentChatUser &&
-            (fromUserNickname === chatStore.currentChatUser.nickname ||
-             (data.touser && data.touser.nickname === chatStore.currentChatUser.nickname))
+            ((fromUserNickname && fromUserNickname === chatStore.currentChatUser.nickname) ||
+             (toUserNickname && toUserNickname === chatStore.currentChatUser.nickname))
+          const shouldDisplay = shouldDisplayById || shouldDisplayByNickname
 
           console.log('shouldDisplay=', shouldDisplay)
 
@@ -426,35 +441,46 @@ export const useWebSocket = () => {
 
             // 直接更新 userMap 中的对象
             if (chatStore.currentChatUser) {
-              chatStore.updateUser(chatStore.currentChatUser.id, {
+              const updates: Partial<User> = {
                 lastMsg,
                 lastTime: '刚刚',
                 unreadCount: 0
-              })
+              }
+
+              // 对端用户修改昵称时，同步更新当前聊天对象的展示名称
+              if (fromUserId && fromUserNickname && String(chatStore.currentChatUser.id) === fromUserId) {
+                updates.name = fromUserNickname
+                updates.nickname = fromUserNickname
+              }
+
+              chatStore.updateUser(chatStore.currentChatUser.id, updates)
             }
 
             setTimeout(scrollToBottom, 100)
           } else if (!isSelf) {
             // 不在当前聊天界面，但收到消息 - 使用单一数据源更新
-            // 使用 nickname 查找用户（与 shouldDisplay 判断逻辑一致）
-            const existingUser = chatStore.getUserByNickname(fromUserNickname)
+            // 优先使用 id 查找用户；昵称可能会变，兜底才用 nickname
+            const existingUser = fromUserId ? chatStore.getUser(fromUserId) : undefined
+            const existingUserByNickname = !existingUser && fromUserNickname
+              ? chatStore.getUserByNickname(fromUserNickname)
+              : undefined
+            const targetUser = existingUser || existingUserByNickname
 
-            if (existingUser) {
+            if (targetUser) {
               // 用户已存在 - 更新状态
-              chatStore.updateUser(existingUser.id, {
+              const updates: Partial<User> = {
                 lastMsg,
                 lastTime: '刚刚',
-                unreadCount: (existingUser.unreadCount || 0) + 1
-              })
-
-              // 移到历史列表最前面
-              const historyIds = chatStore.historyUserIds
-              const existingIndex = historyIds.indexOf(existingUser.id)
-              if (existingIndex > -1) {
-                historyIds.splice(existingIndex, 1)
+                unreadCount: (targetUser.unreadCount || 0) + 1
               }
-              historyIds.unshift(existingUser.id)
+              if (fromUserNickname) {
+                updates.name = fromUserNickname
+                updates.nickname = fromUserNickname
+              }
+              chatStore.updateUser(targetUser.id, updates)
 
+              // 移到历史列表最前面（按 id 去重）
+              promoteHistoryUser(targetUser.id)
             } else if (fromUserId && fromUserId !== currentUserId) {
               // 新用户 - 创建并添加
               const newUser: User = {
@@ -473,7 +499,7 @@ export const useWebSocket = () => {
               }
 
               chatStore.upsertUser(newUser)
-              chatStore.historyUserIds.unshift(fromUserId)
+              promoteHistoryUser(fromUserId)
             }
           }
 

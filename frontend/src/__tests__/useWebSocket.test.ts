@@ -267,6 +267,57 @@ describe('composables/useWebSocket', () => {
     expect(user.lastMsg).toBe('hello')
   })
 
+  it('does not duplicate history list when peer nickname changes (id-first match)', async () => {
+    const authStore = useAuthStore()
+    const userStore = useUserStore()
+    authStore.isAuthenticated = true
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+    localStorage.setItem('authToken', 't-1')
+
+    await router.push('/list')
+    await router.isReady()
+
+    const chatStore = useChatStore()
+    chatStore.upsertUser({
+      id: 'u2',
+      name: 'OldName',
+      nickname: 'OldName',
+      sex: '未知',
+      age: '0',
+      area: '',
+      address: '',
+      ip: '',
+      isFavorite: false,
+      lastMsg: '',
+      lastTime: '',
+      unreadCount: 0
+    } as any)
+    chatStore.historyUserIds = ['u2']
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+
+    await FakeWebSocket.instances[0]!.triggerMessage({
+      code: 7,
+      fromuser: { id: 'u2', name: 'NewName', nickname: 'NewName', sex: '未知', ip: '', content: 'hi', time: '2026-01-01 00:00:00.000', tid: 't-nick' },
+      touser: { id: 'me', name: 'Me', nickname: 'Me', sex: '未知', ip: '' },
+      tid: 't-nick'
+    })
+
+    const occurrences = chatStore.historyUserIds.filter(id => id === 'u2')
+    expect(occurrences).toHaveLength(1)
+
+    const user = chatStore.getUser('u2') as any
+    expect(user.nickname).toBe('NewName')
+    expect(user.lastMsg).toBe('hi')
+    expect(user.unreadCount).toBe(1)
+  })
+
   it('clears unreadCount on /chat when message belongs to current chat', async () => {
     const authStore = useAuthStore()
     const userStore = useUserStore()
