@@ -18,6 +18,7 @@ func (a *App) buildRouter() http.Handler {
 
 	// 静态上传文件
 	r.Handle("/upload/*", a.uploadFileServer())
+	r.Handle("/lsp/*", a.lspFileServer())
 
 	// API
 	r.Route("/api", func(api chi.Router) {

@@ -44,3 +44,7 @@ func (a *App) uploadFileServer() http.Handler {
 	return http.StripPrefix("/upload", http.FileServer(http.Dir("upload")))
 }
 
+func (a *App) lspFileServer() http.Handler {
+	return http.StripPrefix("/lsp", http.FileServer(http.Dir("lsp")))
+}
+
