@@ -10,6 +10,7 @@ import { useMediaStore } from '@/stores/media'
 import { useToast } from '@/composables/useToast'
 import { emojiMap } from '@/constants/emoji'
 import { isImageFile, isVideoFile } from '@/utils/file'
+import { md5Hex } from '@/utils/md5'
 import router from '@/router'
 
 type ActiveWebSocketConnection = {
@@ -18,59 +19,17 @@ type ActiveWebSocketConnection = {
 }
 
 // 推断 WebSocket 私信消息(code=7)是否为“自己发送”
-// 上游返回的 fromuser.id / touser.id 可能存在别名或不回传本地 userId 的情况
+// 对齐上游 randomdeskry.js：self = (fromuser.id === hex_md5(cookie('user_id')))
 export const inferWsPrivateMessageIsSelf = (params: {
   currentUserId: string
-  currentUserNickname?: string
-  currentUserName?: string
   fromUserId?: string
-  toUserId?: string
-  fromUserNickname?: string
-  toUserNickname?: string
-  peerId?: string
-  peerNickname?: string
-  isKnownUserId?: (userId: string) => boolean
 }): boolean => {
   const currentUserId = String(params.currentUserId || '')
-  const selfNickname = String(params.currentUserNickname || params.currentUserName || '')
   const fromUserId = String(params.fromUserId || '')
-  const toUserId = String(params.toUserId || '')
-  const fromUserNickname = String(params.fromUserNickname || '')
-  const toUserNickname = String(params.toUserNickname || '')
-  const peerId = String(params.peerId || '')
-  const peerNickname = String(params.peerNickname || '')
 
-  // 1) 最可靠：fromuser.id 与本地 userId 一致
-  if (fromUserId && currentUserId && fromUserId === currentUserId) return true
-  // 2) 若 touser.id 命中本地 userId，通常表示对方向我发
-  if (toUserId && currentUserId && toUserId === currentUserId) return false
+  if (!currentUserId || !fromUserId) return false
 
-  // 3) 在聊天页内：优先用当前聊天对象推断（避免别名ID导致方向错判）
-  if (peerId) {
-    if (fromUserId && fromUserId === peerId) return false
-    if (toUserId && toUserId === peerId) return true
-  }
-
-  // 4) 昵称推断（兜底）
-  if (selfNickname) {
-    if (fromUserNickname && fromUserNickname === selfNickname) return true
-    if (toUserNickname && toUserNickname === selfNickname) return false
-  }
-
-  if (peerNickname) {
-    if (fromUserNickname && fromUserNickname === peerNickname) return false
-    if (toUserNickname && toUserNickname === peerNickname) return true
-  }
-
-  // 5) 基于本地已知用户列表兜底（避免把自己别名ID当作“新用户”）
-  if (fromUserId && toUserId && params.isKnownUserId) {
-    const fromKnown = params.isKnownUserId(fromUserId)
-    const toKnown = params.isKnownUserId(toUserId)
-    if (toKnown && !fromKnown) return true
-    if (fromKnown && !toKnown) return false
-  }
-
-  return false
+  return fromUserId.toLowerCase() === md5Hex(currentUserId)
 }
 
 let activeConnection: ActiveWebSocketConnection | null = null
@@ -361,24 +320,10 @@ export const useWebSocket = () => {
           console.log('消息内容:', messageContent)
           console.log('当前聊天对象:', chatStore.currentChatUser ? chatStore.currentChatUser.id : '无')
 
-          // 判断是不是自己发送的消息
-          // 注意：上游的 fromuser.id / touser.id 可能存在别名/不回传本地 userId 的情况
-          // 这里做多维度推断，避免“自己发送的消息回显”被误判为对方消息
-          const peerId = chatStore.currentChatUser ? String(chatStore.currentChatUser.id || '') : ''
-          const peerNickname = chatStore.currentChatUser
-            ? String(chatStore.currentChatUser.nickname || chatStore.currentChatUser.name || '')
-            : ''
+          // 判断是不是自己发送的消息（对齐上游 randomdeskry.js）
           const isSelf = inferWsPrivateMessageIsSelf({
             currentUserId,
-            currentUserNickname: currentUser.nickname,
-            currentUserName: currentUser.name,
-            fromUserId,
-            toUserId,
-            fromUserNickname,
-            toUserNickname,
-            peerId,
-            peerNickname,
-            isKnownUserId: (userId) => !!chatStore.getUser(userId)
+            fromUserId
           })
 
           console.log('isSelf=', isSelf)
@@ -386,6 +331,7 @@ export const useWebSocket = () => {
           // 判断是否应该显示这条消息（优先通过id判断，兜底通过nickname）
           // 双保险：必须处于 /chat 路由才视为“正在聊天中”，否则在列表页也会被误判为已读
           const isInChatPage = router.currentRoute.value.path.startsWith('/chat')
+          const peerId = chatStore.currentChatUser ? String(chatStore.currentChatUser.id || '') : ''
           const shouldDisplayById = isInChatPage &&
             !!peerId &&
             ((fromUserId && fromUserId === peerId) || (toUserId && toUserId === peerId))
