@@ -292,4 +292,48 @@ describe('components/media/DuplicateCheckModal.vue', () => {
     
     vi.useRealTimers()
   })
+
+  it('handles null items from API gracefully', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(DuplicateCheckModal, {
+      props: { visible: true },
+      global: {
+        stubs: { teleport: true }
+      }
+    })
+
+    const file = new File([''], 'test.png', { type: 'image/png' })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [file] })
+    await input.trigger('change')
+    vi.advanceTimersByTime(20)
+    await nextTick()
+
+    // Mock API response with null items
+    checkDuplicateMediaMock.mockResolvedValue({
+      code: 0,
+      data: {
+        matchType: 'none',
+        md5: 'mockmd5',
+        thresholdType: 'similarity',
+        similarityThreshold: 0.85,
+        distanceThreshold: 10,
+        limit: 20,
+        items: null // Simulate backend returning null
+      }
+    })
+
+    const checkBtn = wrapper.findAll('button').find(b => b.text().includes('开始查重'))
+    await checkBtn?.trigger('click')
+    await nextTick()
+    await nextTick()
+    await nextTick()
+    await nextTick()
+
+    // Should show "0 similar results" and empty message without crashing
+    expect(wrapper.text()).toContain('共找到 0 个相似结果')
+    expect(wrapper.text()).toContain('未发现重复图片')
+    
+    vi.useRealTimers()
+  })
 })

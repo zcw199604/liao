@@ -145,7 +145,7 @@
                     {{ getMatchTypeText(result.matchType) }}
                   </div>
                   <span class="text-gray-400 text-sm">
-                    共找到 <strong class="text-white">{{ result.items.length }}</strong> 个相似结果
+                    共找到 <strong class="text-white">{{ (result.items || []).length }}</strong> 个相似结果
                   </span>
                   <span v-if="result.pHash" class="ml-auto text-xs text-gray-600 font-mono">
                     pHash: {{ result.pHash }}
@@ -156,7 +156,7 @@
               <!-- List -->
               <div class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                 <div 
-                  v-for="(item, idx) in result.items" 
+                  v-for="(item, idx) in (result.items || [])" 
                   :key="item.id"
                   class="bg-[#1f1f23] rounded-xl p-3 flex gap-4 hover:bg-[#27272a] transition border border-transparent hover:border-gray-700 group"
                 >
@@ -214,7 +214,7 @@
                   </div>
                 </div>
 
-                <div v-if="result.items.length === 0" class="text-center py-10">
+                <div v-if="!result.items || result.items.length === 0" class="text-center py-10">
                    <p class="text-green-500 font-medium mb-2">未发现重复图片</p>
                    <p class="text-gray-500 text-xs">{{ result.reason || '该图片在数据库中是唯一的' }}</p>
                 </div>
