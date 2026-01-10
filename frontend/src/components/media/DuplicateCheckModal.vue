@@ -25,35 +25,39 @@
           </button>
         </div>
 
-        <div class="flex flex-1 overflow-hidden">
+        <div class="flex flex-1 overflow-hidden flex-col md:flex-row">
           <!-- Left Panel: Input & Settings -->
-          <div class="w-1/3 min-w-[320px] bg-[#1f1f23] flex flex-col border-r border-gray-800 p-6 overflow-y-auto">
+          <div class="w-full md:w-1/3 md:min-w-[320px] bg-[#1f1f23] flex flex-col border-b md:border-b-0 md:border-r border-gray-800 p-6 overflow-y-auto shrink-0">
             
             <!-- File Upload -->
             <div class="mb-6">
-              <label class="block text-sm font-medium text-gray-400 mb-2">待检测图片</label>
+              <label class="block text-sm font-medium text-gray-400 mb-2">待检测文件</label>
               <div
-                class="relative w-full aspect-square rounded-xl border-2 border-dashed border-gray-700 hover:border-blue-500 transition-colors bg-[#18181b] flex flex-col items-center justify-center overflow-hidden cursor-pointer group"
+                class="relative w-full aspect-square md:aspect-square h-48 md:h-auto rounded-xl border-2 border-dashed border-gray-700 hover:border-blue-500 transition-colors bg-[#18181b] flex flex-col items-center justify-center overflow-hidden cursor-pointer group"
                 @click="triggerFileSelect"
                 @drop.prevent="handleDrop"
                 @dragover.prevent
               >
                 <img v-if="previewUrl" :src="previewUrl" class="w-full h-full object-contain" />
+                <div v-else-if="selectedFile" class="text-center p-4">
+                  <i class="fas fa-file-alt text-4xl text-gray-600 group-hover:text-blue-500 mb-3 transition-colors"></i>
+                  <p class="text-sm text-gray-300 font-medium truncate max-w-[200px]">{{ selectedFile.name }}</p>
+                  <p class="text-xs text-gray-500 mt-1">{{ (selectedFile.size / 1024).toFixed(1) }} KB</p>
+                </div>
                 <div v-else class="text-center p-4">
                   <i class="fas fa-cloud-upload-alt text-4xl text-gray-600 group-hover:text-blue-500 mb-3 transition-colors"></i>
-                  <p class="text-sm text-gray-400">点击或拖拽图片到此处</p>
-                  <p class="text-xs text-gray-600 mt-1">支持 JPG, PNG, GIF, WEBP</p>
+                  <p class="text-sm text-gray-400">点击或拖拽文件到此处</p>
+                  <p class="text-xs text-gray-600 mt-1">支持任意格式文件</p>
                 </div>
                 
                 <!-- Overlay for change -->
-                <div v-if="previewUrl" class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                  <span class="text-white text-sm font-medium">更换图片</span>
+                <div v-if="selectedFile" class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <span class="text-white text-sm font-medium">更换文件</span>
                 </div>
 
                 <input
                   type="file"
                   ref="fileInputRef"
-                  accept="image/*"
                   class="hidden"
                   @change="handleFileChange"
                 />
@@ -109,7 +113,7 @@
           </div>
 
           <!-- Right Panel: Results -->
-          <div class="flex-1 bg-[#18181b] flex flex-col overflow-hidden relative">
+          <div ref="resultsPanelRef" class="flex-1 bg-[#18181b] flex flex-col overflow-hidden relative min-h-[300px] md:min-h-0">
             
             <!-- Empty State -->
             <div v-if="!result && !loading" class="flex-1 flex flex-col items-center justify-center text-gray-600">
@@ -217,7 +221,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { checkDuplicateMedia } from '@/api/media'
 import type { CheckDuplicateData } from '@/types/media'
@@ -245,6 +249,8 @@ const limit = ref(20)
 
 const result = ref<CheckDuplicateData | null>(null)
 
+const resultsPanelRef = ref<HTMLElement | null>(null)
+
 // Ensure server address is loaded
 if (!mediaStore.imgServer) {
     mediaStore.loadImgServer()
@@ -269,11 +275,7 @@ const handleFileChange = (e: Event) => {
 const handleDrop = (e: DragEvent) => {
   if (e.dataTransfer?.files && e.dataTransfer.files[0]) {
     const file = e.dataTransfer.files[0]
-    if (file.type.startsWith('image/')) {
-      setFile(file)
-    } else {
-      show('请上传图片文件')
-    }
+    setFile(file)
   }
 }
 
@@ -281,12 +283,16 @@ const setFile = (file: File) => {
   selectedFile.value = file
   result.value = null // Reset result
   
-  // Create preview
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    previewUrl.value = e.target?.result as string
+  if (file.type.startsWith('image/')) {
+    // Create preview
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      previewUrl.value = e.target?.result as string
+    }
+    reader.readAsDataURL(file)
+  } else {
+    previewUrl.value = ''
   }
-  reader.readAsDataURL(file)
 }
 
 const checkDuplicate = async () => {
@@ -306,6 +312,11 @@ const checkDuplicate = async () => {
     
     if (res.code === 0 && res.data) {
       result.value = res.data as CheckDuplicateData
+      // 自动滚动到结果区域 (针对手机端)
+      await nextTick()
+      if (resultsPanelRef.value) {
+        resultsPanelRef.value.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
     } else {
       show(res.msg || '查重失败')
     }

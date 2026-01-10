@@ -48,6 +48,7 @@ describe('components/media/DuplicateCheckModal.vue', () => {
     vi.clearAllMocks()
     setActivePinia(createPinia())
     mockImgServerValue = 'localhost'
+    HTMLElement.prototype.scrollIntoView = vi.fn()
   })
 
   it('mounts correctly and calls loadImgServer if needed', () => {
@@ -140,6 +141,8 @@ describe('components/media/DuplicateCheckModal.vue', () => {
     })
     
     // Advance timers/ticks to process resolution
+    await nextTick()
+    await nextTick()
     await nextTick()
     await nextTick()
 
