@@ -16,6 +16,8 @@
 - 必须先发送 `act="sign"` 且包含 `id`（userId）
 - 后端将 session 与该 userId 绑定，并将 sign 消息转发到上游用于登录
 - 未完成绑定前的非 sign 消息会被忽略
+- 绑定完成后，仅转发 `id` 与已绑定 `userId` 一致的消息；不一致则忽略（防止跨身份注入）
+- 如同一连接重复发送 `sign` 且 userId 变化，后端会先解绑旧 userId 再绑定新 userId
 
 ### 需求: 一人一条上游连接（连接池）
 **模块:** WebSocket Proxy
@@ -59,4 +61,3 @@
 
 ## 变更历史
 - [202601071248_go_backend_rewrite](../../history/2026-01/202601071248_go_backend_rewrite/) - Go 后端重构并实现 WS 代理/连接池/forceout
-

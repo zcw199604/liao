@@ -20,6 +20,9 @@
 - 后端：新增 `/api/repairMediaHistory` 历史媒体数据修复接口（扫描遗留表 `media_upload_history`：补齐缺失 `file_md5`、按 MD5 全局去重/可选本地路径去重；默认 dry-run，需 `commit=true` 才会写入/删除）。
 - 后端：新增 `/api/checkDuplicateMedia` 媒体查重接口：先按 `image_hash.md5_hash` 精确匹配；无命中则按 pHash 相似度阈值查询并返回 similarity/distance。
 - 后端：补齐 Go 服务文件功能测试用例（FileStorage/MediaUpload/ImageHash/静态文件），覆盖 `/api/uploadMedia`、`/api/checkDuplicateMedia`、`/api/getAllUploadImages`、`/api/getUserUploadHistory`、`/api/getUserSentImages`、`/api/getUserUploadStats`、`/api/getChatImages`、`/api/recordImageSend`、`/api/reuploadHistoryImage`、`/api/deleteMedia`、`/api/batchDeleteMedia`、`/api/getCachedImages`、`/api/repairMediaHistory`。
+- 后端：补齐 Go 服务认证/WebSocket 管理器与 WebSocket 代理（`/ws`）测试，覆盖登录/验签、握手鉴权、sign 代理、连接池/延迟关闭/淘汰、forceout、缓存写入与僵尸下游清理等关键路径。
+- 后端：补齐 Go 服务 `favorite`（本地收藏CRUD）与 `user_history`（历史/收藏列表代理）测试用例，覆盖成功/失败与缓存增强分支。
+- 前端：补充 `useWebSocket` 断线自动重连、forceout 禁止重连与手动断开不重连的测试用例。
 - CI：新增 `Release` GitHub Actions 工作流，用于创建 `v*` Tag 并生成 GitHub Release 产物。
 - 知识库：补齐 Wiki 概览/架构文档，并补充关键模块文档（Auth/Identity/WebSocket Proxy/Media）。
 
@@ -36,4 +39,6 @@
 - 后端：修复 Go 端删除媒体对历史 `localPath`（无前导 `/` 或携带 `/upload` 前缀/完整 URL）兼容不足，导致返回 403 的问题。
 - 后端：修复 Go 端 `/api/deleteMedia` 兼容性：支持 `localPath` 含 `%2F` 编码、兼容 `local_path` 异常带 `/upload` 前缀/缺少前导 `/`，并取消按 `userId` 校验上传者归属以对齐“全站图片库”展示行为，避免误报 403。
 - 后端：修复 Go 版 WebSocket 下游广播在存在僵尸连接时可能写阻塞，导致匹配/消息回包延迟或丢失的问题（增加下游写超时并在发送失败时清理会话）。
+- 后端：修复 `/ws` 在 sign 绑定后仍可转发其他 `id` 消息的问题；现在仅转发与已绑定 `userId` 一致的消息，并在重复 sign（切换身份）时自动解绑旧身份。
 - 后端：修复 `/api/checkDuplicateMedia` 的 pHash 计算与阈值语义，对齐 Python `imagehash.phash`（median/DCT 顺序/重采样）并支持 `distanceThreshold` 默认 10。
+- 后端：`JWTService` 在密钥缺失时拒绝签发/校验 Token（与配置校验保持一致，避免误配导致隐患）。

@@ -79,6 +79,9 @@ func (a *App) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		raw := string(payload)
 		if act == "sign" {
+			if registeredUserID != "" && registeredUserID != userID && a.wsManager != nil {
+				a.wsManager.UnregisterDownstream(registeredUserID, session)
+			}
 			registeredUserID = userID
 			if a.wsManager != nil {
 				a.wsManager.RegisterDownstream(userID, session, raw)
@@ -89,8 +92,11 @@ func (a *App) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		if registeredUserID == "" {
 			continue
 		}
+		if userID != registeredUserID {
+			continue
+		}
 		if a.wsManager != nil {
-			a.wsManager.SendToUpstream(userID, raw)
+			a.wsManager.SendToUpstream(registeredUserID, raw)
 		}
 	}
 
@@ -99,4 +105,3 @@ func (a *App) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = session.Close()
 }
-

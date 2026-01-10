@@ -89,6 +89,7 @@ afterEach(() => {
   } catch {
     // ignore
   }
+  vi.useRealTimers()
 })
 
 describe('composables/useWebSocket', () => {
@@ -178,6 +179,109 @@ describe('composables/useWebSocket', () => {
     const signB = JSON.parse(FakeWebSocket.instances[1]!.sent[0] || '{}')
     expect(signB.act).toBe('sign')
     expect(signB.id).toBe('b')
+  })
+
+  it('auto reconnects after unexpected close', async () => {
+    vi.useFakeTimers()
+
+    const userStore = useUserStore()
+    userStore.currentUser = {
+      id: 'me',
+      name: 'Me',
+      nickname: 'Me',
+      sex: '男',
+      ip: '127.0.0.1',
+      area: 'CN'
+    } as any
+    localStorage.setItem('authToken', 't-1')
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const chatStore = useChatStore()
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+    expect(chatStore.wsConnected).toBe(true)
+
+    FakeWebSocket.instances[0]!.close()
+    expect(chatStore.wsConnected).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(FakeWebSocket.instances).toHaveLength(2)
+
+    await FakeWebSocket.instances[1]!.triggerOpen()
+    const sign = JSON.parse(FakeWebSocket.instances[1]!.sent[0] || '{}')
+    expect(sign.act).toBe('sign')
+    expect(sign.id).toBe('me')
+  })
+
+  it('manual disconnect prevents auto reconnect', async () => {
+    vi.useFakeTimers()
+
+    const userStore = useUserStore()
+    userStore.currentUser = {
+      id: 'me',
+      name: 'Me',
+      nickname: 'Me',
+      sex: '男',
+      ip: '127.0.0.1',
+      area: 'CN'
+    } as any
+    localStorage.setItem('authToken', 't-1')
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+
+    socket.disconnect(true)
+    await vi.advanceTimersByTimeAsync(3000)
+
+    expect(FakeWebSocket.instances).toHaveLength(1)
+  })
+
+  it('forceout clears token and prevents auto reconnect', async () => {
+    vi.useFakeTimers()
+
+    const userStore = useUserStore()
+    userStore.currentUser = {
+      id: 'me',
+      name: 'Me',
+      nickname: 'Me',
+      sex: '男',
+      ip: '127.0.0.1',
+      area: 'CN'
+    } as any
+    localStorage.setItem('authToken', 't-1')
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const chatStore = useChatStore()
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+    expect(chatStore.wsConnected).toBe(true)
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await FakeWebSocket.instances[0]!.triggerMessage({ code: -3, forceout: true, content: 'x' })
+    } finally {
+      errorSpy.mockRestore()
+    }
+
+    expect(chatStore.wsConnected).toBe(false)
+    expect(localStorage.getItem('authToken')).toBeNull()
+
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(FakeWebSocket.instances).toHaveLength(1)
   })
 
   it('handles typing status messages for current chat user and triggers scroll callback', async () => {

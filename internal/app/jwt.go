@@ -24,6 +24,10 @@ func NewJWTService(secret string, expireHours int) *JWTService {
 }
 
 func (s *JWTService) GenerateToken() (string, error) {
+	if len(s.secret) == 0 {
+		return "", fmt.Errorf("JWT_SECRET 不能为空")
+	}
+
 	now := time.Now()
 	claims := jwt.RegisteredClaims{
 		Subject:   "user",
@@ -43,6 +47,9 @@ func (s *JWTService) ValidateToken(tokenString string) bool {
 	if tokenString == "" {
 		return false
 	}
+	if len(s.secret) == 0 {
+		return false
+	}
 
 	_, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		if token.Method != jwt.SigningMethodHS256 {
@@ -52,4 +59,3 @@ func (s *JWTService) ValidateToken(tokenString string) bool {
 	})
 	return err == nil
 }
-

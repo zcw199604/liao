@@ -29,6 +29,12 @@ const (
 	wsWebServiceRandServerBase = "http://v1.chat2019.cn/Act/WebService.asmx/getRandServer?ServerInfo=serversdeskry&_="
 )
 
+var (
+	wsCloseDelay    = wsCloseDelaySeconds * time.Second
+	wsEvictionDelay = wsEvictionCloseDelay
+	wsForceoutDelay = wsForceoutDownstreamDelay
+)
+
 type UpstreamWebSocketManager struct {
 	httpClient *http.Client
 	fallbackWS string
@@ -117,7 +123,7 @@ func (m *UpstreamWebSocketManager) RegisterDownstream(userID string, session *Do
 	if evictUserID != "" && evictUserID != userID {
 		evictMessage := "{\"code\":-6,\"content\":\"由于新身份连接，您已被自动断开\",\"evicted\":true}"
 		m.BroadcastToDownstream(evictUserID, evictMessage)
-		time.AfterFunc(wsEvictionCloseDelay, func() {
+		time.AfterFunc(wsEvictionDelay, func() {
 			m.CloseUpstreamConnection(evictUserID)
 
 			sessions := m.snapshotDownstream(evictUserID)
@@ -206,7 +212,7 @@ func (m *UpstreamWebSocketManager) HandleForceout(userID string, message string)
 	m.BroadcastToDownstream(userID, message)
 	m.CloseUpstreamConnection(userID)
 
-	time.AfterFunc(wsForceoutDownstreamDelay, func() {
+	time.AfterFunc(wsForceoutDelay, func() {
 		sessions := m.snapshotDownstream(userID)
 		for _, s := range sessions {
 			_ = s.Close()
@@ -289,7 +295,7 @@ func (m *UpstreamWebSocketManager) scheduleCloseUpstreamLocked(userID string) {
 	if t := m.pendingCloseTasks[userID]; t != nil {
 		t.Stop()
 	}
-	m.pendingCloseTasks[userID] = time.AfterFunc(wsCloseDelaySeconds*time.Second, func() {
+	m.pendingCloseTasks[userID] = time.AfterFunc(wsCloseDelay, func() {
 		m.mu.Lock()
 		_, hasSessions := m.downstreamSessions[userID]
 		if hasSessions {
