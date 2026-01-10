@@ -25,6 +25,7 @@
 - 前端：补充 `useWebSocket` 断线自动重连、forceout 禁止重连与手动断开不重连的测试用例。
 - CI：新增 `Release` GitHub Actions 工作流，用于创建 `v*` Tag 并生成 GitHub Release 产物。
 - 知识库：补齐 Wiki 概览/架构文档，并补充关键模块文档（Auth/Identity/WebSocket Proxy/Media）。
+- 文档：标记历史 Java(Spring Boot) 后端目录（`src/main/java/`）为已弃用，仅供参考。
 
 ### 修复
 - 后端：`/api/getFavoriteUserList` 对齐 `/api/getHistoryUserList` 的缓存增强逻辑，补全用户信息并补齐 `lastMsg/lastTime`。

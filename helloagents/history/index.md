@@ -29,6 +29,7 @@
 | 202601101607 | image_hash_duplicate_check | 功能 | ✅已完成 | [链接](2026-01/202601101607_image_hash_duplicate_check/) |
 | 202601102011 | go_file_tests | 测试 | ✅已完成 | [链接](2026-01/202601102011_go_file_tests/) |
 | 202601102152 | go_file_tests_more | 测试 | ✅已完成 | [链接](2026-01/202601102152_go_file_tests_more/) |
+| 202601102213 | java_backend_deprecated | 文档 | ✅已完成 | [链接](2026-01/202601102213_java_backend_deprecated/) |
 
 ---
 
@@ -57,3 +58,4 @@
 - [202601101607_image_hash_duplicate_check](2026-01/202601101607_image_hash_duplicate_check/) - 新增媒体查重接口（MD5 + pHash 相似度阈值查询）
 - [202601102011_go_file_tests](2026-01/202601102011_go_file_tests/) - Go 文件功能测试补齐（FileStorage/MediaUpload/ImageHash/handlers）
 - [202601102152_go_file_tests_more](2026-01/202601102152_go_file_tests_more/) - Go 文件相关接口测试补齐（历史/缓存/删除/重传/修复等 handler）
+- [202601102213_java_backend_deprecated](2026-01/202601102213_java_backend_deprecated/) - 标记历史 Java(Spring Boot) 后端目录为已弃用，仅供参考

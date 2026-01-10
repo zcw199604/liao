@@ -2,7 +2,7 @@
 
 ## 总体架构
 
-> 仓库同时保留历史 Spring Boot 实现用于对照；当前运行形态以 Go 单进程后端为主（`cmd/liao` + `internal/app/`）。
+> 仓库仍保留历史 Java(Spring Boot) 实现（`src/main/java/`，已弃用仅供对照；详见 `src/README.md`）；当前运行形态以 Go 单进程后端为主（`cmd/liao` + `internal/app/`）。
 
 ```mermaid
 flowchart TD

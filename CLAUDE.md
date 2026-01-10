@@ -5,40 +5,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 项目概述
 
 这是一个匿名匹配聊天应用，采用**前后端分离架构**：
-- **后端**：Spring Boot 3.2.1 + Java 17 + WebSocket代理 + MySQL
+- **后端**：Go 1.22 + WebSocket 代理 + MySQL（可选 Redis）
 - **前端**：Vue 3 + Vite + TypeScript + Pinia + Tailwind CSS
 
 核心功能是作为WebSocket代理服务器，连接上游聊天服务，并为多个客户端提供身份管理、消息转发、媒体上传等功能。
 
 ## 架构设计
 
-### 后端架构（Spring Boot）
+> 重要说明：
+> - `src/main/java/` 与 `pom.xml` 为历史 Java(Spring Boot) 实现，**已弃用，仅供参考**（详见 `src/README.md`）。
+> - 当前可运行后端以 Go 版本为准：入口 `cmd/liao/main.go`，核心实现位于 `internal/`。
 
-**包结构**：`src/main/java/com/zcw/`
-- `config/` - 配置类（WebSocket、JWT、CORS、服务器配置）
-- `controller/` - REST API控制器
-  - `AuthController` - 访问码认证
-  - `IdentityController` - 身份CRUD
-  - `MediaHistoryController` - 媒体上传历史
-  - `UserHistoryController` - 用户聊天历史
-  - `SystemController` - 系统管理（强制断开连接等）
-- `websocket/` - WebSocket核心逻辑
-  - `UpstreamWebSocketManager` - 管理上游连接池（按userId复用连接）
-  - `UpstreamWebSocketClient` - 上游WebSocket客户端（使用Java-WebSocket库）
-  - `ProxyWebSocketHandler` - 下游客户端处理器（Spring WebSocket）
-  - `ForceoutManager` - 防止重复登录导致IP封禁（80秒防重连机制）
-- `service/` - 业务逻辑
-  - `IdentityService` - 身份管理（数据库CRUD）
-  - `MediaUploadService` - 媒体上传历史记录
-  - `ImageServerService` - 图片服务器接口调用
-- `model/` - 数据模型
-- `util/` - 工具类（JWT等）
+### 后端架构（Go）
+
+**目录结构**：
+- `cmd/liao/` - Go 服务入口（加载配置、启动 HTTP Server、优雅关闭）
+- `internal/app/` - 业务实现（HTTP API + `/ws` 代理 + MySQL/缓存/上传/静态托管）
+- `internal/config/` - 配置加载（以环境变量为主；变量名/默认值对齐 `src/main/resources/application.yml` 的约定）
 
 **关键技术点**：
-1. **WebSocket双向代理**：客户端通过Spring WebSocket连接后端，后端通过Java-WebSocket连接上游服务
-2. **连接池管理**：同一用户ID的多个客户端共享一个上游连接，最后一个客户端断开后延迟80秒关闭上游连接
-3. **ForceoutManager**：检测forceout消息（被踢下线），防止在80秒内重连导致IP被封
-4. **JWT认证**：访问码登录后颁发Token，WebSocket连接使用JWT鉴权
+1. **WebSocket 双向代理**：下游 `/ws` ↔ 上游 WS，按 `userId` 复用连接池
+2. **Forceout 防重连**：80 秒内禁止同 `userId` 重连上游（避免 IP 被封）
+3. **JWT 认证**：访问码登录换取 Token；除登录/校验外其余 `/api/**` 需 Bearer Token
+4. **媒体上传**：上传落盘到 `./upload`，并维护本地记录/缓存
 
 ### 前端架构（Vue 3）
 
@@ -63,38 +52,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 开发命令
 
-### 后端（Spring Boot）
-
-**环境要求**：
-- JDK 17（推荐使用 Amazon Corretto 17）
-- 本地JDK路径：`C:\Users\MyPC\.jdks\corretto-17.0.16`
+### 后端（Go）
 
 ```bash
-# 编译项目（使用指定的JDK 17）
-export JAVA_HOME="C:\Users\MyPC\.jdks\corretto-17.0.16"
-export PATH="$JAVA_HOME/bin:$PATH"
-mvn clean compile
-
-# 或者使用简化命令（已配置环境变量的情况）
-mvn clean compile
+# 开发启动（默认端口 8080）
+go run ./cmd/liao
 
 # 运行测试
-mvn test
+go test ./...
 
-# 打包（跳过测试）
-mvn clean package -DskipTests
-
-# 运行应用（需要先启动MySQL）
-mvn spring-boot:run
-
-# 或直接运行JAR
-java -jar target/liao-1.0-SNAPSHOT.jar
+# 构建二进制
+go build ./cmd/liao
 ```
-
-**注意事项**：
-- 项目要求 JDK 17，如遇到编译错误"无效的编码"，请确保使用正确的 JDK 路径
-- Git Bash 环境下使用 `export` 设置环境变量
-- Windows CMD 环境下使用 `set JAVA_HOME=路径` 设置环境变量
 
 ### 前端（Vue 3 + Vite）
 
@@ -108,7 +77,7 @@ npm install
 npm run dev
 # 访问 http://localhost:3000
 
-# 构建生产版本（输出到 ../src/main/resources/static/）
+# 构建生产版本
 npm run build
 
 # 预览生产构建
@@ -134,7 +103,7 @@ docker run -d -p 8080:8080 \
 
 ## 配置说明
 
-### 环境变量（application.yml）
+### 环境变量
 
 **必须配置**：
 - `DB_URL` - MySQL数据库连接地址
@@ -146,6 +115,11 @@ docker run -d -p 8080:8080 \
 **可选配置**：
 - `SERVER_PORT` - 服务端口（默认8080）
 - `TOKEN_EXPIRE_HOURS` - Token过期时间（默认24小时）
+- `CACHE_TYPE` - `memory` / `redis`（默认 `memory`）
+- `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB` - Redis 连接参数（当 `CACHE_TYPE=redis`）
+
+**说明**：
+- `src/main/resources/application.yml` 为历史配置约定文件（Go 运行时不读取该文件），用于记录环境变量名与默认值对齐规则。
 
 ### 数据库初始化
 
@@ -159,16 +133,12 @@ docker run -d -p 8080:8080 \
 ## 开发规范
 
 ### 代码注释
-- **必须使用中文注释**（CLAUDE.md全局规则）
+- **尽量使用中文注释**
 - 接口、类、复杂逻辑必须添加注释
 
 ### API接口命名
-- **使用驼峰命名**（CLAUDE.md全局规则）
+- **使用驼峰命名**
 - 示例：`/api/getUserList` 而非 `/api/get_user_list`
-
-### 文件路径
-- **必须使用完整绝对路径**，包含盘符和反斜杠（Windows）
-- 示例：`D:\workspace-idea\liao\src\main\java\...`
 
 ### 前端开发流程
 - **写完前端代码后必须执行编译验证**
@@ -181,7 +151,7 @@ docker run -d -p 8080:8080 \
 ### ForceoutManager机制
 - 当上游返回forceout消息时，记录该用户ID和时间戳
 - 80秒内禁止该用户重新连接上游（避免IP被封）
-- 定时任务每5分钟清理过期记录
+- 定时清理过期记录
 
 ### 上游连接池（UpstreamWebSocketManager）
 - 同一userId只创建一个上游连接
@@ -192,12 +162,11 @@ docker run -d -p 8080:8080 \
 1. 客户端POST `/api/auth/login` 提交访问码
 2. 服务端验证后返回JWT Token
 3. WebSocket连接时在URL参数传递Token：`/ws?token=xxx`
-4. `JwtWebSocketInterceptor` 拦截并验证Token
+4. 后端中间件校验 Token（HTTP Bearer Token / WS token query）
 
-### 前端构建集成
-- 前端构建输出到 `src/main/resources/static/`
-- Spring Boot静态资源服务自动托管前端
-- `SpaForwardController` 处理前端路由（SPA历史模式）
+### 静态资源托管
+- 默认静态目录候选：`src/main/resources/static/` 或 `static/`（见 `internal/app/app.go`）
+- `/upload/**` 映射到本地 `./upload` 目录
 
 ## CI/CD
 
@@ -205,7 +174,7 @@ GitHub Actions自动构建：
 - 触发：推送到master分支或打tag（`v*`）
 - 流程：
   1. 构建前端（npm run build）
-  2. Maven打包后端（含前端静态文件）
+  2. 构建 Go 后端
   3. 构建Docker镜像
   4. 推送到Docker Hub（`a7413498/liao`）
 
