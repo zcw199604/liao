@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** `/ws` 下游连接管理；按 `userId` 复用/维护上游连接；上游消息广播；forceout 禁止与自动断开
 - **状态:** ✅稳定
-- **最后更新:** 2026-01-09
+- **最后更新:** 2026-01-10
 
 ## 规范
 
@@ -48,6 +48,15 @@
 - `code=15`：缓存匹配用户信息（UserInfo）
 - `code=7`：缓存最后一条消息（LastMessage），并进行会话 key 归一化补写以提升历史/收藏列表命中率
 
+### 需求: 媒体消息端口解析（由前端处理）
+**模块:** WebSocket Proxy
+后端 WS 代理对上游消息保持“原文转发”，不会重写媒体消息中的 `[path]` 内容。
+
+当下游收到媒体消息并需要展示图片时，端口解析由前端按系统全局配置执行：
+- 配置获取：`/api/getSystemConfig`
+- 端口解析：`/api/resolveImagePort`（支持 `fixed/probe/real`）
+- 视频端口保持固定逻辑（`8006`），不受图片策略影响
+
 ## API接口
 ### [WS] /ws?token=...
 **描述:** 下游 WebSocket 入口（鉴权见 `modules/auth.md`）
@@ -61,3 +70,4 @@
 
 ## 变更历史
 - [202601071248_go_backend_rewrite](../../history/2026-01/202601071248_go_backend_rewrite/) - Go 后端重构并实现 WS 代理/连接池/forceout
+- [202601102319_image_port_strategy](../../history/2026-01/202601102319_image_port_strategy/) - 前端按全局配置解析图片端口（WS 消息原文转发不改写）

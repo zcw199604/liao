@@ -73,6 +73,11 @@ func (a *App) buildRouter() http.Handler {
 		api.Post("/batchDeleteMedia", a.handleBatchDeleteMedia)
 		api.Post("/repairMediaHistory", a.handleRepairMediaHistory)
 
+		// System config（全局配置：所有用户共用）
+		api.Get("/getSystemConfig", a.handleGetSystemConfig)
+		api.Post("/updateSystemConfig", a.handleUpdateSystemConfig)
+		api.Post("/resolveImagePort", a.handleResolveImagePort)
+
 		// System（依赖 WebSocket 管理器，在后续阶段补齐实现）
 		api.Post("/deleteUpstreamUser", a.handleDeleteUpstreamUser)
 		api.Get("/getConnectionStats", a.handleGetConnectionStats)

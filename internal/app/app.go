@@ -24,6 +24,9 @@ type App struct {
 	httpClient *http.Client
 	jwt        *JWTService
 
+	systemConfig     *SystemConfigService
+	imagePortResolver *ImagePortResolver
+
 	identityService *IdentityService
 	favoriteService *FavoriteService
 	fileStorage     *FileStorageService
@@ -91,6 +94,9 @@ func New(cfg config.Config) (*App, error) {
 		forceoutManager: NewForceoutManager(),
 		staticDir: staticDir,
 	}
+	application.systemConfig = NewSystemConfigService(db)
+	application.imagePortResolver = NewImagePortResolver(application.httpClient)
+	_ = application.systemConfig.EnsureDefaults(context.Background())
 	application.wsManager = NewUpstreamWebSocketManager(application.httpClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache)
 	application.mediaUpload = NewMediaUploadService(db, cfg.ServerPort, application.fileStorage, application.imageServer, application.httpClient)
 

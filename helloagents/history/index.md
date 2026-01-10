@@ -30,6 +30,7 @@
 | 202601102011 | go_file_tests | 测试 | ✅已完成 | [链接](2026-01/202601102011_go_file_tests/) |
 | 202601102152 | go_file_tests_more | 测试 | ✅已完成 | [链接](2026-01/202601102152_go_file_tests_more/) |
 | 202601102213 | java_backend_deprecated | 文档 | ✅已完成 | [链接](2026-01/202601102213_java_backend_deprecated/) |
+| 202601102319 | image_port_strategy | 功能 | ✅已完成 | [链接](2026-01/202601102319_image_port_strategy/) |
 
 ---
 
@@ -59,3 +60,4 @@
 - [202601102011_go_file_tests](2026-01/202601102011_go_file_tests/) - Go 文件功能测试补齐（FileStorage/MediaUpload/ImageHash/handlers）
 - [202601102152_go_file_tests_more](2026-01/202601102152_go_file_tests_more/) - Go 文件相关接口测试补齐（历史/缓存/删除/重传/修复等 handler）
 - [202601102213_java_backend_deprecated](2026-01/202601102213_java_backend_deprecated/) - 标记历史 Java(Spring Boot) 后端目录为已弃用，仅供参考
+- [202601102319_image_port_strategy](2026-01/202601102319_image_port_strategy/) - 新增全局图片端口策略配置（fixed/probe/real）与 Settings 切换

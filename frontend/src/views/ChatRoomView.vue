@@ -193,10 +193,11 @@ import { useUpload } from '@/composables/useUpload'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useToast } from '@/composables/useToast'
 import { useChat } from '@/composables/useChat'
-import { useSwipeAction } from '@/composables/useInteraction'
-import { extractUploadLocalPath, inferMediaTypeFromUrl } from '@/utils/media'
-import { generateCookie } from '@/utils/cookie'
-import { IMG_SERVER_IMAGE_PORT, IMG_SERVER_VIDEO_PORT } from '@/constants/config'
+	import { useSwipeAction } from '@/composables/useInteraction'
+	import { extractUploadLocalPath, inferMediaTypeFromUrl } from '@/utils/media'
+	import { generateCookie } from '@/utils/cookie'
+	import { IMG_SERVER_VIDEO_PORT } from '@/constants/config'
+	import { useSystemConfigStore } from '@/stores/systemConfig'
 import { 
   EDGE_BACK_START_PX, 
   EDGE_BACK_MIN_SWIPE_PX, 
@@ -219,9 +220,10 @@ import type { UploadedMedia, User } from '@/types'
 
 const router = useRouter()
 const chatStore = useChatStore()
-const messageStore = useMessageStore()
-const mediaStore = useMediaStore()
-const userStore = useUserStore()
+	const messageStore = useMessageStore()
+	const mediaStore = useMediaStore()
+	const systemConfigStore = useSystemConfigStore()
+	const userStore = useUserStore()
 const { sendText, sendImage, sendVideo, sendTypingStatus } = useMessage()
 const { uploadFile, getMediaUrl } = useUpload()
 const route = useRoute()
@@ -598,11 +600,13 @@ const confirmPreviewUpload = async () => {
       userAgent
     })
 
-    if (res?.state === 'OK' && res.msg) {
-      const port = previewTarget.value.type === 'video' ? IMG_SERVER_VIDEO_PORT : IMG_SERVER_IMAGE_PORT
-      const remoteUrl = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
-      
-      const filename = localPath.substring(localPath.lastIndexOf('/') + 1)
+	    if (res?.state === 'OK' && res.msg) {
+	      const port = previewTarget.value.type === 'video'
+	        ? IMG_SERVER_VIDEO_PORT
+	        : await systemConfigStore.resolveImagePort(res.msg, mediaStore.imgServer)
+	      const remoteUrl = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
+	      
+	      const filename = localPath.substring(localPath.lastIndexOf('/') + 1)
       mediaStore.addUploadedMedia({ 
         url: remoteUrl, 
         type: previewTarget.value.type,

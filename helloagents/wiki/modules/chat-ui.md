@@ -76,11 +76,28 @@ WebSocket 连接在浏览器侧为全局单例；Go 后端会将下游连接与�
 - `isSelf = (lowercase(fromuser.id) === md5Hex(currentUserId))`
 - 暂不增加昵称/peerId 等兜底推断，避免与上游脚本判定不一致
 
+### 媒体消息: 图片端口策略（全局配置）
+**模块:** Chat UI
+聊天消息中的媒体以 `[path]` 形式出现（`useMessage.sendImage/sendVideo` 发送），前端在展示时需将其拼接为 `http://{imgServer}:{port}/img/Upload/{path}`。
+
+为避免图片端口写死导致“图片打不开”，前端需按全局系统配置解析图片端口：
+- 配置来源：`/api/getSystemConfig`（Settings 面板可保存到 DB）
+- 解析接口：`/api/resolveImagePort`（后端按 `fixed/probe/real` 返回图片端口）
+- 接入点：
+  - WS 收消息：`frontend/src/composables/useWebSocket.ts`
+  - 历史聊天记录解析：`frontend/src/stores/message.ts`（`loadHistory`）
+
+约束：
+- **仅图片/文件**使用策略解析端口；**视频端口保持固定**（`8006`），避免影响现有视频展示逻辑。
+
 ## 相关文件
 - `frontend/src/components/chat/ChatSidebar.vue`
 - `frontend/src/composables/useWebSocket.ts`
 - `frontend/src/views/ChatRoomView.vue`
 - `frontend/src/components/common/PullToRefresh.vue`
+- `frontend/src/stores/message.ts`
+- `frontend/src/stores/systemConfig.ts`
+- `frontend/src/components/settings/SystemSettings.vue`
 
 ## 变更历史
 - [202601060948_chat_gesture_ux](../../history/2026-01/202601060948_chat_gesture_ux/) - 聊天手势与弹层交互增强
@@ -88,3 +105,4 @@ WebSocket 连接在浏览器侧为全局单例；Go 后端会将下游连接与�
 - [202601062034_refine_unread_route_cleanup](../../history/2026-01/202601062034_refine_unread_route_cleanup/) - 未读判定改用路由实例，并简化聊天页卸载清理逻辑
 - [202601092143_ws_identity_switch](../../history/2026-01/202601092143_ws_identity_switch/) - 修复切换身份后 WS 仍绑定旧用户导致匹配无响应/仍收旧消息
 - [202601101526_fix_ws_self_echo_alignment](../../history/2026-01/202601101526_fix_ws_self_echo_alignment/) - 修复 WS 私信回显自己消息方向判定（避免自己消息显示在左侧）
+- [202601102319_image_port_strategy](../../history/2026-01/202601102319_image_port_strategy/) - 聊天/历史消息的图片端口改为配置驱动解析，并在 Settings 提供切换

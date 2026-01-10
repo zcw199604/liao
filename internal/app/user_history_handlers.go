@@ -427,6 +427,9 @@ func (a *App) handleUpdateImgServer(w http.ResponseWriter, r *http.Request) {
 	server := strings.TrimSpace(r.FormValue("server"))
 	slog.Info("更新图片服务器", "server", server)
 	a.imageServer.SetImgServerHost(server)
+	if a.imagePortResolver != nil {
+		a.imagePortResolver.ClearAll()
+	}
 	writeText(w, http.StatusOK, "{\"success\":true}")
 }
 
@@ -508,7 +511,12 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 		if state, _ := parsed["state"].(string); state == "OK" {
 			if msg, ok := parsed["msg"].(string); ok && msg != "" {
 				imgHostClean := strings.Split(imgServerHost, ":")[0]
-				availablePort := detectAvailablePort(imgHostClean)
+				availablePort := ""
+				if strings.HasPrefix(strings.ToLower(contentType), "video/") {
+					availablePort = "8006"
+				} else {
+					availablePort = a.resolveImagePortByConfig(r.Context(), msg)
+				}
 				imageURL := fmt.Sprintf("http://%s:%s/img/Upload/%s", imgHostClean, availablePort, msg)
 
 				localFilename := filepath.Base(strings.TrimPrefix(localPath, "/"))
@@ -559,14 +567,13 @@ func (a *App) handleGetCachedImages(w http.ResponseWriter, r *http.Request) {
 	cached := a.imageCache.GetCachedImages(userID)
 	if cached == nil {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"port": "9006",
+			"port": a.resolveImagePortByConfig(r.Context(), ""),
 			"data": []string{},
 		})
 		return
 	}
 
-	imgServerHost := strings.Split(a.imageServer.GetImgServerHost(), ":")[0]
-	availablePort := detectAvailablePort(imgServerHost)
+	availablePort := a.resolveImagePortByConfig(r.Context(), "")
 	localURLs := a.mediaUpload.ConvertPathsToLocalURLs(cached.ImageURLs, hostHeader)
 
 	writeJSON(w, http.StatusOK, map[string]any{

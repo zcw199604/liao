@@ -20,9 +20,18 @@
 - 查询两人双向历史图片（`getChatImages`）
 - 查询用户发送历史（`getUserSentImages`）
 
-### 需求: 媒体库分页与端口探测
+### 需求: 图片端口策略（全局配置）
 **模块:** Media
-“全站图片库”接口返回分页数据，并包含 `port` 字段（用于前端探测可用图片服务端口）。
+为解决上游图片服务端口不固定/可达不等于可用的问题，系统提供全局图片端口策略（DB 配置，所有用户共用）：
+- `fixed`：固定图片端口（默认 `9006`）
+- `probe`：可用端口探测（请求 `useripaddressv23.js`，对齐上游脚本思路）
+- `real`：真实图片请求（对候选端口使用 `http://{host}:{port}/img/Upload/{path}` 做最小字节校验）
+
+前端在解析 WS/历史消息中的 `[path]` 媒体消息时，通过 `/api/resolveImagePort` 获取图片端口并拼接 URL；视频端口保持固定逻辑（`8006`），不受图片策略影响。
+
+### 需求: 媒体库分页与端口字段
+**模块:** Media
+“全站图片库”接口返回分页数据，并包含 `port` 字段（用于前端在缺少样本路径时的兜底展示/兼容旧逻辑）。当需要高可靠性时，前端应优先走 `/api/resolveImagePort` 的解析结果。
 
 ### 需求: 删除兼容性（localPath 归一化）
 **模块:** Media
@@ -72,6 +81,7 @@
 - `media_send_log`
 - `media_upload_history`（历史遗留）
 - `image_hash`（图片哈希索引）
+- `system_config`（系统全局配置）
 
 ## 依赖
 - `internal/app/media_upload.go`
@@ -83,6 +93,10 @@
 - `internal/app/image_server.go`
 - `internal/app/image_hash.go`
 - `internal/app/image_hash_handlers.go`
+- `internal/app/system_config.go`
+- `internal/app/system_config_handlers.go`
+- `internal/app/image_port_strategy.go`
+- `internal/app/image_port_resolver.go`
 - `internal/app/port_detect.go`
 - `internal/app/schema.go`
 
@@ -105,3 +119,4 @@
 - [202601071248_go_backend_rewrite](../../history/2026-01/202601071248_go_backend_rewrite/) - Go 后端重构并实现媒体上传/记录/媒体库
 - [202601101607_image_hash_duplicate_check](../../history/2026-01/202601101607_image_hash_duplicate_check/) - 新增媒体查重接口（MD5 + pHash 相似度）
 - [202601102011_go_file_tests](../../history/2026-01/202601102011_go_file_tests/) - Go 文件功能测试补齐（FileStorage/MediaUpload/ImageHash/handlers）
+- [202601102319_image_port_strategy](../../history/2026-01/202601102319_image_port_strategy/) - 新增全局图片端口策略配置（fixed/probe/real）与前端 Settings 切换

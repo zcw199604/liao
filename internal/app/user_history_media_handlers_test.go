@@ -43,9 +43,21 @@ func TestHandleGetCachedImages_WithCache(t *testing.T) {
 	detectAvailablePort = func(string) string { return "9001" }
 	t.Cleanup(func() { detectAvailablePort = oldDetect })
 
+	db, _, cleanup := newSQLMock(t)
+	defer cleanup()
+
 	app := &App{
 		imageCache:  NewImageCacheService(),
 		imageServer: NewImageServerService("img-host", "9003"),
+		systemConfig: &SystemConfigService{
+			db:     db,
+			loaded: true,
+			cached: SystemConfig{
+				ImagePortMode:         ImagePortModeProbe,
+				ImagePortFixed:        "9006",
+				ImagePortRealMinBytes: 2048,
+			},
+		},
 		mediaUpload: &MediaUploadService{serverPort: 8080},
 	}
 

@@ -102,6 +102,14 @@ func ensureSchema(db *sql.DB) error {
 			INDEX idx_ih_md5_hash (md5_hash),
 			INDEX idx_ih_phash (phash)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='本地图片哈希索引表'`,
+
+		// system_config（系统全局配置：所有用户共用）
+		`CREATE TABLE IF NOT EXISTS system_config (
+			config_key VARCHAR(64) PRIMARY KEY COMMENT '配置键',
+			config_value TEXT NOT NULL COMMENT '配置值',
+			created_at DATETIME NOT NULL COMMENT '创建时间',
+			updated_at DATETIME NOT NULL COMMENT '更新时间'
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统全局配置表'`,
 	}
 
 	for _, stmt := range statements {
@@ -111,4 +119,3 @@ func ensureSchema(db *sql.DB) error {
 	}
 	return nil
 }
-

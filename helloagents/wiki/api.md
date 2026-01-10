@@ -721,6 +721,44 @@
 #### [POST] /api/clearForceoutUsers
 **描述**：清空 forceout 禁止列表。
 
+#### [GET] /api/getSystemConfig
+**描述**：获取系统全局配置（所有用户共用）。
+
+**响应（HTTP 200）**
+```json
+{"code":0,"msg":"success","data":{"imagePortMode":"fixed","imagePortFixed":"9006","imagePortRealMinBytes":2048}}
+```
+
+#### [POST] /api/updateSystemConfig
+**描述**：更新系统全局配置（所有用户共用）。
+
+**请求（application/json）**
+```json
+{"imagePortMode":"real","imagePortFixed":"9006","imagePortRealMinBytes":2048}
+```
+
+**响应（HTTP 200）**
+```json
+{"code":0,"msg":"success","data":{"imagePortMode":"real","imagePortFixed":"9006","imagePortRealMinBytes":2048}}
+```
+
+#### [POST] /api/resolveImagePort
+**描述**：按系统配置策略解析“图片端口”，用于前端拼接 `http://{imgServer}:{port}/img/Upload/{path}`。
+
+**请求（application/json）**
+```json
+{"path":"2026/01/a.jpg"}
+```
+
+**响应（HTTP 200）**
+```json
+{"code":0,"msg":"success","data":{"port":"9006"}}
+```
+
+**备注**
+- 图片端口策略由 `system_config` 控制（`fixed/probe/real`）。
+- 视频端口仍保持前端固定逻辑（`8006`），不受图片策略影响。
+
 ---
 
 ## 5. 静态资源与 SPA 回退

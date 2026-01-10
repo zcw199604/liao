@@ -12,6 +12,14 @@ export interface ConnectionStats {
   downstream: number
 }
 
+export type ImagePortMode = 'fixed' | 'probe' | 'real'
+
+export interface SystemConfig {
+  imagePortMode: ImagePortMode
+  imagePortFixed: string
+  imagePortRealMinBytes: number
+}
+
 export interface PaginationResponse<T> {
   code: number
   data: {

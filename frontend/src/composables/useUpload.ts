@@ -42,8 +42,10 @@ export const useUpload = () => {
         let type: 'image' | 'video' | 'file' = 'file'
         if (file.type.startsWith('image/')) type = 'image'
         else if (file.type.startsWith('video/')) type = 'video'
-        
-        const port = type === 'video' ? IMG_SERVER_VIDEO_PORT : IMG_SERVER_IMAGE_PORT
+
+        const port = type === 'video'
+          ? IMG_SERVER_VIDEO_PORT
+          : Number(res?.port || IMG_SERVER_IMAGE_PORT) || IMG_SERVER_IMAGE_PORT
         const url = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
 
         const media: UploadedMedia = {

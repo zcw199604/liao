@@ -149,6 +149,25 @@
 - `idx_ih_md5_hash (md5_hash)`
 - `idx_ih_phash (phash)`
 
+---
+
+### 1.7 `system_config`（系统全局配置表）
+
+**用途**：存储系统级全局配置（所有用户共用），以 Key-Value 形式落库，供前端 Settings 面板与后端逻辑读取。  
+**创建位置**：`internal/app/schema.go`（启动时 `CREATE TABLE IF NOT EXISTS`）。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| config_key | VARCHAR(64) | PK | 配置键 |
+| config_value | TEXT | NOT NULL | 配置值（字符串化） |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+| updated_at | DATETIME | NOT NULL | 更新时间 |
+
+**已定义配置键（节选）**
+- `image_port_mode`：图片端口策略（`fixed/probe/real`）
+- `image_port_fixed`：固定模式图片端口（默认 `9006`）
+- `image_port_real_min_bytes`：真实图片请求最小字节阈值（默认 `2048`）
+
 ## 2. 缓存（内存 / Redis）
 
 ### 2.1 用户信息缓存（UserInfoCacheService）

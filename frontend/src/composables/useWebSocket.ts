@@ -3,10 +3,11 @@ import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
 import { useUserStore } from '@/stores/user'
 import { generateCookie } from '@/utils/cookie'
-import { WS_URL } from '@/constants/config'
+import { IMG_SERVER_VIDEO_PORT, WS_URL } from '@/constants/config'
 import type { WebSocketMessage, ChatMessage, User } from '@/types'
 import * as chatApi from '@/api/chat'
 import { useMediaStore } from '@/stores/media'
+import { useSystemConfigStore } from '@/stores/systemConfig'
 import { useToast } from '@/composables/useToast'
 import { emojiMap } from '@/constants/emoji'
 import { isImageFile, isVideoFile } from '@/utils/file'
@@ -43,6 +44,7 @@ export const useWebSocket = () => {
   const messageStore = useMessageStore()
   const userStore = useUserStore()
   const mediaStore = useMediaStore()
+  const systemConfigStore = useSystemConfigStore()
   const { show } = useToast()
 
   const formatNow = () => {
@@ -162,8 +164,15 @@ export const useWebSocket = () => {
       }
 
       try {
+        await systemConfigStore.loadSystemConfig()
+      } catch (e) {
+        console.warn('初始化系统配置失败:', e)
+      }
+
+      try {
         await mediaStore.loadImgServer()
         if (mediaStore.imgServer) {
+          systemConfigStore.clearResolvedCache()
           await mediaStore.loadCachedImages(currentUser.id)
         }
       } catch (e) {
@@ -372,7 +381,7 @@ export const useWebSocket = () => {
                 }
 
                 if (mediaStore.imgServer) {
-                  const port = isVideoPath ? '8006' : '9006'
+                  const port = isVideoPath ? IMG_SERVER_VIDEO_PORT : await systemConfigStore.resolveImagePort(path, mediaStore.imgServer)
                   const url = `http://${mediaStore.imgServer}:${port}/img/Upload/${path}`
                   messageContent = url
 

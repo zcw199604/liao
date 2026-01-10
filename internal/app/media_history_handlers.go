@@ -192,9 +192,7 @@ func (a *App) handleGetAllUploadImages(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return
 	}
-
-	imgServerHost := strings.Split(a.imageServer.GetImgServerHost(), ":")[0]
-	availablePort := detectAvailablePort(imgServerHost)
+	availablePort := a.resolveImagePortByConfig(r.Context(), "")
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"port":       availablePort,

@@ -3,6 +3,8 @@ import { ref } from 'vue'
 import type { UploadedMedia } from '@/types'
 import * as mediaApi from '@/api/media'
 import { extractUploadLocalPath, inferMediaTypeFromUrl } from '@/utils/media'
+import { useSystemConfigStore } from '@/stores/systemConfig'
+import { IMG_SERVER_VIDEO_PORT } from '@/constants/config'
 
 export const useMediaStore = defineStore('media', () => {
   const uploadedMedia = ref<UploadedMedia[]>([])
@@ -33,6 +35,7 @@ export const useMediaStore = defineStore('media', () => {
   }
 
   const loadCachedImages = async (userid: string) => {
+    const systemConfigStore = useSystemConfigStore()
     try {
       const res = await mediaApi.getCachedImages(userid)
       const cacheData = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : [])
@@ -42,19 +45,28 @@ export const useMediaStore = defineStore('media', () => {
         return
       }
 
-      uploadedMedia.value = cacheData
+      if (!systemConfigStore.loaded) {
+        await systemConfigStore.loadSystemConfig()
+      }
+
+      uploadedMedia.value = await Promise.all(cacheData
         .filter((url: unknown) => typeof url === 'string' && !!url)
-        .map((localUrl: string) => {
+        .map(async (localUrl: string) => {
           const type = inferMediaTypeFromUrl(localUrl)
           // 将本地URL转换为上游URL：/upload/images/... -> /img/Upload/...
           const localPath = extractUploadLocalPath(localUrl)
           const filename = localPath.substring(localPath.lastIndexOf('/') + 1)
           const relativePath = localPath.replace(/^\//, '')
           const uploadPath = relativePath.replace(/^images\//, '').replace(/^videos\//, '')
-          const port = type === 'video' ? '8006' : '9006'
-          const url = imgServer.value ? `http://${imgServer.value}:${port}/img/Upload/${uploadPath}` : localUrl
+          let url = localUrl
+          if (imgServer.value) {
+            const port = type === 'video'
+              ? IMG_SERVER_VIDEO_PORT
+              : await systemConfigStore.resolveImagePort(uploadPath, imgServer.value)
+            url = `http://${imgServer.value}:${port}/img/Upload/${uploadPath}`
+          }
           return { url, type, localFilename: filename }
-        })
+        }))
     } catch (error) {
       console.error('获取缓存图片失败', error)
       uploadedMedia.value = []

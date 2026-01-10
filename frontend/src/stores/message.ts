@@ -4,7 +4,9 @@ import type { ChatMessage } from '@/types'
 import * as chatApi from '@/api/chat'
 import { generateCookie } from '@/utils/cookie'
 import { useMediaStore } from '@/stores/media'
+import { useSystemConfigStore } from '@/stores/systemConfig'
 import { emojiMap } from '@/constants/emoji'
+import { IMG_SERVER_VIDEO_PORT } from '@/constants/config'
 import { isImageFile, isVideoFile } from '@/utils/file'
 
 export const useMessageStore = defineStore('message', () => {
@@ -173,7 +175,13 @@ export const useMessageStore = defineStore('message', () => {
       }
 
       if (data && data.code === 0 && Array.isArray(data.contents_list)) {
-        const mapped: ChatMessage[] = data.contents_list.reverse().map((msg: any) => {
+        const systemConfigStore = useSystemConfigStore()
+        if (!systemConfigStore.loaded) {
+          await systemConfigStore.loadSystemConfig()
+        }
+
+        const list = data.contents_list.slice().reverse()
+        const mapped: ChatMessage[] = await Promise.all(list.map(async (msg: any) => {
           const rawContent = String(msg?.content || '')
           const msgTid = String(msg?.Tid || msg?.tid || '')
           const msgTime = String(msg?.time || '')
@@ -193,7 +201,7 @@ export const useMessageStore = defineStore('message', () => {
               const isImage = isImageFile(path)
 
               if (mediaStore.imgServer) {
-                const port = isVideo ? '8006' : '9006'
+                const port = isVideo ? IMG_SERVER_VIDEO_PORT : await systemConfigStore.resolveImagePort(path, mediaStore.imgServer)
                 content = `http://${mediaStore.imgServer}:${port}/img/Upload/${path}`
                 if (isVideo) type = 'video'
                 else if (isImage) type = 'image'
@@ -227,7 +235,7 @@ export const useMessageStore = defineStore('message', () => {
             videoUrl: type === 'video' ? content : '',
             fileUrl: type === 'file' ? content : ''
           } as ChatMessage
-        })
+        }))
 
         const existing = chatHistory.value.get(UserToID) || []
 
