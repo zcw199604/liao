@@ -7,7 +7,9 @@ import (
 	"time"
 )
 
-func detectAvailablePort(imgServerHost string) string {
+var detectAvailablePort = detectAvailablePortDefault
+
+func detectAvailablePortDefault(imgServerHost string) string {
 	ports := []string{"9006", "9005", "9003", "9002", "9001", "8006", "8005", "8003", "8002", "8001"}
 	client := &http.Client{Timeout: 800 * time.Millisecond}
 
@@ -27,4 +29,3 @@ func detectAvailablePort(imgServerHost string) string {
 
 	return "9006"
 }
-

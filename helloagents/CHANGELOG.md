@@ -19,6 +19,7 @@
 - 后端：Go 服务日志支持 `LOG_LEVEL`（debug/info/warn/error）与 `LOG_FORMAT=text` 配置（默认 JSON）。
 - 后端：新增 `/api/repairMediaHistory` 历史媒体数据修复接口（扫描遗留表 `media_upload_history`：补齐缺失 `file_md5`、按 MD5 全局去重/可选本地路径去重；默认 dry-run，需 `commit=true` 才会写入/删除）。
 - 后端：新增 `/api/checkDuplicateMedia` 媒体查重接口：先按 `image_hash.md5_hash` 精确匹配；无命中则按 pHash 相似度阈值查询并返回 similarity/distance。
+- 后端：补齐 Go 服务文件功能测试用例（FileStorage/MediaUpload/ImageHash/静态文件），覆盖 `/api/uploadMedia`、`/api/checkDuplicateMedia`、`/api/getAllUploadImages`、`/api/getUserUploadHistory`、`/api/getUserSentImages`、`/api/getUserUploadStats`、`/api/getChatImages`、`/api/recordImageSend`、`/api/reuploadHistoryImage`、`/api/deleteMedia`、`/api/batchDeleteMedia`、`/api/getCachedImages`、`/api/repairMediaHistory`。
 - CI：新增 `Release` GitHub Actions 工作流，用于创建 `v*` Tag 并生成 GitHub Release 产物。
 - 知识库：补齐 Wiki 概览/架构文档，并补充关键模块文档（Auth/Identity/WebSocket Proxy/Media）。
 

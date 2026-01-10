@@ -38,6 +38,15 @@
 - MD5 精确命中即返回重复文件信息
 - 无 MD5 命中时，按 pHash 相似度阈值查询相似图片并返回相似度（视频/不可解码文件仅做 MD5 查重）
 
+### 需求: 测试覆盖（Go）
+**模块:** Media
+为文件功能补齐可重复执行的测试用例，覆盖：
+- `FileStorageService`（落盘/读取/删除/MD5/复用查询）
+- `ImageCacheService`（写入/读取/过期/重建/清空）
+- `ImageHashService`（pHash 计算、阈值换算）
+- `MediaUploadService`（localPath 归一化、本地 URL 转换、删除行为）
+- handler：`/api/uploadMedia`、`/api/checkDuplicateMedia`
+
 ## API接口
 ### [POST] /api/uploadMedia
 **描述:** 上传媒体（代理上游 + 本地落盘/记录）
@@ -77,7 +86,22 @@
 - `internal/app/port_detect.go`
 - `internal/app/schema.go`
 
+## 测试
+- 运行：`go test ./...`
+- 相关测试文件：
+  - `internal/app/file_storage_test.go`
+  - `internal/app/image_cache_test.go`
+  - `internal/app/image_hash_test.go`
+  - `internal/app/media_history_handlers_test.go`
+  - `internal/app/media_repair_handlers_test.go`
+  - `internal/app/media_upload_test.go`
+  - `internal/app/media_handlers_test.go`
+  - `internal/app/static_file_server_test.go`
+  - `internal/app/test_helpers_test.go`
+  - `internal/app/user_history_media_handlers_test.go`
+
 ## 变更历史
 - [202601072058_fix_delete_media_403](../../history/2026-01/202601072058_fix_delete_media_403/) - 修复删除接口对多种 localPath 形式的兼容性（待复验）
 - [202601071248_go_backend_rewrite](../../history/2026-01/202601071248_go_backend_rewrite/) - Go 后端重构并实现媒体上传/记录/媒体库
 - [202601101607_image_hash_duplicate_check](../../history/2026-01/202601101607_image_hash_duplicate_check/) - 新增媒体查重接口（MD5 + pHash 相似度）
+- [202601102011_go_file_tests](../../history/2026-01/202601102011_go_file_tests/) - Go 文件功能测试补齐（FileStorage/MediaUpload/ImageHash/handlers）
