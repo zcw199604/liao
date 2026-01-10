@@ -68,6 +68,17 @@ WebSocket 连接在浏览器侧为全局单例；Go 后端会将下游连接与�
 会话状态清理：
 - 离开聊天页时应调用 `chatStore.exitChat()`，避免 `currentChatUser` 在列表页残留导致误判“正在聊天中”
 
+### 消息方向: 自己发送消息回显（isSelf 推断）
+**模块:** Chat UI
+上游私信消息（`code=7`）在回显给发送者时，`fromuser.id/touser.id` 可能存在别名或不回传本地 userId 的情况；若前端仅以 `fromuser.id === currentUserId` 判定 `isSelf`，会导致“自己发送的消息显示在左侧/被当作对方消息”。
+
+前端推断优先级（实现：`frontend/src/composables/useWebSocket.ts` → `inferWsPrivateMessageIsSelf`）：
+- `fromuser.id === currentUserId` → `isSelf=true`
+- `touser.id === currentUserId` → `isSelf=false`
+- 当前会话 `peerId` 存在时：`toUserId === peerId` → `isSelf=true`；`fromUserId === peerId` → `isSelf=false`
+- 昵称兜底：`fromUserNickname/toUserNickname` 与 `currentUser/peer` 昵称匹配时推断
+- 已知用户兜底：基于 `chatStore.userMap` 判断“哪一侧更可能是对端”，避免把自己别名ID当作新用户加入列表
+
 ## 相关文件
 - `frontend/src/components/chat/ChatSidebar.vue`
 - `frontend/src/composables/useWebSocket.ts`
@@ -79,3 +90,4 @@ WebSocket 连接在浏览器侧为全局单例；Go 后端会将下游连接与�
 - [202601062010_fix_unread_badge_list](../../history/2026-01/202601062010_fix_unread_badge_list/) - 修复列表页未读气泡误判不显示（路由判定 + 会话状态清理双保险）
 - [202601062034_refine_unread_route_cleanup](../../history/2026-01/202601062034_refine_unread_route_cleanup/) - 未读判定改用路由实例，并简化聊天页卸载清理逻辑
 - [202601092143_ws_identity_switch](../../history/2026-01/202601092143_ws_identity_switch/) - 修复切换身份后 WS 仍绑定旧用户导致匹配无响应/仍收旧消息
+- [202601101526_fix_ws_self_echo_alignment](../../history/2026-01/202601101526_fix_ws_self_echo_alignment/) - 修复 WS 私信回显自己消息方向判定（避免自己消息显示在左侧）
