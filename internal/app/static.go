@@ -49,17 +49,9 @@ func (a *App) lspFileServer() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("lsp文件请求", "rawPath", r.URL.Path, "requestURI", r.RequestURI)
 
-		// 去除 /lsp 前缀
-		path := strings.TrimPrefix(r.URL.Path, "/lsp")
-		if path == "" || path == "/" {
-			slog.Warn("lsp路径为空")
-			http.NotFound(w, r)
-			return
-		}
-
-		// 构建完整文件路径
-		fullPath := filepath.Join("lsp", filepath.FromSlash(path))
-		slog.Info("lsp文件路径", "path", path, "fullPath", fullPath)
+		// 直接使用 r.URL.Path 作为绝对路径（已包含 /lsp 前缀）
+		fullPath := r.URL.Path
+		slog.Info("lsp文件路径", "fullPath", fullPath)
 
 		// 检查文件是否存在
 		fi, err := os.Stat(fullPath)
