@@ -45,6 +45,26 @@ func (a *App) uploadFileServer() http.Handler {
 }
 
 func (a *App) lspFileServer() http.Handler {
-	return http.StripPrefix("/lsp", http.FileServer(http.Dir("lsp")))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 去除 /lsp 前缀
+		path := strings.TrimPrefix(r.URL.Path, "/lsp")
+		if path == "" || path == "/" {
+			http.NotFound(w, r)
+			return
+		}
+
+		// 构建完整文件路径
+		fullPath := filepath.Join("lsp", filepath.FromSlash(path))
+
+		// 检查文件是否存在
+		fi, err := os.Stat(fullPath)
+		if err != nil || fi.IsDir() {
+			http.NotFound(w, r)
+			return
+		}
+
+		// 提供文件服务
+		http.ServeFile(w, r, fullPath)
+	})
 }
 
