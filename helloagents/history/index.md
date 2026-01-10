@@ -24,6 +24,7 @@
 | 202601072015 | go_logging_align_java | 修复 | ⚠️待复验 | [链接](2026-01/202601072015_go_logging_align_java/) |
 | 202601072058 | fix_delete_media_403 | 修复 | ⚠️待复验 | [链接](2026-01/202601072058_fix_delete_media_403/) |
 | 202601092143 | ws_identity_switch | 修复 | ✅已完成 | [链接](2026-01/202601092143_ws_identity_switch/) |
+| 202601101607 | image_hash_duplicate_check | 功能 | ✅已完成 | [链接](2026-01/202601101607_image_hash_duplicate_check/) |
 
 ---
 
@@ -47,3 +48,4 @@
 - [202601072015_go_logging_align_java](2026-01/202601072015_go_logging_align_java/) - Go 日志对齐 Java 版（User History 分段耗时/鉴权告警等）
 - [202601072058_fix_delete_media_403](2026-01/202601072058_fix_delete_media_403/) - 修复 `/api/deleteMedia` 兼容多种 localPath 形式，并对齐全站图片库删除行为（不按 userId 校验）
 - [202601092143_ws_identity_switch](2026-01/202601092143_ws_identity_switch/) - 修复切换身份后 WS 仍绑定旧用户导致匹配无响应/仍收旧消息
+- [202601101607_image_hash_duplicate_check](2026-01/202601101607_image_hash_duplicate_check/) - 新增媒体查重接口（MD5 + pHash 相似度阈值查询）

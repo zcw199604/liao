@@ -75,6 +75,7 @@ sequenceDiagram
 - 认证：`/api/auth/login` 换取 JWT；除登录/verify 外其余 `/api/**` 需 Bearer Token（详见 `api.md`）。
 - 代理：对上游 HTTP 接口进行透传调用，并在本地执行缓存写入/列表增强（用户信息、最后消息等）。
 - 媒体：上传落盘到 `./upload` 并维护本地表与缓存（详见 `data.md`）。
+- 媒体查重：`/api/checkDuplicateMedia` 支持上传文件后按 `image_hash` 表进行 MD5 精确查重与 pHash 相似度查询（仅图片可计算 pHash）。
 - 静态资源：后端托管前端 SPA 静态资源并提供路由回退。
 
 ## 重大架构决策

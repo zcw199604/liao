@@ -55,6 +55,7 @@ func (a *App) buildRouter() http.Handler {
 		api.Post("/updateImgServer", a.handleUpdateImgServer)
 		api.Post("/uploadMedia", a.handleUploadMedia)
 		api.Post("/uploadImage", a.handleUploadImage)
+		api.Post("/checkDuplicateMedia", a.handleCheckDuplicateMedia)
 		api.Get("/getCachedImages", a.handleGetCachedImages)
 		api.Post("/toggleFavorite", a.handleToggleFavorite)
 		api.Post("/cancelFavorite", a.handleCancelFavorite)

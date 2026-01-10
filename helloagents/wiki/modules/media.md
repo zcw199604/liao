@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** 上传/重传媒体；记录发送日志；分页查询上传/发送历史；全站媒体库分页；删除与批量删除；历史数据修复（repair）
 - **状态:** ✅稳定
-- **最后更新:** 2026-01-09
+- **最后更新:** 2026-01-10
 
 ## 规范
 
@@ -32,9 +32,18 @@
 **模块:** Media
 提供历史表 `media_upload_history` 的修复与去重能力（默认 dry-run，需显式开启写入/删除）。
 
+### 需求: 媒体查重（image_hash）
+**模块:** Media
+提供“上传文件后查重”的能力：
+- MD5 精确命中即返回重复文件信息
+- 无 MD5 命中时，按 pHash 相似度阈值查询相似图片并返回相似度（视频/不可解码文件仅做 MD5 查重）
+
 ## API接口
 ### [POST] /api/uploadMedia
 **描述:** 上传媒体（代理上游 + 本地落盘/记录）
+
+### [POST] /api/checkDuplicateMedia
+**描述:** 上传文件后按 `image_hash` 进行查重/相似检索（返回 similarity）
 
 ### [GET] /api/getAllUploadImages
 **描述:** 全站媒体库分页（返回 `data/total/page/pageSize/totalPages/port`）
@@ -53,6 +62,7 @@
 - `media_file`
 - `media_send_log`
 - `media_upload_history`（历史遗留）
+- `image_hash`（图片哈希索引）
 
 ## 依赖
 - `internal/app/media_upload.go`
@@ -62,10 +72,12 @@
 - `internal/app/file_storage.go`
 - `internal/app/image_cache.go`
 - `internal/app/image_server.go`
+- `internal/app/image_hash.go`
+- `internal/app/image_hash_handlers.go`
 - `internal/app/port_detect.go`
 - `internal/app/schema.go`
 
 ## 变更历史
 - [202601072058_fix_delete_media_403](../../history/2026-01/202601072058_fix_delete_media_403/) - 修复删除接口对多种 localPath 形式的兼容性（待复验）
 - [202601071248_go_backend_rewrite](../../history/2026-01/202601071248_go_backend_rewrite/) - Go 后端重构并实现媒体上传/记录/媒体库
-
+- [202601101607_image_hash_duplicate_check](../../history/2026-01/202601101607_image_hash_duplicate_check/) - 新增媒体查重接口（MD5 + pHash 相似度）

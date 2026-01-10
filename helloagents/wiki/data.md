@@ -129,6 +129,26 @@
 
 ---
 
+### 1.6 `image_hash`（本地图片哈希索引表）
+
+**用途**：存储本地图片的路径与哈希信息（MD5 + pHash），用于查重与相似图片检索（见 `/api/checkDuplicateMedia`）。  
+**创建位置**：`internal/app/schema.go`（启动时 `CREATE TABLE IF NOT EXISTS`；实际数据通常由外部扫描/入库流程写入）。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| id | INT | PK, AUTO_INCREMENT | 主键 |
+| file_path | VARCHAR(1000) | NOT NULL | 图片完整路径（或统一的存储路径标识） |
+| file_name | VARCHAR(255) | NOT NULL | 文件名 |
+| file_dir | VARCHAR(500) | 可空 | 文件目录 |
+| md5_hash | VARCHAR(32) | NOT NULL | 文件 MD5（32位 hex） |
+| phash | BIGINT | NOT NULL | 图片 pHash（64位，BIGINT 存储） |
+| file_size | BIGINT | 可空 | 文件大小（字节） |
+| created_at | DATETIME | NOT NULL | 记录创建时间 |
+
+**索引**
+- `idx_ih_md5_hash (md5_hash)`
+- `idx_ih_phash (phash)`
+
 ## 2. 缓存（内存 / Redis）
 
 ### 2.1 用户信息缓存（UserInfoCacheService）

@@ -371,6 +371,89 @@
 8. 若解析失败或非 OK：返回原始上游响应 body
 9. 若上游上传失败：HTTP 500，`{"error":"上传媒体失败: ...","localPath":"..."}`（本地文件保留供重试）
 
+#### [POST] /api/checkDuplicateMedia
+**描述**：上传文件并在本地 `image_hash` 表中查重（先 MD5 精确匹配；无 MD5 命中再按 pHash 相似度阈值匹配）。
+
+**请求（multipart/form-data）**
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| file | 是 | 任意文件（MD5 总是计算；pHash 仅对“可解码图片”计算，视频/不可解码格式仅做 MD5 查重） |
+| similarityThreshold | 否 | 最小相似度阈值，支持 `0-1` 或 `0-100`（百分比）；提供该参数时优先使用 |
+| distanceThreshold / threshold | 否 | 最大汉明距离阈值（0-64）；当未提供 `similarityThreshold` 时使用；默认 `10`（与 Python 工具一致） |
+| limit | 否 | 返回条数上限，默认 `20`，最大 `200` |
+
+**处理逻辑**
+1. 计算上传文件 MD5（流式）
+2. `SELECT ... FROM image_hash WHERE md5_hash = ?`：有命中则直接返回（`matchType="md5"`）
+3. 若无 MD5 命中：尝试计算 pHash（64 位）
+   - pHash 不可计算（视频/非图片/解码失败等）→ 返回 `matchType="none"` 并携带 `reason`
+4. 阈值判定：
+   - 若提供 `similarityThreshold`：换算 `distanceThreshold = floor((1-similarityThreshold)*64)`
+   - 否则使用 `distanceThreshold/threshold`（默认 10）
+5. `BIT_COUNT(phash ^ inputPhash) <= distanceThreshold`：按 `distance` 升序返回（`matchType="phash"` / `none`）
+
+**响应（HTTP 200）**
+
+`data.matchType` 的返回规则：
+- `md5`：仅返回 MD5 命中列表（不包含 `pHash`）
+- `phash`：返回相似图片列表（包含 `pHash` 与阈值信息）
+- `none`：无命中，或 pHash 不可计算（可能包含 `reason`）
+
+注意：`pHash` 为 64 位整数，为避免前端 JS 精度问题，接口以字符串返回（`"pHash":"123"`）。
+
+示例（MD5 命中）：
+```json
+{
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "matchType": "md5",
+    "md5": "32位hex",
+    "thresholdType": "distance",
+    "similarityThreshold": 0.84375,
+    "distanceThreshold": 10,
+    "limit": 20,
+    "items": [{"id": 1, "filePath": "...", "md5Hash": "...", "distance": 0, "similarity": 1}]
+  }
+}
+```
+
+示例（pHash 命中）：
+```json
+{
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "matchType": "phash",
+    "md5": "32位hex",
+    "pHash": "123",
+    "thresholdType": "distance",
+    "similarityThreshold": 0.84375,
+    "distanceThreshold": 10,
+    "limit": 20,
+    "items": [{"id": 1, "filePath": "...", "pHash": "456", "distance": 3, "similarity": 0.953125}]
+  }
+}
+```
+
+示例（pHash 不可计算）：
+```json
+{
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "matchType": "none",
+    "md5": "32位hex",
+    "thresholdType": "distance",
+    "similarityThreshold": 0.84375,
+    "distanceThreshold": 10,
+    "limit": 20,
+    "reason": "无法计算pHash（仅支持可解码的图片格式）",
+    "items": []
+  }
+}
+```
+
 #### [POST] /api/uploadImage（Deprecated）
 **描述**：旧接口，内部转发到 `/api/uploadMedia`。
 

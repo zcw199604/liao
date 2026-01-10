@@ -18,6 +18,7 @@
 - 后端：新增 Go 版单进程服务（API + `/ws` WebSocket 代理 100%兼容、MySQL + 可选 Redis、静态前端托管），支持单容器运行并降低运行内存。
 - 后端：Go 服务日志支持 `LOG_LEVEL`（debug/info/warn/error）与 `LOG_FORMAT=text` 配置（默认 JSON）。
 - 后端：新增 `/api/repairMediaHistory` 历史媒体数据修复接口（扫描遗留表 `media_upload_history`：补齐缺失 `file_md5`、按 MD5 全局去重/可选本地路径去重；默认 dry-run，需 `commit=true` 才会写入/删除）。
+- 后端：新增 `/api/checkDuplicateMedia` 媒体查重接口：先按 `image_hash.md5_hash` 精确匹配；无命中则按 pHash 相似度阈值查询并返回 similarity/distance。
 - CI：新增 `Release` GitHub Actions 工作流，用于创建 `v*` Tag 并生成 GitHub Release 产物。
 - 知识库：补齐 Wiki 概览/架构文档，并补充关键模块文档（Auth/Identity/WebSocket Proxy/Media）。
 
@@ -34,3 +35,4 @@
 - 后端：修复 Go 端删除媒体对历史 `localPath`（无前导 `/` 或携带 `/upload` 前缀/完整 URL）兼容不足，导致返回 403 的问题。
 - 后端：修复 Go 端 `/api/deleteMedia` 兼容性：支持 `localPath` 含 `%2F` 编码、兼容 `local_path` 异常带 `/upload` 前缀/缺少前导 `/`，并取消按 `userId` 校验上传者归属以对齐“全站图片库”展示行为，避免误报 403。
 - 后端：修复 Go 版 WebSocket 下游广播在存在僵尸连接时可能写阻塞，导致匹配/消息回包延迟或丢失的问题（增加下游写超时并在发送失败时清理会话）。
+- 后端：修复 `/api/checkDuplicateMedia` 的 pHash 计算与阈值语义，对齐 Python `imagehash.phash`（median/DCT 顺序/重采样）并支持 `distanceThreshold` 默认 10。

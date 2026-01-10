@@ -88,6 +88,20 @@ func ensureSchema(db *sql.DB) error {
 			INDEX idx_upload_time (upload_time DESC),
 			INDEX idx_file_md5 (file_md5)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='媒体上传历史记录表'`,
+
+		// image_hash（本地图片哈希索引：MD5 + pHash，用于查重/相似查询）
+		`CREATE TABLE IF NOT EXISTS image_hash (
+			id INT AUTO_INCREMENT PRIMARY KEY,
+			file_path VARCHAR(1000) NOT NULL,
+			file_name VARCHAR(255) NOT NULL,
+			file_dir VARCHAR(500) NULL,
+			md5_hash VARCHAR(32) NOT NULL,
+			phash BIGINT NOT NULL,
+			file_size BIGINT NULL,
+			created_at DATETIME NOT NULL,
+			INDEX idx_ih_md5_hash (md5_hash),
+			INDEX idx_ih_phash (phash)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='本地图片哈希索引表'`,
 	}
 
 	for _, stmt := range statements {

@@ -29,6 +29,7 @@ type App struct {
 	fileStorage     *FileStorageService
 	imageServer     *ImageServerService
 	imageCache      *ImageCacheService
+	imageHash       *ImageHashService
 	mediaUpload     *MediaUploadService
 	userInfoCache   UserInfoCacheService
 	forceoutManager *ForceoutManager
@@ -85,6 +86,7 @@ func New(cfg config.Config) (*App, error) {
 		fileStorage:     NewFileStorageService(db),
 		imageServer:     NewImageServerService(cfg.ImageServerHost, cfg.ImageServerPort),
 		imageCache:      NewImageCacheService(),
+		imageHash:       NewImageHashService(db),
 		userInfoCache:   userInfoCache,
 		forceoutManager: NewForceoutManager(),
 		staticDir: staticDir,

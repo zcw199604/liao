@@ -7,6 +7,11 @@ export const uploadMedia = (formData: FormData) => {
   return request.post<any, any>('/uploadMedia', formData)
 }
 
+// 上传文件并在本地 image_hash 表中查重（先 MD5，后 pHash 相似度）
+export const checkDuplicateMedia = (formData: FormData) => {
+  return request.post<any, ApiResponse>('/checkDuplicateMedia', formData)
+}
+
 // 获取图片服务器地址
 export const getImgServerAddress = () => {
   return request.get<any, any>('/getImgServer')
