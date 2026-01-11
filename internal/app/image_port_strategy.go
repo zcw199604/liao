@@ -52,6 +52,10 @@ func (a *App) resolveImagePortByConfig(ctx context.Context, uploadPath string) s
 				return cached
 			}
 		}
+		// 兜底：如果真实探测失败（如 404/超时/HTML 占位），仍返回一个“可用端口”让前端快速得到响应（展示裂图而不是长时间挂起）。
+		if port := strings.TrimSpace(detectAvailablePort(imgHost)); port != "" {
+			return port
+		}
 		return cfg.ImagePortFixed
 	case ImagePortModeFixed:
 		fallthrough
@@ -59,4 +63,3 @@ func (a *App) resolveImagePortByConfig(ctx context.Context, uploadPath string) s
 		return cfg.ImagePortFixed
 	}
 }
-

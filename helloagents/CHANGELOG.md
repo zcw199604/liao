@@ -29,6 +29,7 @@
 - 文档：标记历史 Java(Spring Boot) 后端目录（`src/main/java/`）为已弃用，仅供参考。
 
 ### 修复
+- 后端：图片端口策略优化：`real` 改为并发竞速（HTTP 200/206 即胜出并取消其余请求），并在全部失败时降级到 `probe`（并发 TCP 通断）或最终回退 `fixed`，避免串行探测导致卡顿。
 - 后端：`/api/getFavoriteUserList` 对齐 `/api/getHistoryUserList` 的缓存增强逻辑，补全用户信息并补齐 `lastMsg/lastTime`。
 - 前端：修复聊天列表（侧边栏）最后一条消息时间未使用统一格式化（`formatTime`）的问题。
 - 前端：修复 ChatRoomView 预览事件监听清理的生命周期注册，避免 Vue 警告。

@@ -15,6 +15,10 @@ import (
 	"time"
 )
 
+const (
+	imagePortRealRequestTimeout = 800 * time.Millisecond
+)
+
 type ImagePortResolver struct {
 	httpClient *http.Client
 	ports      []string
@@ -97,12 +101,36 @@ func (r *ImagePortResolver) ResolveByRealRequest(ctx context.Context, host, uplo
 		r.ClearHost(host)
 	}
 
+	raceCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	type result struct {
+		port string
+		ok   bool
+	}
+	results := make(chan result, len(r.ports))
+
 	for _, port := range r.ports {
-		if r.checkPort(ctx, host, port, uploadPath, minBytes) {
+		port := port
+		go func() {
+			ok := r.checkPort(raceCtx, host, port, uploadPath, minBytes)
+			results <- result{port: port, ok: ok}
+		}()
+	}
+
+	for i := 0; i < len(r.ports); i++ {
+		select {
+		case res := <-results:
+			if !res.ok {
+				continue
+			}
+			cancel()
 			r.mu.Lock()
-			r.cache[host] = port
+			r.cache[host] = res.port
 			r.mu.Unlock()
-			return port, true
+			return res.port, true
+		case <-raceCtx.Done():
+			return "", false
 		}
 	}
 
@@ -120,7 +148,7 @@ func (r *ImagePortResolver) checkPort(ctx context.Context, host, port, uploadPat
 		Path:   "/img/Upload/" + strings.TrimPrefix(uploadPath, "/"),
 	}
 
-	reqCtx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
+	reqCtx, cancel := context.WithTimeout(ctx, imagePortRealRequestTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, target.String(), nil)
@@ -136,7 +164,7 @@ func (r *ImagePortResolver) checkPort(ctx context.Context, host, port, uploadPat
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
 		return false
 	}
 
@@ -202,4 +230,3 @@ func normalizeRemoteUploadPath(path string) string {
 
 	return path
 }
-

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestImagePortResolver_ResolveByRealRequest_Success(t *testing.T) {
@@ -40,6 +41,59 @@ func TestImagePortResolver_ResolveByRealRequest_Success(t *testing.T) {
 	}
 	if got != port {
 		t.Fatalf("port=%q, want %q", got, port)
+	}
+}
+
+func TestImagePortResolver_ResolveByRealRequest_RaceChoosesFastest(t *testing.T) {
+	payload := strings.Repeat("x", 3000)
+
+	slowListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen slow failed: %v", err)
+	}
+	slow := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/img/Upload/") {
+			time.Sleep(300 * time.Millisecond)
+			w.Header().Set("Content-Type", "image/jpeg")
+			_, _ = w.Write([]byte(payload))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	slow.Listener = slowListener
+	slow.Start()
+	defer slow.Close()
+
+	fastListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen fast failed: %v", err)
+	}
+	fast := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/img/Upload/") {
+			w.Header().Set("Content-Type", "image/jpeg")
+			_, _ = w.Write([]byte(payload))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	fast.Listener = fastListener
+	fast.Start()
+	defer fast.Close()
+
+	uSlow, _ := url.Parse(slow.URL)
+	host, slowPort, _ := net.SplitHostPort(uSlow.Host)
+	uFast, _ := url.Parse(fast.URL)
+	_, fastPort, _ := net.SplitHostPort(uFast.Host)
+
+	resolver := NewImagePortResolver(&http.Client{})
+	resolver.ports = []string{slowPort, fastPort}
+
+	got, ok := resolver.ResolveByRealRequest(context.Background(), host, "a.jpg", 2048)
+	if !ok {
+		t.Fatalf("ResolveByRealRequest ok=false, want true")
+	}
+	if got != fastPort {
+		t.Fatalf("port=%q, want %q", got, fastPort)
 	}
 }
 
@@ -90,4 +144,3 @@ func TestNormalizeRemoteUploadPath(t *testing.T) {
 		t.Fatalf("expected empty for traversal, got=%q", got)
 	}
 }
-

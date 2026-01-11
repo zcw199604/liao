@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** 上传/重传媒体；记录发送日志；分页查询上传/发送历史；全站媒体库分页；删除与批量删除；历史数据修复（repair）
 - **状态:** ✅稳定
-- **最后更新:** 2026-01-10
+- **最后更新:** 2026-01-11
 
 ## 规范
 
@@ -24,8 +24,8 @@
 **模块:** Media
 为解决上游图片服务端口不固定/可达不等于可用的问题，系统提供全局图片端口策略（DB 配置，所有用户共用）：
 - `fixed`：固定图片端口（默认 `9006`）
-- `probe`：可用端口探测（请求 `useripaddressv23.js`，对齐上游脚本思路）
-- `real`：真实图片请求（对候选端口使用 `http://{host}:{port}/img/Upload/{path}` 做最小字节校验）
+- `probe`：可用端口探测（并发 TCP 竞速，仅检测端口是否可连通；用于快速选出“能响应”的端口）
+- `real`：真实图片请求（并发竞速：同时对候选端口请求 `http://{host}:{port}/img/Upload/{path}`，按最小字节阈值校验内容；首个有效响应（HTTP 200/206）即返回并取消其它请求；若全部失败则降级到 `probe` 或最终回退 `fixed`）
 
 前端在解析 WS/历史消息中的 `[path]` 媒体消息时，通过 `/api/resolveImagePort` 获取图片端口并拼接 URL；视频端口保持固定逻辑（`8006`），不受图片策略影响。
 
@@ -120,3 +120,4 @@
 - [202601101607_image_hash_duplicate_check](../../history/2026-01/202601101607_image_hash_duplicate_check/) - 新增媒体查重接口（MD5 + pHash 相似度）
 - [202601102011_go_file_tests](../../history/2026-01/202601102011_go_file_tests/) - Go 文件功能测试补齐（FileStorage/MediaUpload/ImageHash/handlers）
 - [202601102319_image_port_strategy](../../history/2026-01/202601102319_image_port_strategy/) - 新增全局图片端口策略配置（fixed/probe/real）与前端 Settings 切换
+- [202601110511_image_port_race](../../history/2026-01/202601110511_image_port_race/) - 图片端口解析优化：real 并发竞速与全失败降级兜底（回退 probe/fixed）

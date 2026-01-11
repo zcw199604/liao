@@ -1,9 +1,10 @@
 package app
 
 import (
-	"fmt"
-	"io"
-	"net/http"
+	"context"
+	"net"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -11,21 +12,62 @@ var detectAvailablePort = detectAvailablePortDefault
 
 func detectAvailablePortDefault(imgServerHost string) string {
 	ports := []string{"9006", "9005", "9003", "9002", "9001", "8006", "8005", "8003", "8002", "8001"}
-	client := &http.Client{Timeout: 800 * time.Millisecond}
-
-	for _, port := range ports {
-		testURL := fmt.Sprintf("http://%s:%s/useripaddressv23.js", imgServerHost, port)
-		resp, err := client.Get(testURL)
-		if err != nil {
-			continue
-		}
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			return port
-		}
+	host := strings.TrimSpace(imgServerHost)
+	if host == "" {
+		return "9006"
 	}
 
-	return "9006"
+	// 兼容传入 host:port 的情况（避免误拼接成 host:port:port）。
+	if h, _, err := net.SplitHostPort(host); err == nil && strings.TrimSpace(h) != "" {
+		host = strings.TrimSpace(h)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	type result struct {
+		port string
+		ok   bool
+	}
+	results := make(chan result, len(ports))
+	dialer := &net.Dialer{}
+
+	var wg sync.WaitGroup
+	wg.Add(len(ports))
+	for _, port := range ports {
+		port := port
+		go func() {
+			defer wg.Done()
+			dialCtx, dialCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+			defer dialCancel()
+
+			conn, err := dialer.DialContext(dialCtx, "tcp", net.JoinHostPort(host, port))
+			if err == nil && conn != nil {
+				_ = conn.Close()
+				results <- result{port: port, ok: true}
+				return
+			}
+			results <- result{port: port, ok: false}
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	for {
+		select {
+		case res, ok := <-results:
+			if !ok {
+				return "9006"
+			}
+			if res.ok {
+				cancel()
+				return res.port
+			}
+		case <-ctx.Done():
+			return "9006"
+		}
+	}
 }
