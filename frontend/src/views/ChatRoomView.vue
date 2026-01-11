@@ -196,7 +196,6 @@ import { useChat } from '@/composables/useChat'
 	import { useSwipeAction } from '@/composables/useInteraction'
 	import { extractUploadLocalPath, inferMediaTypeFromUrl } from '@/utils/media'
 	import { generateCookie } from '@/utils/cookie'
-	import { IMG_SERVER_VIDEO_PORT } from '@/constants/config'
 	import { useSystemConfigStore } from '@/stores/systemConfig'
 import { 
   EDGE_BACK_START_PX, 
@@ -601,9 +600,7 @@ const confirmPreviewUpload = async () => {
     })
 
 	    if (res?.state === 'OK' && res.msg) {
-	      const port = previewTarget.value.type === 'video'
-	        ? IMG_SERVER_VIDEO_PORT
-	        : await systemConfigStore.resolveImagePort(res.msg, mediaStore.imgServer)
+		      const port = await systemConfigStore.resolveImagePort(res.msg, mediaStore.imgServer)
 	      const remoteUrl = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
 	      
 	      const filename = localPath.substring(localPath.lastIndexOf('/') + 1)

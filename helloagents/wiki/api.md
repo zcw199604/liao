@@ -743,7 +743,7 @@
 ```
 
 #### [POST] /api/resolveImagePort
-**描述**：按系统配置策略解析“图片端口”，用于前端拼接 `http://{imgServer}:{port}/img/Upload/{path}`。
+**描述**：按系统配置策略解析“媒体端口”（图片/视频共用），用于前端拼接 `http://{imgServer}:{port}/img/Upload/{path}`。
 
 **请求（application/json）**
 ```json
@@ -757,7 +757,7 @@
 
 **备注**
 - 图片端口策略由 `system_config` 控制（`fixed/probe/real`）。
-- 视频端口仍保持前端固定逻辑（`8006`），不受图片策略影响。
+- 图片/视频端口共用该策略：前端统一解析端口后拼接访问地址。
 
 ---
 

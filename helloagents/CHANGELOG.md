@@ -8,7 +8,7 @@
 
 ### 新增
 - 增强聊天交互：会话列表左右滑切换“消息/收藏”、聊天页边缘右滑返回、侧边栏左滑关闭、长按菜单点击外关闭
-- 后端/前端：新增全局图片端口策略配置（fixed/probe/real）并在 Settings 面板可视化切换；WS/历史聊天图片按策略解析端口，视频保持固定 8006。
+- 后端/前端：新增全局图片端口策略配置（fixed/probe/real）并在 Settings 面板可视化切换；WS/历史聊天媒体（图片/视频）按策略解析端口。
 - 前端：接入 Vitest + jsdom，并为核心模块补充单元测试（utils/time/string、useToast、request、auth store）。
 - 前端：补充 Vue 组件级测试（Dialog/Toast/Loading/UserList/ChatSidebar）。
 - 前端：补充视图级页面测试（LoginPage/IdentityPicker/ChatListView/ChatRoomView）。
@@ -36,6 +36,7 @@
 - 前端：修复在列表页收到新消息时，未读气泡可能不显示的问题（路由判定 + 会话状态清理双保险）。
 - 前端：修复 WebSocket 私信回显时 `isSelf` 误判，改为对齐上游 `randomdeskry.js` 的 `md5(user_id)` 判定逻辑，避免自己消息显示在左侧。
 - 前端：修复切换身份后 WebSocket 仍绑定旧用户，导致匹配无响应且仍收到旧身份消息。
+- 前端：修复图片端口策略为 real/probe 时，视频 URL 仍使用固定端口（8006）的问题。
 - 修复 `/api/getHistoryUserList` 在上游用户ID字段为 `UserID/userid` 时，未能填充 `lastMsg` / `lastTime` 的问题。
 - 修复上游返回的消息 `id/toid` 与 `myUserID` 不一致时，最后消息缓存会话Key无法命中导致 `lastMsg` / `lastTime` 缺失的问题。
 - 后端：补齐 Go 版 User History/鉴权关键日志，避免容器运行时仅有启动日志。

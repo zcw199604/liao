@@ -76,19 +76,19 @@ WebSocket 连接在浏览器侧为全局单例；Go 后端会将下游连接与�
 - `isSelf = (lowercase(fromuser.id) === md5Hex(currentUserId))`
 - 暂不增加昵称/peerId 等兜底推断，避免与上游脚本判定不一致
 
-### 媒体消息: 图片端口策略（全局配置）
+### 媒体消息: 端口策略（全局配置）
 **模块:** Chat UI
 聊天消息中的媒体以 `[path]` 形式出现（`useMessage.sendImage/sendVideo` 发送），前端在展示时需将其拼接为 `http://{imgServer}:{port}/img/Upload/{path}`。
 
-为避免图片端口写死导致“图片打不开”，前端需按全局系统配置解析图片端口：
+为避免端口写死导致“媒体打不开”，前端需按全局系统配置解析端口（图片/视频共用）：
 - 配置来源：`/api/getSystemConfig`（Settings 面板可保存到 DB）
-- 解析接口：`/api/resolveImagePort`（后端按 `fixed/probe/real` 返回图片端口）
+- 解析接口：`/api/resolveImagePort`（后端按 `fixed/probe/real` 返回端口）
 - 接入点：
   - WS 收消息：`frontend/src/composables/useWebSocket.ts`
   - 历史聊天记录解析：`frontend/src/stores/message.ts`（`loadHistory`）
 
 约束：
-- **仅图片/文件**使用策略解析端口；**视频端口保持固定**（`8006`），避免影响现有视频展示逻辑。
+- 图片/视频/文件统一使用策略解析端口（`/api/resolveImagePort`），再拼接访问地址。
 
 ## 相关文件
 - `frontend/src/components/chat/ChatSidebar.vue`

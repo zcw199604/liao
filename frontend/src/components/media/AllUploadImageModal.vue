@@ -174,7 +174,6 @@ import { useUserStore } from '@/stores/user'
 import { useToast } from '@/composables/useToast'
 import { generateCookie } from '@/utils/cookie'
 import { extractUploadLocalPath } from '@/utils/media'
-import { IMG_SERVER_VIDEO_PORT } from '@/constants/config'
 import { useSystemConfigStore } from '@/stores/systemConfig'
 import * as mediaApi from '@/api/media'
 import Dialog from '@/components/common/Dialog.vue'
@@ -293,9 +292,7 @@ const confirmPreviewUpload = async () => {
     })
 
     if (res?.state === 'OK' && res.msg) {
-      const port = previewTarget.value.type === 'video'
-        ? IMG_SERVER_VIDEO_PORT
-        : await systemConfigStore.resolveImagePort(res.msg, mediaStore.imgServer)
+      const port = await systemConfigStore.resolveImagePort(res.msg, mediaStore.imgServer)
       const remoteUrl = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
       
       const filename = localPath.substring(localPath.lastIndexOf('/') + 1)

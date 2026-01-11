@@ -4,7 +4,6 @@ import type { UploadedMedia } from '@/types'
 import * as mediaApi from '@/api/media'
 import { extractUploadLocalPath, inferMediaTypeFromUrl } from '@/utils/media'
 import { useSystemConfigStore } from '@/stores/systemConfig'
-import { IMG_SERVER_VIDEO_PORT } from '@/constants/config'
 
 export const useMediaStore = defineStore('media', () => {
   const uploadedMedia = ref<UploadedMedia[]>([])
@@ -60,9 +59,7 @@ export const useMediaStore = defineStore('media', () => {
           const uploadPath = relativePath.replace(/^images\//, '').replace(/^videos\//, '')
           let url = localUrl
           if (imgServer.value) {
-            const port = type === 'video'
-              ? IMG_SERVER_VIDEO_PORT
-              : await systemConfigStore.resolveImagePort(uploadPath, imgServer.value)
+            const port = await systemConfigStore.resolveImagePort(uploadPath, imgServer.value)
             url = `http://${imgServer.value}:${port}/img/Upload/${uploadPath}`
           }
           return { url, type, localFilename: filename }

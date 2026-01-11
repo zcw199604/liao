@@ -6,7 +6,6 @@ import { generateCookie } from '@/utils/cookie'
 import { useMediaStore } from '@/stores/media'
 import { useSystemConfigStore } from '@/stores/systemConfig'
 import { emojiMap } from '@/constants/emoji'
-import { IMG_SERVER_VIDEO_PORT } from '@/constants/config'
 import { isImageFile, isVideoFile } from '@/utils/file'
 
 export const useMessageStore = defineStore('message', () => {
@@ -201,7 +200,7 @@ export const useMessageStore = defineStore('message', () => {
               const isImage = isImageFile(path)
 
               if (mediaStore.imgServer) {
-                const port = isVideo ? IMG_SERVER_VIDEO_PORT : await systemConfigStore.resolveImagePort(path, mediaStore.imgServer)
+                const port = await systemConfigStore.resolveImagePort(path, mediaStore.imgServer)
                 content = `http://${mediaStore.imgServer}:${port}/img/Upload/${path}`
                 if (isVideo) type = 'video'
                 else if (isImage) type = 'image'

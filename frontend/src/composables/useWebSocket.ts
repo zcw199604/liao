@@ -3,7 +3,7 @@ import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
 import { useUserStore } from '@/stores/user'
 import { generateCookie } from '@/utils/cookie'
-import { IMG_SERVER_VIDEO_PORT, WS_URL } from '@/constants/config'
+import { WS_URL } from '@/constants/config'
 import type { WebSocketMessage, ChatMessage, User } from '@/types'
 import * as chatApi from '@/api/chat'
 import { useMediaStore } from '@/stores/media'
@@ -381,7 +381,7 @@ export const useWebSocket = () => {
                 }
 
                 if (mediaStore.imgServer) {
-                  const port = isVideoPath ? IMG_SERVER_VIDEO_PORT : await systemConfigStore.resolveImagePort(path, mediaStore.imgServer)
+                  const port = await systemConfigStore.resolveImagePort(path, mediaStore.imgServer)
                   const url = `http://${mediaStore.imgServer}:${port}/img/Upload/${path}`
                   messageContent = url
 

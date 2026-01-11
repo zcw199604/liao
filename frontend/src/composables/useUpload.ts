@@ -1,15 +1,16 @@
 import { ref } from 'vue'
 import { useMediaStore } from '@/stores/media'
 import * as mediaApi from '@/api/media'
-import { IMG_SERVER_IMAGE_PORT, IMG_SERVER_VIDEO_PORT } from '@/constants/config'
+import { useSystemConfigStore } from '@/stores/systemConfig'
 import type { UploadedMedia } from '@/types'
 import { generateCookie } from '@/utils/cookie'
 import { useToast } from '@/composables/useToast'
 
 export const useUpload = () => {
-  const mediaStore = useMediaStore()
-  const uploadLoading = ref(false)
-  const { error: showError } = useToast()
+	  const mediaStore = useMediaStore()
+	  const systemConfigStore = useSystemConfigStore()
+	  const uploadLoading = ref(false)
+	  const { error: showError } = useToast()
 
   const uploadFile = async (file: File, userId: string, userName: string): Promise<UploadedMedia | null> => {
     uploadLoading.value = true
@@ -43,10 +44,8 @@ export const useUpload = () => {
         if (file.type.startsWith('image/')) type = 'image'
         else if (file.type.startsWith('video/')) type = 'video'
 
-        const port = type === 'video'
-          ? IMG_SERVER_VIDEO_PORT
-          : Number(res?.port || IMG_SERVER_IMAGE_PORT) || IMG_SERVER_IMAGE_PORT
-        const url = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
+	        const port = await systemConfigStore.resolveImagePort(res.msg, mediaStore.imgServer)
+	        const url = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
 
         const media: UploadedMedia = {
           url,

@@ -1,6 +1,6 @@
 package app
 
-// 图片端口策略：按系统配置（fixed/probe/real）解析图片端口；视频端口保持固定逻辑由前端控制。
+// 图片端口策略：按系统配置（fixed/probe/real）解析上游媒体端口（图片/视频共用），前端据此拼接 /img/Upload/... 访问地址。
 
 import (
 	"context"
