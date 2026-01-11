@@ -10,7 +10,7 @@
       @touchstart.prevent="handleTouchStart"
       @touchend.prevent="handleTouchEnd"
       @touchcancel="handleTouchCancel"
-      class="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-full text-white font-bold shadow-lg transition active:scale-95"
+      class="flex items-center px-8 py-4 bg-blue-600 hover:bg-blue-500 rounded-full text-white font-bold text-lg shadow-xl transition active:scale-95"
     >
       <i class="fas fa-random mr-2"></i> 匹配新用户
     </button>
@@ -19,7 +19,7 @@
     <button
       v-else
       @click="handleCancelMatch"
-      class="flex flex-col items-center px-6 py-3 bg-red-600 rounded-full text-white font-bold shadow-xl animate-pulse"
+      class="flex flex-col items-center px-8 py-4 bg-red-600 rounded-full text-white font-bold text-lg shadow-2xl animate-pulse"
     >
       <div class="flex items-center">
         <i class="fas fa-stop mr-2"></i>
