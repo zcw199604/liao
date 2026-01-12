@@ -190,6 +190,31 @@ class RedisUserInfoCacheServiceLastMessageTest {
     }
 
     @Test
+    @DisplayName("格式化消息 - 表情文本不应被识别为文件")
+    void formatLastMessage_EmojiTextNotFile() throws Exception {
+        // Arrange
+        CachedLastMessage msg = new CachedLastMessage(
+            "user1", "user2", "[doge]", "text", "2026-01-04 10:00:00"
+        );
+        when(valueOperations.multiGet(anyList())).thenReturn(List.of(
+            objectMapper.writeValueAsString(msg)
+        ));
+
+        List<Map<String, Object>> userList = new ArrayList<>();
+        Map<String, Object> user = new HashMap<>();
+        user.put("id", "user2");
+        userList.add(user);
+
+        // Act
+        List<Map<String, Object>> result = cacheService.batchEnrichWithLastMessage(userList, "user1");
+
+        // Assert
+        assertEquals(1, result.size());
+        assertEquals("我: [doge]", result.get(0).get("lastMsg"));
+        verify(valueOperations, times(1)).multiGet(anyList());
+    }
+
+    @Test
     @DisplayName("批量增强 - 处理部分消息不存在")
     void batchEnrichWithLastMessage_PartialResults() throws Exception {
         // Arrange

@@ -236,6 +236,10 @@ func formatLastMessage(msg CachedLastMessage, myUserID string) string {
 
 	if strings.HasPrefix(content, "[") && strings.HasSuffix(content, "]") {
 		path := strings.ToLower(strings.TrimSuffix(strings.TrimPrefix(content, "["), "]"))
+		// 兼容表情文本（如 [doge]）：无路径分隔符且无扩展名时，按普通文本显示
+		if !strings.Contains(path, "/") && !strings.Contains(path, "\\") && !strings.Contains(path, ".") {
+			return prefix + content
+		}
 		switch {
 		case strings.HasSuffix(path, ".jpg") || strings.HasSuffix(path, ".jpeg") || strings.HasSuffix(path, ".png") || strings.HasSuffix(path, ".gif") || strings.HasSuffix(path, ".bmp"):
 			return prefix + "[图片]"

@@ -32,6 +32,7 @@
 | 202601102213 | java_backend_deprecated | 文档 | ✅已完成 | [链接](2026-01/202601102213_java_backend_deprecated/) |
 | 202601102319 | image_port_strategy | 功能 | ✅已完成 | [链接](2026-01/202601102319_image_port_strategy/) |
 | 202601110511 | image_port_race | 优化 | ✅已完成 | [链接](2026-01/202601110511_image_port_race/) |
+| 202601120630 | fix_lastmsg_emoji_preview | 修复 | ⚠️待复验 | [链接](2026-01/202601120630_fix_lastmsg_emoji_preview/) |
 
 ---
 
@@ -63,3 +64,4 @@
 - [202601102213_java_backend_deprecated](2026-01/202601102213_java_backend_deprecated/) - 标记历史 Java(Spring Boot) 后端目录为已弃用，仅供参考
 - [202601102319_image_port_strategy](2026-01/202601102319_image_port_strategy/) - 新增全局图片端口策略配置（fixed/probe/real）与 Settings 切换
 - [202601110511_image_port_race](2026-01/202601110511_image_port_race/) - 图片端口解析优化：real 并发竞速与全失败降级兜底（回退 probe/fixed）
+- [202601120630_fix_lastmsg_emoji_preview](2026-01/202601120630_fix_lastmsg_emoji_preview/) - 修复会话列表 lastMsg 预览将表情文本（如 `[doge]`）误识别为 `[文件]`

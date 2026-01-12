@@ -379,6 +379,10 @@ public class RedisUserInfoCacheService implements UserInfoCacheService {
         // 判断是否是媒体路径格式 [20250104/xxx.ext]
         if (content.startsWith("[") && content.endsWith("]")) {
             String path = content.substring(1, content.length() - 1);
+            // 兼容表情文本（如 [doge]）：无路径分隔符且无扩展名时，按普通文本显示
+            if (!path.contains("/") && !path.contains("\\") && !path.contains(".")) {
+                return prefix + content;
+            }
             // 简单判断文件扩展名
             if (path.matches(".*\\.(jpg|jpeg|png|gif|bmp)$")) {
                 return prefix + "[图片]";

@@ -141,6 +141,27 @@ class MemoryUserInfoCacheServiceLastMessageTest {
     }
 
     @Test
+    @DisplayName("格式化消息 - 表情文本不应被识别为文件")
+    void formatLastMessage_EmojiTextNotFile() {
+        // Arrange
+        CachedLastMessage message = new CachedLastMessage(
+            "user1", "user2", "[doge]", "text", "2026-01-04 10:00:00"
+        );
+        cacheService.saveLastMessage(message);
+
+        List<Map<String, Object>> userList = new ArrayList<>();
+        Map<String, Object> user = new HashMap<>();
+        user.put("id", "user2");
+        userList.add(user);
+
+        // Act
+        List<Map<String, Object>> result = cacheService.batchEnrichWithLastMessage(userList, "user1");
+
+        // Assert
+        assertEquals("我: [doge]", result.get(0).get("lastMsg"));
+    }
+
+    @Test
     @DisplayName("格式化消息 - 视频消息显示标签")
     void formatLastMessage_VideoMessage() {
         // Arrange

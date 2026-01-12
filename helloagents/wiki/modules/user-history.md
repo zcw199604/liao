@@ -14,6 +14,11 @@
 **模块:** User History
 历史/收藏用户列表 `/api/getHistoryUserList`、`/api/getFavoriteUserList` 需要在响应中包含 `lastMsg` 和 `lastTime`，优先使用缓存数据。
 
+#### lastMsg 格式化规则（缓存增强）
+- 文本消息：原文（超长截断）
+- 媒体消息：`[path/to/file.ext]` → `[图片]` / `[视频]` / `[音频]` / `[文件]`（按扩展名识别）
+- 表情文本：`[doge]` 等无路径分隔符且无扩展名的 `[...]` 片段，按普通文本返回（避免误识别为 `[文件]`）
+
 #### 场景: 上游用户ID字段不固定
 上游返回用户ID字段可能为 `id` / `UserID` / `userid` 等。
 - 预期结果1: 能正确识别对方用户ID并查找会话缓存
@@ -50,3 +55,4 @@
 - [202601041818_fix_history_userlist_lastmsg](../../history/2026-01/202601041818_fix_history_userlist_lastmsg/) - 修复 lastMsg/lastTime 增强在 `UserID/userid` 场景失效
 - [202601041854_fix_lastmsg_key_normalize](../../history/2026-01/202601041854_fix_lastmsg_key_normalize/) - 修复消息id/toid与myUserID不一致导致 lastMsg/lastTime 无法命中
 - [202601051213_perf_userlist_timing_logs](../../history/2026-01/202601051213_perf_userlist_timing_logs/) - 为历史/收藏用户列表增加分段耗时日志（上游/补充用户信息/最后消息/总耗时）
+- [202601120630_fix_lastmsg_emoji_preview](../../history/2026-01/202601120630_fix_lastmsg_emoji_preview/) - 修复 lastMsg 格式化将表情文本（如 `[doge]`）误识别为 `[文件]`
