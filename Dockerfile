@@ -16,13 +16,12 @@ RUN go mod download
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/liao ./cmd/liao
+COPY --from=frontend-builder /app/frontend/dist /out/static
 
 FROM alpine:3.19
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata && mkdir -p /app/upload
 WORKDIR /app
-COPY --from=backend-builder /out/liao /app/liao
-COPY --from=frontend-builder /app/frontend/dist /app/static
-RUN mkdir -p /app/upload
+COPY --from=backend-builder /out/liao /out/static /app/
 EXPOSE 8080
 ENV SERVER_PORT=8080
 ENTRYPOINT ["/app/liao"]
