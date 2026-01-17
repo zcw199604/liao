@@ -571,4 +571,51 @@ describe('views/ChatRoomView.vue', () => {
     wrapper.unmount()
     expect(chatStore.currentChatUser).toBeNull()
   })
+
+  it('ensures MessageList has sufficient bottom padding (pb-32) for frosted glass input', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me' } as any
+
+    const chatStore = useChatStore()
+    chatStore.wsConnected = true
+    chatStore.upsertUser({ id: 'u1', name: 'U1' } as any)
+    chatStore.enterChat(chatStore.getUser('u1') as any)
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const router = createTestRouter()
+    await router.push('/chat/u1')
+    await router.isReady()
+
+    const wrapper = shallowMount(ChatRoomView, {
+      global: {
+        plugins: [pinia, router],
+        stubs: {
+          ChatHeader: true,
+          MessageList: {
+            template: '<div class="message-list-stub"></div>',
+            methods: { scrollToBottom: () => {} }
+          },
+          UploadMenu: true,
+          EmojiPanel: true,
+          ChatInput: true,
+          MediaPreview: true,
+          Toast: true,
+          Dialog: true,
+          ChatSidebar: true,
+          teleport: true
+        }
+      }
+    })
+
+    const messageList = wrapper.find('.message-list-stub')
+    expect(messageList.exists()).toBe(true)
+    const classes = messageList.attributes('class')
+    expect(classes).toContain('pb-32')
+  })
 })
