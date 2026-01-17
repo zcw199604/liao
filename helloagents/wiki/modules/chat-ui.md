@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** 会话列表/聊天页/侧边栏抽屉的手势交互与弹层关闭行为
 - **状态:** ✅稳定
-- **最后更新:** 2026-01-10
+- **最后更新:** 2026-01-17
 
 ## 规范
 
@@ -90,6 +90,14 @@ WebSocket 连接在浏览器侧为全局单例；Go 后端会将下游连接与�
 约束：
 - 图片/视频/文件统一使用策略解析端口（`/api/resolveImagePort`），再拼接访问地址。
 
+### 媒体消息: 去重策略（WS 推送 vs 历史拉取）
+**模块:** Chat UI
+由于上游 `Tid` 可能缺失或在 WS/历史接口中不一致，前端需在消息存储侧做一次“语义去重”，避免同一媒体消息短时间内重复渲染（表现为“同一张图出现两条”）。
+
+语义去重规则（前端实现）：
+- key: `remotePath + isSelf + 时间窗口(5s)`（remotePath 从 `[path]` 或 `/img/Upload/{path}` URL 中提取）
+- 适用: 图片/视频/文件（不包含表情文本，如 `[doge]`）
+
 ## 相关文件
 - `frontend/src/components/chat/ChatSidebar.vue`
 - `frontend/src/composables/useWebSocket.ts`
@@ -106,3 +114,4 @@ WebSocket 连接在浏览器侧为全局单例；Go 后端会将下游连接与�
 - [202601092143_ws_identity_switch](../../history/2026-01/202601092143_ws_identity_switch/) - 修复切换身份后 WS 仍绑定旧用户导致匹配无响应/仍收旧消息
 - [202601101526_fix_ws_self_echo_alignment](../../history/2026-01/202601101526_fix_ws_self_echo_alignment/) - 修复 WS 私信回显自己消息方向判定（避免自己消息显示在左侧）
 - [202601102319_image_port_strategy](../../history/2026-01/202601102319_image_port_strategy/) - 聊天/历史消息的图片端口改为配置驱动解析，并在 Settings 提供切换
+- [202601171004_fix_chat_media_dedup](../../history/2026-01/202601171004_fix_chat_media_dedup/) - 修复聊天记录媒体消息偶发重复显示（WS/历史合并语义去重）

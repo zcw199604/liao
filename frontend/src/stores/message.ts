@@ -15,6 +15,9 @@ export const useMessageStore = defineStore('message', () => {
   const loadingMore = ref(false)
   const isLoadingHistory = ref(false)
 
+  // 语义去重窗口：用于合并 WebSocket 推送与历史拉取时，避免同一媒体消息短时间内重复渲染
+  const MEDIA_DEDUP_WINDOW_MS = 5_000
+
   const parseMessageTime = (timeStr: string): number | null => {
     if (!timeStr) return null
 
@@ -38,7 +41,63 @@ export const useMessageStore = defineStore('message', () => {
     return null
   }
 
+  const stripQueryAndHash = (input: string): string => {
+    const s = String(input || '')
+    return (s.split('?')[0] || '').split('#')[0] || ''
+  }
+
+  // 提取聊天媒体消息的 remotePath：
+  // - "[path/to/file.ext]" -> "path/to/file.ext"
+  // - "http://x:9006/img/Upload/path/to/file.ext" -> "path/to/file.ext"
+  const extractRemotePathFromMediaString = (input: string): string => {
+    const raw = String(input || '').trim()
+    if (!raw) return ''
+
+    if (raw.startsWith('[') && raw.endsWith(']')) {
+      // 表情包（如 "[doge]"）不应作为媒体去重Key的一部分
+      if (emojiMap[raw]) return ''
+      return raw.substring(1, raw.length - 1)
+    }
+
+    const clean = stripQueryAndHash(raw)
+    const marker = '/img/Upload/'
+    const idx = clean.indexOf(marker)
+    if (idx < 0) return ''
+    return clean.substring(idx + marker.length)
+  }
+
+  const getMessageRemoteMediaPath = (msg: ChatMessage): string => {
+    const candidates = [
+      String(msg.imageUrl || ''),
+      String(msg.videoUrl || ''),
+      String(msg.fileUrl || ''),
+      String(msg.content || '')
+    ]
+
+    for (const c of candidates) {
+      const path = extractRemotePathFromMediaString(c)
+      if (path) return path
+    }
+
+    return ''
+  }
+
+  const getTimeBucketKey = (timeStr: string): string => {
+    const raw = String(timeStr || '').trim()
+    const ms = parseMessageTime(raw)
+    if (ms == null) return `raw:${raw}`
+    return `b:${Math.floor(ms / MEDIA_DEDUP_WINDOW_MS)}`
+  }
+
   const getMessageDedupKey = (msg: ChatMessage): string => {
+    // 媒体消息：使用 remotePath + isSelf + 时间桶作为语义去重 key，
+    // 避免上游 tid 缺失/不一致时出现“同一张图显示两条”的问题。
+    const mediaPath = getMessageRemoteMediaPath(msg)
+    if (mediaPath) {
+      const direction = msg.isSelf ? 'out' : 'in'
+      return `media:${direction}|${mediaPath}|${getTimeBucketKey(msg.time)}`
+    }
+
     const tid = String(msg.tid || '').trim()
     if (tid) return `tid:${tid}`
 
@@ -248,8 +307,10 @@ export const useMessageStore = defineStore('message', () => {
               // 检查 mapped 中是否有对应的“正式版”消息
               const hasDuplicateInMapped = mapped.some(newMsg => {
                 const newTime = parseMessageTime(newMsg.time) || 0
-                return newMsg.content === oldMsg.content && 
-                       Math.abs(newTime - oldTime) < 5000 // 5秒误差容忍
+                const oldKey = getMessageRemoteMediaPath(oldMsg) || String(oldMsg.content || '')
+                const newKey = getMessageRemoteMediaPath(newMsg) || String(newMsg.content || '')
+                return newKey === oldKey &&
+                       Math.abs(newTime - oldTime) < MEDIA_DEDUP_WINDOW_MS // 时间窗口误差容忍
               })
               // 如果有对应正式版，则移除本地临时版
               return !hasDuplicateInMapped

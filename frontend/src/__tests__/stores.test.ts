@@ -160,6 +160,34 @@ describe('stores/message', () => {
     expect(store.getMessages('b')).toHaveLength(1)
   })
 
+  it('deduplicates media messages with different tid using remotePath + time window', () => {
+    const store = useMessageStore()
+
+    const base = {
+      code: 7,
+      fromuser: { id: 'me', name: 'me', nickname: 'me', sex: '未知', ip: '' },
+      touser: { id: 'u1', name: 'u1', nickname: 'u1', sex: '未知', ip: '' },
+      type: 'image',
+      isSelf: true,
+      isImage: true,
+      isVideo: false,
+      isFile: false,
+      videoUrl: '',
+      fileUrl: ''
+    } as any
+
+    const urlA = 'http://x:9006/img/Upload/images/2026/01/a.png'
+    const urlB = 'http://x:9007/img/Upload/images/2026/01/a.png?token=1'
+
+    store.addMessage('u1', { ...base, tid: '100', time: '2026-01-01 00:00:00.000', content: urlA, imageUrl: urlA })
+    store.addMessage('u1', { ...base, tid: '101', time: '2026-01-01 00:00:03.000', content: urlB, imageUrl: urlB })
+    expect(store.getMessages('u1')).toHaveLength(1)
+
+    // 超出 5 秒窗口：应保留为两条不同消息
+    store.addMessage('u1', { ...base, tid: '102', time: '2026-01-01 00:00:10.000', content: urlA, imageUrl: urlA })
+    expect(store.getMessages('u1')).toHaveLength(2)
+  })
+
   it('clearHistory removes chat history and firstTid', () => {
     const store = useMessageStore()
     store.addMessage('u1', {
@@ -187,4 +215,3 @@ describe('stores/message', () => {
     expect(store.firstTidMap['u1']).toBeUndefined()
   })
 })
-

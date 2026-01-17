@@ -38,6 +38,7 @@
 - 前端：修复 WebSocket 私信回显时 `isSelf` 误判，改为对齐上游 `randomdeskry.js` 的 `md5(user_id)` 判定逻辑，避免自己消息显示在左侧。
 - 前端：修复切换身份后 WebSocket 仍绑定旧用户，导致匹配无响应且仍收到旧身份消息。
 - 前端：修复图片端口策略为 real/probe 时，视频 URL 仍使用固定端口（8006）的问题。
+- 前端：修复聊天记录媒体消息偶发重复显示（WS 推送与历史拉取合并时按 remotePath + isSelf + 5s 时间窗口语义去重）。
 - 修复 `/api/getHistoryUserList` 在上游用户ID字段为 `UserID/userid` 时，未能填充 `lastMsg` / `lastTime` 的问题。
 - 修复上游返回的消息 `id/toid` 与 `myUserID` 不一致时，最后消息缓存会话Key无法命中导致 `lastMsg` / `lastTime` 缺失的问题。
 - 后端：补齐 Go 版 User History/鉴权关键日志，避免容器运行时仅有启动日志。
