@@ -1,6 +1,6 @@
 <template>
   <!-- 输入区域 -->
-  <div class="bg-[#18181b] px-4 py-3 pb-safe flex items-end border-t border-gray-800">
+  <div class="bg-[#18181b]/70 backdrop-blur-md px-4 py-3 pb-safe flex items-end border-t border-gray-800/50">
     <!-- 左侧工具栏 -->
     <div class="flex items-center gap-3 mr-3 mb-1.5">
       <button

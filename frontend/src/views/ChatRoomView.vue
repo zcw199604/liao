@@ -36,6 +36,7 @@
     </Transition>
 
     <ChatHeader
+      class="absolute top-0 left-0 right-0 z-20"
       :user="chatStore.currentChatUser"
       :connected="chatStore.wsConnected"
       @back="handleBack"
@@ -45,6 +46,7 @@
     />
 
     <MessageList
+      class="h-full pt-[70px] pb-24"
       :messages="messages"
       :is-typing="messageStore.isTyping"
       :loading-more="messageStore.loadingMore"
@@ -54,35 +56,38 @@
       ref="messageListRef"
     />
 
-    <!-- 上传菜单 -->
-    <UploadMenu
-      v-model:visible="showUploadMenu"
-      :uploaded-media="mediaStore.uploadedMedia"
-      :can-open-chat-history="!!chatStore.currentChatUser"
-      @send="handleSendMedia"
-      @upload-file="handleUploadFile"
-      @open-chat-history="handleOpenChatHistory"
-      @open-all-uploads="handleOpenAllUploads"
-    />
+    <!-- 底部悬浮控制区 -->
+    <div class="absolute bottom-0 left-0 right-0 z-30 flex flex-col">
+      <!-- 上传菜单 -->
+      <UploadMenu
+        v-model:visible="showUploadMenu"
+        :uploaded-media="mediaStore.uploadedMedia"
+        :can-open-chat-history="!!chatStore.currentChatUser"
+        @send="handleSendMedia"
+        @upload-file="handleUploadFile"
+        @open-chat-history="handleOpenChatHistory"
+        @open-all-uploads="handleOpenAllUploads"
+      />
 
-    <!-- 表情面板 -->
-    <EmojiPanel
-      v-model:visible="showEmojiPanel"
-      @select="handleEmojiSelect"
-    />
+      <!-- 表情面板 -->
+      <EmojiPanel
+        v-model:visible="showEmojiPanel"
+        @select="handleEmojiSelect"
+      />
 
-    <!-- 输入框 -->
-    <ChatInput
-      v-model="inputText"
-      :disabled="!chatStore.wsConnected"
-      :ws-connected="chatStore.wsConnected"
-      @send="handleSend"
-      @show-upload="handleToggleUpload"
-      @show-emoji="handleToggleEmoji"
-      @typing-start="handleTypingStart"
-      @typing-end="handleTypingEnd"
-      @start-match="handleStartMatch"
-    />
+      <!-- 输入框 -->
+      <ChatInput
+        v-model="inputText"
+        :disabled="!chatStore.wsConnected"
+        :ws-connected="chatStore.wsConnected"
+        @send="handleSend"
+        @show-upload="handleToggleUpload"
+        @show-emoji="handleToggleEmoji"
+        @typing-start="handleTypingStart"
+        @typing-end="handleTypingEnd"
+        @start-match="handleStartMatch"
+      />
+    </div>
 
     <!-- 媒体预览 -->
     <MediaPreview
