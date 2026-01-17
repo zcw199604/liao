@@ -152,12 +152,11 @@
           <!-- 右侧操作栏 -->
           <div class="flex flex-col items-end justify-center ml-2 gap-2 relative">
               <!-- 未读消息数气泡 -->
-              <span
+              <DraggableBadge
                 v-if="user.unreadCount && user.unreadCount > 0"
-                class="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full min-w-[20px] text-center font-medium"
-              >
-                {{ user.unreadCount }}
-              </span>
+                :count="user.unreadCount"
+                @clear="handleClearUnread(user)"
+              />
           </div>
         </div>
   
@@ -270,6 +269,7 @@ import PullToRefresh from '@/components/common/PullToRefresh.vue'
 import MatchButton from '@/components/chat/MatchButton.vue'
 import MatchOverlay from '@/components/chat/MatchOverlay.vue'
 import DuplicateCheckModal from '@/components/media/DuplicateCheckModal.vue'
+import DraggableBadge from '@/components/common/DraggableBadge.vue'
 import type { User } from '@/types'
 import { deleteUser } from '@/api/chat'
 
@@ -543,6 +543,13 @@ const handleTabSwitch = async (tab: 'history' | 'favorite') => {
 const handleMatchSuccess = (e: any) => {
   const matchedUser = e.detail as User
   emit('match-success', matchedUser)
+}
+
+const handleClearUnread = (user: User) => {
+  if (user.unreadCount && user.unreadCount > 0) {
+    chatStore.updateUser(user.id, { unreadCount: 0 })
+    if (navigator.vibrate) navigator.vibrate(50)
+  }
 }
 
 const handleClick = (user: User, event?: MouseEvent) => {
