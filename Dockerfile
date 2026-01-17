@@ -21,7 +21,8 @@ COPY --from=frontend-builder /app/frontend/dist /out/static
 FROM alpine:3.19
 RUN apk add --no-cache ca-certificates tzdata && mkdir -p /app/upload
 WORKDIR /app
-COPY --from=backend-builder /out/liao /out/static /app/
+COPY --from=backend-builder /out/liao /app/
+COPY --from=backend-builder /out/static /app/static/
 EXPOSE 8080
 ENV SERVER_PORT=8080
 ENTRYPOINT ["/app/liao"]
