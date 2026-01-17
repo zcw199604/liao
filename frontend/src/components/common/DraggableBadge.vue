@@ -1,7 +1,7 @@
 <template>
   <div
-    class="select-none touch-none cursor-move relative z-20 w-fit"
-    :style="wrapperStyle"
+    class="select-none touch-none cursor-move relative z-20 w-fit -m-2 p-2"
+    :style="{ ...wrapperStyle, touchAction: 'none' }"
     @mousedown.stop="startDrag"
     @touchstart.stop.prevent="startDrag"
     @click.stop
