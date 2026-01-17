@@ -18,22 +18,20 @@ func (a *App) spaHandler() http.Handler {
 			return
 		}
 
-		switch {
-		case r.URL.Path == "/",
-			r.URL.Path == "/login",
-			r.URL.Path == "/identity",
-			r.URL.Path == "/list",
-			r.URL.Path == "/chat",
-			strings.HasPrefix(r.URL.Path, "/chat/"):
-			http.ServeFile(w, r, indexPath)
-			return
-		}
-
-		// 尝试按静态文件返回（若不存在则 404）
+		// 尝试按静态文件返回（若不存在则交给 SPA 回退判定）
 		clean := filepath.Clean(strings.TrimPrefix(r.URL.Path, "/"))
 		fullPath := filepath.Join(a.staticDir, clean)
 		if fi, err := os.Stat(fullPath); err == nil && !fi.IsDir() {
 			fileServer.ServeHTTP(w, r)
+			return
+		}
+
+		// SPA 回退：支持 createWebHistory() 刷新（/list、/chat/... 等）
+		// - 浏览器刷新/直达页面通常带 Accept: text/html
+		// - 无扩展名路径也视为前端路由（避免尾随 / 或新增路由漏配导致 404）
+		accept := r.Header.Get("Accept")
+		if strings.Contains(accept, "text/html") || filepath.Ext(r.URL.Path) == "" {
+			http.ServeFile(w, r, indexPath)
 			return
 		}
 
@@ -71,4 +69,3 @@ func (a *App) lspFileServer() http.Handler {
 		http.ServeFile(w, r, fullPath)
 	})
 }
-

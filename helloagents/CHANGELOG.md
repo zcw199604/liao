@@ -49,3 +49,4 @@
 - 后端：修复 `/ws` 在 sign 绑定后仍可转发其他 `id` 消息的问题；现在仅转发与已绑定 `userId` 一致的消息，并在重复 sign（切换身份）时自动解绑旧身份。
 - 后端：修复 `/api/checkDuplicateMedia` 的 pHash 计算与阈值语义，对齐 Python `imagehash.phash`（median/DCT 顺序/重采样）并支持 `distanceThreshold` 默认 10。
 - 后端：`JWTService` 在密钥缺失时拒绝签发/校验 Token（与配置校验保持一致，避免误配导致隐患）。
+- 后端：修复 SPA 路由在 `/list`、`/chat` 等页面刷新/直达时偶发 404（Go 静态托管回退从固定白名单改为通用判定）。

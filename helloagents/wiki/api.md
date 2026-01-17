@@ -763,7 +763,12 @@
 
 ## 5. 静态资源与 SPA 回退
 
-- 路由回退控制器：`com.zcw.controller.SpaForwardController`
-  - `GET /`、`/login`、`/identity`、`/list`、`/chat`、`/chat/**` → `forward:/index.html`
+- Go（现行实现）：
+  - 静态资源与回退入口：`internal/app/router.go` → `r.Handle("/*", a.spaHandler())`
+  - 回退逻辑：`internal/app/static.go` → `(*App).spaHandler`
+    - `GET/HEAD`：优先返回命中的静态文件；否则对 **无扩展名路径** 或 `Accept: text/html` 的请求回退 `index.html`，用于支持 Vue Router `createWebHistory()`（如 `/list`、`/chat/:userId?` 刷新不 404）
+- Java(Spring Boot)（历史版本，已弃用，仅供参考）：
+  - 路由回退控制器：`com.zcw.controller.SpaForwardController`
+    - `GET /`、`/login`、`/identity`、`/list`、`/chat`、`/chat/**` → `forward:/index.html`
 - 上传文件访问：
   - `GET /upload/**` → 映射到本地目录 `./upload/`

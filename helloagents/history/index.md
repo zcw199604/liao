@@ -34,6 +34,7 @@
 | 202601110511 | image_port_race | 优化 | ✅已完成 | [链接](2026-01/202601110511_image_port_race/) |
 | 202601120630 | fix_lastmsg_emoji_preview | 修复 | ⚠️待复验 | [链接](2026-01/202601120630_fix_lastmsg_emoji_preview/) |
 | 202601171004 | fix_chat_media_dedup | 修复 | ✅已完成 | [链接](2026-01/202601171004_fix_chat_media_dedup/) |
+| 202601171351 | fix_spa_refresh_404 | 修复 | ✅已完成 | [链接](2026-01/202601171351_fix_spa_refresh_404/) |
 
 ---
 
@@ -67,3 +68,4 @@
 - [202601110511_image_port_race](2026-01/202601110511_image_port_race/) - 图片端口解析优化：real 并发竞速与全失败降级兜底（回退 probe/fixed）
 - [202601120630_fix_lastmsg_emoji_preview](2026-01/202601120630_fix_lastmsg_emoji_preview/) - 修复会话列表 lastMsg 预览将表情文本（如 `[doge]`）误识别为 `[文件]`
 - [202601171004_fix_chat_media_dedup](2026-01/202601171004_fix_chat_media_dedup/) - 修复聊天记录媒体消息偶发重复显示（WS 推送与历史拉取合并语义去重）
+- [202601171351_fix_spa_refresh_404](2026-01/202601171351_fix_spa_refresh_404/) - 修复 SPA 路由在 list/chat 页面刷新 404（Go 静态回退通用化）
