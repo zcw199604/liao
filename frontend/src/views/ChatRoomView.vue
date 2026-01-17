@@ -46,7 +46,7 @@
     />
 
     <MessageList
-      class="h-full pt-[70px] pb-32"
+      class="h-full pt-[70px] !pb-32"
       :messages="messages"
       :is-typing="messageStore.isTyping"
       :loading-more="messageStore.loadingMore"

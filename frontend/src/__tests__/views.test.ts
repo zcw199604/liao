@@ -616,6 +616,6 @@ describe('views/ChatRoomView.vue', () => {
     const messageList = wrapper.find('.message-list-stub')
     expect(messageList.exists()).toBe(true)
     const classes = messageList.attributes('class')
-    expect(classes).toContain('pb-32')
+    expect(classes).toContain('!pb-32')
   })
 })
