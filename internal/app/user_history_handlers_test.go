@@ -113,6 +113,60 @@ func TestHandleGetHistoryUserList_EnrichesWhenCacheEnabled(t *testing.T) {
 	}
 }
 
+func TestHandleGetHistoryUserList_InlineMediaLastMsgPreview(t *testing.T) {
+	upstreamBody := `[{"id":"u2"}]`
+
+	client := &http.Client{
+		Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			if r.URL.String() == upstreamHistoryURL {
+				return newTextResponse(http.StatusOK, upstreamBody), nil
+			}
+			return newTextResponse(http.StatusNotFound, `{"error":"unexpected"}`), nil
+		}),
+	}
+
+	cache := NewMemoryUserInfoCacheService()
+	cache.SaveUserInfo(CachedUserInfo{
+		UserID:   "u2",
+		Nickname: "Bob",
+		Gender:   "男",
+		Age:      "20",
+		Address:  "BJ",
+	})
+	cache.SaveLastMessage(CachedLastMessage{
+		FromUserID: "me",
+		ToUserID:   "u2",
+		Content:    "喜欢吗[20260104/image.jpg]",
+		Type:       "text",
+		Time:       "t1",
+	})
+
+	app := &App{httpClient: client, userInfoCache: cache}
+
+	form := url.Values{}
+	form.Set("myUserID", "me")
+	req := newURLEncodedRequest(t, http.MethodPost, "http://example.com/api/getHistoryUserList", form)
+	rr := httptest.NewRecorder()
+
+	app.handleGetHistoryUserList(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var list []map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &list); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("list len=%d, want 1", len(list))
+	}
+	item := list[0]
+	if got, _ := item["lastMsg"].(string); got != "我: 喜欢吗 [图片]" {
+		t.Fatalf("lastMsg=%q, want %q", got, "我: 喜欢吗 [图片]")
+	}
+}
+
 func TestHandleGetHistoryUserList_Returns500WhenUpstreamNonOK(t *testing.T) {
 	client := &http.Client{
 		Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
@@ -168,4 +222,3 @@ func TestHandleGetFavoriteUserList_PassthroughWhenCacheDisabled(t *testing.T) {
 		t.Fatalf("body=%q, want %q", got, upstreamBody)
 	}
 }
-

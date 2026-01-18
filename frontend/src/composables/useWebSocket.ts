@@ -10,9 +10,9 @@ import { useMediaStore } from '@/stores/media'
 import { useSystemConfigStore } from '@/stores/systemConfig'
 import { useToast } from '@/composables/useToast'
 import { emojiMap } from '@/constants/emoji'
-import { isImageFile, isVideoFile } from '@/utils/file'
 import { md5Hex } from '@/utils/md5'
 import router from '@/router'
+import { buildLastMsgPreviewFromSegments, getSegmentsMeta, parseMessageSegments } from '@/utils/messageSegments'
 
 type ActiveWebSocketConnection = {
   socket: WebSocket
@@ -365,52 +365,34 @@ export const useWebSocket = () => {
           console.log('shouldDisplay=', shouldDisplay)
 
           // 解析消息类型
-          let isImage = false
-          let isVideo = false
-          let isFile = false
-          let imageUrl = ''
-          let videoUrl = ''
-          let fileUrl = ''
+          const rawMessageContent = messageContent
 
-          if (messageContent && typeof messageContent === 'string') {
-            const raw = messageContent
-
-            // 检查是否是媒体消息（格式：[path/to/file.ext]），对齐 loadHistory 的解析逻辑
-            if (raw.startsWith('[') && raw.endsWith(']')) {
-              // 如果是表情包，不处理为文件
-              if (!emojiMap[raw]) {
-                const path = raw.substring(1, raw.length - 1)
-                const isVideoPath = isVideoFile(path)
-                const isImagePath = isImageFile(path)
-
-                // 对齐 loadHistory：需要时尝试补全 imgServer，避免消息先到导致无法拼接URL
-                if (!mediaStore.imgServer) {
-                  try {
-                    await mediaStore.loadImgServer()
-                  } catch {
-                    // ignore
-                  }
-                }
-
-                if (mediaStore.imgServer) {
-                  const port = await systemConfigStore.resolveImagePort(path, mediaStore.imgServer)
-                  const url = `http://${mediaStore.imgServer}:${port}/img/Upload/${path}`
-                  messageContent = url
-
-                  if (isVideoPath) {
-                    isVideo = true
-                    videoUrl = url
-                  } else if (isImagePath) {
-                    isImage = true
-                    imageUrl = url
-                  } else {
-                    isFile = true
-                    fileUrl = url
-                  }
-                }
+          const resolveMediaUrl = async (path: string): Promise<string> => {
+            // 对齐 loadHistory：需要时尝试补全 imgServer，避免消息先到导致无法拼接URL
+            if (!mediaStore.imgServer) {
+              try {
+                await mediaStore.loadImgServer()
+              } catch {
+                // ignore
               }
             }
+            if (!mediaStore.imgServer) return ''
+
+            const port = await systemConfigStore.resolveImagePort(path, mediaStore.imgServer)
+            return `http://${mediaStore.imgServer}:${port}/img/Upload/${path}`
           }
+
+          const segments = await parseMessageSegments(rawMessageContent, {
+            emojiMap,
+            resolveMediaUrl
+          })
+          const meta = getSegmentsMeta(segments)
+          const isImage = meta.hasImage
+          const isVideo = meta.hasVideo
+          const isFile = meta.hasFile
+          const imageUrl = meta.imageUrl
+          const videoUrl = meta.videoUrl
+          const fileUrl = meta.fileUrl
 
           // 构建聊天消息对象
           const resolvedTime = String(
@@ -435,7 +417,8 @@ export const useWebSocket = () => {
             fromuser: data.fromuser,
             touser: data.touser,
             type: isImage ? 'image' : isVideo ? 'video' : isFile ? 'file' : (data.type || 'text'),
-            content: messageContent,
+            // Keep raw content; media URLs live in segments/imageUrl/videoUrl/fileUrl.
+            content: rawMessageContent,
             time,
             tid,
             isSelf,
@@ -444,7 +427,8 @@ export const useWebSocket = () => {
             isFile,
             imageUrl,
             videoUrl,
-            fileUrl
+            fileUrl,
+            segments
           }
 
           // 只有与当前聊天对象相关的消息，才存储到currentChatUser.id下
@@ -467,8 +451,8 @@ export const useWebSocket = () => {
             }
           }
 
-          const lastMsgRaw = isImage ? '[图片]' : (isVideo ? '[视频]' : (isFile ? '[文件]' : messageContent))
-          const lastMsg = isSelf ? `我: ${lastMsgRaw}` : lastMsgRaw
+          const lastMsgBase = buildLastMsgPreviewFromSegments(segments)
+          const lastMsg = isSelf ? `我: ${lastMsgBase}` : lastMsgBase
 
           if (shouldDisplay) {
             // 收到消息，隐藏正在输入提示

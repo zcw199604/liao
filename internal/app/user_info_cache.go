@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 type CachedUserInfo struct {
@@ -49,8 +50,8 @@ type UserInfoCacheService interface {
 
 // MemoryUserInfoCacheService 对齐 Java 的 MemoryUserInfoCacheService 行为。
 type MemoryUserInfoCacheService struct {
-	mu              sync.RWMutex
-	userInfo        map[string]CachedUserInfo
+	mu               sync.RWMutex
+	userInfo         map[string]CachedUserInfo
 	lastMessageByKey map[string]CachedLastMessage
 }
 
@@ -234,29 +235,158 @@ func formatLastMessage(msg CachedLastMessage, myUserID string) string {
 		return prefix + "[消息]"
 	}
 
-	if strings.HasPrefix(content, "[") && strings.HasSuffix(content, "]") {
-		path := strings.ToLower(strings.TrimSuffix(strings.TrimPrefix(content, "["), "]"))
-		// 兼容表情文本（如 [doge]）：无路径分隔符且无扩展名时，按普通文本显示
-		if !strings.Contains(path, "/") && !strings.Contains(path, "\\") && !strings.Contains(path, ".") {
-			return prefix + content
+	hasImage := false
+	hasVideo := false
+	hasAudio := false
+	hasFile := false
+
+	var textBuilder strings.Builder
+	idx := 0
+	for idx < len(content) {
+		open := strings.Index(content[idx:], "[")
+		if open < 0 {
+			textBuilder.WriteString(content[idx:])
+			break
 		}
-		switch {
-		case strings.HasSuffix(path, ".jpg") || strings.HasSuffix(path, ".jpeg") || strings.HasSuffix(path, ".png") || strings.HasSuffix(path, ".gif") || strings.HasSuffix(path, ".bmp"):
-			return prefix + "[图片]"
-		case strings.HasSuffix(path, ".mp4") || strings.HasSuffix(path, ".avi") || strings.HasSuffix(path, ".mov") || strings.HasSuffix(path, ".wmv") || strings.HasSuffix(path, ".flv"):
-			return prefix + "[视频]"
-		case strings.HasSuffix(path, ".mp3") || strings.HasSuffix(path, ".wav") || strings.HasSuffix(path, ".aac") || strings.HasSuffix(path, ".flac"):
-			return prefix + "[音频]"
-		default:
-			return prefix + "[文件]"
+		open += idx
+		close := strings.Index(content[open+1:], "]")
+		if close < 0 {
+			textBuilder.WriteString(content[idx:])
+			break
 		}
+		close += open + 1
+
+		if open > idx {
+			textBuilder.WriteString(content[idx:open])
+		}
+
+		token := content[open : close+1]
+		kind := inferMediaKindFromBracketBody(content[open+1 : close])
+		if kind == "" {
+			// 非媒体（如 [doge] 或普通方括号文本）按原样保留
+			textBuilder.WriteString(token)
+		} else {
+			switch kind {
+			case "image":
+				hasImage = true
+			case "video":
+				hasVideo = true
+			case "audio":
+				hasAudio = true
+			default:
+				hasFile = true
+			}
+		}
+
+		idx = close + 1
 	}
 
-	if len([]rune(content)) > 30 {
-		runes := []rune(content)
-		return prefix + string(runes[:30]) + "..."
+	label := ""
+	switch {
+	case hasImage:
+		label = "[图片]"
+	case hasVideo:
+		label = "[视频]"
+	case hasAudio:
+		label = "[音频]"
+	case hasFile:
+		label = "[文件]"
 	}
-	return prefix + content
+
+	text := strings.TrimSpace(textBuilder.String())
+	if text != "" {
+		text = truncateRunes(text, 30)
+	}
+
+	if text == "" {
+		if label != "" {
+			return prefix + label
+		}
+		return prefix + "[消息]"
+	}
+	if label == "" {
+		return prefix + text
+	}
+	return prefix + text + " " + label
+}
+
+func truncateRunes(input string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	runes := []rune(input)
+	if len(runes) <= max {
+		return input
+	}
+	return string(runes[:max]) + "..."
+}
+
+func inferMediaKindFromBracketBody(body string) string {
+	path := strings.TrimSpace(body)
+	if path == "" {
+		return ""
+	}
+
+	// 避免把 URL 或带空白的内容误判为上传路径
+	if strings.Contains(path, "://") {
+		return ""
+	}
+	if strings.IndexFunc(path, unicode.IsSpace) >= 0 {
+		return ""
+	}
+
+	lower := strings.ToLower(path)
+	if i := strings.IndexByte(lower, '?'); i >= 0 {
+		lower = lower[:i]
+	}
+	if i := strings.IndexByte(lower, '#'); i >= 0 {
+		lower = lower[:i]
+	}
+
+	switch {
+	case strings.HasSuffix(lower, ".jpg") || strings.HasSuffix(lower, ".jpeg") || strings.HasSuffix(lower, ".png") ||
+		strings.HasSuffix(lower, ".gif") || strings.HasSuffix(lower, ".bmp") || strings.HasSuffix(lower, ".webp"):
+		return "image"
+	case strings.HasSuffix(lower, ".mp4") || strings.HasSuffix(lower, ".webm") || strings.HasSuffix(lower, ".ogg") ||
+		strings.HasSuffix(lower, ".mov") || strings.HasSuffix(lower, ".avi") || strings.HasSuffix(lower, ".mkv") ||
+		strings.HasSuffix(lower, ".wmv") || strings.HasSuffix(lower, ".flv"):
+		return "video"
+	case strings.HasSuffix(lower, ".mp3") || strings.HasSuffix(lower, ".wav") || strings.HasSuffix(lower, ".aac") || strings.HasSuffix(lower, ".flac"):
+		return "audio"
+	}
+
+	dot := strings.LastIndexByte(lower, '.')
+	if dot < 0 {
+		return ""
+	}
+	ext := lower[dot+1:]
+	if !looksLikeFileExt(ext) {
+		return ""
+	}
+	return "file"
+}
+
+func looksLikeFileExt(ext string) bool {
+	ext = strings.TrimSpace(ext)
+	if ext == "" {
+		return false
+	}
+	if len(ext) > 10 {
+		return false
+	}
+
+	hasLetter := false
+	for _, r := range ext {
+		if r >= 'a' && r <= 'z' {
+			hasLetter = true
+			continue
+		}
+		if r >= '0' && r <= '9' {
+			continue
+		}
+		return false
+	}
+	return hasLetter
 }
 
 func formatTime(timeStr string) string {

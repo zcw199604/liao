@@ -28,30 +28,105 @@
       </div>
 
       <div class="msg-bubble shadow-sm" :class="msg.isSelf ? 'msg-right' : 'msg-left'">
-        <!-- 文本（支持表情解析，双击复制） -->
-        <span 
-          v-if="!msg.isImage && !msg.isVideo" 
-          v-html="parseEmoji(msg.content, emojiMap)"
-          @dblclick="copyToClipboard(msg.content)"
-          class="cursor-text select-text"
-          title="双击复制"
-        ></span>
+        <template v-if="msg.segments && msg.segments.length">
+          <div class="flex flex-col gap-2">
+            <template v-for="(seg, idx) in msg.segments" :key="idx">
+              <span
+                v-if="seg.kind === 'text'"
+                v-html="parseEmoji(seg.text, emojiMap)"
+                @dblclick="copyToClipboard(msg.content)"
+                class="cursor-text select-text"
+                title="双击复制"
+              ></span>
 
-        <!-- 图片 -->
-        <img
-          v-if="msg.isImage"
-          :src="getMediaUrl(msg.imageUrl || msg.content || '')"
-          class="rounded-lg max-w-full block cursor-pointer"
-          @click="previewMedia(getMediaUrl(msg.imageUrl || msg.content || ''), 'image')"
-        />
+              <img
+                v-else-if="seg.kind === 'image'"
+                :src="getMediaUrl(seg.url)"
+                class="rounded-lg max-w-full block cursor-pointer"
+                @click="previewMedia(getMediaUrl(seg.url), 'image')"
+              />
 
-        <!-- 视频 -->
-        <video
-          v-if="msg.isVideo"
-          :src="getMediaUrl(msg.videoUrl || msg.content || '')"
-          controls
-          class="rounded-lg max-w-full block"
-        ></video>
+              <video
+                v-else-if="seg.kind === 'video'"
+                :src="getMediaUrl(seg.url)"
+                controls
+                class="rounded-lg max-w-full block"
+              ></video>
+
+              <div
+                v-else-if="seg.kind === 'file'"
+                class="p-3 bg-white/10 rounded-lg flex items-center gap-3 min-w-[200px] max-w-sm cursor-pointer hover:bg-white/20 transition border border-white/10 group"
+                @click="downloadFile(getMediaUrl(seg.url))"
+              >
+                <div class="w-12 h-12 bg-gray-800 rounded-lg flex items-center justify-center text-indigo-400 shrink-0">
+                  <i class="fas fa-file text-2xl"></i>
+                </div>
+                <div class="flex-1 overflow-hidden min-w-0">
+                  <div
+                    class="text-sm truncate text-white/90 font-medium"
+                    :title="getDownloadFileName(getMediaUrl(seg.url))"
+                  >
+                    {{ getDownloadFileName(getMediaUrl(seg.url)) }}
+                  </div>
+                  <div class="text-xs text-white/50 mt-0.5">点击下载</div>
+                </div>
+                <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400 group-hover:bg-white/10 group-hover:text-white transition">
+                  <i class="fas fa-download text-sm"></i>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <template v-else>
+          <!-- 文本（支持表情解析，双击复制） -->
+          <span 
+            v-if="!msg.isImage && !msg.isVideo && !msg.isFile" 
+            v-html="parseEmoji(msg.content, emojiMap)"
+            @dblclick="copyToClipboard(msg.content)"
+            class="cursor-text select-text"
+            title="双击复制"
+          ></span>
+
+          <!-- 图片 -->
+          <img
+            v-else-if="msg.isImage"
+            :src="getMediaUrl(msg.imageUrl || msg.content || '')"
+            class="rounded-lg max-w-full block cursor-pointer"
+            @click="previewMedia(getMediaUrl(msg.imageUrl || msg.content || ''), 'image')"
+          />
+
+          <!-- 视频 -->
+          <video
+            v-else-if="msg.isVideo"
+            :src="getMediaUrl(msg.videoUrl || msg.content || '')"
+            controls
+            class="rounded-lg max-w-full block"
+          ></video>
+
+          <!-- 文件 -->
+          <div
+            v-else-if="msg.isFile"
+            class="p-3 bg-white/10 rounded-lg flex items-center gap-3 min-w-[200px] max-w-sm cursor-pointer hover:bg-white/20 transition border border-white/10 group"
+            @click="downloadFile(getMediaUrl(msg.fileUrl || msg.content || ''))"
+          >
+            <div class="w-12 h-12 bg-gray-800 rounded-lg flex items-center justify-center text-indigo-400 shrink-0">
+              <i class="fas fa-file text-2xl"></i>
+            </div>
+            <div class="flex-1 overflow-hidden min-w-0">
+              <div
+                class="text-sm truncate text-white/90 font-medium"
+                :title="getDownloadFileName(getMediaUrl(msg.fileUrl || msg.content || ''))"
+              >
+                {{ getDownloadFileName(getMediaUrl(msg.fileUrl || msg.content || '')) }}
+              </div>
+              <div class="text-xs text-white/50 mt-0.5">点击下载</div>
+            </div>
+            <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400 group-hover:bg-white/10 group-hover:text-white transition">
+              <i class="fas fa-download text-sm"></i>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -174,6 +249,29 @@ const previewMedia = (url: string, type: 'image' | 'video') => {
   window.dispatchEvent(new CustomEvent('preview-media', {
     detail: { url, type }
   }))
+}
+
+const getDownloadFileName = (url: string): string => {
+  const raw = String(url || '')
+  if (!raw) return '未知文件'
+  try {
+    const u = new URL(raw)
+    return decodeURIComponent(u.pathname.split('/').pop() || '未知文件')
+  } catch {
+    return raw.split('/').pop() || '未知文件'
+  }
+}
+
+const downloadFile = (url: string) => {
+  const href = String(url || '')
+  if (!href) return
+
+  const link = document.createElement('a')
+  link.href = href
+  link.download = getDownloadFileName(href)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
 }
 
 const copyToClipboard = async (text: string) => {

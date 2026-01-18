@@ -753,21 +753,65 @@ func defaultString(v, def string) string {
 }
 
 func inferMessageType(content string) string {
+	content = strings.TrimSpace(content)
 	if content == "" {
 		return "text"
 	}
-	if strings.HasPrefix(content, "[") && strings.HasSuffix(content, "]") {
-		path := strings.ToLower(strings.TrimSuffix(strings.TrimPrefix(content, "["), "]"))
-		switch {
-		case strings.HasSuffix(path, ".jpg") || strings.HasSuffix(path, ".jpeg") || strings.HasSuffix(path, ".png") || strings.HasSuffix(path, ".gif") || strings.HasSuffix(path, ".bmp"):
-			return "image"
-		case strings.HasSuffix(path, ".mp4") || strings.HasSuffix(path, ".avi") || strings.HasSuffix(path, ".mov") || strings.HasSuffix(path, ".wmv") || strings.HasSuffix(path, ".flv"):
-			return "video"
-		case strings.HasSuffix(path, ".mp3") || strings.HasSuffix(path, ".wav") || strings.HasSuffix(path, ".aac") || strings.HasSuffix(path, ".flac"):
-			return "audio"
-		default:
-			return "file"
+
+	detected := ""
+	idx := 0
+	for idx < len(content) {
+		open := strings.Index(content[idx:], "[")
+		if open < 0 {
+			break
 		}
+		open += idx
+		close := strings.Index(content[open+1:], "]")
+		if close < 0 {
+			break
+		}
+		close += open + 1
+
+		kind := inferMediaKindFromBracketBody(content[open+1 : close])
+		if kind != "" {
+			detected = pickHigherPriorityType(detected, kind)
+			if detected == "image" {
+				break
+			}
+		}
+		idx = close + 1
+	}
+
+	if detected != "" {
+		return detected
 	}
 	return "text"
+}
+
+func pickHigherPriorityType(current, next string) string {
+	if next == "" {
+		return current
+	}
+	if current == "" {
+		return next
+	}
+	if typePriority(next) < typePriority(current) {
+		return next
+	}
+	return current
+}
+
+func typePriority(tp string) int {
+	switch tp {
+	case "image":
+		return 1
+	case "video":
+		return 2
+	case "audio":
+		return 3
+	case "file":
+		return 4
+	default:
+		return 100
+	}
 }
