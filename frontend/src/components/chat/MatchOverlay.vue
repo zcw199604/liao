@@ -5,7 +5,7 @@
       class="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center text-center px-4"
     >
       <!-- 进度显示 -->
-      <div v-if="chatStore.continuousMatchConfig.enabled" class="mb-4">
+      <div v-if="chatStore.continuousMatchConfig.enabled && chatStore.continuousMatchConfig.total > 1" class="mb-4">
         <p class="text-blue-400 text-sm font-medium">
           连续匹配进行中：第 {{ chatStore.continuousMatchConfig.current }}/{{ chatStore.continuousMatchConfig.total }} 次
         </p>
@@ -44,10 +44,20 @@
         <!-- 聊天按钮 -->
         <button
           @click="handleEnterChat"
-          class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl text-white font-bold transition active:scale-95"
+          class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl text-white font-bold transition active:scale-95 mb-3"
         >
           <i class="fas fa-comment-dots mr-2"></i>
           进入聊天
+        </button>
+
+        <!-- 继续匹配按钮 (仅在单次匹配模式下显示) -->
+        <button
+          v-if="chatStore.continuousMatchConfig.total === 1"
+          @click="handleContinueMatch"
+          class="w-full py-3 bg-gray-700 hover:bg-gray-600 rounded-xl text-white font-bold transition active:scale-95"
+        >
+          <i class="fas fa-random mr-2"></i>
+          继续匹配
         </button>
       </div>
 
@@ -59,8 +69,8 @@
         匹配完全匿名
       </p>
 
-      <!-- 倒计时提示（连续匹配且已匹配到用户） -->
-      <p v-if="chatStore.currentMatchedUser && chatStore.continuousMatchConfig.enabled"
+      <!-- 倒计时提示（连续匹配且已匹配到用户，且不是单次匹配模式） -->
+      <p v-if="chatStore.currentMatchedUser && chatStore.continuousMatchConfig.enabled && chatStore.continuousMatchConfig.total > 1"
          class="text-gray-400 text-sm mb-4">
         {{ isLastMatch ? '2秒后返回列表...' : '2秒后自动开始下一次匹配...' }}
       </p>
@@ -71,7 +81,7 @@
         @click="handleCancelMatch"
         class="mt-4 px-6 py-2 border border-gray-600 rounded-full text-gray-200 text-sm hover:bg-white/5 transition"
       >
-        取消{{ chatStore.continuousMatchConfig.enabled ? '连续匹配' : '' }}
+        取消{{ chatStore.continuousMatchConfig.enabled && chatStore.continuousMatchConfig.total > 1 ? '连续匹配' : '' }}
       </button>
     </div>
   </teleport>
@@ -87,7 +97,7 @@ import { getColorClass } from '@/constants/colors'
 
 const router = useRouter()
 const chatStore = useChatStore()
-const { cancelMatch, enterChatAndStopMatch } = useChat()
+const { cancelMatch, enterChatAndStopMatch, startContinuousMatch } = useChat()
 const { show } = useToast()
 
 // 判断是否是最后一个匹配用户
@@ -109,6 +119,12 @@ const handleEnterChat = () => {
   router.push(`/chat/${user.id}`)
 
   show('已进入聊天')
+}
+
+// 继续匹配
+const handleContinueMatch = () => {
+  chatStore.setCurrentMatchedUser(null)
+  startContinuousMatch(1)
 }
 
 // 取消匹配
