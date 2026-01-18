@@ -194,9 +194,31 @@ docker run -d -p 8080:8080 \
   2. 构建 Go 后端
   3. 构建Docker镜像
   4. 推送到Docker Hub（`a7413498/liao`）
+  5. 企业微信通知（可选）
 
 发布（GitHub Release）：
 - 在 Actions 中运行 `Release` 工作流：默认创建并推送 `v1.0.0` Tag，编译打包产物并创建对应 Release。
+
+### 企业微信通知配置
+
+GitHub Actions 支持通过企业微信应用推送构建/发布通知。
+
+**配置步骤**：
+
+1. 在企业微信管理后台创建应用，获取以下参数：
+   - 企业 ID（corpid）
+   - 应用 Secret（corpsecret）
+   - 应用 AgentId
+   - 接收人 UserID（或 `@all` 发给所有人）
+
+2. 在 GitHub 仓库 Settings → Secrets and variables → Actions 中添加：
+   - `WECHAT_CORP_ID` - 企业 ID
+   - `WECHAT_CORP_SECRET` - 应用 Secret
+   - `WECHAT_AGENT_ID` - 应用 AgentId
+   - `WECHAT_TO_USER` - 接收人 UserID
+   - `WECHAT_API_URL`（可选）- 企业微信 API 地址（默认 `https://qyapi.weixin.qq.com`）
+
+配置后，构建成功/失败时会自动推送通知到企业微信。未配置时会自动跳过通知步骤。
 
 ## 许可证
 
