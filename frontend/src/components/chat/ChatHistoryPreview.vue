@@ -49,9 +49,22 @@
 	                      <template v-for="(seg, idx) in msg.segments" :key="idx">
 	                        <div v-if="seg.kind === 'text'" v-html="parseEmoji(seg.text, emojiMap)"></div>
 
-	                        <div v-else-if="seg.kind === 'image'" class="mt-1">
-	                          <img :src="getMediaUrl(seg.url)" class="rounded-lg max-w-full max-h-[300px] object-cover bg-gray-900/50 block" />
-	                        </div>
+	                        <template v-else-if="seg.kind === 'image'">
+	                          <div 
+	                            v-if="failedImageIds.has(`${msg.tid || msg.time}|${idx}`)"
+	                            class="mt-1 rounded-lg bg-gray-800 h-[150px] w-[150px] flex items-center justify-center text-gray-500 flex-col gap-2 p-4 select-none"
+	                          >
+	                            <i class="fas fa-image-slash text-2xl"></i>
+	                            <span class="text-xs">图片加载失败</span>
+	                          </div>
+	                          <div v-else class="mt-1">
+	                            <img 
+                                  :src="getMediaUrl(seg.url)" 
+                                  class="rounded-lg max-w-full max-h-[300px] min-h-[100px] min-w-[100px] object-cover bg-gray-900/50 block" 
+                                  @error="handleImageError(msg, idx)"
+                                />
+	                          </div>
+	                        </template>
 
 	                        <div v-else-if="seg.kind === 'video'" class="mt-1">
 	                          <video :src="getMediaUrl(seg.url)" controls class="rounded-lg max-w-full max-h-[300px] bg-black block"></video>
@@ -71,9 +84,22 @@
 	                    <div v-if="!msg.isImage && !msg.isVideo && !msg.isFile" v-html="parseEmoji(msg.content, emojiMap)"></div>
 	                    
 	                    <!-- 图片 -->
-	                    <div v-else-if="msg.isImage" class="mt-1">
-	                      <img :src="getMediaUrl(msg.imageUrl || msg.content || '')" class="rounded-lg max-w-full max-h-[300px] object-cover bg-gray-900/50 block" />
-	                    </div>
+	                    <template v-else-if="msg.isImage">
+	                      <div 
+	                        v-if="failedImageIds.has(`${msg.tid || msg.time}|-1`)"
+	                        class="mt-1 rounded-lg bg-gray-800 h-[150px] w-[150px] flex items-center justify-center text-gray-500 flex-col gap-2 p-4 select-none"
+	                      >
+	                        <i class="fas fa-image-slash text-2xl"></i>
+	                        <span class="text-xs">图片加载失败</span>
+	                      </div>
+	                      <div v-else class="mt-1">
+	                        <img 
+                              :src="getMediaUrl(msg.imageUrl || msg.content || '')" 
+                              class="rounded-lg max-w-full max-h-[300px] min-h-[100px] min-w-[100px] object-cover bg-gray-900/50 block" 
+                              @error="handleImageError(msg, -1)"
+                            />
+	                      </div>
+	                    </template>
 
 	                    <!-- 视频 -->
 	                    <div v-else-if="msg.isVideo" class="mt-1">
@@ -147,6 +173,12 @@ const messages = ref<ChatMessage[]>([])
 const loading = ref(false)
 const error = ref('')
 const msgContainer = ref<HTMLElement | null>(null)
+const failedImageIds = ref(new Set<string>())
+
+const handleImageError = (msg: ChatMessage, idx: number = -1) => {
+  const key = `${msg.tid || msg.time}|${idx}`
+  failedImageIds.value.add(key)
+}
 
 const loadHistory = async () => {
   if (!props.identityId || !props.targetUserId) return

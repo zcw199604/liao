@@ -39,12 +39,22 @@
                 title="双击复制"
               ></span>
 
-              <img
-                v-else-if="seg.kind === 'image'"
-                :src="getMediaUrl(seg.url)"
-                class="rounded-lg max-w-full block cursor-pointer"
-                @click="previewMedia(getMediaUrl(seg.url), 'image')"
-              />
+              <template v-else-if="seg.kind === 'image'">
+                <div 
+                  v-if="failedImageIds.has(getImageKey(msg, idx))"
+                  class="rounded-lg bg-gray-800 min-h-[100px] min-w-[100px] flex items-center justify-center text-gray-500 flex-col gap-2 p-4 select-none"
+                >
+                  <i class="fas fa-image-slash text-2xl"></i>
+                  <span class="text-xs">图片加载失败</span>
+                </div>
+                <img
+                  v-else
+                  :src="getMediaUrl(seg.url)"
+                  class="rounded-lg max-w-full block cursor-pointer min-h-[100px] min-w-[100px] bg-gray-900/50 object-cover"
+                  @click="previewMedia(getMediaUrl(seg.url), 'image')"
+                  @error="handleImageError(msg, idx)"
+                />
+              </template>
 
               <video
                 v-else-if="seg.kind === 'video'"
@@ -89,12 +99,22 @@
           ></span>
 
           <!-- 图片 -->
-          <img
-            v-else-if="msg.isImage"
-            :src="getMediaUrl(msg.imageUrl || msg.content || '')"
-            class="rounded-lg max-w-full block cursor-pointer"
-            @click="previewMedia(getMediaUrl(msg.imageUrl || msg.content || ''), 'image')"
-          />
+          <template v-else-if="msg.isImage">
+            <div 
+              v-if="failedImageIds.has(getImageKey(msg))"
+              class="rounded-lg bg-gray-800 min-h-[100px] min-w-[100px] flex items-center justify-center text-gray-500 flex-col gap-2 p-4 select-none"
+            >
+              <i class="fas fa-image-slash text-2xl"></i>
+              <span class="text-xs">图片加载失败</span>
+            </div>
+            <img
+              v-else
+              :src="getMediaUrl(msg.imageUrl || msg.content || '')"
+              class="rounded-lg max-w-full block cursor-pointer min-h-[100px] min-w-[100px] bg-gray-900/50 object-cover"
+              @click="previewMedia(getMediaUrl(msg.imageUrl || msg.content || ''), 'image')"
+              @error="handleImageError(msg)"
+            />
+          </template>
 
           <!-- 视频 -->
           <video
@@ -195,6 +215,26 @@ const { getMediaUrl } = useUpload()
 const isAtBottom = ref(true)
 const hasNewMessages = ref(false)
 
+const failedImageIds = ref(new Set<string>())
+
+const getMessageKey = (msg: ChatMessage): string => {
+  const tid = String(msg.tid || '').trim()
+  if (tid) return `tid:${tid}`
+  const fromUserId = String(msg.fromuser?.id || '')
+  const type = String(msg.type || '')
+  const time = String(msg.time || '')
+  const content = String(msg.content || '')
+  return `fallback:${fromUserId}|${type}|${time}|${content}`
+}
+
+const getImageKey = (msg: ChatMessage, segmentIdx: number = -1) => {
+  return `${getMessageKey(msg)}|${segmentIdx}`
+}
+
+const handleImageError = (msg: ChatMessage, segmentIdx: number = -1) => {
+  failedImageIds.value.add(getImageKey(msg, segmentIdx))
+}
+
 // 检测滚动位置
 let scrollTimer: ReturnType<typeof setTimeout> | null = null
 const handleScroll = () => {
@@ -212,16 +252,6 @@ const handleScroll = () => {
       hasNewMessages.value = false
     }
   }, 100)
-}
-
-const getMessageKey = (msg: ChatMessage): string => {
-  const tid = String(msg.tid || '').trim()
-  if (tid) return `tid:${tid}`
-  const fromUserId = String(msg.fromuser?.id || '')
-  const type = String(msg.type || '')
-  const time = String(msg.time || '')
-  const content = String(msg.content || '')
-  return `fallback:${fromUserId}|${type}|${time}|${content}`
 }
 
 const scrollToBottom = (force = false) => {
