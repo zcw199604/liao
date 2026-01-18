@@ -30,6 +30,7 @@
 - **放行**：
   - `/api/auth/login`
   - `/api/auth/verify`
+  - `/api/getMtPhotoThumb`（用于 `<img>` 直接加载缩略图，无法附带 Authorization 头）
 - **其余全部需要 Bearer Token**，否则返回 **HTTP 401**：
   - 缺失 Token：`{"code":401,"msg":"未登录或Token缺失"}`
   - Token 无效/过期：`{"code":401,"msg":"Token无效或已过期"}`

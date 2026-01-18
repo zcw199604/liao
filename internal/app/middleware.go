@@ -44,7 +44,9 @@ func (a *App) jwtMiddleware(next http.Handler) http.Handler {
 		}
 
 		switch r.URL.Path {
-		case "/api/auth/login", "/api/auth/verify":
+		// 说明：/api/getMtPhotoThumb 由 <img> 直接请求，浏览器无法附带 Authorization 头；
+		// 因此该接口需要放行，具体安全约束由 handler 内部的 size 白名单等策略兜底。
+		case "/api/auth/login", "/api/auth/verify", "/api/getMtPhotoThumb":
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -72,4 +74,3 @@ func (a *App) jwtMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-

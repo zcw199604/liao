@@ -35,7 +35,7 @@
 ## 安全与约束
 - **凭证安全:** mtPhoto 登录凭证仅通过环境变量注入；后端日志禁止输出 token/auth_code/password
 - **路径安全:** mtPhoto 返回的 `filePath` 必须以 `/lsp/` 开头，并通过 `LSP_ROOT` 映射到本地目录；禁止 `..` 路径遍历
-- **开放代理防护:** `GET /api/getMtPhotoThumb` 仅允许 `size=s260|h220`
+- **开放代理防护:** `GET /api/getMtPhotoThumb` 仅允许 `size=s260|h220`，且该接口为前端 `<img>` 加载所需而放行（不要求 JWT）
 
 ## API接口
 详见 `helloagents/wiki/api.md` 的 mtPhoto 小节：
@@ -70,4 +70,3 @@
 ## 测试
 - 后端：`go test ./...`（重点覆盖 mtPhoto 登录/401 重登、分页切片、导入路径校验）
 - 前端：`npm run build`（类型检查 + 构建门禁）
-
