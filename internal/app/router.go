@@ -73,6 +73,13 @@ func (a *App) buildRouter() http.Handler {
 		api.Post("/batchDeleteMedia", a.handleBatchDeleteMedia)
 		api.Post("/repairMediaHistory", a.handleRepairMediaHistory)
 
+		// mtPhoto 相册
+		api.Get("/getMtPhotoAlbums", a.handleGetMtPhotoAlbums)
+		api.Get("/getMtPhotoAlbumFiles", a.handleGetMtPhotoAlbumFiles)
+		api.Get("/getMtPhotoThumb", a.handleGetMtPhotoThumb)
+		api.Get("/resolveMtPhotoFilePath", a.handleResolveMtPhotoFilePath)
+		api.Post("/importMtPhotoMedia", a.handleImportMtPhotoMedia)
+
 		// System config（全局配置：所有用户共用）
 		api.Get("/getSystemConfig", a.handleGetSystemConfig)
 		api.Post("/updateSystemConfig", a.handleUpdateSystemConfig)

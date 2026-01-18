@@ -5,11 +5,13 @@
     </Transition>
   </router-view>
   <AllUploadImageModal />
+  <MtPhotoAlbumModal />
 </template>
 
 <script setup lang="ts">
 // 根组件：所有路由页面的容器
 import AllUploadImageModal from '@/components/media/AllUploadImageModal.vue'
+import MtPhotoAlbumModal from '@/components/media/MtPhotoAlbumModal.vue'
 </script>
 
 <style>

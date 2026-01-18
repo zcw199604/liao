@@ -70,6 +70,7 @@
         @upload-file="handleUploadFile"
         @open-chat-history="handleOpenChatHistory"
         @open-all-uploads="handleOpenAllUploads"
+        @open-mt-photo="handleOpenMtPhoto"
       />
 
       <!-- 表情面板 -->
@@ -195,6 +196,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
 import { useMediaStore } from '@/stores/media'
+import { useMtPhotoStore } from '@/stores/mtphoto'
 import { useUserStore } from '@/stores/user'
 import { useMessage } from '@/composables/useMessage'
 import { useUpload } from '@/composables/useUpload'
@@ -229,6 +231,7 @@ const router = useRouter()
 const chatStore = useChatStore()
 	const messageStore = useMessageStore()
 	const mediaStore = useMediaStore()
+  const mtPhotoStore = useMtPhotoStore()
 	const systemConfigStore = useSystemConfigStore()
 	const userStore = useUserStore()
 const { sendText, sendImage, sendVideo, sendTypingStatus } = useMessage()
@@ -734,6 +737,11 @@ const handleOpenAllUploads = async () => {
   mediaStore.selectedImages = []
   mediaStore.showAllUploadImageModal = true
   await mediaStore.loadAllUploadImages(1)
+}
+
+const handleOpenMtPhoto = async () => {
+  if (!userStore.currentUser) return
+  await mtPhotoStore.open()
 }
 
 const handleStartMatch = () => {

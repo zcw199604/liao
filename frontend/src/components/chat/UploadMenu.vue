@@ -55,6 +55,14 @@
         <i class="fas fa-images"></i>
         <span>所有上传图片</span>
       </button>
+
+      <button
+        @click="$emit('openMtPhoto')"
+        class="w-full py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 flex items-center justify-center gap-2 transition"
+      >
+        <i class="fas fa-photo-video"></i>
+        <span>mtPhoto 相册</span>
+      </button>
     </div>
   </div>
 </template>
@@ -77,5 +85,6 @@ defineEmits<{
   'uploadFile': []
   'openChatHistory': []
   'openAllUploads': []
+  'openMtPhoto': []
 }>()
 </script>

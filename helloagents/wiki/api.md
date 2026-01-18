@@ -761,6 +761,85 @@
 
 ---
 
+### 4.8 mtPhoto（相册系统）
+
+> 说明：mtPhoto 接口由后端统一代理与鉴权（自动登录/401 重登），前端仅访问本服务 `/api`。
+
+#### [GET] /api/getMtPhotoAlbums
+**描述**：获取 mtPhoto 相册列表。
+
+**响应（HTTP 200）**
+```json
+{"data":[{"id":3,"name":"相册名","cover":"md5","count":41,"startTime":"...","endTime":"..."}]}
+```
+
+**备注**
+- 依赖环境变量：`MTPHOTO_BASE_URL`、`MTPHOTO_LOGIN_USERNAME`、`MTPHOTO_LOGIN_PASSWORD`（可选 `MTPHOTO_LOGIN_OTP`）。
+
+#### [GET] /api/getMtPhotoAlbumFiles
+**描述**：获取相册媒体分页（后端对 mtPhoto `filesV2` 全量结果扁平化后切片分页）。
+
+**请求（query）**
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| albumId | 是 | 相册 ID |
+| page | 否 | 页码（默认 1） |
+| pageSize | 否 | 每页数量（默认 60，最大 200） |
+
+**响应（HTTP 200）**
+```json
+{"data":[{"id":1,"md5":"...","type":"image","fileType":"JPEG","width":1200,"height":900,"day":"2026-01-01"}],"total":123,"page":1,"pageSize":60,"totalPages":3}
+```
+
+#### [GET] /api/getMtPhotoThumb
+**描述**：代理 mtPhoto gateway 缩略图（用于相册封面与媒体缩略图，避免跨域与 cookie 暴露）。
+
+**请求（query）**
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| size | 是 | `s260`（封面）或 `h220`（媒体） |
+| md5 | 是 | 图片/视频的 MD5 |
+
+**响应**：图片二进制（透传 `Content-Type`）。
+
+#### [GET] /api/resolveMtPhotoFilePath
+**描述**：通过 md5 调用 mtPhoto `filesInMD5` 获取本地文件路径（形如 `/lsp/...`）。
+
+**请求（query）**
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| md5 | 是 | 媒体 MD5 |
+
+**响应（HTTP 200）**
+```json
+{"id":695770,"filePath":"/lsp/.../a.jpg"}
+```
+
+#### [POST] /api/importMtPhotoMedia
+**描述**：将 mtPhoto 媒体导入到本地 `./upload` 并上传到上游（成功后加入“已上传的文件”缓存）。
+
+**请求（application/x-www-form-urlencoded）**
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| userid | 是 | 当前身份 ID |
+| md5 | 是 | 媒体 MD5 |
+| cookieData | 否 | 上游上传所需 cookie（前端 `generateCookie` 生成） |
+| referer | 否 | 上游上传所需 referer |
+| userAgent | 否 | 上游上传所需 UA |
+
+**响应（HTTP 200）**
+```json
+{"state":"OK","msg":"remotePath","port":"9006","localFilename":"xxx.jpg"}
+```
+
+**失败响应（HTTP 500）**
+```json
+{"error":"...","localPath":"/images/2026/01/18/xxx.jpg"}
+```
+
+**备注**
+- 本地路径映射依赖：`LSP_ROOT`（默认 `/lsp`），并对 `/lsp/*` 做了路径遍历防护。
+
 ## 5. 静态资源与 SPA 回退
 
 - Go（现行实现）：

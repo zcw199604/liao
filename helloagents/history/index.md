@@ -41,6 +41,7 @@
 | 202601181127 | redis_write_batch_flush | 优化 | ✅已完成 | [链接](2026-01/202601181127_redis_write_batch_flush/) |
 | 202601181156 | userlist_local_cache | 优化 | ✅已完成 | [链接](2026-01/202601181156_userlist_local_cache/) |
 | 202601181213 | redis_local_cache_only | 修复 | ✅已完成 | [链接](2026-01/202601181213_redis_local_cache_only/) |
+| 202601181444 | mtphoto_album | 功能 | ✅已完成 | [链接](2026-01/202601181444_mtphoto_album/) |
 
 ---
 
@@ -81,3 +82,4 @@
 - [202601181127_redis_write_batch_flush](2026-01/202601181127_redis_write_batch_flush/) - Redis 写入改为队列批量 flush（默认 60 秒，可配置）
 - [202601181156_userlist_local_cache](2026-01/202601181156_userlist_local_cache/) - 历史/收藏用户列表本地缓存（默认 1 小时）+ 缓存增强并发批量读取
 - [202601181213_redis_local_cache_only](2026-01/202601181213_redis_local_cache_only/) - 移除上游列表本地缓存，仅保留 Redis 本地缓存（默认 1 小时）并保留并发增强
+- [202601181444_mtphoto_album](2026-01/202601181444_mtphoto_album/) - 接入 mtPhoto 相册并支持按相册浏览与一键导入上传

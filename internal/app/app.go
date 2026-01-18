@@ -34,6 +34,7 @@ type App struct {
 	imageCache      *ImageCacheService
 	imageHash       *ImageHashService
 	mediaUpload     *MediaUploadService
+	mtPhoto         *MtPhotoService
 	userInfoCache   UserInfoCacheService
 	forceoutManager *ForceoutManager
 	wsManager       *UpstreamWebSocketManager
@@ -102,6 +103,7 @@ func New(cfg config.Config) (*App, error) {
 	_ = application.systemConfig.EnsureDefaults(context.Background())
 	application.wsManager = NewUpstreamWebSocketManager(application.httpClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache)
 	application.mediaUpload = NewMediaUploadService(db, cfg.ServerPort, application.fileStorage, application.imageServer, application.httpClient)
+	application.mtPhoto = NewMtPhotoService(cfg.MtPhotoBaseURL, cfg.MtPhotoLoginUsername, cfg.MtPhotoLoginPassword, cfg.MtPhotoLoginOTP, cfg.LspRoot, application.httpClient)
 
 	application.handler = application.buildRouter()
 	return application, nil

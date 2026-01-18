@@ -1,9 +1,11 @@
 package app
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -47,8 +49,14 @@ func (a *App) lspFileServer() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("lsp文件请求", "rawPath", r.URL.Path, "requestURI", r.RequestURI)
 
-		// 直接使用 r.URL.Path 作为绝对路径（已包含 /lsp 前缀）
-		fullPath := r.URL.Path
+		// 将 URL 路径 /lsp/... 映射到本地根目录（默认 /lsp，可通过 LSP_ROOT 配置）。
+		// 安全要求：禁止 path traversal（..），确保最终路径始终在根目录内。
+		fullPath, err := resolveLspLocalPath(a.cfg.LspRoot, r.URL.Path)
+		if err != nil {
+			slog.Warn("lsp路径非法", "path", r.URL.Path, "error", err)
+			http.NotFound(w, r)
+			return
+		}
 		slog.Info("lsp文件路径", "fullPath", fullPath)
 
 		// 检查文件是否存在
@@ -68,4 +76,41 @@ func (a *App) lspFileServer() http.Handler {
 		// 提供文件服务
 		http.ServeFile(w, r, fullPath)
 	})
+}
+
+func resolveLspLocalPath(root, requestPath string) (string, error) {
+	root = filepath.Clean(strings.TrimSpace(root))
+	if root == "" {
+		root = string(filepath.Separator)
+	}
+
+	if !strings.HasPrefix(requestPath, "/lsp") {
+		return "", fmt.Errorf("不支持的路径前缀")
+	}
+
+	rel := strings.TrimPrefix(requestPath, "/lsp")
+	rel = strings.TrimPrefix(rel, "/")
+
+	// path.Clean 用于 URL 路径（固定为 / 分隔），避免 Windows 反斜杠导致绕过。
+	cleanURL := path.Clean("/" + rel) // 始终以 / 开头
+	if cleanURL == "/" {
+		return "", fmt.Errorf("不支持目录访问")
+	}
+	if strings.HasPrefix(cleanURL, "/..") {
+		return "", fmt.Errorf("检测到路径遍历")
+	}
+
+	// 将 URL 路径转换为系统路径，并拼接到根目录。
+	target := filepath.Join(root, filepath.FromSlash(strings.TrimPrefix(cleanURL, "/")))
+
+	// 二次校验：确保 target 仍位于 root 之下。
+	rel2, err := filepath.Rel(root, target)
+	if err != nil {
+		return "", fmt.Errorf("路径解析失败: %w", err)
+	}
+	if rel2 == "." || strings.HasPrefix(rel2, ".."+string(filepath.Separator)) || rel2 == ".." {
+		return "", fmt.Errorf("检测到路径越界")
+	}
+
+	return target, nil
 }

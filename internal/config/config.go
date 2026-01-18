@@ -41,6 +41,16 @@ type Config struct {
 	ImageServerHost        string
 	ImageServerPort        string
 	ImageServerUpstreamURL string
+
+	// LspRoot 表示 /lsp/* 静态文件映射的本地根目录。
+	// 默认 /lsp（与现网 mtPhoto 返回的 filePath 前缀保持一致），便于在容器/本地开发时重定向到其他目录。
+	LspRoot string
+
+	// MtPhoto* 为 mtPhoto 相册系统对接配置（可选；未配置时相关 API 将返回错误）。
+	MtPhotoBaseURL       string
+	MtPhotoLoginUsername string
+	MtPhotoLoginPassword string
+	MtPhotoLoginOTP      string
 }
 
 func Load() (Config, error) {
@@ -74,6 +84,13 @@ func Load() (Config, error) {
 		ImageServerHost:        getEnv("IMG_SERVER_HOST", "149.88.79.98"),
 		ImageServerPort:        getEnv("IMG_SERVER_PORT", "9003"),
 		ImageServerUpstreamURL: getEnv("IMG_SERVER_UPSTREAM_URL", "http://v1.chat2019.cn/asmx/method.asmx/getImgServer"),
+
+		LspRoot: getEnv("LSP_ROOT", "/lsp"),
+
+		MtPhotoBaseURL:       getEnv("MTPHOTO_BASE_URL", ""),
+		MtPhotoLoginUsername: getEnv("MTPHOTO_LOGIN_USERNAME", ""),
+		MtPhotoLoginPassword: getEnv("MTPHOTO_LOGIN_PASSWORD", ""),
+		MtPhotoLoginOTP:      getEnv("MTPHOTO_LOGIN_OTP", ""),
 	}
 
 	if cfg.ServerPort <= 0 || cfg.ServerPort > 65535 {

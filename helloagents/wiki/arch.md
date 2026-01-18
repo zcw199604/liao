@@ -11,8 +11,10 @@ flowchart TD
   BE --> DB[(MySQL)]
   BE --> CACHE[(Redis 可选 / 内存)]
   BE --> FS[(本地文件 ./upload)]
+  BE --> LSP[(本地相册目录 LSP_ROOT)]
   BE --> UPHTTP[上游 HTTP：v1.chat2019.cn]
   BE --> UPWS[上游 WS：动态获取地址]
+  BE --> MTP[mtPhoto 相册系统（HTTP）]
 ```
 
 ## 技术栈
@@ -29,6 +31,7 @@ flowchart TD
 - 鉴权：`internal/app/jwt.go`、`internal/app/middleware.go`、`internal/app/auth_handlers.go`
 - WS 代理：`internal/app/websocket_proxy.go`、`internal/app/websocket_manager.go`、`internal/app/forceout.go`
 - 媒体：`internal/app/media_upload.go`、`internal/app/media_history_handlers.go`、`internal/app/media_repair*.go`、`internal/app/file_storage.go`
+- mtPhoto：`internal/app/mtphoto_client.go`、`internal/app/mtphoto_handlers.go`（相册接入与导入上传）
 - 身份/收藏：`internal/app/identity*.go`、`internal/app/favorite*.go`
 - 静态托管：`internal/app/static.go`（SPA 回退；`/upload/**` 映射到本地 `./upload`）
 - 配置：`internal/config/config.go`（以环境变量为主，变量名/默认值对齐 `application.yml`）
@@ -49,6 +52,7 @@ flowchart TD
 - WS 上游降级：`WEBSOCKET_UPSTREAM_URL`
 - 缓存：`CACHE_TYPE`（memory/redis）、`UPSTASH_REDIS_URL`/`REDIS_URL`（支持 `rediss://`）、`REDIS_HOST`、`REDIS_PORT`、`REDIS_PASSWORD`、`REDIS_DB`、`CACHE_REDIS_FLUSH_INTERVAL_SECONDS`（写入批量 flush 间隔）、`CACHE_REDIS_LOCAL_TTL_SECONDS`（Redis 本地缓存 TTL）
 - 图片服务：`IMG_SERVER_HOST`、`IMG_SERVER_PORT`、`IMG_SERVER_UPSTREAM_URL`
+- mtPhoto：`MTPHOTO_BASE_URL`、`MTPHOTO_LOGIN_USERNAME`、`MTPHOTO_LOGIN_PASSWORD`、`MTPHOTO_LOGIN_OTP`、`LSP_ROOT`
 - 日志：`LOG_LEVEL`（debug/info/warn/error）、`LOG_FORMAT`（json/text）
 
 ## 核心流程

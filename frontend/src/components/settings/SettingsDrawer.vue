@@ -148,6 +148,22 @@
                <i class="fas fa-info-circle"></i>
                <span>点击卡片管理或清理历史图片</span>
              </p>
+
+             <div
+               @click="openMtPhotoAlbums"
+               class="group relative overflow-hidden rounded-xl bg-gradient-to-br from-pink-900/40 to-rose-900/40 border border-white/5 cursor-pointer hover:border-pink-500/50 transition-all mt-4"
+             >
+                <div class="p-4 flex items-center justify-between z-10 relative">
+                   <div>
+                      <div class="text-base font-bold text-white mb-1">mtPhoto 相册</div>
+                      <div class="text-xs text-gray-400 group-hover:text-pink-300 transition-colors">按相册浏览并导入上传</div>
+                   </div>
+                   <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-pink-500 group-hover:text-white transition-all">
+                      <i class="fas fa-chevron-right"></i>
+                   </div>
+                </div>
+                <i class="fas fa-photo-video absolute -bottom-4 -right-2 text-6xl text-white/5 group-hover:text-white/10 transition-colors rotate-12"></i>
+             </div>
           </div>
         </div>
 
@@ -181,6 +197,7 @@ import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
 import { useMediaStore } from '@/stores/media'
+import { useMtPhotoStore } from '@/stores/mtphoto'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useSettings } from '@/composables/useSettings'
 import { useToast } from '@/composables/useToast'
@@ -206,6 +223,7 @@ const userStore = useUserStore()
 const chatStore = useChatStore()
 const messageStore = useMessageStore()
 const mediaStore = useMediaStore()
+const mtPhotoStore = useMtPhotoStore()
 const { disconnect, connect, send } = useWebSocket()
 const { show } = useToast()
 
@@ -369,6 +387,11 @@ const openMediaManagement = async () => {
   mediaStore.selectedImages = []
   mediaStore.showAllUploadImageModal = true
   await mediaStore.loadAllUploadImages(1)
+}
+
+const openMtPhotoAlbums = async () => {
+  if (!currentUser.value) return
+  await mtPhotoStore.open()
 }
 
 watch(
