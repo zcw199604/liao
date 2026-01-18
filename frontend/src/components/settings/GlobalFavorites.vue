@@ -9,8 +9,17 @@
      <!-- List -->
      <PullToRefresh :on-refresh="handleRefresh" class="flex-1 min-h-0">
         <div class="h-full overflow-y-auto p-4 custom-scrollbar">
-           <div v-if="favoriteStore.loading && favoriteStore.allFavorites.length === 0" class="flex justify-center py-4">
-              <Loading class="w-8 h-8 text-indigo-500" />
+           <div v-if="favoriteStore.loading && favoriteStore.allFavorites.length === 0" class="space-y-3 py-2">
+              <div v-for="i in 6" :key="'sk-fav-' + i" class="flex items-center justify-between p-3 bg-[#2d2d33] rounded-lg">
+                 <div class="flex items-center gap-3 overflow-hidden">
+                    <Skeleton class="w-10 h-10 rounded-full" />
+                    <div class="min-w-0">
+                       <Skeleton class="h-4 w-24 rounded" />
+                       <Skeleton class="h-3 w-32 rounded mt-2" />
+                    </div>
+                 </div>
+                 <Skeleton class="h-4 w-10 rounded" />
+              </div>
            </div>
            
            <div v-else-if="Object.keys(favoriteStore.groupedFavorites).length === 0" class="flex flex-col items-center justify-center mt-20 text-gray-500">
@@ -93,7 +102,7 @@ import { useChat } from '@/composables/useChat'
 import { useWebSocket } from '@/composables/useWebSocket'
 import type { Favorite } from '@/types'
 import ChatHistoryPreview from '@/components/chat/ChatHistoryPreview.vue'
-import Loading from '@/components/common/Loading.vue'
+import Skeleton from '@/components/common/Skeleton.vue'
 import PullToRefresh from '@/components/common/PullToRefresh.vue'
 import { useToast } from '@/composables/useToast'
 import { useRouter } from 'vue-router'

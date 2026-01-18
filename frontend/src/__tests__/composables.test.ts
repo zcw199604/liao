@@ -58,6 +58,74 @@ describe('composables/useMessage', () => {
     })
   })
 
+  it('sendText inserts optimistic message and marks failed on timeout', () => {
+    vi.useFakeTimers()
+    try {
+      const userStore = useUserStore()
+      userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+      const messageStore = useMessageStore()
+      sendMock.mockReturnValue(true)
+
+      useMessage().sendText('hello', { id: 'u1', nickname: 'U1' }, { clientId: 'cid-1' })
+
+      const first = messageStore.getMessages('u1')[0] as any
+      expect(first.clientId).toBe('cid-1')
+      expect(first.sendStatus).toBe('sending')
+
+      vi.advanceTimersByTime(15000)
+
+      const updated = messageStore.getMessages('u1')[0] as any
+      expect(updated.sendStatus).toBe('failed')
+      expect(updated.sendError).toBe('发送超时')
+    } finally {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
+  })
+
+  it('sendText marks optimistic message failed when ws send returns false', () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    const messageStore = useMessageStore()
+    sendMock.mockReturnValue(false)
+
+    useMessage().sendText('oops', { id: 'u1', nickname: 'U1' }, { clientId: 'cid-2' })
+
+    const msg = messageStore.getMessages('u1')[0] as any
+    expect(msg.clientId).toBe('cid-2')
+    expect(msg.sendStatus).toBe('failed')
+    expect(msg.sendError).toBe('发送失败')
+  })
+
+  it('retryMessage resets failed message to sending and re-sends', () => {
+    vi.useFakeTimers()
+    try {
+      const userStore = useUserStore()
+      userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+      const messageStore = useMessageStore()
+      sendMock.mockReturnValueOnce(false).mockReturnValueOnce(true)
+
+      useMessage().sendText('hello', { id: 'u1', nickname: 'U1' }, { clientId: 'cid-3' })
+      expect(sendMock).toHaveBeenCalledTimes(1)
+
+      const failed = messageStore.getMessages('u1')[0] as any
+      expect(failed.sendStatus).toBe('failed')
+
+      useMessage().retryMessage(failed)
+      expect(sendMock).toHaveBeenCalledTimes(2)
+
+      const retrying = messageStore.getMessages('u1')[0] as any
+      expect(retrying.clientId).toBe('cid-3')
+      expect(retrying.sendStatus).toBe('sending')
+    } finally {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
+  })
+
   it('sendTypingStatus toggles inputStatusOn/off', () => {
     const userStore = useUserStore()
     userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
@@ -236,4 +304,3 @@ describe('composables/useChat', () => {
     expect(toastShow).toHaveBeenCalledWith('取消收藏成功')
   })
 })
-

@@ -545,6 +545,85 @@ describe('composables/useWebSocket', () => {
     expect(user.lastMsg).toBe('我: hi')
   })
 
+  it('merges self-sent echo into optimistic message and avoids duplicates', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+    localStorage.setItem('authToken', 't-1')
+
+    await router.push('/chat/u2')
+    await router.isReady()
+
+    const chatStore = useChatStore()
+    chatStore.upsertUser({
+      id: 'u2',
+      name: 'U2',
+      nickname: 'U2',
+      sex: '未知',
+      age: '0',
+      area: '',
+      address: '',
+      ip: '',
+      isFavorite: false,
+      lastMsg: '',
+      lastTime: '',
+      unreadCount: 0
+    } as any)
+    chatStore.enterChat(chatStore.getUser('u2') as any)
+
+    const messageStore = useMessageStore()
+    messageStore.addMessage('u2', {
+      code: 7,
+      fromuser: { id: 'me', name: 'Me', nickname: 'Me', sex: '未知', ip: '' },
+      touser: { id: 'u2', name: 'U2', nickname: 'U2', sex: '未知', ip: '' },
+      type: 'text',
+      content: 'hello',
+      time: '2026-01-01 00:00:00.000',
+      tid: '',
+      isSelf: true,
+      isImage: false,
+      isVideo: false,
+      isFile: false,
+      imageUrl: '',
+      videoUrl: '',
+      fileUrl: '',
+      segments: [],
+      clientId: 'cid-1',
+      sendStatus: 'sending',
+      optimistic: true
+    } as any)
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+
+    await FakeWebSocket.instances[0]!.triggerMessage({
+      code: 7,
+      fromuser: {
+        id: md5Hex('me'),
+        name: 'Me',
+        nickname: 'Me',
+        sex: '未知',
+        ip: '',
+        content: 'hello',
+        time: '2026-01-01 00:00:00.000',
+        tid: 't-echo'
+      },
+      touser: { id: 'u2', name: 'U2', nickname: 'U2', sex: '未知', ip: '' },
+      tid: 't-echo'
+    })
+
+    const msgs = messageStore.getMessages('u2') as any[]
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].clientId).toBe('cid-1')
+    expect(msgs[0].sendStatus).toBe('sent')
+    expect(msgs[0].optimistic).toBe(false)
+    expect(msgs[0].tid).toBe('t-echo')
+  })
+
   it('handles match success (single match) by entering chat and dispatching event', async () => {
     const userStore = useUserStore()
     userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me', sex: '男', ip: '', area: '' } as any

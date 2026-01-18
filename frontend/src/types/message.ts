@@ -16,6 +16,8 @@ export type MessageSegment =
   | { kind: 'text'; text: string }
   | { kind: 'image' | 'video' | 'file'; path: string; url: string }
 
+export type SendStatus = 'sending' | 'sent' | 'failed'
+
 export interface ChatMessage extends Message {
   isSelf: boolean
   isImage?: boolean
@@ -26,4 +28,10 @@ export interface ChatMessage extends Message {
   fileUrl?: string
   // When present, render message as "rich segments" (text + inline media).
   segments?: MessageSegment[]
+
+  // === Optimistic UI (frontend-only fields) ===
+  clientId?: string
+  sendStatus?: SendStatus
+  sendError?: string
+  optimistic?: boolean
 }

@@ -56,6 +56,7 @@
       :can-load-more="canLoadMore"
       @load-more="handleLoadMore"
       @close-all-panels="handleCloseAllPanels"
+      @retry="handleRetry"
       ref="messageListRef"
     />
 
@@ -225,7 +226,7 @@ import EmojiPanel from '@/components/chat/EmojiPanel.vue'
 import MediaPreview from '@/components/media/MediaPreview.vue'
 import Toast from '@/components/common/Toast.vue'
 import Dialog from '@/components/common/Dialog.vue'
-import type { UploadedMedia, User } from '@/types'
+import type { ChatMessage, UploadedMedia, User } from '@/types'
 
 const router = useRouter()
 const chatStore = useChatStore()
@@ -234,7 +235,7 @@ const chatStore = useChatStore()
   const mtPhotoStore = useMtPhotoStore()
 	const systemConfigStore = useSystemConfigStore()
 	const userStore = useUserStore()
-const { sendText, sendImage, sendVideo, sendTypingStatus } = useMessage()
+const { sendText, sendImage, sendVideo, retryMessage, sendTypingStatus } = useMessage()
 const { uploadFile, getMediaUrl } = useUpload()
 const route = useRoute()
 const { connect, setScrollToBottom } = useWebSocket()
@@ -367,6 +368,22 @@ const handleSend = async () => {
   await nextTick()
   refreshLayoutMeasurements()
 
+  if (messageListRef.value?.getIsAtBottom?.()) {
+    messageListRef.value?.scrollToBottom()
+  }
+}
+
+const handleRetry = async (msg: ChatMessage) => {
+  if (!chatStore.currentChatUser) return
+  if (!chatStore.wsConnected) {
+    show('连接已断开，请刷新页面重试')
+    return
+  }
+
+  retryMessage(msg)
+
+  await nextTick()
+  refreshLayoutMeasurements()
   if (messageListRef.value?.getIsAtBottom?.()) {
     messageListRef.value?.scrollToBottom()
   }

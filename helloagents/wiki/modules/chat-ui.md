@@ -83,6 +83,44 @@ lastMsg 预览（与后端缓存增强对齐）：
 - `isSelf = (lowercase(fromuser.id) === md5Hex(currentUserId))`
 - 暂不增加昵称/peerId 等兜底推断，避免与上游脚本判定不一致
 
+### 发送体验: 乐观发送（Optimistic UI）
+**模块:** Chat UI
+发送消息时不等待服务端回显，前端先插入一条“本地临时消息”以实现秒级反馈；当收到 WebSocket 回显后再合并更新，避免重复渲染。
+
+核心字段（`frontend/src/types/message.ts`）：
+- `clientId`: 前端生成的本地消息标识
+- `sendStatus`: `sending | sent | failed`
+- `sendError`: 失败原因（用于兜底提示）
+- `optimistic`: 是否为乐观消息（仅前端字段）
+
+行为约束：
+- 发送（`frontend/src/composables/useMessage.ts`）：`sendText/sendImage/sendVideo` 会先插入 `sendStatus=sending` 的本地消息，并启动超时计时器（默认 15s）
+- 失败：
+  - WebSocket 未连接（`useWebSocket.send()` 返回 `false`）：立即标记为 `failed`
+  - 超时未回显：标记为 `failed` 并填充 `sendError=发送超时`
+- 回显合并（`frontend/src/stores/message.ts` → `confirmOutgoingEcho`）：收到 `isSelf=true` 的回显消息时，按“内容/媒体路径 + 时间窗口(30s)”匹配最近的 `sending/failed` 本地消息并更新为 `sent`，避免列表出现两条相同消息
+- UI 展示（`frontend/src/components/chat/MessageList.vue`）：自己发送的消息在 `sending/failed` 时显示状态文案；失败时提供“重试”按钮（调用 `useMessage.retryMessage`）
+
+### 加载体验: 骨架屏（Skeleton Loading）
+**模块:** Chat UI
+为减少历史消息/用户列表加载时的布局跳动，统一使用灰色脉冲骨架块进行占位。
+
+应用点：
+- 消息列表：首次加载历史记录且暂无消息时，渲染若干“气泡骨架”（`frontend/src/components/chat/MessageList.vue`）
+- 侧边栏/收藏列表：加载中渲染“头像 + 昵称”骨架条目（`frontend/src/components/chat/ChatSidebar.vue`、`frontend/src/components/settings/GlobalFavorites.vue`）
+
+组件：
+- 通用骨架组件：`frontend/src/components/common/Skeleton.vue`
+
+### 性能: 消息列表虚拟滚动（Virtual Scrolling）
+**模块:** Chat UI
+为避免长对话渲染过多 DOM 导致滚动卡顿，消息列表改为仅渲染视口可见项。
+
+实现：
+- 依赖：`vue-virtual-scroller`
+- 组件：`frontend/src/components/chat/MessageList.vue` 使用 `DynamicScroller/DynamicScrollerItem` 渲染（保持“查看历史消息/回到底部/新消息提示”等交互一致）
+- 样式：`frontend/src/main.ts` 引入 `vue-virtual-scroller` CSS
+
 ### 媒体消息: 端口策略（全局配置）
 **模块:** Chat UI
 聊天消息中的媒体以 `[path]` 形式出现（`useMessage.sendImage/sendVideo` 发送），前端在展示时需将其拼接为 `http://{imgServer}:{port}/img/Upload/{path}`。
@@ -127,10 +165,15 @@ lastMsg 预览（与后端缓存增强对齐）：
 
 ## 相关文件
 - `frontend/src/components/chat/ChatSidebar.vue`
+- `frontend/src/components/chat/MessageList.vue`
+- `frontend/src/components/chat/ChatMedia.vue`
+- `frontend/src/components/common/Skeleton.vue`
+- `frontend/src/composables/useMessage.ts`
 - `frontend/src/composables/useWebSocket.ts`
 - `frontend/src/views/ChatRoomView.vue`
 - `frontend/src/components/common/PullToRefresh.vue`
 - `frontend/src/stores/message.ts`
+- `frontend/src/types/message.ts`
 - `frontend/src/stores/systemConfig.ts`
 - `frontend/src/components/settings/SystemSettings.vue`
 
@@ -142,3 +185,4 @@ lastMsg 预览（与后端缓存增强对齐）：
 - [202601101526_fix_ws_self_echo_alignment](../../history/2026-01/202601101526_fix_ws_self_echo_alignment/) - 修复 WS 私信回显自己消息方向判定（避免自己消息显示在左侧）
 - [202601102319_image_port_strategy](../../history/2026-01/202601102319_image_port_strategy/) - 聊天/历史消息的图片端口改为配置驱动解析，并在 Settings 提供切换
 - [202601171004_fix_chat_media_dedup](../../history/2026-01/202601171004_fix_chat_media_dedup/) - 修复聊天记录媒体消息偶发重复显示（WS/历史合并语义去重）
+- [202601181746_chat_ux_upgrade](../../history/2026-01/202601181746_chat_ux_upgrade/) - 聊天体验升级：乐观发送/骨架屏/虚拟滚动/ChatMedia

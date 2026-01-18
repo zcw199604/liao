@@ -86,7 +86,7 @@ const handleMouseUp = () => {
   }
 
   if (!isLongPress.value) {
-    // 短按 - 单次匹配（使用连续匹配1次来实现不自动进入聊天的效果）
+    // 短按 - 单次匹配
     handleStartMatch()
   }
 }
@@ -115,7 +115,7 @@ const handleTouchCancel = () => {
 
 // 单次匹配
 const handleStartMatch = () => {
-  const ok = startContinuousMatch(1)
+  const ok = startMatch()
   if (ok) {
     show('正在匹配...')
   }

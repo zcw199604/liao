@@ -1,6 +1,7 @@
+// 消息状态与历史管理：负责聊天消息缓存、去重排序、历史拉取，以及乐观发送状态流转。
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { ChatMessage } from '@/types'
+import type { ChatMessage, SendStatus } from '@/types'
 import * as chatApi from '@/api/chat'
 import { generateCookie } from '@/utils/cookie'
 import { useMediaStore } from '@/stores/media'
@@ -17,6 +18,11 @@ export const useMessageStore = defineStore('message', () => {
 
   // 语义去重窗口：用于合并 WebSocket 推送与历史拉取时，避免同一媒体消息短时间内重复渲染
   const MEDIA_DEDUP_WINDOW_MS = 5_000
+
+  // 乐观发送：回显确认超时窗口（超时后显示“重试”）
+  const OPTIMISTIC_SEND_TIMEOUT_MS = 15_000
+  const OPTIMISTIC_MATCH_WINDOW_MS = 30_000
+  const pendingSendTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
   const parseMessageTime = (timeStr: string): number | null => {
     if (!timeStr) return null
@@ -95,6 +101,14 @@ export const useMessageStore = defineStore('message', () => {
     return `b:${Math.floor(ms / MEDIA_DEDUP_WINDOW_MS)}`
   }
 
+  const normalizeTextForMatch = (input: string): string => {
+    return String(input || '')
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/<[^>]*>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
   const getMessageDedupKey = (msg: ChatMessage): string => {
     // 媒体消息：使用 remotePath + isSelf + 时间桶作为语义去重 key，
     // 避免上游 tid 缺失/不一致时出现“同一张图显示两条”的问题。
@@ -115,17 +129,36 @@ export const useMessageStore = defineStore('message', () => {
     return `fallback:${fromUserId}|${toUserId}|${type}|${time}|${content}`
   }
 
-  // 消息去重：优先基于 tid；tid 缺失时使用内容+时间的兜底 key
+  const getMessageDedupRank = (msg: ChatMessage): number => {
+    // 数值越大越“可信”，在去重 key 冲突时优先保留
+    const hasTid = !!String(msg.tid || '').trim()
+    if (hasTid) return 3
+    if (msg.sendStatus === 'sent') return 2
+    if (msg.sendStatus === 'sending' || msg.sendStatus === 'failed') return 1
+    return 0
+  }
+
+  // 消息去重：优先基于 tid；tid 缺失时使用内容+时间的兜底 key。
+  // 当 key 冲突时，优先保留“更可信”的版本（例如带 tid 的回显消息优先于本地 sending）。
   const deduplicateMessages = (messages: ChatMessage[]): ChatMessage[] => {
-    const seen = new Set<string>()
-    const result: ChatMessage[] = []
+    const bestByKey = new Map<string, ChatMessage>()
+
     for (const msg of messages) {
       const key = getMessageDedupKey(msg)
-      if (seen.has(key)) continue
-      seen.add(key)
-      result.push(msg)
+      const existing = bestByKey.get(key)
+      if (!existing) {
+        bestByKey.set(key, msg)
+        continue
+      }
+
+      const rankA = getMessageDedupRank(existing)
+      const rankB = getMessageDedupRank(msg)
+      if (rankB > rankA) {
+        bestByKey.set(key, msg)
+      }
     }
-    return result
+
+    return Array.from(bestByKey.values())
   }
 
   // 消息排序：按时间（主）+ tid（辅）升序，保证渲染稳定
@@ -182,15 +215,148 @@ export const useMessageStore = defineStore('message', () => {
     return chatHistory.value.get(userId) || []
   }
 
-  const addMessage = (userId: string, message: ChatMessage) => {
-    const messages = chatHistory.value.get(userId) || []
-    const updated = normalizeMessages([...messages, message])
-    chatHistory.value.set(userId, updated)
+  const setMessages = (userId: string, messages: ChatMessage[]) => {
+    const normalized = normalizeMessages(messages)
+    chatHistory.value.set(userId, normalized)
 
-    const minTid = getMinTid(updated)
+    const minTid = getMinTid(normalized)
     if (minTid) {
       firstTidMap.value[userId] = minTid
     }
+  }
+
+  const addMessage = (userId: string, message: ChatMessage) => {
+    const messages = chatHistory.value.get(userId) || []
+    setMessages(userId, [...messages, message])
+  }
+
+  const clearPendingTimer = (clientId: string) => {
+    const t = pendingSendTimers.get(clientId)
+    if (t) {
+      clearTimeout(t)
+      pendingSendTimers.delete(clientId)
+    }
+  }
+
+  const updateMessageByClientId = (
+    userId: string,
+    clientId: string,
+    updater: (msg: ChatMessage) => void,
+    options?: { normalize?: boolean }
+  ): boolean => {
+    const list = getMessages(userId)
+    if (!list.length) return false
+
+    const idx = list.findIndex(m => String(m.clientId || '') === String(clientId))
+    if (idx < 0) return false
+
+    const msg = list[idx]
+    if (!msg) return false
+
+    updater(msg)
+
+    if (options?.normalize !== false) {
+      setMessages(userId, list.slice())
+    }
+
+    return true
+  }
+
+  const startOptimisticTimeout = (userId: string, clientId: string, timeoutMs?: number) => {
+    clearPendingTimer(clientId)
+    const ms = typeof timeoutMs === 'number' ? timeoutMs : OPTIMISTIC_SEND_TIMEOUT_MS
+
+    const t = setTimeout(() => {
+      updateMessageByClientId(
+        userId,
+        clientId,
+        msg => {
+          if (msg.sendStatus !== 'sending') return
+          msg.sendStatus = 'failed'
+          msg.sendError = msg.sendError || '发送超时'
+        },
+        { normalize: true }
+      )
+      pendingSendTimers.delete(clientId)
+    }, ms)
+    // 在 Node 测试环境中避免定时器阻塞进程退出
+    if (typeof (t as any)?.unref === 'function') {
+      ;(t as any).unref()
+    }
+
+    pendingSendTimers.set(clientId, t)
+  }
+
+  const getOptimisticMatchKey = (msg: ChatMessage): { kind: 'media' | 'text'; key: string } => {
+    const mediaPath = getMessageRemoteMediaPath(msg)
+    if (mediaPath) return { kind: 'media', key: mediaPath }
+    return { kind: 'text', key: normalizeTextForMatch(msg.content) }
+  }
+
+  const confirmOutgoingEcho = (userId: string, echoed: ChatMessage): boolean => {
+    if (!echoed?.isSelf) return false
+
+    const list = getMessages(userId)
+    if (!list.length) return false
+
+    const echoedKey = getOptimisticMatchKey(echoed)
+    const echoedTime = parseMessageTime(echoed.time) ?? Date.now()
+
+    let best: { idx: number; score: number; statusRank: number } | null = null
+
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i]
+      if (!m) continue
+      if (!m.isSelf) continue
+      if (!m.clientId) continue
+      if (m.sendStatus !== 'sending' && m.sendStatus !== 'failed') continue
+
+      const mk = getOptimisticMatchKey(m)
+      if (mk.kind !== echoedKey.kind) continue
+      if (mk.key !== echoedKey.key) continue
+
+      const mt = parseMessageTime(m.time) ?? echoedTime
+      const diff = Math.abs(echoedTime - mt)
+      if (diff > OPTIMISTIC_MATCH_WINDOW_MS) continue
+
+      // prefer sending over failed, then smaller time diff, then earlier message
+      const statusRank = m.sendStatus === 'sending' ? 1 : 0
+      const score = -diff
+      if (!best || statusRank > best.statusRank || (statusRank === best.statusRank && score > best.score)) {
+        best = { idx: i, score, statusRank }
+      }
+    }
+
+    if (!best) return false
+
+    const target = list[best.idx]
+    if (!target?.clientId) return false
+
+    clearPendingTimer(target.clientId)
+
+    Object.assign(target, {
+      code: echoed.code,
+      fromuser: echoed.fromuser,
+      touser: echoed.touser,
+      type: echoed.type,
+      content: echoed.content,
+      time: echoed.time,
+      tid: echoed.tid,
+      isSelf: echoed.isSelf,
+      isImage: echoed.isImage,
+      isVideo: echoed.isVideo,
+      isFile: echoed.isFile,
+      imageUrl: echoed.imageUrl,
+      videoUrl: echoed.videoUrl,
+      fileUrl: echoed.fileUrl,
+      segments: echoed.segments,
+      sendStatus: 'sent' as SendStatus,
+      sendError: undefined,
+      optimistic: false
+    })
+
+    setMessages(userId, list.slice())
+    return true
   }
 
   const loadHistory = async (
@@ -362,11 +528,19 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   const clearHistory = (userId: string) => {
+    const existing = chatHistory.value.get(userId) || []
+    for (const msg of existing) {
+      const cid = String(msg?.clientId || '')
+      if (cid) clearPendingTimer(cid)
+    }
     chatHistory.value.delete(userId)
     delete firstTidMap.value[userId]
   }
 
   const resetAll = () => {
+    for (const cid of pendingSendTimers.keys()) {
+      clearPendingTimer(cid)
+    }
     chatHistory.value = new Map()
     isTyping.value = false
     firstTidMap.value = {}
@@ -381,6 +555,10 @@ export const useMessageStore = defineStore('message', () => {
     isLoadingHistory,
     getMessages,
     addMessage,
+    setMessages,
+    updateMessageByClientId,
+    startOptimisticTimeout,
+    confirmOutgoingEcho,
     loadHistory,
     clearHistory,
     resetAll

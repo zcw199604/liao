@@ -85,88 +85,107 @@
     </div>
 
     <!-- 列表内容 -->
-    <PullToRefresh :on-refresh="refreshCurrentTab" class="flex-1 min-h-0">
-      <div 
-        class="h-full overflow-y-auto no-scrollbar px-4 pt-2" 
-        ref="listAreaRef" 
-        @click="closeContextMenu"
-        :style="{ 
-          transform: `translateX(${listTranslateX}px)`, 
-          transition: isAnimating ? 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none' 
-        }"
-      >
-        <div
-          v-for="user in chatStore.displayList"
-          :key="user.id"
-          @click="handleClick(user, $event)"
-          @touchstart="startLongPress(user, $event)"
-          @touchend="endLongPress"
-          @touchmove="cancelLongPress"
-          @mousedown="startLongPress(user, $event)"
-          @mouseup="endLongPress"
-          @mouseleave="cancelLongPress"
-          @contextmenu.prevent="handleContextMenu(user, $event)"
-          class="flex items-center p-4 mb-3 bg-[#18181b] rounded-2xl active:scale-[0.98] transition-transform duration-100 cursor-pointer select-none"
-          :class="{ 'border border-blue-500/30': currentUserId === user.id }"
-        >
-          <!-- 纯色块代替头像 -->
-          <div
-            :class="getColorClass(user.id)"
-            class="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shrink-0"
-          >
-            {{ user.nickname.charAt(0).toUpperCase() }}
-          </div>
-  
-          <!-- 文本信息 -->
-          <div class="ml-4 flex-1 min-w-0">
-            <div class="flex justify-between items-baseline mb-1">
-              <div class="flex items-center gap-2 truncate">
-                <span class="font-bold text-base text-white truncate">{{ user.nickname }}</span>
-                <!-- 性别年龄标签 -->
-                <span 
-                  v-if="user.sex !== '未知' || (user.age && user.age !== '0')"
-                  class="px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1 shrink-0"
-                  :class="user.sex === '男' ? 'bg-blue-500/20 text-blue-400' : (user.sex === '女' ? 'bg-pink-500/20 text-pink-400' : 'bg-gray-500/20 text-gray-400')"
-                >
-                  <i v-if="user.sex === '男'" class="fas fa-mars"></i>
-                  <i v-else-if="user.sex === '女'" class="fas fa-venus"></i>
-                  <span v-if="user.age && user.age !== '0'">{{ user.age }}</span>
-                </span>
-              </div>
-              <span class="text-xs text-gray-500 shrink-0 ml-2">{{ formatTime(user.lastTime || '') }}</span>
-            </div>
-            
-            <div class="flex justify-between items-center">
-              <div class="flex items-center gap-2 min-w-0 flex-1">
-                 <!-- 地址显示 (如果有) -->
-                 <span v-if="user.address && user.address !== '未知' && user.address !== '保密'" class="px-1.5 py-0.5 bg-gray-700/50 rounded text-[10px] text-gray-400 truncate max-w-[80px]">
-                   {{ user.address }}
-                 </span>
-                 <p class="text-sm text-gray-400 truncate flex-1">{{ user.lastMsg }}</p>
-              </div>
-              <!-- 收藏标识 -->
-              <i v-if="user.isFavorite && chatStore.activeTab === 'history'" class="fas fa-star text-xs text-yellow-500 ml-2 shrink-0"></i>
-            </div>
-          </div>
-  
-          <!-- 右侧操作栏 -->
-          <div class="flex flex-col items-end justify-center ml-2 gap-2 relative">
-              <!-- 未读消息数气泡 -->
-              <DraggableBadge
-                v-if="user.unreadCount && user.unreadCount > 0"
-                :count="user.unreadCount"
-                @clear="handleClearUnread(user)"
-              />
-          </div>
-        </div>
-  
-        <!-- 空状态提示 -->
-        <div v-if="!chatStore.displayList || chatStore.displayList.length === 0" class="flex flex-col items-center justify-center mt-20 text-gray-600">
-          <i class="far fa-comments text-5xl mb-4 opacity-50"></i>
-          <p class="text-sm">暂无{{ chatStore.activeTab === 'history' ? '消息' : '收藏' }}</p>
-        </div>
-      </div>
-    </PullToRefresh>
+	    <PullToRefresh :on-refresh="refreshCurrentTab" class="flex-1 min-h-0">
+	      <div 
+	        class="h-full overflow-y-auto no-scrollbar px-4 pt-2" 
+	        ref="listAreaRef" 
+	        @click="closeContextMenu"
+	        :style="{ 
+	          transform: `translateX(${listTranslateX}px)`, 
+	          transition: isAnimating ? 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none' 
+	        }"
+	      >
+	        <!-- 骨架屏：首次加载用户列表时占位，减少跳动 -->
+	        <template v-if="isInitialLoadingUsers && (!chatStore.displayList || chatStore.displayList.length === 0)">
+	          <div v-for="i in 8" :key="'sk-user-' + i" class="flex items-center p-4 mb-3 bg-[#18181b] rounded-2xl">
+	            <Skeleton class="w-12 h-12 rounded-xl" />
+	            <div class="ml-4 flex-1 min-w-0">
+	              <Skeleton class="h-4 w-28 rounded" />
+	              <Skeleton class="h-3 w-44 rounded mt-2" />
+	            </div>
+	            <div class="ml-2 w-10 flex justify-end">
+	              <Skeleton class="h-4 w-6 rounded" />
+	            </div>
+	          </div>
+	        </template>
+
+	        <template v-else>
+	          <div
+	            v-for="user in chatStore.displayList"
+	            :key="user.id"
+	            @click="handleClick(user, $event)"
+	            @touchstart="startLongPress(user, $event)"
+	            @touchend="endLongPress"
+	            @touchmove="cancelLongPress"
+	            @mousedown="startLongPress(user, $event)"
+	            @mouseup="endLongPress"
+	            @mouseleave="cancelLongPress"
+	            @contextmenu.prevent="handleContextMenu(user, $event)"
+	            class="flex items-center p-4 mb-3 bg-[#18181b] rounded-2xl active:scale-[0.98] transition-transform duration-100 cursor-pointer select-none"
+	            :class="{ 'border border-blue-500/30': currentUserId === user.id }"
+	          >
+	            <!-- 纯色块代替头像 -->
+	            <div
+	              :class="getColorClass(user.id)"
+	              class="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shrink-0"
+	            >
+	              {{ user.nickname.charAt(0).toUpperCase() }}
+	            </div>
+	  
+	            <!-- 文本信息 -->
+	            <div class="ml-4 flex-1 min-w-0">
+	              <div class="flex justify-between items-baseline mb-1">
+	                <div class="flex items-center gap-2 truncate">
+	                  <span class="font-bold text-base text-white truncate">{{ user.nickname }}</span>
+	                  <!-- 性别年龄标签 -->
+	                  <span 
+	                    v-if="user.sex !== '未知' || (user.age && user.age !== '0')"
+	                    class="px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1 shrink-0"
+	                    :class="user.sex === '男' ? 'bg-blue-500/20 text-blue-400' : (user.sex === '女' ? 'bg-pink-500/20 text-pink-400' : 'bg-gray-500/20 text-gray-400')"
+	                  >
+	                    <i v-if="user.sex === '男'" class="fas fa-mars"></i>
+	                    <i v-else-if="user.sex === '女'" class="fas fa-venus"></i>
+	                    <span v-if="user.age && user.age !== '0'">{{ user.age }}</span>
+	                  </span>
+	                </div>
+	                <span class="text-xs text-gray-500 shrink-0 ml-2">{{ formatTime(user.lastTime || '') }}</span>
+	              </div>
+	              
+	              <div class="flex justify-between items-center">
+	                <div class="flex items-center gap-2 min-w-0 flex-1">
+	                   <!-- 地址显示 (如果有) -->
+	                   <span v-if="user.address && user.address !== '未知' && user.address !== '保密'" class="px-1.5 py-0.5 bg-gray-700/50 rounded text-[10px] text-gray-400 truncate max-w-[80px]">
+	                     {{ user.address }}
+	                   </span>
+	                   <p class="text-sm text-gray-400 truncate flex-1">{{ user.lastMsg }}</p>
+	                </div>
+	                <!-- 收藏标识 -->
+	                <i v-if="user.isFavorite && chatStore.activeTab === 'history'" class="fas fa-star text-xs text-yellow-500 ml-2 shrink-0"></i>
+	              </div>
+	            </div>
+	  
+	            <!-- 右侧操作栏 -->
+	            <div class="flex flex-col items-end justify-center ml-2 gap-2 relative">
+	                <!-- 未读消息数气泡 -->
+	                <DraggableBadge
+	                  v-if="user.unreadCount && user.unreadCount > 0"
+	                  :count="user.unreadCount"
+	                  @clear="handleClearUnread(user)"
+	                />
+	            </div>
+	          </div>
+	  
+	          <!-- 空状态提示 -->
+	          <div
+	            v-if="(!chatStore.displayList || chatStore.displayList.length === 0) && !isInitialLoadingUsers"
+	            class="flex flex-col items-center justify-center mt-20 text-gray-600"
+	          >
+	            <i class="far fa-comments text-5xl mb-4 opacity-50"></i>
+	            <p class="text-sm">暂无{{ chatStore.activeTab === 'history' ? '消息' : '收藏' }}</p>
+	          </div>
+	        </template>
+	      </div>
+	    </PullToRefresh>
 
     <!-- 上下文菜单 (长按/右键触发) -->
     <div
@@ -265,10 +284,11 @@ import { formatTime } from '@/utils/time'
 import Toast from '@/components/common/Toast.vue'
 import SettingsDrawer from '@/components/settings/SettingsDrawer.vue'
 import Dialog from '@/components/common/Dialog.vue'
-import PullToRefresh from '@/components/common/PullToRefresh.vue'
-import MatchButton from '@/components/chat/MatchButton.vue'
-import MatchOverlay from '@/components/chat/MatchOverlay.vue'
-import DuplicateCheckModal from '@/components/media/DuplicateCheckModal.vue'
+	import PullToRefresh from '@/components/common/PullToRefresh.vue'
+	import Skeleton from '@/components/common/Skeleton.vue'
+	import MatchButton from '@/components/chat/MatchButton.vue'
+	import MatchOverlay from '@/components/chat/MatchOverlay.vue'
+	import DuplicateCheckModal from '@/components/media/DuplicateCheckModal.vue'
 import DraggableBadge from '@/components/common/DraggableBadge.vue'
 import type { User } from '@/types'
 import { deleteUser } from '@/api/chat'
@@ -297,9 +317,10 @@ const showDuplicateCheck = ref(false)
 const settingsMode = ref<'identity' | 'system' | 'favorites'>('identity')
 const showSwitchIdentityDialog = ref(false)
 const showDeleteUserDialog = ref(false)
-const userToDelete = ref<User | null>(null)
-const listAreaRef = ref<HTMLElement | null>(null)
-const isRefreshing = ref(false)
+	const userToDelete = ref<User | null>(null)
+	const listAreaRef = ref<HTMLElement | null>(null)
+	const isRefreshing = ref(false)
+	const isInitialLoadingUsers = ref(false)
 
 // 列表偏移量 (用于跟手滑动)
 const listTranslateX = ref(0)
@@ -617,10 +638,15 @@ onMounted(async () => {
   // 连接WebSocket
   connect()
 
-  // 加载数据
-  if (chatStore.historyUsers.length === 0 && chatStore.favoriteUsers.length === 0) {
-    await loadUsers()
-  }
+	// 加载数据
+	if (chatStore.historyUsers.length === 0 && chatStore.favoriteUsers.length === 0) {
+	  isInitialLoadingUsers.value = true
+	  try {
+	    await loadUsers()
+	  } finally {
+	    isInitialLoadingUsers.value = false
+	  }
+	}
   // 加载全局收藏数据
   if (favoriteStore.allFavorites.length === 0) {
     favoriteStore.loadAllFavorites()

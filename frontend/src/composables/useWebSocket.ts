@@ -1,3 +1,4 @@
+// WebSocket 连接与消息处理：负责连接管理、消息解析入库、以及聊天列表状态同步。
 import { ref } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
@@ -437,17 +438,22 @@ export const useWebSocket = () => {
             : (isSelf ? toUserId : fromUserId)
 
           if (targetUserId) {
-            // WebSocket消息去重 - 基于tid
-            const existingMessages = messageStore.getMessages(targetUserId)
-            const isDuplicate = existingMessages.some(msg =>
-              msg.tid && chatMessage.tid && msg.tid === chatMessage.tid
-            )
-
-            if (isDuplicate) {
-              console.log('WebSocket消息重复（tid已存在），跳过:', chatMessage.tid)
+            // 先尝试将“自己发送的回显”合并到本地乐观消息，避免重复渲染
+            if (isSelf && messageStore.confirmOutgoingEcho(targetUserId, chatMessage)) {
+              console.log('已将回显合并到本地消息:', chatMessage.tid)
             } else {
-              messageStore.addMessage(targetUserId, chatMessage)
-              console.log('消息已添加到聊天历史')
+              // WebSocket消息去重 - 基于tid
+              const existingMessages = messageStore.getMessages(targetUserId)
+              const isDuplicate = existingMessages.some(msg =>
+                msg.tid && chatMessage.tid && msg.tid === chatMessage.tid
+              )
+
+              if (isDuplicate) {
+                console.log('WebSocket消息重复（tid已存在），跳过:', chatMessage.tid)
+              } else {
+                messageStore.addMessage(targetUserId, chatMessage)
+                console.log('消息已添加到聊天历史')
+              }
             }
           }
 
@@ -659,9 +665,11 @@ export const useWebSocket = () => {
       const msg = JSON.stringify(message)
       socket.send(msg)
       console.log('发送消息:', msg)
+      return true
     } else {
       console.error('WebSocket未连接，无法发送消息')
       show('连接已断开，请刷新页面重试')
+      return false
     }
   }
 

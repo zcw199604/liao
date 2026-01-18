@@ -43,6 +43,7 @@
 | 202601181213 | redis_local_cache_only | 修复 | ✅已完成 | [链接](2026-01/202601181213_redis_local_cache_only/) |
 | 202601181444 | mtphoto_album | 功能 | ✅已完成 | [链接](2026-01/202601181444_mtphoto_album/) |
 | 202601181549 | mtphoto_preview_gallery | 修复 | ⚠️待复验 | [链接](2026-01/202601181549_mtphoto_preview_gallery/) |
+| 202601181746 | chat_ux_upgrade | 优化 | ✅已完成 | [链接](2026-01/202601181746_chat_ux_upgrade/) |
 
 ---
 
@@ -85,3 +86,4 @@
 - [202601181213_redis_local_cache_only](2026-01/202601181213_redis_local_cache_only/) - 移除上游列表本地缓存，仅保留 Redis 本地缓存（默认 1 小时）并保留并发增强
 - [202601181444_mtphoto_album](2026-01/202601181444_mtphoto_album/) - 接入 mtPhoto 相册并支持按相册浏览与一键导入上传
 - [202601181549_mtphoto_preview_gallery](2026-01/202601181549_mtphoto_preview_gallery/) - mtPhoto 相册图片预览支持左右切换浏览（切换后导入目标对齐）
+- [202601181746_chat_ux_upgrade](2026-01/202601181746_chat_ux_upgrade/) - 聊天体验优化：乐观发送/骨架屏/虚拟滚动/ChatMedia
