@@ -61,7 +61,7 @@ jobs:
 
       # 6. 企业微信通知 - 成功
       - name: 企业微信通知 - 构建成功
-        if: success() && secrets.WECHAT_CORP_ID != ''
+        if: ${{ success() && secrets.WECHAT_CORP_ID != '' }}
         run: |
           WECHAT_API_URL="${{ secrets.WECHAT_API_URL }}"
           if [ -z "$WECHAT_API_URL" ]; then
@@ -81,7 +81,7 @@ jobs:
 
       # 7. 企业微信通知 - 失败
       - name: 企业微信通知 - 构建失败
-        if: failure() && secrets.WECHAT_CORP_ID != ''
+        if: ${{ failure() && secrets.WECHAT_CORP_ID != '' }}
         run: |
           WECHAT_API_URL="${{ secrets.WECHAT_API_URL }}"
           if [ -z "$WECHAT_API_URL" ]; then

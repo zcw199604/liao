@@ -142,7 +142,7 @@ jobs:
             dist/checksums_${{ env.TAG }}.txt
 
       - name: 企业微信通知 - 发布成功
-        if: success() && secrets.WECHAT_CORP_ID != ''
+        if: ${{ success() && secrets.WECHAT_CORP_ID != '' }}
         run: |
           WECHAT_API_URL="${{ secrets.WECHAT_API_URL }}"
           if [ -z "$WECHAT_API_URL" ]; then
@@ -161,7 +161,7 @@ jobs:
             }"
 
       - name: 企业微信通知 - 发布失败
-        if: failure() && secrets.WECHAT_CORP_ID != ''
+        if: ${{ failure() && secrets.WECHAT_CORP_ID != '' }}
         run: |
           WECHAT_API_URL="${{ secrets.WECHAT_API_URL }}"
           if [ -z "$WECHAT_API_URL" ]; then
