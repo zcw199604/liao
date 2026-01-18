@@ -38,6 +38,8 @@
 | 202601180621 | chat_inline_media | 功能 | ✅已完成 | [链接](2026-01/202601180621_chat_inline_media/) |
 | 202601180647 | fix_chat_list_self_lastmsg_promote | 修复 | ✅已完成 | [链接](2026-01/202601180647_fix_chat_list_self_lastmsg_promote/) |
 | 202601181106 | upstash_redis_url | 功能 | ✅已完成 | [链接](2026-01/202601181106_upstash_redis_url/) |
+| 202601181127 | redis_write_batch_flush | 优化 | ✅已完成 | [链接](2026-01/202601181127_redis_write_batch_flush/) |
+| 202601181156 | userlist_local_cache | 优化 | ✅已完成 | [链接](2026-01/202601181156_userlist_local_cache/) |
 
 ---
 
@@ -75,3 +77,5 @@
 - [202601180621_chat_inline_media](2026-01/202601180621_chat_inline_media/) - 支持聊天消息“文字 + [path] 媒体占位符”混排渲染（图文同显 + lastMsg 摘要）
 - [202601180647_fix_chat_list_self_lastmsg_promote](2026-01/202601180647_fix_chat_list_self_lastmsg_promote/) - 修复聊天页自己发送消息回显时，会话列表未置顶（消息/收藏）且 lastMsg 预览未加 `我: ` 前缀
 - [202601181106_upstash_redis_url](2026-01/202601181106_upstash_redis_url/) - 支持通过 `rediss://` 连接串接入 Upstash Redis（`UPSTASH_REDIS_URL`/`REDIS_URL`）
+- [202601181127_redis_write_batch_flush](2026-01/202601181127_redis_write_batch_flush/) - Redis 写入改为队列批量 flush（默认 60 秒，可配置）
+- [202601181156_userlist_local_cache](2026-01/202601181156_userlist_local_cache/) - 历史/收藏用户列表本地缓存（默认 1 小时）+ 缓存增强并发批量读取

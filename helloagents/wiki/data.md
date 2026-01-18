@@ -181,6 +181,10 @@ Redis 连接方式（优先级从高到低）：
 - `UPSTASH_REDIS_URL` / `REDIS_URL`：支持 `redis://` / `rediss://`（注意 URL 可能包含密码，文档示例必须用占位符）
 - `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB`：传统四元组配置
 
+写入策略（Redis 模式）：
+- L1 本地缓存：立即写入（同实例内读优先命中本地缓存）
+- L2 Redis：写入进入队列，按 `CACHE_REDIS_FLUSH_INTERVAL_SECONDS` 批量 flush（默认 60 秒；同一 key 在间隔内多次更新会合并为最后一次）
+
 **缓存内容**
 - `CachedUserInfo`：`userId/nickname/gender/age/address/updateTime`
 - `CachedLastMessage`：`conversationKey/fromUserId/toUserId/content/type/time/updateTime`
@@ -194,6 +198,7 @@ Redis 连接方式（优先级从高到低）：
 - `CACHE_REDIS_PREFIX`（默认：`user:info:`）
 - `CACHE_REDIS_LASTMSG_PREFIX`（默认：`user:lastmsg:`）
 - `CACHE_REDIS_EXPIRE_DAYS`（默认：7 天）
+- `CACHE_REDIS_FLUSH_INTERVAL_SECONDS`（默认：60 秒；写入队列批量 flush 间隔，用于降低写入频率/成本）
 
 Key 示例：
 - 用户信息：`user:info:{userId}` → JSON（CachedUserInfo）
@@ -203,3 +208,4 @@ Key 示例：
 
 - `ImageCacheService`：缓存 `userId -> local_path[]`，过期 3 小时（用于上传弹窗快速展示）
 - `ForceoutManager`：缓存被 forceout 的 userId 与过期时间戳（5 分钟）
+- `userListCache`：缓存历史/收藏用户列表接口最终响应（默认 1 小时，`CACHE_USERLIST_TTL_SECONDS` 可调）；在保存最后消息缓存（`SaveLastMessage`）时会同步刷新对应列表的 `lastMsg/lastTime`（若命中）

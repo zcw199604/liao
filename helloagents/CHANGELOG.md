@@ -11,6 +11,8 @@
 - 前端/后端：支持聊天消息“文字 + `[path]` 媒体占位符”混排渲染（如 `喜欢吗[2026/...jpg]`），聊天气泡与历史预览可图文同显；会话列表 lastMsg 按“文本截断 + 媒体标签”展示。
 - 后端/前端：新增全局图片端口策略配置（fixed/probe/real）并在 Settings 面板可视化切换；WS/历史聊天媒体（图片/视频）按策略解析端口。
 - 后端：Redis 缓存支持 `UPSTASH_REDIS_URL`/`REDIS_URL`（支持 `rediss://` TLS），便于接入 Upstash Redis。
+- 后端：Redis 写入改为队列批量 flush（默认 60 秒，可通过 `CACHE_REDIS_FLUSH_INTERVAL_SECONDS` 调整），降低 Upstash 按量计费成本。
+- 后端：历史/收藏用户列表增加本地缓存（默认 1 小时，`CACHE_USERLIST_TTL_SECONDS`）并将用户信息/最后消息增强并发批量读取，减少上游调用与接口总耗时。
 - 前端：接入 Vitest + jsdom，并为核心模块补充单元测试（utils/time/string、useToast、request、auth store）。
 - 前端：补充 Vue 组件级测试（Dialog/Toast/Loading/UserList/ChatSidebar）。
 - 前端：补充视图级页面测试（LoginPage/IdentityPicker/ChatListView/ChatRoomView）。

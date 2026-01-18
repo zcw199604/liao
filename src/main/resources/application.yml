@@ -78,9 +78,12 @@ app:
   # 缓存配置: memory 或 redis
   cache:
     type: ${CACHE_TYPE:memory}
+    userlist-ttl-seconds: ${CACHE_USERLIST_TTL_SECONDS:3600}
     redis:
       key-prefix: ${CACHE_REDIS_PREFIX:user:info:}
+      last-message-prefix: ${CACHE_REDIS_LASTMSG_PREFIX:user:lastmsg:}
       expire-days: ${CACHE_REDIS_EXPIRE_DAYS:7}
+      flush-interval-seconds: ${CACHE_REDIS_FLUSH_INTERVAL_SECONDS:60}
   image-server:
     host: ${IMG_SERVER_HOST:149.88.79.98}
     port: ${IMG_SERVER_PORT:9003}

@@ -55,6 +55,46 @@ type MemoryUserInfoCacheService struct {
 	lastMessageByKey map[string]CachedLastMessage
 }
 
+func (s *MemoryUserInfoCacheService) batchGetUserInfo(userIDs []string) map[string]CachedUserInfo {
+	result := make(map[string]CachedUserInfo, len(userIDs))
+	if s == nil || len(userIDs) == 0 {
+		return result
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, uid := range userIDs {
+		uid = strings.TrimSpace(uid)
+		if uid == "" {
+			continue
+		}
+		if info, ok := s.userInfo[uid]; ok {
+			result[uid] = info
+		}
+	}
+	return result
+}
+
+func (s *MemoryUserInfoCacheService) batchGetLastMessages(conversationKeys []string) map[string]CachedLastMessage {
+	result := make(map[string]CachedLastMessage, len(conversationKeys))
+	if s == nil || len(conversationKeys) == 0 {
+		return result
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, key := range conversationKeys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if msg, ok := s.lastMessageByKey[key]; ok {
+			result[key] = msg
+		}
+	}
+	return result
+}
+
 func NewMemoryUserInfoCacheService() *MemoryUserInfoCacheService {
 	return &MemoryUserInfoCacheService{
 		userInfo:         make(map[string]CachedUserInfo),

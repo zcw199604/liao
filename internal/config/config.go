@@ -35,6 +35,8 @@ type Config struct {
 	CacheRedisKeyPrefix         string
 	CacheRedisLastMessagePrefix string
 	CacheRedisExpireDays        int
+	CacheRedisFlushIntervalSec  int
+	CacheUserListTTLSeconds     int
 
 	ImageServerHost        string
 	ImageServerPort        string
@@ -66,6 +68,8 @@ func Load() (Config, error) {
 		CacheRedisKeyPrefix:         getEnv("CACHE_REDIS_PREFIX", "user:info:"),
 		CacheRedisLastMessagePrefix: getEnv("CACHE_REDIS_LASTMSG_PREFIX", "user:lastmsg:"),
 		CacheRedisExpireDays:        getEnvInt("CACHE_REDIS_EXPIRE_DAYS", 7),
+		CacheRedisFlushIntervalSec:  getEnvInt("CACHE_REDIS_FLUSH_INTERVAL_SECONDS", 60),
+		CacheUserListTTLSeconds:     getEnvInt("CACHE_USERLIST_TTL_SECONDS", 3600),
 
 		ImageServerHost:        getEnv("IMG_SERVER_HOST", "149.88.79.98"),
 		ImageServerPort:        getEnv("IMG_SERVER_PORT", "9003"),
@@ -92,6 +96,14 @@ func Load() (Config, error) {
 	case "memory", "redis":
 	default:
 		return Config{}, fmt.Errorf("CACHE_TYPE 非法: %s（仅支持 memory/redis）", cfg.CacheType)
+	}
+
+	if cfg.CacheRedisFlushIntervalSec <= 0 {
+		cfg.CacheRedisFlushIntervalSec = 60
+	}
+
+	if cfg.CacheUserListTTLSeconds <= 0 {
+		cfg.CacheUserListTTLSeconds = 3600
 	}
 
 	return cfg, nil

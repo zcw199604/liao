@@ -30,6 +30,7 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 	resultSize := -1
 	var upstreamStatus int
 	cacheEnabled := a.userInfoCache != nil
+	localCacheHit := false
 
 	_ = r.ParseForm()
 
@@ -51,8 +52,22 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 			"lastMsgMs", lastMsgMs,
 			"totalMs", time.Since(totalStart).Milliseconds(),
 			"cacheEnabled", cacheEnabled,
+			"localCacheHit", localCacheHit,
 		)
 	}()
+
+	if a.userListCache != nil {
+		if cached, size, ok := a.userListCache.GetHistory(myUserID); ok && len(cached) > 0 {
+			localCacheHit = true
+			upstreamStatus = http.StatusOK
+			upstreamMs = 0
+			enrichUserInfoMs = 0
+			lastMsgMs = 0
+			resultSize = size
+			writeText(w, http.StatusOK, string(cached))
+			return
+		}
+	}
 
 	slog.Info("获取历史用户列表请求", "myUserID", myUserID, "vipcode", vipcode, "serverPort", serverPort)
 
@@ -107,18 +122,15 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			enrichUserInfoStart := time.Now()
-			list = a.userInfoCache.BatchEnrichUserInfo(list, idKey)
-			enrichUserInfoMs = time.Since(enrichUserInfoStart).Milliseconds()
-
-			enrichLastMsgStart := time.Now()
-			list = a.userInfoCache.BatchEnrichWithLastMessage(list, myUserID)
-			lastMsgMs = time.Since(enrichLastMsgStart).Milliseconds()
+			enrichUserInfoMs, lastMsgMs = enrichUserListInPlace(a.userInfoCache, list, idKey, myUserID)
 
 			resultSize = len(list)
 
 			enhanced, marshalErr := json.Marshal(list)
 			if marshalErr == nil {
+				if a.userListCache != nil {
+					a.userListCache.SetHistory(myUserID, list, enhanced)
+				}
 				writeText(w, http.StatusOK, string(enhanced))
 				return
 			}
@@ -138,6 +150,7 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 	resultSize := -1
 	var upstreamStatus int
 	cacheEnabled := a.userInfoCache != nil
+	localCacheHit := false
 
 	_ = r.ParseForm()
 
@@ -159,8 +172,22 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 			"lastMsgMs", lastMsgMs,
 			"totalMs", time.Since(totalStart).Milliseconds(),
 			"cacheEnabled", cacheEnabled,
+			"localCacheHit", localCacheHit,
 		)
 	}()
+
+	if a.userListCache != nil {
+		if cached, size, ok := a.userListCache.GetFavorite(myUserID); ok && len(cached) > 0 {
+			localCacheHit = true
+			upstreamStatus = http.StatusOK
+			upstreamMs = 0
+			enrichUserInfoMs = 0
+			lastMsgMs = 0
+			resultSize = size
+			writeText(w, http.StatusOK, string(cached))
+			return
+		}
+	}
 
 	slog.Info("获取收藏用户列表请求", "myUserID", myUserID, "vipcode", vipcode, "serverPort", serverPort)
 
@@ -215,18 +242,15 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 				}
 			}
 
-			enrichUserInfoStart := time.Now()
-			list = a.userInfoCache.BatchEnrichUserInfo(list, idKey)
-			enrichUserInfoMs = time.Since(enrichUserInfoStart).Milliseconds()
-
-			enrichLastMsgStart := time.Now()
-			list = a.userInfoCache.BatchEnrichWithLastMessage(list, myUserID)
-			lastMsgMs = time.Since(enrichLastMsgStart).Milliseconds()
+			enrichUserInfoMs, lastMsgMs = enrichUserListInPlace(a.userInfoCache, list, idKey, myUserID)
 
 			resultSize = len(list)
 
 			enhanced, marshalErr := json.Marshal(list)
 			if marshalErr == nil {
+				if a.userListCache != nil {
+					a.userListCache.SetFavorite(myUserID, list, enhanced)
+				}
 				writeText(w, http.StatusOK, string(enhanced))
 				return
 			}

@@ -14,6 +14,10 @@
 **模块:** User History
 历史/收藏用户列表 `/api/getHistoryUserList`、`/api/getFavoriteUserList` 需要在响应中包含 `lastMsg` 和 `lastTime`，优先使用缓存数据。
 
+#### 本地缓存（减少上游调用）
+- 后端对历史/收藏用户列表的**最终响应**做 L1 内存缓存，默认 TTL 为 1 小时（`CACHE_USERLIST_TTL_SECONDS`，单位秒）。
+- 命中本地缓存时直接返回，跳过上游请求；同时在 WS 保存最后消息（`SaveLastMessage`）时会尝试刷新对应列表缓存的 `lastMsg/lastTime`（若命中该用户）。
+
 #### lastMsg 格式化规则（缓存增强）
 - 文本消息：原文（超长截断）
 - 媒体消息：`[path/to/file.ext]` → `[图片]` / `[视频]` / `[音频]` / `[文件]`（按扩展名识别）
@@ -34,6 +38,7 @@
 - 预期结果2: 记录补充用户基本信息耗时（`enrichUserInfoMs`）
 - 预期结果3: 记录补充最后消息耗时（`lastMsgMs`）
 - 预期结果4: 记录总耗时（`totalMs`）并输出列表大小（`size`）与缓存开关（`cacheEnabled`）
+- 预期结果5: 记录是否命中本地缓存（`localCacheHit`）；当并发增强启用时，`enrichUserInfoMs/lastMsgMs` 为两段批量读取的耗时（并发执行，便于观察瓶颈）
 
 ## API接口
 

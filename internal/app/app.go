@@ -35,6 +35,7 @@ type App struct {
 	imageHash       *ImageHashService
 	mediaUpload     *MediaUploadService
 	userInfoCache   UserInfoCacheService
+	userListCache   *userListCache
 	forceoutManager *ForceoutManager
 	wsManager       *UpstreamWebSocketManager
 
@@ -60,6 +61,11 @@ func New(cfg config.Config) (*App, error) {
 	}
 
 	var userInfoCache UserInfoCacheService
+	userListTTL := time.Duration(cfg.CacheUserListTTLSeconds) * time.Second
+	if userListTTL <= 0 {
+		userListTTL = time.Hour
+	}
+	userListCache := newUserListCache(2000, userListTTL)
 	switch cfg.CacheType {
 	case "redis":
 		userInfoCache, err = NewRedisUserInfoCacheService(
@@ -71,6 +77,7 @@ func New(cfg config.Config) (*App, error) {
 			cfg.CacheRedisKeyPrefix,
 			cfg.CacheRedisLastMessagePrefix,
 			cfg.CacheRedisExpireDays,
+			cfg.CacheRedisFlushIntervalSec,
 		)
 		if err != nil {
 			_ = db.Close()
@@ -79,6 +86,7 @@ func New(cfg config.Config) (*App, error) {
 	default:
 		userInfoCache = NewMemoryUserInfoCacheService()
 	}
+	userInfoCache = wrapUserInfoCacheWithUserList(userInfoCache, userListCache)
 
 	application := &App{
 		cfg:             cfg,
@@ -92,6 +100,7 @@ func New(cfg config.Config) (*App, error) {
 		imageCache:      NewImageCacheService(),
 		imageHash:       NewImageHashService(db),
 		userInfoCache:   userInfoCache,
+		userListCache:   userListCache,
 		forceoutManager: NewForceoutManager(),
 		staticDir:       staticDir,
 	}

@@ -175,6 +175,8 @@ docker run -d -p 8080:8080 \
 - `CACHE_TYPE` - `memory` 或 `redis`（默认 `memory`）
 - `REDIS_URL` / `UPSTASH_REDIS_URL` - Redis 连接串（支持 `redis://` / `rediss://`，优先级高于传统四元组；适合 Upstash）
 - `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB` - Redis 连接参数（当未设置 `REDIS_URL` 时生效；`CACHE_TYPE=redis`）
+- `CACHE_REDIS_FLUSH_INTERVAL_SECONDS` - Redis 写入批量 flush 间隔（秒，默认60；用于降低写入频率/成本）
+- `CACHE_USERLIST_TTL_SECONDS` - 历史/收藏用户列表本地缓存 TTL（秒，默认3600；用于减少上游调用）
 
 ## 开发规范
 

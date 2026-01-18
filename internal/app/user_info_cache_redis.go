@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -19,6 +20,13 @@ type RedisUserInfoCacheService struct {
 	expire            time.Duration
 
 	local *lruCache
+
+	flushInterval time.Duration
+	pendingMu     sync.Mutex
+	pending       map[string][]byte
+	stopCh        chan struct{}
+	wg            sync.WaitGroup
+	closeOnce     sync.Once
 }
 
 func NewRedisUserInfoCacheService(
@@ -30,6 +38,7 @@ func NewRedisUserInfoCacheService(
 	keyPrefix string,
 	lastMessagePrefix string,
 	expireDays int,
+	flushIntervalSeconds int,
 ) (*RedisUserInfoCacheService, error) {
 	if strings.TrimSpace(keyPrefix) == "" {
 		keyPrefix = "user:info:"
@@ -40,6 +49,8 @@ func NewRedisUserInfoCacheService(
 	if expireDays <= 0 {
 		expireDays = 7
 	}
+
+	flushInterval := time.Duration(flushIntervalSeconds) * time.Second
 
 	opts, err := buildRedisOptions(redisURL, host, port, password, db)
 	if err != nil {
@@ -54,13 +65,23 @@ func NewRedisUserInfoCacheService(
 		return nil, fmt.Errorf("连接 Redis 失败: %w", err)
 	}
 
-	return &RedisUserInfoCacheService{
+	svc := &RedisUserInfoCacheService{
 		client:            client,
 		keyPrefix:         keyPrefix,
 		lastMessagePrefix: lastMessagePrefix,
 		expire:            time.Duration(expireDays) * 24 * time.Hour,
+		flushInterval:     flushInterval,
 		local:             newLRUCache(10000, 5*time.Minute),
-	}, nil
+	}
+
+	if svc.flushInterval > 0 {
+		svc.pending = make(map[string][]byte, 1024)
+		svc.stopCh = make(chan struct{})
+		svc.wg.Add(1)
+		go svc.flushLoop()
+	}
+
+	return svc, nil
 }
 
 func buildRedisOptions(redisURL string, host string, port int, password string, db int) (*redis.Options, error) {
@@ -105,7 +126,70 @@ func (s *RedisUserInfoCacheService) Close() error {
 	if s == nil || s.client == nil {
 		return nil
 	}
-	return s.client.Close()
+
+	var err error
+	s.closeOnce.Do(func() {
+		if s.stopCh != nil {
+			close(s.stopCh)
+			s.wg.Wait()
+		} else {
+			s.flushOnce()
+		}
+		err = s.client.Close()
+	})
+	return err
+}
+
+func (s *RedisUserInfoCacheService) flushLoop() {
+	defer s.wg.Done()
+
+	ticker := time.NewTicker(s.flushInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.flushOnce()
+		case <-s.stopCh:
+			// 退出前尽量把最后一批写入刷入 Redis。
+			s.flushOnce()
+			return
+		}
+	}
+}
+
+func (s *RedisUserInfoCacheService) flushOnce() {
+	if s == nil || s.client == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = s.flushPending(ctx)
+}
+
+func (s *RedisUserInfoCacheService) flushPending(ctx context.Context) error {
+	if s == nil || s.client == nil || ctx == nil {
+		return nil
+	}
+
+	s.pendingMu.Lock()
+	if len(s.pending) == 0 {
+		s.pendingMu.Unlock()
+		return nil
+	}
+	// 直接交换 map，避免复制与 clear 带来的额外 O(n) 开销。
+	batch := s.pending
+	s.pending = make(map[string][]byte, 1024)
+	s.pendingMu.Unlock()
+
+	_, err := s.client.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		for key, raw := range batch {
+			pipe.Set(ctx, key, raw, s.expire)
+		}
+		return nil
+	})
+	// 缓存写入为 best-effort：失败时不阻塞主流程，也不重试回灌（避免异常时内存无限增长）。
+	return err
 }
 
 func (s *RedisUserInfoCacheService) SaveUserInfo(info CachedUserInfo) {
@@ -123,8 +207,18 @@ func (s *RedisUserInfoCacheService) SaveUserInfo(info CachedUserInfo) {
 	if err != nil {
 		return
 	}
-	ctx := context.Background()
-	_ = s.client.Set(ctx, s.keyPrefix+userID, raw, s.expire).Err()
+
+	if s.flushInterval <= 0 {
+		ctx := context.Background()
+		_ = s.client.Set(ctx, s.keyPrefix+userID, raw, s.expire).Err()
+		return
+	}
+
+	s.pendingMu.Lock()
+	if s.pending != nil {
+		s.pending[s.keyPrefix+userID] = raw
+	}
+	s.pendingMu.Unlock()
 }
 
 func (s *RedisUserInfoCacheService) GetUserInfo(userID string) *CachedUserInfo {
@@ -219,6 +313,10 @@ func (s *RedisUserInfoCacheService) BatchEnrichUserInfo(userList []map[string]an
 	return userList
 }
 
+func (s *RedisUserInfoCacheService) batchGetUserInfo(userIDs []string) map[string]CachedUserInfo {
+	return s.multiGetUserInfo(userIDs)
+}
+
 func (s *RedisUserInfoCacheService) multiGetUserInfo(userIDs []string) map[string]CachedUserInfo {
 	result := make(map[string]CachedUserInfo, len(userIDs))
 	missing := make([]string, 0, len(userIDs))
@@ -292,8 +390,18 @@ func (s *RedisUserInfoCacheService) SaveLastMessage(message CachedLastMessage) {
 	if err != nil {
 		return
 	}
-	ctx := context.Background()
-	_ = s.client.Set(ctx, s.lastMessagePrefix+message.ConversationKey, raw, s.expire).Err()
+
+	if s.flushInterval <= 0 {
+		ctx := context.Background()
+		_ = s.client.Set(ctx, s.lastMessagePrefix+message.ConversationKey, raw, s.expire).Err()
+		return
+	}
+
+	s.pendingMu.Lock()
+	if s.pending != nil {
+		s.pending[s.lastMessagePrefix+message.ConversationKey] = raw
+	}
+	s.pendingMu.Unlock()
 }
 
 func (s *RedisUserInfoCacheService) GetLastMessage(myUserID, otherUserID string) *CachedLastMessage {
@@ -367,6 +475,10 @@ func (s *RedisUserInfoCacheService) BatchEnrichWithLastMessage(userList []map[st
 		user["lastTime"] = formatTime(msg.Time)
 	}
 	return userList
+}
+
+func (s *RedisUserInfoCacheService) batchGetLastMessages(conversationKeys []string) map[string]CachedLastMessage {
+	return s.multiGetLastMessages(conversationKeys)
 }
 
 func (s *RedisUserInfoCacheService) multiGetLastMessages(conversationKeys []string) map[string]CachedLastMessage {
