@@ -61,8 +61,14 @@ jobs:
 
       # 6. 企业微信通知 - 成功
       - name: 企业微信通知 - 构建成功
-        if: ${{ success() && secrets.WECHAT_CORP_ID != '' }}
+        if: success()
+        env:
+          WECHAT_CORP_ID: ${{ secrets.WECHAT_CORP_ID }}
         run: |
+          if [ -z "$WECHAT_CORP_ID" ]; then
+            echo "未配置企业微信通知，跳过"
+            exit 0
+          fi
           WECHAT_API_URL="${{ secrets.WECHAT_API_URL }}"
           if [ -z "$WECHAT_API_URL" ]; then
             WECHAT_API_URL="https://qyapi.weixin.qq.com"
@@ -81,8 +87,14 @@ jobs:
 
       # 7. 企业微信通知 - 失败
       - name: 企业微信通知 - 构建失败
-        if: ${{ failure() && secrets.WECHAT_CORP_ID != '' }}
+        if: failure()
+        env:
+          WECHAT_CORP_ID: ${{ secrets.WECHAT_CORP_ID }}
         run: |
+          if [ -z "$WECHAT_CORP_ID" ]; then
+            echo "未配置企业微信通知，跳过"
+            exit 0
+          fi
           WECHAT_API_URL="${{ secrets.WECHAT_API_URL }}"
           if [ -z "$WECHAT_API_URL" ]; then
             WECHAT_API_URL="https://qyapi.weixin.qq.com"
