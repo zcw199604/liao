@@ -162,6 +162,7 @@
         :can-upload="previewCanUpload"
         :media-list="mediaStore.allUploadImages"
         @upload="confirmPreviewUpload"
+        @media-change="handlePreviewMediaChange"
       />
     </div>
   </teleport>
@@ -196,6 +197,13 @@ const previewUrl = ref('')
 const previewType = ref<'image' | 'video' | 'file'>('image')
 const previewCanUpload = ref(false)
 const previewTarget = ref<UploadedMedia | null>(null)
+
+const handlePreviewMediaChange = (media: UploadedMedia) => {
+  // 预览切换后同步当前媒体，避免“切换后仍对首张执行上传/重传”等不一致行为。
+  previewTarget.value = media
+  previewUrl.value = media.url
+  previewType.value = media.type
+}
 
 const isAllSelected = computed(() => {
   if (!mediaStore.allUploadImages.length) return false

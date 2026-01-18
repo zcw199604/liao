@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** 上传/重传媒体；记录发送日志；分页查询上传/发送历史；全站媒体库分页；删除与批量删除；历史数据修复（repair）
 - **状态:** ✅稳定
-- **最后更新:** 2026-01-11
+- **最后更新:** 2026-01-18
 
 ## 规范
 
@@ -46,6 +46,10 @@
 提供“上传文件后查重”的能力：
 - MD5 精确命中即返回重复文件信息
 - 无 MD5 命中时，按 pHash 相似度阈值查询相似图片并返回相似度（视频/不可解码文件仅做 MD5 查重）
+
+### 需求: 媒体预览（画廊模式）
+**模块:** Media
+前端 `MediaPreview` 支持传入 `mediaList` 进行左右切换/滑动切换浏览；当预览内部切换当前项时会触发 `media-change` 事件。父组件如提供“上传/重传/导入”等动作，应监听该事件并同步当前目标，避免“切换后仍对首张执行操作”。
 
 ### 需求: 测试覆盖（Go）
 **模块:** Media
@@ -115,6 +119,7 @@
   - `internal/app/user_history_media_handlers_test.go`
 
 ## 变更历史
+- [202601181549_mtphoto_preview_gallery](../../history/2026-01/202601181549_mtphoto_preview_gallery/) - 媒体预览画廊切换时对外同步当前媒体（用于 mtPhoto/全站图片库等场景）
 - [202601072058_fix_delete_media_403](../../history/2026-01/202601072058_fix_delete_media_403/) - 修复删除接口对多种 localPath 形式的兼容性（待复验）
 - [202601071248_go_backend_rewrite](../../history/2026-01/202601071248_go_backend_rewrite/) - Go 后端重构并实现媒体上传/记录/媒体库
 - [202601101607_image_hash_duplicate_check](../../history/2026-01/202601101607_image_hash_duplicate_check/) - 新增媒体查重接口（MD5 + pHash 相似度）

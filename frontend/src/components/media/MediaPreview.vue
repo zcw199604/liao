@@ -178,6 +178,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'update:visible': [value: boolean]
   'upload': []
+  'media-change': [media: UploadedMedia]
 }>()
 
 // 状态管理
@@ -226,6 +227,12 @@ const currentMediaDisplayUrl = computed(() => {
   return `${baseUrl}${sep}_=${mediaReloadSeq.value}`
 })
 
+const emitMediaChange = () => {
+  // 预览面板作为“受控 + 内部索引”混合模式：父组件只负责初始 url，
+  // 但上传/导入等动作往往需要跟随当前预览项变化，因此对外同步一次当前媒体。
+  emit('media-change', currentMedia.value)
+}
+
 const resetMediaLoadState = () => {
   if (mediaRetryTimer) {
     clearTimeout(mediaRetryTimer)
@@ -259,6 +266,7 @@ const next = () => {
   } else {
     currentIndex.value = 0 // 循环
   }
+  emitMediaChange()
 }
 
 const prev = () => {
@@ -268,12 +276,14 @@ const prev = () => {
   } else {
     currentIndex.value = realMediaList.value.length - 1 // 循环
   }
+  emitMediaChange()
 }
 
 const jumpTo = (index: number) => {
   if (index === currentIndex.value) return
   resetZoom()
   currentIndex.value = index
+  emitMediaChange()
 }
 
 const handleKeydown = (e: KeyboardEvent) => {
@@ -467,6 +477,7 @@ watch(() => props.visible, (val) => {
     } else {
       currentIndex.value = 0
     }
+    emitMediaChange()
   } else {
     window.removeEventListener('keydown', handleKeydown)
   }

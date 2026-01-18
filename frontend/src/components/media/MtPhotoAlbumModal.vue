@@ -134,7 +134,9 @@
         :url="previewUrl"
         :type="previewType"
         :can-upload="previewCanUpload"
+        :media-list="previewMediaList"
         @upload="confirmImportUpload"
+        @media-change="handlePreviewMediaChange"
       />
     </div>
   </teleport>
@@ -150,6 +152,7 @@ import { useToast } from '@/composables/useToast'
 import { generateCookie } from '@/utils/cookie'
 import * as mtphotoApi from '@/api/mtphoto'
 import MediaPreview from '@/components/media/MediaPreview.vue'
+import type { UploadedMedia } from '@/types'
 
 const mtPhotoStore = useMtPhotoStore()
 const userStore = useUserStore()
@@ -163,6 +166,7 @@ const showPreview = ref(false)
 const previewUrl = ref('')
 const previewType = ref<'image' | 'video' | 'file'>('image')
 const previewCanUpload = ref(true)
+const previewMediaList = ref<UploadedMedia[]>([])
 const previewMD5 = ref('')
 
 const titleText = computed(() => {
@@ -185,6 +189,7 @@ const close = () => {
   mtPhotoStore.close()
   showPreview.value = false
   previewUrl.value = ''
+  previewMediaList.value = []
   previewMD5.value = ''
 }
 
@@ -203,6 +208,14 @@ const handleMediaClick = async (item: MtPhotoMediaItem) => {
 
   // 图片直接用网关缩略图预览；视频则解析本地路径以便播放
   previewUrl.value = getThumbUrl('h220', item.md5)
+  previewMediaList.value = []
+  if (item.type === 'image') {
+    // 仅在“点图片”时启用画廊模式：左右切换浏览当前已加载的相册图片列表。
+    const list: UploadedMedia[] = mtPhotoStore.mediaItems
+      .filter(m => m.type === 'image')
+      .map(m => ({ url: getThumbUrl('h220', m.md5), type: 'image', md5: m.md5 }))
+    previewMediaList.value = list
+  }
   if (item.type === 'video') {
     try {
       const res = await mtphotoApi.resolveMtPhotoFilePath(item.md5)
@@ -215,6 +228,15 @@ const handleMediaClick = async (item: MtPhotoMediaItem) => {
   }
 
   showPreview.value = true
+}
+
+const handlePreviewMediaChange = (media: UploadedMedia) => {
+  // 预览内部切换后，同步当前媒体，确保“上传此图片”导入的是当前所见内容。
+  previewUrl.value = media.url || previewUrl.value
+  previewType.value = media.type || previewType.value
+  if (media.md5) {
+    previewMD5.value = media.md5
+  }
 }
 
 const confirmImportUpload = async () => {
