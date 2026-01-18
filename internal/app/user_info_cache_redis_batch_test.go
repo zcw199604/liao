@@ -34,6 +34,7 @@ func TestRedisUserInfoCacheService_BatchFlush_DedupLastMessage(t *testing.T) {
 		"user:lastmsg:",
 		7,
 		3600, // 避免自动 ticker 干扰，手动 flush 验证即可
+		3600,
 	)
 	if err != nil {
 		t.Fatalf("new redis cache: %v", err)
@@ -106,6 +107,7 @@ func TestRedisUserInfoCacheService_CloseFlushesPendingWrites(t *testing.T) {
 		"user:lastmsg:",
 		7,
 		3600, // 避免自动 ticker 干扰
+		3600,
 	)
 	if err != nil {
 		t.Fatalf("new redis cache: %v", err)
@@ -176,6 +178,7 @@ func TestRedisUserInfoCacheService_Defaults_NoPanicOnImmediateMode(t *testing.T)
 		"user:lastmsg:",
 		7,
 		0,
+		3600,
 	)
 	if err != nil {
 		t.Fatalf("new redis cache: %v", err)

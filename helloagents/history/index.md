@@ -40,6 +40,7 @@
 | 202601181106 | upstash_redis_url | 功能 | ✅已完成 | [链接](2026-01/202601181106_upstash_redis_url/) |
 | 202601181127 | redis_write_batch_flush | 优化 | ✅已完成 | [链接](2026-01/202601181127_redis_write_batch_flush/) |
 | 202601181156 | userlist_local_cache | 优化 | ✅已完成 | [链接](2026-01/202601181156_userlist_local_cache/) |
+| 202601181213 | redis_local_cache_only | 修复 | ✅已完成 | [链接](2026-01/202601181213_redis_local_cache_only/) |
 
 ---
 
@@ -79,3 +80,4 @@
 - [202601181106_upstash_redis_url](2026-01/202601181106_upstash_redis_url/) - 支持通过 `rediss://` 连接串接入 Upstash Redis（`UPSTASH_REDIS_URL`/`REDIS_URL`）
 - [202601181127_redis_write_batch_flush](2026-01/202601181127_redis_write_batch_flush/) - Redis 写入改为队列批量 flush（默认 60 秒，可配置）
 - [202601181156_userlist_local_cache](2026-01/202601181156_userlist_local_cache/) - 历史/收藏用户列表本地缓存（默认 1 小时）+ 缓存增强并发批量读取
+- [202601181213_redis_local_cache_only](2026-01/202601181213_redis_local_cache_only/) - 移除上游列表本地缓存，仅保留 Redis 本地缓存（默认 1 小时）并保留并发增强

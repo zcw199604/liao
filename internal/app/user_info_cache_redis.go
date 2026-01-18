@@ -39,6 +39,7 @@ func NewRedisUserInfoCacheService(
 	lastMessagePrefix string,
 	expireDays int,
 	flushIntervalSeconds int,
+	localTTLSeconds int,
 ) (*RedisUserInfoCacheService, error) {
 	if strings.TrimSpace(keyPrefix) == "" {
 		keyPrefix = "user:info:"
@@ -51,6 +52,10 @@ func NewRedisUserInfoCacheService(
 	}
 
 	flushInterval := time.Duration(flushIntervalSeconds) * time.Second
+	localTTL := time.Duration(localTTLSeconds) * time.Second
+	if localTTL <= 0 {
+		localTTL = time.Hour
+	}
 
 	opts, err := buildRedisOptions(redisURL, host, port, password, db)
 	if err != nil {
@@ -71,7 +76,7 @@ func NewRedisUserInfoCacheService(
 		lastMessagePrefix: lastMessagePrefix,
 		expire:            time.Duration(expireDays) * 24 * time.Hour,
 		flushInterval:     flushInterval,
-		local:             newLRUCache(10000, 5*time.Minute),
+		local:             newLRUCache(10000, localTTL),
 	}
 
 	if svc.flushInterval > 0 {

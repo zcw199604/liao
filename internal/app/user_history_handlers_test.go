@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
@@ -221,50 +220,5 @@ func TestHandleGetFavoriteUserList_PassthroughWhenCacheDisabled(t *testing.T) {
 	}
 	if got := strings.TrimSpace(rr.Body.String()); got != upstreamBody {
 		t.Fatalf("body=%q, want %q", got, upstreamBody)
-	}
-}
-
-func TestHandleGetHistoryUserList_UsesLocalCacheAndSkipsUpstream(t *testing.T) {
-	called := 0
-	client := &http.Client{
-		Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			called++
-			return newTextResponse(http.StatusInternalServerError, `{"error":"should not call upstream"}`), nil
-		}),
-	}
-
-	listCache := newUserListCache(10, time.Hour)
-	cachedList := []map[string]any{{"id": "u2", "lastMsg": "cached", "lastTime": "t"}}
-	body, err := json.Marshal(cachedList)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	listCache.SetHistory("me", cachedList, body)
-
-	app := &App{httpClient: client, userInfoCache: NewMemoryUserInfoCacheService(), userListCache: listCache}
-
-	form := url.Values{}
-	form.Set("myUserID", "me")
-	req := newURLEncodedRequest(t, http.MethodPost, "http://example.com/api/getHistoryUserList", form)
-	rr := httptest.NewRecorder()
-
-	app.handleGetHistoryUserList(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status=%d, want %d", rr.Code, http.StatusOK)
-	}
-	if called != 0 {
-		t.Fatalf("upstream called=%d, want 0", called)
-	}
-
-	var list []map[string]any
-	if err := json.Unmarshal(rr.Body.Bytes(), &list); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if len(list) != 1 {
-		t.Fatalf("list len=%d, want 1", len(list))
-	}
-	if got, _ := list[0]["lastMsg"].(string); got != "cached" {
-		t.Fatalf("lastMsg=%q, want %q", got, "cached")
 	}
 }

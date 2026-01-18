@@ -36,7 +36,7 @@ type Config struct {
 	CacheRedisLastMessagePrefix string
 	CacheRedisExpireDays        int
 	CacheRedisFlushIntervalSec  int
-	CacheUserListTTLSeconds     int
+	CacheRedisLocalTTLSeconds   int
 
 	ImageServerHost        string
 	ImageServerPort        string
@@ -69,7 +69,7 @@ func Load() (Config, error) {
 		CacheRedisLastMessagePrefix: getEnv("CACHE_REDIS_LASTMSG_PREFIX", "user:lastmsg:"),
 		CacheRedisExpireDays:        getEnvInt("CACHE_REDIS_EXPIRE_DAYS", 7),
 		CacheRedisFlushIntervalSec:  getEnvInt("CACHE_REDIS_FLUSH_INTERVAL_SECONDS", 60),
-		CacheUserListTTLSeconds:     getEnvInt("CACHE_USERLIST_TTL_SECONDS", 3600),
+		CacheRedisLocalTTLSeconds:   getEnvInt("CACHE_REDIS_LOCAL_TTL_SECONDS", 3600),
 
 		ImageServerHost:        getEnv("IMG_SERVER_HOST", "149.88.79.98"),
 		ImageServerPort:        getEnv("IMG_SERVER_PORT", "9003"),
@@ -102,8 +102,8 @@ func Load() (Config, error) {
 		cfg.CacheRedisFlushIntervalSec = 60
 	}
 
-	if cfg.CacheUserListTTLSeconds <= 0 {
-		cfg.CacheUserListTTLSeconds = 3600
+	if cfg.CacheRedisLocalTTLSeconds <= 0 {
+		cfg.CacheRedisLocalTTLSeconds = 3600
 	}
 
 	return cfg, nil

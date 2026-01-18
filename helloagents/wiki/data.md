@@ -199,6 +199,7 @@ Redis 连接方式（优先级从高到低）：
 - `CACHE_REDIS_LASTMSG_PREFIX`（默认：`user:lastmsg:`）
 - `CACHE_REDIS_EXPIRE_DAYS`（默认：7 天）
 - `CACHE_REDIS_FLUSH_INTERVAL_SECONDS`（默认：60 秒；写入队列批量 flush 间隔，用于降低写入频率/成本）
+- `CACHE_REDIS_LOCAL_TTL_SECONDS`（默认：3600 秒；Redis L1 本地缓存 TTL，用于降低读频率）
 
 Key 示例：
 - 用户信息：`user:info:{userId}` → JSON（CachedUserInfo）
@@ -208,4 +209,3 @@ Key 示例：
 
 - `ImageCacheService`：缓存 `userId -> local_path[]`，过期 3 小时（用于上传弹窗快速展示）
 - `ForceoutManager`：缓存被 forceout 的 userId 与过期时间戳（5 分钟）
-- `userListCache`：缓存历史/收藏用户列表接口最终响应（默认 1 小时，`CACHE_USERLIST_TTL_SECONDS` 可调）；在保存最后消息缓存（`SaveLastMessage`）时会同步刷新对应列表的 `lastMsg/lastTime`（若命中）

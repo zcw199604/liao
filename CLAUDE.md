@@ -119,7 +119,7 @@ docker run -d -p 8080:8080 \
 - `REDIS_URL` / `UPSTASH_REDIS_URL` - Redis 连接串（支持 `redis://` / `rediss://`；适合 Upstash，优先级最高）
 - `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB` - Redis 连接参数（当未设置 `REDIS_URL` 时生效；`CACHE_TYPE=redis`）
 - `CACHE_REDIS_FLUSH_INTERVAL_SECONDS` - Redis 写入批量 flush 间隔（秒，默认60；用于降低写入频率/成本）
-- `CACHE_USERLIST_TTL_SECONDS` - 历史/收藏用户列表本地缓存 TTL（秒，默认3600；用于减少上游调用）
+- `CACHE_REDIS_LOCAL_TTL_SECONDS` - Redis L1 本地缓存 TTL（秒，默认3600；用于降低 Redis 读频率/提升响应速度）
 
 **说明**：
 - `src/main/resources/application.yml` 为历史配置约定文件（Go 运行时不读取该文件），用于记录环境变量名与默认值对齐规则。
