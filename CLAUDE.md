@@ -116,7 +116,8 @@ docker run -d -p 8080:8080 \
 - `SERVER_PORT` - 服务端口（默认8080）
 - `TOKEN_EXPIRE_HOURS` - Token过期时间（默认24小时）
 - `CACHE_TYPE` - `memory` / `redis`（默认 `memory`）
-- `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB` - Redis 连接参数（当 `CACHE_TYPE=redis`）
+- `REDIS_URL` / `UPSTASH_REDIS_URL` - Redis 连接串（支持 `redis://` / `rediss://`；适合 Upstash，优先级最高）
+- `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB` - Redis 连接参数（当未设置 `REDIS_URL` 时生效；`CACHE_TYPE=redis`）
 
 **说明**：
 - `src/main/resources/application.yml` 为历史配置约定文件（Go 运行时不读取该文件），用于记录环境变量名与默认值对齐规则。

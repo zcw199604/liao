@@ -22,6 +22,7 @@ type RedisUserInfoCacheService struct {
 }
 
 func NewRedisUserInfoCacheService(
+	redisURL string,
 	host string,
 	port int,
 	password string,
@@ -30,11 +31,6 @@ func NewRedisUserInfoCacheService(
 	lastMessagePrefix string,
 	expireDays int,
 ) (*RedisUserInfoCacheService, error) {
-	addr := fmt.Sprintf("%s:%d", strings.TrimSpace(host), port)
-	if strings.HasPrefix(addr, ":") {
-		addr = "localhost" + addr
-	}
-
 	if strings.TrimSpace(keyPrefix) == "" {
 		keyPrefix = "user:info:"
 	}
@@ -45,15 +41,11 @@ func NewRedisUserInfoCacheService(
 		expireDays = 7
 	}
 
-	client := redis.NewClient(&redis.Options{
-		Addr:         addr,
-		Password:     password,
-		DB:           db,
-		DialTimeout:  5 * time.Second,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
-		PoolSize:     8,
-	})
+	opts, err := buildRedisOptions(redisURL, host, port, password, db)
+	if err != nil {
+		return nil, err
+	}
+	client := redis.NewClient(opts)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -69,6 +61,44 @@ func NewRedisUserInfoCacheService(
 		expire:            time.Duration(expireDays) * 24 * time.Hour,
 		local:             newLRUCache(10000, 5*time.Minute),
 	}, nil
+}
+
+func buildRedisOptions(redisURL string, host string, port int, password string, db int) (*redis.Options, error) {
+	candidate := strings.TrimSpace(redisURL)
+	if candidate == "" {
+		// 兼容：允许把 REDIS_HOST 直接设置为 redis:// 或 rediss:// 连接串。
+		trimmedHost := strings.TrimSpace(host)
+		if strings.HasPrefix(trimmedHost, "redis://") || strings.HasPrefix(trimmedHost, "rediss://") {
+			candidate = trimmedHost
+		}
+	}
+
+	var opts *redis.Options
+	if candidate != "" {
+		parsed, err := redis.ParseURL(candidate)
+		if err != nil {
+			// 解析错误可能包含原始 URL（含密码），这里避免泄露敏感信息。
+			return nil, fmt.Errorf("解析 Redis URL 失败（请检查是否为 redis:// 或 rediss:// 格式）")
+		}
+		opts = parsed
+	} else {
+		addr := fmt.Sprintf("%s:%d", strings.TrimSpace(host), port)
+		if strings.HasPrefix(addr, ":") {
+			addr = "localhost" + addr
+		}
+		opts = &redis.Options{
+			Addr:     addr,
+			Password: password,
+			DB:       db,
+		}
+	}
+
+	// 统一连接参数，避免不同来源（URL/host）导致行为不一致。
+	opts.DialTimeout = 5 * time.Second
+	opts.ReadTimeout = 5 * time.Second
+	opts.WriteTimeout = 5 * time.Second
+	opts.PoolSize = 8
+	return opts, nil
 }
 
 func (s *RedisUserInfoCacheService) Close() error {
@@ -393,4 +423,3 @@ func (s *RedisUserInfoCacheService) multiGetLastMessages(conversationKeys []stri
 
 	return result
 }
-

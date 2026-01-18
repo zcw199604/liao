@@ -172,10 +172,14 @@
 
 ### 2.1 用户信息缓存（UserInfoCacheService）
 
-接口：`com.zcw.service.UserInfoCacheService`  
+接口：`internal/app.UserInfoCacheService`  
 实现：
-- 内存：`com.zcw.service.impl.MemoryUserInfoCacheService`（默认启用，`app.cache.type=memory` 或未配置）
-- Redis：`com.zcw.service.impl.RedisUserInfoCacheService`（`app.cache.type=redis`）
+- 内存：`internal/app.MemoryUserInfoCacheService`（默认启用，`CACHE_TYPE=memory` 或未配置）
+- Redis：`internal/app.RedisUserInfoCacheService`（`CACHE_TYPE=redis`）
+
+Redis 连接方式（优先级从高到低）：
+- `UPSTASH_REDIS_URL` / `REDIS_URL`：支持 `redis://` / `rediss://`（注意 URL 可能包含密码，文档示例必须用占位符）
+- `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB`：传统四元组配置
 
 **缓存内容**
 - `CachedUserInfo`：`userId/nickname/gender/age/address/updateTime`
@@ -187,9 +191,9 @@
 ### 2.2 Redis Key 约定（当启用 Redis 模式）
 
 由 `RedisUserInfoCacheService` 读取配置：
-- `app.cache.redis.key-prefix`（默认：`user:info:`）
-- `app.cache.redis.last-message-prefix`（默认：`user:lastmsg:`）
-- `app.cache.redis.expire-days`（默认：7 天）
+- `CACHE_REDIS_PREFIX`（默认：`user:info:`）
+- `CACHE_REDIS_LASTMSG_PREFIX`（默认：`user:lastmsg:`）
+- `CACHE_REDIS_EXPIRE_DAYS`（默认：7 天）
 
 Key 示例：
 - 用户信息：`user:info:{userId}` → JSON（CachedUserInfo）

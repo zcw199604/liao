@@ -37,6 +37,7 @@
 | 202601171351 | fix_spa_refresh_404 | 修复 | ✅已完成 | [链接](2026-01/202601171351_fix_spa_refresh_404/) |
 | 202601180621 | chat_inline_media | 功能 | ✅已完成 | [链接](2026-01/202601180621_chat_inline_media/) |
 | 202601180647 | fix_chat_list_self_lastmsg_promote | 修复 | ✅已完成 | [链接](2026-01/202601180647_fix_chat_list_self_lastmsg_promote/) |
+| 202601181106 | upstash_redis_url | 功能 | ✅已完成 | [链接](2026-01/202601181106_upstash_redis_url/) |
 
 ---
 
@@ -73,3 +74,4 @@
 - [202601171351_fix_spa_refresh_404](2026-01/202601171351_fix_spa_refresh_404/) - 修复 SPA 路由在 list/chat 页面刷新 404（Go 静态回退通用化）
 - [202601180621_chat_inline_media](2026-01/202601180621_chat_inline_media/) - 支持聊天消息“文字 + [path] 媒体占位符”混排渲染（图文同显 + lastMsg 摘要）
 - [202601180647_fix_chat_list_self_lastmsg_promote](2026-01/202601180647_fix_chat_list_self_lastmsg_promote/) - 修复聊天页自己发送消息回显时，会话列表未置顶（消息/收藏）且 lastMsg 预览未加 `我: ` 前缀
+- [202601181106_upstash_redis_url](2026-01/202601181106_upstash_redis_url/) - 支持通过 `rediss://` 连接串接入 Upstash Redis（`UPSTASH_REDIS_URL`/`REDIS_URL`）

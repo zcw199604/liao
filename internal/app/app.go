@@ -24,7 +24,7 @@ type App struct {
 	httpClient *http.Client
 	jwt        *JWTService
 
-	systemConfig     *SystemConfigService
+	systemConfig      *SystemConfigService
 	imagePortResolver *ImagePortResolver
 
 	identityService *IdentityService
@@ -63,6 +63,7 @@ func New(cfg config.Config) (*App, error) {
 	switch cfg.CacheType {
 	case "redis":
 		userInfoCache, err = NewRedisUserInfoCacheService(
+			cfg.RedisURL,
 			cfg.RedisHost,
 			cfg.RedisPort,
 			cfg.RedisPassword,
@@ -80,10 +81,10 @@ func New(cfg config.Config) (*App, error) {
 	}
 
 	application := &App{
-		cfg:       cfg,
-		db:        db,
-		httpClient: &http.Client{Timeout: 15 * time.Second},
-		jwt:       NewJWTService(cfg.JWTSecret, cfg.TokenExpireHours),
+		cfg:             cfg,
+		db:              db,
+		httpClient:      &http.Client{Timeout: 15 * time.Second},
+		jwt:             NewJWTService(cfg.JWTSecret, cfg.TokenExpireHours),
 		identityService: NewIdentityService(db),
 		favoriteService: NewFavoriteService(db),
 		fileStorage:     NewFileStorageService(db),
@@ -92,7 +93,7 @@ func New(cfg config.Config) (*App, error) {
 		imageHash:       NewImageHashService(db),
 		userInfoCache:   userInfoCache,
 		forceoutManager: NewForceoutManager(),
-		staticDir: staticDir,
+		staticDir:       staticDir,
 	}
 	application.systemConfig = NewSystemConfigService(db)
 	application.imagePortResolver = NewImagePortResolver(application.httpClient)

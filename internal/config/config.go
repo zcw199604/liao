@@ -17,6 +17,10 @@ type Config struct {
 	DBUsername string
 	DBPassword string
 
+	// RedisURL 支持通过完整连接串配置（例如 Upstash 的 rediss://...）。
+	// 优先级高于 REDIS_HOST/REDIS_PORT/REDIS_PASSWORD/REDIS_DB。
+	RedisURL string
+
 	RedisHost     string
 	RedisPort     int
 	RedisPassword string
@@ -32,8 +36,8 @@ type Config struct {
 	CacheRedisLastMessagePrefix string
 	CacheRedisExpireDays        int
 
-	ImageServerHost       string
-	ImageServerPort       string
+	ImageServerHost        string
+	ImageServerPort        string
 	ImageServerUpstreamURL string
 }
 
@@ -44,6 +48,8 @@ func Load() (Config, error) {
 		DBURL:      getEnv("DB_URL", "jdbc:mysql://10.10.10.90:3306/hot_img?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true"),
 		DBUsername: getEnv("DB_USERNAME", "root"),
 		DBPassword: getEnv("DB_PASSWORD", "123456"),
+
+		RedisURL: getEnvOptional2("UPSTASH_REDIS_URL", "REDIS_URL"),
 
 		RedisHost:     getEnv("REDIS_HOST", "localhost"),
 		RedisPort:     getEnvInt("REDIS_PORT", 6379),
@@ -103,6 +109,13 @@ func getEnv(key, defaultValue string) string {
 	return val
 }
 
+func getEnvOptional2(key1, key2 string) string {
+	if v := strings.TrimSpace(os.Getenv(key1)); v != "" {
+		return v
+	}
+	return strings.TrimSpace(os.Getenv(key2))
+}
+
 func getEnvInt(key string, defaultValue int) int {
 	val := strings.TrimSpace(os.Getenv(key))
 	if val == "" {
@@ -158,4 +171,3 @@ func ParseJDBCMySQLURL(jdbcURL string) (host string, port int, database string, 
 
 	return host, port, database, u.Query(), nil
 }
-

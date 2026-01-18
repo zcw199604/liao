@@ -173,7 +173,8 @@ docker run -d -p 8080:8080 \
 - `TOKEN_EXPIRE_HOURS` - Token过期时间（默认24小时）
 - `WEBSOCKET_UPSTREAM_URL` - 上游 WebSocket 地址降级值（默认 `ws://localhost:9999`；正常情况会动态获取）
 - `CACHE_TYPE` - `memory` 或 `redis`（默认 `memory`）
-- `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB` - Redis 连接参数（当 `CACHE_TYPE=redis`）
+- `REDIS_URL` / `UPSTASH_REDIS_URL` - Redis 连接串（支持 `redis://` / `rediss://`，优先级高于传统四元组；适合 Upstash）
+- `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB` - Redis 连接参数（当未设置 `REDIS_URL` 时生效；`CACHE_TYPE=redis`）
 
 ## 开发规范
 
