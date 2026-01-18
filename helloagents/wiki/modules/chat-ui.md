@@ -186,3 +186,6 @@ lastMsg 预览（与后端缓存增强对齐）：
 - [202601102319_image_port_strategy](../../history/2026-01/202601102319_image_port_strategy/) - 聊天/历史消息的图片端口改为配置驱动解析，并在 Settings 提供切换
 - [202601171004_fix_chat_media_dedup](../../history/2026-01/202601171004_fix_chat_media_dedup/) - 修复聊天记录媒体消息偶发重复显示（WS/历史合并语义去重）
 - [202601181746_chat_ux_upgrade](../../history/2026-01/202601181746_chat_ux_upgrade/) - 聊天体验升级：乐观发送/骨架屏/虚拟滚动/ChatMedia
+## 匹配行为
+
+- 聊天侧边栏的匹配按钮（`MatchButton`）点击后调用 `startContinuousMatch(1)`，匹配成功不会自动进入聊天；需在 `MatchOverlay` 中手动点击“进入聊天”。

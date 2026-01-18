@@ -57,7 +57,7 @@ import { useChat } from '@/composables/useChat'
 import { useToast } from '@/composables/useToast'
 
 const chatStore = useChatStore()
-const { startMatch, startContinuousMatch, cancelMatch, handleAutoMatch } = useChat()
+const { startContinuousMatch, cancelMatch, handleAutoMatch } = useChat()
 const { show } = useToast()
 
 const showMenu = ref(false)
@@ -115,7 +115,7 @@ const handleTouchCancel = () => {
 
 // 单次匹配
 const handleStartMatch = () => {
-  const ok = startMatch()
+  const ok = startContinuousMatch(1)
   if (ok) {
     show('正在匹配...')
   }
