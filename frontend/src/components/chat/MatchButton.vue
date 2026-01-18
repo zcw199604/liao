@@ -23,10 +23,10 @@
     >
       <div class="flex items-center">
         <i class="fas fa-stop mr-2"></i>
-        <span v-if="!chatStore.continuousMatchConfig.enabled">取消匹配</span>
+        <span v-if="!chatStore.continuousMatchConfig.enabled || chatStore.continuousMatchConfig.total === 1">取消匹配</span>
         <span v-else>取消连续匹配</span>
       </div>
-      <span v-if="chatStore.continuousMatchConfig.enabled" class="text-xs mt-1 opacity-90">
+      <span v-if="chatStore.continuousMatchConfig.enabled && chatStore.continuousMatchConfig.total > 1" class="text-xs mt-1 opacity-90">
         第 {{ chatStore.continuousMatchConfig.current }}/{{ chatStore.continuousMatchConfig.total }} 次
       </span>
     </button>
@@ -86,7 +86,7 @@ const handleMouseUp = () => {
   }
 
   if (!isLongPress.value) {
-    // 短按 - 单次匹配
+    // 短按 - 单次匹配（使用连续匹配1次来实现不自动进入聊天的效果）
     handleStartMatch()
   }
 }
@@ -115,7 +115,7 @@ const handleTouchCancel = () => {
 
 // 单次匹配
 const handleStartMatch = () => {
-  const ok = startMatch()
+  const ok = startContinuousMatch(1)
   if (ok) {
     show('正在匹配...')
   }
