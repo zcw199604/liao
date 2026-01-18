@@ -43,20 +43,51 @@
                  {{ formatTime(msg.time) }}
                </div>
                
-               <div class="msg-bubble shadow-sm text-sm max-w-[85%]" :class="msg.isSelf ? 'msg-right' : 'msg-left'">
-                  <!-- 文本 -->
-                  <div v-if="!msg.isImage && !msg.isVideo && !msg.isFile" v-html="parseEmoji(msg.content, emojiMap)"></div>
-                  
-                  <!-- 图片 -->
-                  <div v-if="msg.isImage" class="mt-1">
-                    <img :src="getMediaUrl(msg.imageUrl || msg.content || '')" class="rounded-lg max-w-full max-h-[300px] object-cover bg-gray-900/50 block" />
-                  </div>
+	               <div class="msg-bubble shadow-sm text-sm max-w-[85%]" :class="msg.isSelf ? 'msg-right' : 'msg-left'">
+	                  <template v-if="msg.segments && msg.segments.length">
+	                    <div class="flex flex-col gap-2">
+	                      <template v-for="(seg, idx) in msg.segments" :key="idx">
+	                        <div v-if="seg.kind === 'text'" v-html="parseEmoji(seg.text, emojiMap)"></div>
 
-                  <!-- 视频 -->
-                  <div v-if="msg.isVideo" class="mt-1">
-                     <video :src="getMediaUrl(msg.videoUrl || msg.content || '')" controls class="rounded-lg max-w-full max-h-[300px] bg-black block"></video>
-                  </div>
-               </div>
+	                        <div v-else-if="seg.kind === 'image'" class="mt-1">
+	                          <img :src="getMediaUrl(seg.url)" class="rounded-lg max-w-full max-h-[300px] object-cover bg-gray-900/50 block" />
+	                        </div>
+
+	                        <div v-else-if="seg.kind === 'video'" class="mt-1">
+	                          <video :src="getMediaUrl(seg.url)" controls class="rounded-lg max-w-full max-h-[300px] bg-black block"></video>
+	                        </div>
+
+	                        <div v-else-if="seg.kind === 'file'" class="mt-1">
+	                          <a :href="getMediaUrl(seg.url)" target="_blank" rel="noopener" class="text-indigo-300 underline break-all">
+	                            {{ seg.path || '文件' }}
+	                          </a>
+	                        </div>
+	                      </template>
+	                    </div>
+	                  </template>
+
+	                  <template v-else>
+	                    <!-- 文本 -->
+	                    <div v-if="!msg.isImage && !msg.isVideo && !msg.isFile" v-html="parseEmoji(msg.content, emojiMap)"></div>
+	                    
+	                    <!-- 图片 -->
+	                    <div v-else-if="msg.isImage" class="mt-1">
+	                      <img :src="getMediaUrl(msg.imageUrl || msg.content || '')" class="rounded-lg max-w-full max-h-[300px] object-cover bg-gray-900/50 block" />
+	                    </div>
+
+	                    <!-- 视频 -->
+	                    <div v-else-if="msg.isVideo" class="mt-1">
+	                      <video :src="getMediaUrl(msg.videoUrl || msg.content || '')" controls class="rounded-lg max-w-full max-h-[300px] bg-black block"></video>
+	                    </div>
+
+	                    <!-- 文件 -->
+	                    <div v-else-if="msg.isFile" class="mt-1">
+	                      <a :href="getMediaUrl(msg.fileUrl || msg.content || '')" target="_blank" rel="noopener" class="text-indigo-300 underline break-all">
+	                        {{ msg.fileUrl || msg.content || '文件' }}
+	                      </a>
+	                    </div>
+	                  </template>
+	               </div>
             </div>
          </template>
       </div>
@@ -83,14 +114,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
-import { useIdentityStore } from '@/stores/identity'
-import * as chatApi from '@/api/chat'
-import type { ChatMessage } from '@/types'
-import { formatTime } from '@/utils/time'
-import { parseEmoji } from '@/utils/string'
-import { emojiMap } from '@/constants/emoji'
-import { useUpload } from '@/composables/useUpload'
+	import { ref, watch, nextTick } from 'vue'
+	import { useIdentityStore } from '@/stores/identity'
+	import { useMediaStore } from '@/stores/media'
+	import { useSystemConfigStore } from '@/stores/systemConfig'
+	import * as chatApi from '@/api/chat'
+	import type { ChatMessage } from '@/types'
+	import { formatTime } from '@/utils/time'
+	import { parseEmoji } from '@/utils/string'
+	import { emojiMap } from '@/constants/emoji'
+	import { useUpload } from '@/composables/useUpload'
+	import { getSegmentsMeta, parseMessageSegments } from '@/utils/messageSegments'
 
 const props = defineProps<{
   visible: boolean
@@ -104,8 +138,10 @@ const emit = defineEmits<{
   (e: 'switch'): void
 }>()
 
-const identityStore = useIdentityStore()
-const { getMediaUrl } = useUpload()
+	const identityStore = useIdentityStore()
+	const mediaStore = useMediaStore()
+	const systemConfigStore = useSystemConfigStore()
+	const { getMediaUrl } = useUpload()
 
 const messages = ref<ChatMessage[]>([])
 const loading = ref(false)
@@ -143,55 +179,61 @@ const loadHistory = async () => {
       userAgent
     )
 
-    // Handle JSON response (new format)
-    if (res && res.code === 0 && Array.isArray(res.contents_list)) {
-        const mapped: ChatMessage[] = res.contents_list.reverse().map((msg: any) => {
-          const rawContent = String(msg?.content || '')
-          const msgTid = String(msg?.Tid || msg?.tid || '')
-          const msgTime = String(msg?.time || '')
-          const isSelf = String(msg?.id || '') !== props.targetUserId 
-          
-          let content = rawContent
-          let type = 'text'
-          
-          if (rawContent.startsWith('[') && rawContent.endsWith(']')) {
-             if (emojiMap[rawContent]) {
-               type = 'text'
-             } else {
-               const path = rawContent.substring(1, rawContent.length - 1)
-               const isVideo = path.match(/\.(mp4|mov|avi)$/i)
-               const isImage = path.match(/\.(jpg|jpeg|png|gif|webp)$/i)
-               
-               if (isVideo) type = 'video'
-               else if (isImage) type = 'image'
-               else type = 'file'
-             }
-          }
-          
-          return {
-             code: 0,
-             tid: msgTid,
-             fromuser: {
-                id: String(msg?.id || ''),
-                name: isSelf ? '我' : (props.targetUserName || '对方'),
-                nickname: isSelf ? '我' : (props.targetUserName || '对方'),
-                sex: '未知',
-                ip: ''
-             },
-             content,
-             time: msgTime,
-             isSelf: String(msg?.id || '') !== props.targetUserId,
-             type,
-             isImage: type === 'image',
-             isVideo: type === 'video',
-             isFile: type === 'file',
-             imageUrl: type === 'image' ? content : '',
-             videoUrl: type === 'video' ? content : '',
-             fileUrl: type === 'file' ? content : ''
-          }
-        })
-        messages.value = mapped
-    }
+	    // Handle JSON response (new format)
+	    if (res && res.code === 0 && Array.isArray(res.contents_list)) {
+	        if (!mediaStore.imgServer) {
+	          try {
+	            await mediaStore.loadImgServer()
+	          } catch {
+	            // ignore
+	          }
+	        }
+	        if (!systemConfigStore.loaded) {
+	          await systemConfigStore.loadSystemConfig()
+	        }
+
+	        const resolveMediaUrl = async (path: string): Promise<string> => {
+	          if (!mediaStore.imgServer) return ''
+	          const port = await systemConfigStore.resolveImagePort(path, mediaStore.imgServer)
+	          return `http://${mediaStore.imgServer}:${port}/img/Upload/${path}`
+	        }
+
+	        const list = res.contents_list.slice().reverse()
+	        const mapped: ChatMessage[] = await Promise.all(list.map(async (msg: any) => {
+	          const rawContent = String(msg?.content || '')
+	          const msgTid = String(msg?.Tid || msg?.tid || '')
+	          const msgTime = String(msg?.time || '')
+	          const isSelf = String(msg?.id || '') !== props.targetUserId 
+	          const segments = await parseMessageSegments(rawContent, { emojiMap, resolveMediaUrl })
+	          const meta = getSegmentsMeta(segments)
+	          const type = meta.hasImage ? 'image' : meta.hasVideo ? 'video' : meta.hasFile ? 'file' : 'text'
+	          
+	          return {
+	             code: 0,
+	             tid: msgTid,
+	             fromuser: {
+	                id: String(msg?.id || ''),
+	                name: isSelf ? '我' : (props.targetUserName || '对方'),
+	                nickname: isSelf ? '我' : (props.targetUserName || '对方'),
+	                sex: '未知',
+	                ip: ''
+	             },
+	             // Keep raw content; media URLs live in segments/imageUrl/videoUrl/fileUrl.
+	             content: rawContent,
+	             time: msgTime,
+	             isSelf,
+	             type,
+	             isImage: meta.hasImage,
+	             isVideo: meta.hasVideo,
+	             isFile: meta.hasFile,
+	             imageUrl: meta.imageUrl,
+	             videoUrl: meta.videoUrl,
+	             fileUrl: meta.fileUrl,
+	             segments
+	          }
+	        }))
+	        messages.value = mapped
+	    }
     // Handle XML response (legacy format)
     else if (res && (typeof res === 'string' || typeof res.data === 'string')) {
        const xmlStr = typeof res === 'string' ? res : res.data

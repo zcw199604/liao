@@ -35,6 +35,7 @@
 | 202601120630 | fix_lastmsg_emoji_preview | 修复 | ⚠️待复验 | [链接](2026-01/202601120630_fix_lastmsg_emoji_preview/) |
 | 202601171004 | fix_chat_media_dedup | 修复 | ✅已完成 | [链接](2026-01/202601171004_fix_chat_media_dedup/) |
 | 202601171351 | fix_spa_refresh_404 | 修复 | ✅已完成 | [链接](2026-01/202601171351_fix_spa_refresh_404/) |
+| 202601180621 | chat_inline_media | 功能 | ✅已完成 | [链接](2026-01/202601180621_chat_inline_media/) |
 
 ---
 
@@ -69,3 +70,4 @@
 - [202601120630_fix_lastmsg_emoji_preview](2026-01/202601120630_fix_lastmsg_emoji_preview/) - 修复会话列表 lastMsg 预览将表情文本（如 `[doge]`）误识别为 `[文件]`
 - [202601171004_fix_chat_media_dedup](2026-01/202601171004_fix_chat_media_dedup/) - 修复聊天记录媒体消息偶发重复显示（WS 推送与历史拉取合并语义去重）
 - [202601171351_fix_spa_refresh_404](2026-01/202601171351_fix_spa_refresh_404/) - 修复 SPA 路由在 list/chat 页面刷新 404（Go 静态回退通用化）
+- [202601180621_chat_inline_media](2026-01/202601180621_chat_inline_media/) - 支持聊天消息“文字 + [path] 媒体占位符”混排渲染（图文同显 + lastMsg 摘要）

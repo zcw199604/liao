@@ -6,7 +6,7 @@ import { generateCookie } from '@/utils/cookie'
 import { useMediaStore } from '@/stores/media'
 import { useSystemConfigStore } from '@/stores/systemConfig'
 import { emojiMap } from '@/constants/emoji'
-import { isImageFile, isVideoFile } from '@/utils/file'
+import { getSegmentsMeta, parseMessageSegments } from '@/utils/messageSegments'
 
 export const useMessageStore = defineStore('message', () => {
   const chatHistory = ref<Map<string, ChatMessage[]>>(new Map())
@@ -67,6 +67,12 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   const getMessageRemoteMediaPath = (msg: ChatMessage): string => {
+    if (Array.isArray(msg.segments)) {
+      for (const seg of msg.segments) {
+        if (seg.kind !== 'text' && seg.path) return String(seg.path)
+      }
+    }
+
     const candidates = [
       String(msg.imageUrl || ''),
       String(msg.videoUrl || ''),
@@ -238,6 +244,12 @@ export const useMessageStore = defineStore('message', () => {
           await systemConfigStore.loadSystemConfig()
         }
 
+        const resolveMediaUrl = async (path: string): Promise<string> => {
+          if (!mediaStore.imgServer) return ''
+          const port = await systemConfigStore.resolveImagePort(path, mediaStore.imgServer)
+          return `http://${mediaStore.imgServer}:${port}/img/Upload/${path}`
+        }
+
         const list = data.contents_list.slice().reverse()
         const mapped: ChatMessage[] = await Promise.all(list.map(async (msg: any) => {
           const rawContent = String(msg?.content || '')
@@ -245,28 +257,9 @@ export const useMessageStore = defineStore('message', () => {
           const msgTime = String(msg?.time || '')
 
           const isSelf = String(msg?.id || '') !== String(UserToID)
-          let content = rawContent
-          let type = 'text'
-
-          if (rawContent.startsWith('[') && rawContent.endsWith(']')) {
-            // 如果是表情包，不处理为文件
-            if (emojiMap[rawContent]) {
-              type = 'text'
-              content = rawContent
-            } else {
-              const path = rawContent.substring(1, rawContent.length - 1)
-              const isVideo = isVideoFile(path)
-              const isImage = isImageFile(path)
-
-              if (mediaStore.imgServer) {
-                const port = await systemConfigStore.resolveImagePort(path, mediaStore.imgServer)
-                content = `http://${mediaStore.imgServer}:${port}/img/Upload/${path}`
-                if (isVideo) type = 'video'
-                else if (isImage) type = 'image'
-                else type = 'file'
-              }
-            }
-          }
+          const segments = await parseMessageSegments(rawContent, { emojiMap, resolveMediaUrl })
+          const meta = getSegmentsMeta(segments)
+          const type = meta.hasImage ? 'image' : meta.hasVideo ? 'video' : meta.hasFile ? 'file' : 'text'
 
           const nickname = String(msg?.nickname || (isSelf ? myUserName : ''))
           const fromuser = {
@@ -282,16 +275,18 @@ export const useMessageStore = defineStore('message', () => {
             fromuser,
             touser: undefined,
             type,
-            content,
+            // Keep raw content; media URLs live in segments/imageUrl/videoUrl/fileUrl.
+            content: rawContent,
             time: msgTime,
             tid: msgTid,
             isSelf,
-            isImage: type === 'image',
-            isVideo: type === 'video',
-            isFile: type === 'file',
-            imageUrl: type === 'image' ? content : '',
-            videoUrl: type === 'video' ? content : '',
-            fileUrl: type === 'file' ? content : ''
+            isImage: meta.hasImage,
+            isVideo: meta.hasVideo,
+            isFile: meta.hasFile,
+            imageUrl: meta.imageUrl,
+            videoUrl: meta.videoUrl,
+            fileUrl: meta.fileUrl,
+            segments
           } as ChatMessage
         }))
 
