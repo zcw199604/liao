@@ -25,6 +25,7 @@ import { useChatStore } from '@/stores/chat'
 import { useMediaStore } from '@/stores/media'
 import { useMessageStore } from '@/stores/message'
 import { useUserStore } from '@/stores/user'
+import { md5Hex } from '@/utils/md5'
 
 class FakeWebSocket {
   static CONNECTING = 0
@@ -467,6 +468,81 @@ describe('composables/useWebSocket', () => {
     const user = chatStore.getUser('u2') as any
     expect(user.unreadCount).toBe(0)
     expect(user.lastMsg).toBe('hello')
+  })
+
+  it('promotes both history/favorite lists and prefixes lastMsg for self-sent echo on /chat', async () => {
+    const authStore = useAuthStore()
+    const userStore = useUserStore()
+    authStore.isAuthenticated = true
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+    localStorage.setItem('authToken', 't-1')
+
+    await router.push('/chat/u2')
+    await router.isReady()
+
+    const chatStore = useChatStore()
+    chatStore.upsertUser({
+      id: 'u1',
+      name: 'U1',
+      nickname: 'U1',
+      sex: '未知',
+      age: '0',
+      area: '',
+      address: '',
+      ip: '',
+      isFavorite: true,
+      lastMsg: '',
+      lastTime: '',
+      unreadCount: 0
+    } as any)
+    chatStore.upsertUser({
+      id: 'u2',
+      name: 'U2',
+      nickname: 'U2',
+      sex: '未知',
+      age: '0',
+      area: '',
+      address: '',
+      ip: '',
+      isFavorite: true,
+      lastMsg: '',
+      lastTime: '',
+      unreadCount: 0
+    } as any)
+    chatStore.historyUserIds = ['u1', 'u2']
+    chatStore.favoriteUserIds = ['u1', 'u2']
+    chatStore.enterChat(chatStore.getUser('u2') as any)
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+
+    await FakeWebSocket.instances[0]!.triggerMessage({
+      code: 7,
+      fromuser: {
+        id: md5Hex('me'),
+        name: 'Me',
+        nickname: 'Me',
+        sex: '未知',
+        ip: '',
+        content: 'hi',
+        time: '2026-01-01 00:00:00.000',
+        tid: 't-self'
+      },
+      touser: { id: 'u2', name: 'U2', nickname: 'U2', sex: '未知', ip: '' },
+      tid: 't-self'
+    })
+
+    expect(chatStore.historyUserIds[0]).toBe('u2')
+    expect(chatStore.favoriteUserIds[0]).toBe('u2')
+
+    const user = chatStore.getUser('u2') as any
+    expect(user.unreadCount).toBe(0)
+    expect(user.lastMsg).toBe('我: hi')
   })
 
   it('handles match success (single match) by entering chat and dispatching event', async () => {

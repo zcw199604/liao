@@ -35,6 +35,7 @@
 | 202601120630 | fix_lastmsg_emoji_preview | 修复 | ⚠️待复验 | [链接](2026-01/202601120630_fix_lastmsg_emoji_preview/) |
 | 202601171004 | fix_chat_media_dedup | 修复 | ✅已完成 | [链接](2026-01/202601171004_fix_chat_media_dedup/) |
 | 202601171351 | fix_spa_refresh_404 | 修复 | ✅已完成 | [链接](2026-01/202601171351_fix_spa_refresh_404/) |
+| 202601180647 | fix_chat_list_self_lastmsg_promote | 修复 | ✅已完成 | [链接](2026-01/202601180647_fix_chat_list_self_lastmsg_promote/) |
 
 ---
 
@@ -69,3 +70,4 @@
 - [202601120630_fix_lastmsg_emoji_preview](2026-01/202601120630_fix_lastmsg_emoji_preview/) - 修复会话列表 lastMsg 预览将表情文本（如 `[doge]`）误识别为 `[文件]`
 - [202601171004_fix_chat_media_dedup](2026-01/202601171004_fix_chat_media_dedup/) - 修复聊天记录媒体消息偶发重复显示（WS 推送与历史拉取合并语义去重）
 - [202601171351_fix_spa_refresh_404](2026-01/202601171351_fix_spa_refresh_404/) - 修复 SPA 路由在 list/chat 页面刷新 404（Go 静态回退通用化）
+- [202601180647_fix_chat_list_self_lastmsg_promote](2026-01/202601180647_fix_chat_list_self_lastmsg_promote/) - 修复聊天页自己发送消息回显时，会话列表未置顶（消息/收藏）且 lastMsg 预览未加 `我: ` 前缀

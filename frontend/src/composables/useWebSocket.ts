@@ -81,6 +81,18 @@ export const useWebSocket = () => {
     historyIds.unshift(userId)
   }
 
+  const promoteFavoriteUser = (userId: string) => {
+    const favoriteIds = chatStore.favoriteUserIds
+    // 仅对已在收藏列表中的会话做置顶，避免把非收藏用户“插入”收藏列表
+    let idx = favoriteIds.indexOf(userId)
+    if (idx === -1) return
+    while (idx > -1) {
+      favoriteIds.splice(idx, 1)
+      idx = favoriteIds.indexOf(userId)
+    }
+    favoriteIds.unshift(userId)
+  }
+
   const connect = () => {
     const token = localStorage.getItem('authToken')
     if (!token) {
@@ -455,7 +467,8 @@ export const useWebSocket = () => {
             }
           }
 
-          const lastMsg = isImage ? '[图片]' : (isVideo ? '[视频]' : (isFile ? '[文件]' : messageContent))
+          const lastMsgRaw = isImage ? '[图片]' : (isVideo ? '[视频]' : (isFile ? '[文件]' : messageContent))
+          const lastMsg = isSelf ? `我: ${lastMsgRaw}` : lastMsgRaw
 
           if (shouldDisplay) {
             // 收到消息，隐藏正在输入提示
@@ -478,6 +491,10 @@ export const useWebSocket = () => {
               }
 
               chatStore.updateUser(chatStore.currentChatUser.id, updates)
+
+              // 当前会话有新消息（包含自己发送回显）：历史/收藏列表都应该置顶
+              promoteHistoryUser(chatStore.currentChatUser.id)
+              promoteFavoriteUser(chatStore.currentChatUser.id)
             }
 
             setTimeout(scrollToBottom, 100)
@@ -505,6 +522,7 @@ export const useWebSocket = () => {
 
               // 移到历史列表最前面（按 id 去重）
               promoteHistoryUser(targetUser.id)
+              promoteFavoriteUser(targetUser.id)
             } else if (fromUserId && fromUserId !== currentUserId) {
               // 新用户 - 创建并添加
               const newUser: User = {
@@ -524,6 +542,7 @@ export const useWebSocket = () => {
 
               chatStore.upsertUser(newUser)
               promoteHistoryUser(fromUserId)
+              promoteFavoriteUser(fromUserId)
             }
           }
 
