@@ -572,7 +572,7 @@ describe('views/ChatRoomView.vue', () => {
     expect(chatStore.currentChatUser).toBeNull()
   })
 
-  it('ensures MessageList has sufficient bottom padding (pb-32) for frosted glass input', async () => {
+  it('applies dynamic bottom spacing for floating input (no fixed pb-32)', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
 
@@ -598,7 +598,9 @@ describe('views/ChatRoomView.vue', () => {
         stubs: {
           ChatHeader: true,
           MessageList: {
-            template: '<div class="message-list-stub"></div>',
+            name: 'MessageList',
+            inheritAttrs: false,
+            template: '<div class="message-list-stub" v-bind="$attrs"></div>',
             methods: { scrollToBottom: () => {} }
           },
           UploadMenu: true,
@@ -615,7 +617,13 @@ describe('views/ChatRoomView.vue', () => {
 
     const messageList = wrapper.find('.message-list-stub')
     expect(messageList.exists()).toBe(true)
+
     const classes = messageList.attributes('class')
-    expect(classes).toContain('!pb-32')
+    expect(classes).not.toContain('pb-32')
+    expect(classes).not.toContain('!pb-32')
+
+    const styleAttr = messageList.attributes('style') || ''
+    expect(styleAttr).toContain('padding-top')
+    expect(styleAttr).toContain('padding-bottom')
   })
 })

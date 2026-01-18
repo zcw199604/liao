@@ -35,18 +35,21 @@
       ></div>
     </Transition>
 
-    <ChatHeader
-      class="absolute top-0 left-0 right-0 z-20"
-      :user="chatStore.currentChatUser"
-      :connected="chatStore.wsConnected"
-      @back="handleBack"
-      @toggle-favorite="handleToggleFavorite"
-      @clear-and-reload="handleClearAndReload"
-      @toggle-sidebar="showSidebar = !showSidebar"
-    />
+    <div ref="chatHeaderWrapRef" class="absolute top-0 left-0 right-0 z-20">
+      <ChatHeader
+        :user="chatStore.currentChatUser"
+        :connected="chatStore.wsConnected"
+        @back="handleBack"
+        @toggle-favorite="handleToggleFavorite"
+        @clear-and-reload="handleClearAndReload"
+        @toggle-sidebar="showSidebar = !showSidebar"
+      />
+    </div>
 
     <MessageList
-      class="h-full pt-[70px] !pb-32"
+      class="h-full"
+      :style="messageListStyle"
+      :floating-bottom-offset-px="floatingButtonBottomPx"
       :messages="messages"
       :is-typing="messageStore.isTyping"
       :loading-more="messageStore.loadingMore"
@@ -57,7 +60,7 @@
     />
 
     <!-- 底部悬浮控制区 -->
-    <div class="absolute bottom-0 left-0 right-0 z-30 flex flex-col">
+    <div ref="bottomDockRef" class="absolute bottom-0 left-0 right-0 z-30 flex flex-col">
       <!-- 上传菜单 -->
       <UploadMenu
         v-model:visible="showUploadMenu"
@@ -256,6 +259,64 @@ const showHistoryMediaModal = ref(false)
 const historyMediaLoading = ref(false)
 const historyMedia = ref<UploadedMedia[]>([])
 
+// 动态测量：顶部 Header 与底部悬浮区高度，避免固定 padding 造成留白过大
+const chatHeaderWrapRef = ref<HTMLElement | null>(null)
+const bottomDockRef = ref<HTMLElement | null>(null)
+
+const headerHeightPx = ref(0)
+const bottomDockHeightPx = ref(0)
+
+const chatAreaBasePaddingPx = 15
+// 让最后一条消息更贴近输入框：底部只留一个小间隙，避免出现类似 pb-32 的过大留白
+const messageListBottomGapPx = 8
+
+const refreshLayoutMeasurements = () => {
+  // getBoundingClientRect 在部分环境可能为 0；这里用 offsetHeight 做兜底
+  const headerRectH = chatHeaderWrapRef.value?.getBoundingClientRect().height ?? 0
+  const dockRectH = bottomDockRef.value?.getBoundingClientRect().height ?? 0
+
+  const headerH = headerRectH || chatHeaderWrapRef.value?.offsetHeight || 0
+  const dockH = dockRectH || bottomDockRef.value?.offsetHeight || 0
+
+  headerHeightPx.value = Math.max(0, headerH)
+  bottomDockHeightPx.value = Math.max(0, dockH)
+}
+
+let layoutResizeObserver: ResizeObserver | null = null
+const initLayoutResizeObserver = () => {
+  // 极少数环境下可能缺少 ResizeObserver（例如部分测试环境）
+  if (typeof ResizeObserver === 'undefined') return
+
+  layoutResizeObserver = new ResizeObserver(() => {
+    refreshLayoutMeasurements()
+
+    // 只有在用户已经处于底部时才保持贴底，避免打断用户阅读历史消息
+    if (messageListRef.value?.getIsAtBottom?.()) {
+      messageListRef.value?.scrollToBottom()
+    }
+  })
+
+  if (chatHeaderWrapRef.value) layoutResizeObserver.observe(chatHeaderWrapRef.value)
+  if (bottomDockRef.value) layoutResizeObserver.observe(bottomDockRef.value)
+}
+
+const messageListStyle = computed(() => {
+  const headerHeight = Math.max(0, Math.round(headerHeightPx.value || 0))
+  const dockHeight = Math.max(0, Math.round(bottomDockHeightPx.value || 0))
+
+  return {
+    paddingTop: `${headerHeight + chatAreaBasePaddingPx}px`,
+    // dockHeight 已包含输入框(含安全区)高度，这里只额外留少量间隙即可
+    paddingBottom: `${dockHeight + messageListBottomGapPx}px`
+  }
+})
+
+const floatingButtonBottomMarginPx = 16
+const floatingButtonBottomPx = computed(() => {
+  const dockHeight = Math.max(0, Math.round(bottomDockHeightPx.value || 0))
+  return dockHeight + floatingButtonBottomMarginPx
+})
+
 // 手势动画状态
 const pageTranslateX = ref(0)
 const sidebarTranslateX = ref(0)
@@ -290,7 +351,7 @@ const handleSidebarMatchSuccess = (user: User) => {
   router.replace(`/chat/${user.id}`)
 }
 
-const handleSend = () => {
+const handleSend = async () => {
   if (!inputText.value.trim() || !chatStore.currentChatUser) return
   if (!chatStore.wsConnected) {
     show('连接已断开，请刷新页面重试')
@@ -299,6 +360,13 @@ const handleSend = () => {
 
   sendText(inputText.value, chatStore.currentChatUser)
   inputText.value = ''
+
+  await nextTick()
+  refreshLayoutMeasurements()
+
+  if (messageListRef.value?.getIsAtBottom?.()) {
+    messageListRef.value?.scrollToBottom()
+  }
 }
 
 const handleToggleUpload = async () => {
@@ -310,18 +378,39 @@ const handleToggleUpload = async () => {
       await mediaStore.loadCachedImages(userStore.currentUser.id)
     }
   }
+
+  await nextTick()
+  refreshLayoutMeasurements()
+
+  if (messageListRef.value?.getIsAtBottom?.()) {
+    messageListRef.value?.scrollToBottom()
+  }
 }
 
-const handleToggleEmoji = () => {
+const handleToggleEmoji = async () => {
   showEmojiPanel.value = !showEmojiPanel.value
   if (showEmojiPanel.value) {
     showUploadMenu.value = false
   }
+
+  await nextTick()
+  refreshLayoutMeasurements()
+
+  if (messageListRef.value?.getIsAtBottom?.()) {
+    messageListRef.value?.scrollToBottom()
+  }
 }
 
-const handleCloseAllPanels = () => {
+const handleCloseAllPanels = async () => {
   showUploadMenu.value = false
   showEmojiPanel.value = false
+
+  await nextTick()
+  refreshLayoutMeasurements()
+
+  if (messageListRef.value?.getIsAtBottom?.()) {
+    messageListRef.value?.scrollToBottom()
+  }
 }
 
 const handleTypingStart = () => {
@@ -336,9 +425,16 @@ const handleTypingEnd = () => {
   }
 }
 
-const handleEmojiSelect = (text: string) => {
+const handleEmojiSelect = async (text: string) => {
   inputText.value += text
   showEmojiPanel.value = false
+
+  await nextTick()
+  refreshLayoutMeasurements()
+
+  if (messageListRef.value?.getIsAtBottom?.()) {
+    messageListRef.value?.scrollToBottom()
+  }
 }
 
 const handleUploadFile = () => {
@@ -691,6 +787,10 @@ onMounted(async () => {
     return
   }
 
+  // 首次进入页面时测量并建立监听，避免固定 padding 造成留白过大/过小
+  refreshLayoutMeasurements()
+  initLayoutResizeObserver()
+
   // 对齐旧版：进入聊天页时刷新“已上传的文件”列表
   try {
     await mediaStore.loadImgServer()
@@ -725,17 +825,26 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  layoutResizeObserver?.disconnect()
+  layoutResizeObserver = null
   window.removeEventListener('preview-media', handlePreview)
   chatStore.exitChat()
 })
 
 watch(
   () => mediaStore.openUploadMenuSeq,
-  () => {
+  async () => {
     if (!chatStore.currentChatUser) return
     showHistoryMediaModal.value = false
     showEmojiPanel.value = false
     showUploadMenu.value = true
+
+    await nextTick()
+    refreshLayoutMeasurements()
+
+    if (messageListRef.value?.getIsAtBottom?.()) {
+      messageListRef.value?.scrollToBottom()
+    }
   }
 )
 
@@ -751,6 +860,7 @@ watch(
 
     // 切换用户后，等待数据渲染完成，然后滚动到底部
     await nextTick()
+    refreshLayoutMeasurements()
     if (messageListRef.value) {
       messageListRef.value.scrollToBottom()
     }

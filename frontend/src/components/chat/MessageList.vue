@@ -67,15 +67,14 @@
       </div>
     </div>
 
-    <!-- 底部空间，防止最新消息被遮挡 -->
-    <div class="h-4"></div>
 
     <!-- 回到底部/新消息悬浮按钮 -->
     <transition name="fade">
       <button
         v-if="!isAtBottom || hasNewMessages"
         @click="scrollToBottom(true)"
-        class="fixed bottom-24 right-6 rounded-full shadow-xl flex items-center justify-center text-white transition-all z-10 overflow-hidden group"
+        class="fixed right-6 rounded-full shadow-xl flex items-center justify-center text-white transition-all z-10 overflow-hidden group"
+        :style="{ bottom: `${props.floatingBottomOffsetPx}px` }"
         :class="hasNewMessages ? 'bg-indigo-600 hover:bg-indigo-700 px-4 py-2 gap-2 h-10 w-auto' : 'bg-[#27272a] hover:bg-[#3f3f46] w-10 h-10'"
         :title="hasNewMessages ? '有新消息' : '回到底部'"
       >
@@ -105,9 +104,12 @@ interface Props {
   isTyping: boolean
   loadingMore: boolean
   canLoadMore: boolean
+  floatingBottomOffsetPx?: number
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  floatingBottomOffsetPx: 96
+})
 defineEmits<{
   'loadMore': []
   'closeAllPanels': []
@@ -206,9 +208,12 @@ onMounted(() => {
   isAtBottom.value = true
 })
 
+const getIsAtBottom = () => isAtBottom.value
+
 defineExpose({
   scrollToBottom,
-  scrollToTop
+  scrollToTop,
+  getIsAtBottom
 })
 </script>
 
