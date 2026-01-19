@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** 上传/重传媒体；记录发送日志；分页查询上传/发送历史；全站媒体库分页；删除与批量删除；历史数据修复（repair）
 - **状态:** ✅稳定
-- **最后更新:** 2026-01-18
+- **最后更新:** 2026-01-19
 
 ## 规范
 
@@ -50,6 +50,7 @@
 ### 需求: 媒体预览（画廊模式）
 **模块:** Media
 前端 `MediaPreview` 支持传入 `mediaList` 进行左右切换/滑动切换浏览；当预览内部切换当前项时会触发 `media-change` 事件。父组件如提供“上传/重传/导入”等动作，应监听该事件并同步当前目标，避免“切换后仍对首张执行操作”。
+预览顶部支持打开“详细信息”面板：仅当媒体对象携带任一元信息字段（如 `md5/fileSize/pHash/similarity` 等）时显示入口。
 
 ### 需求: 测试覆盖（Go）
 **模块:** Media
@@ -120,6 +121,7 @@
 
 ## 变更历史
 - [202601181549_mtphoto_preview_gallery](../../history/2026-01/202601181549_mtphoto_preview_gallery/) - 媒体预览画廊切换时对外同步当前媒体（用于 mtPhoto/全站图片库等场景）
+- [202601190109_mtphoto_preview_detail](../../history/2026-01/202601190109_mtphoto_preview_detail/) - 媒体预览支持按元信息显示“查看详情”入口并展示详情面板
 - [202601072058_fix_delete_media_403](../../history/2026-01/202601072058_fix_delete_media_403/) - 修复删除接口对多种 localPath 形式的兼容性（待复验）
 - [202601071248_go_backend_rewrite](../../history/2026-01/202601071248_go_backend_rewrite/) - Go 后端重构并实现媒体上传/记录/媒体库
 - [202601101607_image_hash_duplicate_check](../../history/2026-01/202601101607_image_hash_duplicate_check/) - 新增媒体查重接口（MD5 + pHash 相似度）

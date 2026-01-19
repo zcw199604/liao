@@ -12,35 +12,50 @@
           <h3 class="text-xl font-bold text-white mb-6">文件详细信息</h3>
 
           <div class="space-y-4">
-            <div class="detail-item">
+            <div v-if="media.originalFilename" class="detail-item">
               <label>原始文件名</label>
               <div class="value">{{ media.originalFilename || '未知' }}</div>
             </div>
 
-            <div class="detail-item">
+            <div v-if="media.localFilename" class="detail-item">
               <label>本地存储名</label>
               <div class="value text-gray-500 text-sm">{{ media.localFilename || '未知' }}</div>
             </div>
 
-            <div class="detail-item">
+            <div v-if="media.fileSize !== undefined" class="detail-item">
               <label>文件大小</label>
               <div class="value">{{ formatFileSize(media.fileSize || 0) }}</div>
             </div>
 
-            <div class="detail-item">
+            <div v-if="media.fileExtension || media.fileType" class="detail-item">
               <label>文件格式</label>
               <div class="value">
                 <span class="text-blue-400">{{ media.fileExtension?.toUpperCase() || 'N/A' }}</span>
-                <span class="text-gray-500 text-sm ml-2">({{ media.fileType || 'unknown' }})</span>
+                <span v-if="media.fileType" class="text-gray-500 text-sm ml-2">({{ media.fileType }})</span>
               </div>
             </div>
 
-            <div class="detail-item">
+            <div v-if="media.width !== undefined && media.height !== undefined" class="detail-item">
+              <label>分辨率</label>
+              <div class="value">{{ media.width }} × {{ media.height }}</div>
+            </div>
+
+            <div v-if="media.duration !== undefined" class="detail-item">
+              <label>时长</label>
+              <div class="value">{{ media.duration }}s</div>
+            </div>
+
+            <div v-if="media.day" class="detail-item">
+              <label>日期</label>
+              <div class="value">{{ media.day }}</div>
+            </div>
+
+            <div v-if="media.uploadTime" class="detail-item">
               <label>首次上传</label>
               <div class="value">{{ formatFullTime(media.uploadTime || '') }}</div>
             </div>
 
-            <div class="detail-item">
+            <div v-if="media.updateTime" class="detail-item">
               <label>最后更新</label>
               <div class="value">{{ formatFullTime(media.updateTime || '') }}</div>
             </div>

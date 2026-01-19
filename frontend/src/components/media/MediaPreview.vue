@@ -194,7 +194,25 @@ const showDetails = ref(false)
 
 // 判断是否有详细信息
 const hasMediaDetails = computed(() => {
-  return currentMedia.value?.fileSize !== undefined
+  const media = currentMedia.value
+  if (!media) return false
+
+  return (
+    media.fileSize !== undefined ||
+    !!media.originalFilename ||
+    !!media.localFilename ||
+    !!media.fileExtension ||
+    !!media.fileType ||
+    !!media.uploadTime ||
+    !!media.updateTime ||
+    !!media.md5 ||
+    !!media.pHash ||
+    media.similarity !== undefined ||
+    media.width !== undefined ||
+    media.height !== undefined ||
+    media.duration !== undefined ||
+    !!media.day
+  )
 })
 
 // 整合后的媒体列表
@@ -339,6 +357,7 @@ const imageStyle = computed(() => {
 
 const handleClose = () => {
   resetZoom()
+  showDetails.value = false
   emit('update:visible', false)
 }
 
@@ -448,6 +467,7 @@ watch(() => props.visible, (val) => {
   if (val) {
     resetZoom()
     resetMediaLoadState()
+    showDetails.value = false
     window.addEventListener('keydown', handleKeydown)
     
     // 初始化 currentIndex
@@ -479,6 +499,7 @@ watch(() => props.visible, (val) => {
     }
     emitMediaChange()
   } else {
+    showDetails.value = false
     window.removeEventListener('keydown', handleKeydown)
   }
 })

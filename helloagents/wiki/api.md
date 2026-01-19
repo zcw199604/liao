@@ -764,7 +764,7 @@
 
 ### 4.8 mtPhoto（相册系统）
 
-> 说明：mtPhoto 接口由后端统一代理与鉴权（自动登录/401 重登），前端仅访问本服务 `/api`。
+> 说明：mtPhoto 接口由后端统一代理与鉴权（自动登录/refresh 续期/401 重登），前端仅访问本服务 `/api`。
 
 #### [GET] /api/getMtPhotoAlbums
 **描述**：获取 mtPhoto 相册列表。
@@ -776,6 +776,7 @@
 
 **备注**
 - 依赖环境变量：`MTPHOTO_BASE_URL`、`MTPHOTO_LOGIN_USERNAME`、`MTPHOTO_LOGIN_PASSWORD`（可选 `MTPHOTO_LOGIN_OTP`）。
+- 后端会缓存 mtPhoto `refresh_token` 并在 access_token 临期时优先调用 `/auth/refresh` 续期（失败回退 `/auth/login`）。
 
 #### [GET] /api/getMtPhotoAlbumFiles
 **描述**：获取相册媒体分页（后端对 mtPhoto `filesV2` 全量结果扁平化后切片分页）。

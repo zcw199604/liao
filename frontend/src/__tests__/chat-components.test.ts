@@ -361,7 +361,7 @@ describe('components/chat/MatchButton.vue', () => {
     const chatStore = useChatStore()
     chatStore.isMatching = false
 
-    startMatchMock.mockReturnValue(true)
+    startContinuousMatchMock.mockReturnValue(true)
 
     const wrapper = mount(MatchButton, {
       global: { plugins: [pinia] }
@@ -371,7 +371,7 @@ describe('components/chat/MatchButton.vue', () => {
     await button.trigger('mousedown')
     await button.trigger('mouseup')
 
-    expect(startMatchMock).toHaveBeenCalledOnce()
+    expect(startContinuousMatchMock).toHaveBeenCalledWith(1)
     expect(toastShow).toHaveBeenCalledWith('正在匹配...')
 
     wrapper.unmount()

@@ -4,14 +4,14 @@
 将外部 mtPhoto 相册系统接入当前应用，使用户可以按“相册 → 媒体（图片/视频）”方式浏览素材，并一键导入到本地媒体库后上传到上游，最终出现在聊天页“已上传的文件”中用于发送。
 
 ## 模块概述
-- **职责:** mtPhoto 登录/续期；相册列表；相册媒体分页（后端切片）；gateway 缩略图代理；按 MD5 解析本地文件路径；导入上传（落盘到 `./upload` + 上传到上游 + 写入 `media_file` + 写入缓存）
+- **职责:** mtPhoto 登录/续期（优先 refresh_token，失败回退登录）；相册列表；相册媒体分页（后端切片）；gateway 缩略图代理；按 MD5 解析本地文件路径；导入上传（落盘到 `./upload` + 上传到上游 + 写入 `media_file` + 写入缓存）
 - **状态:** ✅稳定
-- **最后更新:** 2026-01-18
+- **最后更新:** 2026-01-19
 
 ## 入口与交互
 - **聊天页上传菜单:** 新增“mtPhoto 相册”入口，打开相册弹窗
 - **系统设置（System）:** 新增“mtPhoto 相册”入口，打开相册弹窗
-- **相册弹窗:** 相册列表 → 相册媒体网格（无限滚动）→ 预览（图片支持左右切换浏览）→ 点击“上传”触发导入（以当前预览图片为准）
+- **相册弹窗:** 相册列表 → 相册媒体网格（无限滚动）→ 预览（图片支持左右切换浏览；预览顶部可查看详情）→ 点击“上传”触发导入（以当前预览图片为准）
 
 ## 核心流程
 
@@ -32,8 +32,14 @@
 4. 后端将该文件上传到上游（与 `/api/uploadMedia` 同协议）
 5. 成功后写入 `media_file` 并加入 `imageCache`，前端将其加入“已上传的文件”
 
+## 鉴权与续期策略（mtPhoto 上游）
+
+- 登录：`POST {MTPHOTO_BASE_URL}/auth/login` → `access_token/auth_code/refresh_token/expires_in`
+- 续期：`POST {MTPHOTO_BASE_URL}/auth/refresh`（`{"token":"<refresh_token>"}`）→ 返回新的 `access_token/auth_code/refresh_token/expires_in`
+- 后端策略：提前 60 秒续期；优先 refresh，失败回退 login；401/403 自动续期并重试一次；续期成功后清空相册/媒体缓存
+
 ## 安全与约束
-- **凭证安全:** mtPhoto 登录凭证仅通过环境变量注入；后端日志禁止输出 token/auth_code/password
+- **凭证安全:** mtPhoto 登录凭证仅通过环境变量注入；后端日志禁止输出 token/auth_code/refresh_token/password
 - **路径安全:** mtPhoto 返回的 `filePath` 必须以 `/lsp/` 开头，并通过 `LSP_ROOT` 映射到本地目录；禁止 `..` 路径遍历
 - **开放代理防护:** `GET /api/getMtPhotoThumb` 仅允许 `size=s260|h220`，且该接口为前端 `<img>` 加载所需而放行（不要求 JWT）
 
@@ -68,9 +74,11 @@
   - `frontend/src/App.vue`
 
 ## 测试
-- 后端：`go test ./...`（重点覆盖 mtPhoto 登录/401 重登、分页切片、导入路径校验）
+- 后端：`go test ./...`（重点覆盖 mtPhoto 登录/refresh 续期/401 重登、分页切片、导入路径校验）
 - 前端：`npm run build`（类型检查 + 构建门禁）
 
 ## 变更历史
 - [202601181444_mtphoto_album](../../history/2026-01/202601181444_mtphoto_album/) - 接入 mtPhoto 相册并支持按相册浏览与一键导入上传
 - [202601181549_mtphoto_preview_gallery](../../history/2026-01/202601181549_mtphoto_preview_gallery/) - 相册图片预览支持左右切换浏览（切换后导入目标对齐）
+- [202601190055_mtphoto_refresh_token](../../history/2026-01/202601190055_mtphoto_refresh_token/) - mtPhoto 续期支持 refresh_token（优先 `/auth/refresh`，失败回退 `/auth/login`）
+- [202601190109_mtphoto_preview_detail](../../history/2026-01/202601190109_mtphoto_preview_detail/) - mtPhoto 相册预览支持查看详情（信息按钮 + 详情面板）

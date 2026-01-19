@@ -14,7 +14,7 @@ import (
 )
 
 // MtPhotoService 负责对接 mtPhoto 相册系统：
-// - 统一在后端完成登录/续期（过期或 401 自动重登并重试一次）
+// - 统一在后端完成登录/续期（优先 refresh_token；过期或 401/403 自动续期并重试一次）
 // - 提供相册/媒体查询与 gateway 代理能力
 // - 提供轻量缓存（避免频繁拉取大相册列表）
 type MtPhotoService struct {
@@ -28,11 +28,12 @@ type MtPhotoService struct {
 
 	httpClient *http.Client
 
-	mu        sync.Mutex
-	token     string
-	tokenExp  time.Time
-	authCode  string
-	loginOnce time.Time
+	mu           sync.Mutex
+	token        string
+	tokenExp     time.Time
+	authCode     string
+	refreshToken string
+	loginOnce    time.Time
 
 	albumsCache       []MtPhotoAlbum
 	albumsCacheExpire time.Time
@@ -81,9 +82,10 @@ type mtPhotoLoginRequest struct {
 }
 
 type mtPhotoLoginResponse struct {
-	AccessToken string `json:"access_token"`
-	ExpiresIn   int64  `json:"expires_in"`
-	AuthCode    string `json:"auth_code"`
+	AccessToken  string `json:"access_token"`
+	ExpiresIn    int64  `json:"expires_in"`
+	AuthCode     string `json:"auth_code"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 func (s *MtPhotoService) ensureLogin(ctx context.Context, force bool) (token string, authCode string, err error) {
@@ -94,16 +96,16 @@ func (s *MtPhotoService) ensureLogin(ctx context.Context, force bool) (token str
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// force=true 时强制重登；否则只有在缺失/即将过期时才登录
-	needLogin := force || strings.TrimSpace(s.token) == "" || strings.TrimSpace(s.authCode) == ""
-	if !needLogin && !s.tokenExp.IsZero() {
-		// 提前 60 秒刷新，避免边界 401
+	// force=true 时强制续期；否则只有在缺失/即将过期时才续期
+	needRenew := force || strings.TrimSpace(s.token) == "" || strings.TrimSpace(s.authCode) == ""
+	if !needRenew && !s.tokenExp.IsZero() {
+		// 提前 60 秒续期，避免边界 401
 		if time.Now().After(s.tokenExp.Add(-60 * time.Second)) {
-			needLogin = true
+			needRenew = true
 		}
 	}
 
-	if !needLogin {
+	if !needRenew {
 		return s.token, s.authCode, nil
 	}
 
@@ -111,12 +113,79 @@ func (s *MtPhotoService) ensureLogin(ctx context.Context, force bool) (token str
 	if !force && !s.loginOnce.IsZero() && time.Since(s.loginOnce) < 800*time.Millisecond {
 		// 轻微等待，给先行登录请求完成一点时间
 		time.Sleep(120 * time.Millisecond)
-		if strings.TrimSpace(s.token) != "" && strings.TrimSpace(s.authCode) != "" {
+		if strings.TrimSpace(s.token) != "" && strings.TrimSpace(s.authCode) != "" &&
+			(s.tokenExp.IsZero() || time.Now().Before(s.tokenExp.Add(-60*time.Second))) {
 			return s.token, s.authCode, nil
 		}
 	}
 	s.loginOnce = time.Now()
 
+	// 续期策略：优先 refresh_token；失败则回退到账号登录
+	if strings.TrimSpace(s.refreshToken) != "" {
+		if err := s.refreshLocked(ctx); err == nil {
+			return s.token, s.authCode, nil
+		}
+	}
+
+	if err := s.loginLocked(ctx); err != nil {
+		return "", "", err
+	}
+	return s.token, s.authCode, nil
+}
+
+type mtPhotoRefreshRequest struct {
+	Token string `json:"token"`
+}
+
+func (s *MtPhotoService) refreshLocked(ctx context.Context) error {
+	refreshToken := strings.TrimSpace(s.refreshToken)
+	if refreshToken == "" {
+		return fmt.Errorf("refresh_token 为空")
+	}
+
+	refreshURL := s.baseURL + "/auth/refresh"
+	body, _ := json.Marshal(mtPhotoRefreshRequest{Token: refreshToken})
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, refreshURL, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("mtPhoto refresh 失败: %s", resp.Status)
+	}
+
+	var parsed mtPhotoLoginResponse
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
+		return fmt.Errorf("mtPhoto refresh 响应解析失败: %w", err)
+	}
+	if strings.TrimSpace(parsed.AccessToken) == "" || strings.TrimSpace(parsed.AuthCode) == "" {
+		return fmt.Errorf("mtPhoto refresh 响应缺少 access_token/auth_code")
+	}
+
+	s.token = strings.TrimSpace(parsed.AccessToken)
+	s.authCode = strings.TrimSpace(parsed.AuthCode)
+	if rt := strings.TrimSpace(parsed.RefreshToken); rt != "" {
+		s.refreshToken = rt
+	}
+	s.tokenExp = parseMtPhotoExpiresIn(parsed.ExpiresIn)
+
+	s.resetCachesLocked()
+	return nil
+}
+
+func (s *MtPhotoService) loginLocked(ctx context.Context) error {
 	loginURL := s.baseURL + "/auth/login"
 	body, _ := json.Marshal(mtPhotoLoginRequest{
 		Username: s.username,
@@ -126,50 +195,63 @@ func (s *MtPhotoService) ensureLogin(ctx context.Context, force bool) (token str
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, loginURL, bytes.NewReader(body))
 	if err != nil {
-		return "", "", err
+		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return "", "", err
+		return err
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", "", err
+		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", "", fmt.Errorf("mtPhoto 登录失败: %s", resp.Status)
+		return fmt.Errorf("mtPhoto 登录失败: %s", resp.Status)
 	}
 
 	var parsed mtPhotoLoginResponse
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return "", "", fmt.Errorf("mtPhoto 登录响应解析失败: %w", err)
+		return fmt.Errorf("mtPhoto 登录响应解析失败: %w", err)
 	}
 	if strings.TrimSpace(parsed.AccessToken) == "" || strings.TrimSpace(parsed.AuthCode) == "" {
-		return "", "", fmt.Errorf("mtPhoto 登录响应缺少 access_token/auth_code")
+		return fmt.Errorf("mtPhoto 登录响应缺少 access_token/auth_code")
 	}
 
 	s.token = strings.TrimSpace(parsed.AccessToken)
 	s.authCode = strings.TrimSpace(parsed.AuthCode)
-	s.tokenExp = time.Time{}
-	if parsed.ExpiresIn > 0 {
-		// 文档示例为 epoch ms
-		s.tokenExp = time.UnixMilli(parsed.ExpiresIn)
+	if rt := strings.TrimSpace(parsed.RefreshToken); rt != "" {
+		s.refreshToken = rt
 	}
+	s.tokenExp = parseMtPhotoExpiresIn(parsed.ExpiresIn)
 
-	// 登录态变更后清空缓存，避免用户侧看到旧数据
+	s.resetCachesLocked()
+	return nil
+}
+
+func parseMtPhotoExpiresIn(expiresIn int64) time.Time {
+	if expiresIn <= 0 {
+		return time.Time{}
+	}
+	// 文档示例为 epoch ms；但为兼容部分实现，支持 seconds TTL。
+	if expiresIn < 1_000_000_000_000 {
+		return time.Now().Add(time.Duration(expiresIn) * time.Second)
+	}
+	return time.UnixMilli(expiresIn)
+}
+
+func (s *MtPhotoService) resetCachesLocked() {
+	// 登录态/续期后清空缓存，避免用户侧看到旧数据
 	s.albumsCache = nil
 	s.albumsCacheExpire = time.Time{}
 	s.albumFilesCache = make(map[int]mtPhotoAlbumFilesCacheEntry)
-
-	return s.token, s.authCode, nil
 }
 
 func (s *MtPhotoService) doRequest(ctx context.Context, method, urlStr string, headers map[string]string, body []byte, useJWT, useCookie bool) (*http.Response, error) {
-	// 尝试两次：首次使用现有 token；401/403 后强制重登再试一次
+	// 尝试两次：首次使用现有 token；401/403 后强制续期再试一次
 	for attempt := 0; attempt < 2; attempt++ {
 		force := attempt == 1
 		token, authCode, err := s.ensureLogin(ctx, force)

@@ -213,7 +213,15 @@ const handleMediaClick = async (item: MtPhotoMediaItem) => {
     // 仅在“点图片”时启用画廊模式：左右切换浏览当前已加载的相册图片列表。
     const list: UploadedMedia[] = mtPhotoStore.mediaItems
       .filter(m => m.type === 'image')
-      .map(m => ({ url: getThumbUrl('h220', m.md5), type: 'image', md5: m.md5 }))
+      .map(m => ({
+        url: getThumbUrl('h220', m.md5),
+        type: 'image',
+        md5: m.md5,
+        fileExtension: m.fileType ? String(m.fileType).trim().toLowerCase() : undefined,
+        width: m.width,
+        height: m.height,
+        day: m.day
+      }))
     previewMediaList.value = list
   }
   if (item.type === 'video') {
@@ -225,6 +233,18 @@ const handleMediaClick = async (item: MtPhotoMediaItem) => {
     } catch {
       // ignore
     }
+    previewMediaList.value = [
+      {
+        url: previewUrl.value,
+        type: 'video',
+        md5: item.md5,
+        fileExtension: item.fileType ? String(item.fileType).trim().toLowerCase() : undefined,
+        width: item.width,
+        height: item.height,
+        duration: item.duration,
+        day: item.day
+      }
+    ]
   }
 
   showPreview.value = true

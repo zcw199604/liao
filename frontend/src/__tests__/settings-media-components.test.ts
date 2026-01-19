@@ -189,4 +189,80 @@ describe('components/media/MediaPreview.vue', () => {
 
     vi.useRealTimers()
   })
+
+  it('shows detail button when media has md5 without fileSize', async () => {
+    const wrapper = mount(MediaPreview, {
+      props: {
+        visible: false,
+        url: 'http://x/1.png',
+        type: 'image',
+        mediaList: [{ url: 'http://x/1.png', type: 'image', md5: 'abc' }]
+      },
+      global: {
+        stubs: { teleport: true }
+      }
+    })
+
+    await wrapper.setProps({ visible: true })
+    await nextTick()
+
+    const detailBtn = wrapper.find('button[title=\"查看详细信息\"]')
+    expect(detailBtn.exists()).toBe(true)
+
+    await detailBtn.trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('h3').text()).toContain('文件详细信息')
+  })
+
+  it('does not show detail button when media has no metadata fields', async () => {
+    const wrapper = mount(MediaPreview, {
+      props: {
+        visible: false,
+        url: 'http://x/1.png',
+        type: 'image'
+      },
+      global: {
+        stubs: { teleport: true }
+      }
+    })
+
+    await wrapper.setProps({ visible: true })
+    await nextTick()
+
+    expect(wrapper.find('button[title=\"查看详细信息\"]').exists()).toBe(false)
+  })
+
+  it('resets detail panel visibility when closing preview', async () => {
+    const wrapper = mount(MediaPreview, {
+      props: {
+        visible: false,
+        url: 'http://x/1.png',
+        type: 'image',
+        mediaList: [{ url: 'http://x/1.png', type: 'image', md5: 'abc' }]
+      },
+      global: {
+        stubs: { teleport: true }
+      }
+    })
+
+    await wrapper.setProps({ visible: true })
+    await nextTick()
+
+    await wrapper.get('button[title=\"查看详细信息\"]').trigger('click')
+    await nextTick()
+    expect(wrapper.find('h3').text()).toContain('文件详细信息')
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await nextTick()
+    expect(wrapper.emitted('update:visible')?.[0]).toEqual([false])
+
+    await wrapper.setProps({ visible: false })
+    await nextTick()
+
+    await wrapper.setProps({ visible: true })
+    await nextTick()
+
+    expect(wrapper.find('h3').exists()).toBe(false)
+  })
 })

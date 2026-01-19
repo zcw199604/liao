@@ -12,6 +12,10 @@ export interface UploadedMedia {
   md5?: string
   pHash?: string
   similarity?: number
+  width?: number
+  height?: number
+  duration?: number
+  day?: string
 }
 
 export interface MediaItem {
