@@ -7,8 +7,8 @@
     >
       <div class="w-[90%] max-w-2xl h-[70vh] bg-[#18181b] rounded-2xl shadow-2xl flex flex-col" @click.stop>
         <!-- 头部 -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-          <div class="flex items-center gap-2 min-w-0">
+	        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+	          <div class="flex items-center gap-2 min-w-0">
             <button
               v-if="mtPhotoStore.view === 'album'"
               class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a] flex-shrink-0"
@@ -22,18 +22,29 @@
             <h3 class="text-lg font-bold text-white truncate">
               {{ titleText }}
             </h3>
-            <span v-if="subTitleText" class="text-xs text-gray-500 ml-2 flex-shrink-0">
-              {{ subTitleText }}
-            </span>
-          </div>
+	            <span v-if="subTitleText" class="text-xs text-gray-500 ml-2 flex-shrink-0">
+	              {{ subTitleText }}
+	            </span>
+	          </div>
 
-          <button
-            @click="close"
-            class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
-          >
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
+	          <div class="flex items-center gap-2">
+	            <button
+	              v-if="mtPhotoStore.view === 'album'"
+	              @click="toggleLayout"
+	              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+	              :title="layoutMode === 'masonry' ? '切换到网格视图' : '切换到瀑布流视图'"
+	            >
+	              <i :class="layoutMode === 'masonry' ? 'fas fa-th' : 'fas fa-stream'"></i>
+	            </button>
+
+	            <button
+	              @click="close"
+	              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+	            >
+	              <i class="fas fa-times"></i>
+	            </button>
+	          </div>
+	        </div>
 
         <!-- 错误提示 -->
         <div v-if="mtPhotoStore.lastError" class="px-6 py-3 text-xs text-red-400 border-b border-gray-800">
@@ -77,33 +88,34 @@
         </div>
 
         <!-- 相册媒体 -->
-        <InfiniteMediaGrid
-          v-else
-          :items="mtPhotoStore.mediaItems"
-          :loading="mtPhotoStore.mediaLoading"
-          :finished="mtPhotoStore.mediaTotalPages > 0 && mtPhotoStore.mediaPage >= mtPhotoStore.mediaTotalPages"
-          :total="mtPhotoStore.mediaTotal"
-          layout-mode="grid"
-          :item-key="(item, idx) => item.md5 + '-' + idx"
-          @load-more="mtPhotoStore.loadMore"
-        >
-          <template #default="{ item }">
-            <div
-              class="w-full h-full rounded-xl overflow-hidden cursor-pointer border border-gray-700 hover:border-pink-500 transition relative group"
-              @click="handleMediaClick(item)"
-            >
-              <img
-                v-if="item.type === 'image'"
-                :src="getThumbUrl('h220', item.md5)"
-                class="w-full h-full object-cover"
-                loading="lazy"
-              />
-              <img
-                v-else
-                :src="getThumbUrl('h220', item.md5)"
-                class="w-full h-full object-cover"
-                loading="lazy"
-              />
+	        <InfiniteMediaGrid
+	          v-else
+	          :items="mtPhotoStore.mediaItems"
+	          :loading="mtPhotoStore.mediaLoading"
+	          :finished="mtPhotoStore.mediaTotalPages > 0 && mtPhotoStore.mediaPage >= mtPhotoStore.mediaTotalPages"
+	          :total="mtPhotoStore.mediaTotal"
+	          :layout-mode="layoutMode"
+	          :item-key="(item, idx) => item.md5 + '-' + idx"
+	          @load-more="mtPhotoStore.loadMore"
+	        >
+	          <template #default="{ item }">
+	            <div
+	              class="w-full rounded-xl overflow-hidden cursor-pointer border border-gray-700 hover:border-pink-500 transition relative group"
+	              :class="layoutMode === 'grid' ? 'h-full' : ''"
+	              @click="handleMediaClick(item)"
+	            >
+	              <img
+	                v-if="item.type === 'image'"
+	                :src="getThumbUrl('h220', item.md5)"
+	                :class="layoutMode === 'grid' ? 'w-full h-full object-cover' : 'w-full h-auto block'"
+	                loading="lazy"
+	              />
+	              <img
+	                v-else
+	                :src="getThumbUrl('h220', item.md5)"
+	                :class="layoutMode === 'grid' ? 'w-full h-full object-cover' : 'w-full h-auto block'"
+	                loading="lazy"
+	              />
 
               <div v-if="item.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/30">
                 <i class="fas fa-play-circle text-white text-3xl"></i>
@@ -158,14 +170,24 @@ const { show } = useToast()
 const showPreview = ref(false)
 const previewUrl = ref('')
 const previewType = ref<'image' | 'video' | 'file'>('image')
-const previewCanUpload = ref(true)
-const previewMediaList = ref<UploadedMedia[]>([])
-const previewMD5 = ref('')
+	const previewCanUpload = ref(true)
+	const previewMediaList = ref<UploadedMedia[]>([])
+	const previewMD5 = ref('')
 
-const titleText = computed(() => {
-  if (mtPhotoStore.view === 'albums') return 'mtPhoto 相册'
-  return mtPhotoStore.selectedAlbum?.name || 'mtPhoto 相册'
-})
+	// 布局模式：'masonry' | 'grid'（与“全站图片库”保持一致）
+	const layoutMode = ref<'masonry' | 'grid'>(
+	  (localStorage.getItem('media_layout_mode') as 'masonry' | 'grid') || 'masonry'
+	)
+
+	const toggleLayout = () => {
+	  layoutMode.value = layoutMode.value === 'masonry' ? 'grid' : 'masonry'
+	  localStorage.setItem('media_layout_mode', layoutMode.value)
+	}
+
+	const titleText = computed(() => {
+	  if (mtPhotoStore.view === 'albums') return 'mtPhoto 相册'
+	  return mtPhotoStore.selectedAlbum?.name || 'mtPhoto 相册'
+	})
 
 const subTitleText = computed(() => {
   if (mtPhotoStore.view === 'albums') return mtPhotoStore.albums.length ? `(共 ${mtPhotoStore.albums.length} 个)` : ''
