@@ -93,6 +93,16 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
 
       albums.value = [favorites, ...mapped]
       lastError.value = ''
+
+      // 展示用：拉取收藏夹数量（不阻塞相册列表渲染）
+      void (async () => {
+        try {
+          const favRes = await mtphotoApi.getMtPhotoAlbumFiles(MTPHOTO_FAVORITES_ALBUM_ID, 1, 1)
+          favorites.count = Number(favRes?.total || 0)
+        } catch (e) {
+          console.warn('加载 mtPhoto 收藏夹数量失败:', e)
+        }
+      })()
     } catch (e: any) {
       console.error('加载 mtPhoto 相册失败:', e)
       albums.value = []

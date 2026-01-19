@@ -19,7 +19,7 @@
 1. 前端调用 `GET /api/getMtPhotoAlbums`
 2. 后端 `MtPhotoService` 自动登录（必要时）并请求 mtPhoto 的 `/api-album`
 3. 返回相册数组（包含 `id/name/cover/count` 等）
-4. 前端在相册列表顶部注入“收藏夹”入口（`albumId=1`），封面预览暂为空；点击后复用相册媒体分页接口加载收藏夹内容
+4. 前端在相册列表顶部注入“收藏夹”入口（`albumId=1`），封面预览暂为空；同时异步请求 `GET /api/getMtPhotoAlbumFiles?albumId=1&page=1&pageSize=1` 读取 `total` 作为数量展示；点击后复用相册媒体分页接口加载收藏夹内容
 
 ### 2) 浏览相册媒体（懒加载）
 1. 前端滚动触底触发 `GET /api/getMtPhotoAlbumFiles?albumId=...&page=...&pageSize=...`
@@ -91,3 +91,4 @@
 - [202601190055_mtphoto_refresh_token](../../history/2026-01/202601190055_mtphoto_refresh_token/) - mtPhoto 续期支持 refresh_token（优先 `/auth/refresh`，失败回退 `/auth/login`）
 - [202601190109_mtphoto_preview_detail](../../history/2026-01/202601190109_mtphoto_preview_detail/) - mtPhoto 相册预览支持查看详情（信息按钮 + 详情面板）
 - [202601190552_mtphoto_favorites_album](../../history/2026-01/202601190552_mtphoto_favorites_album/) - mtPhoto 相册列表置顶新增收藏夹入口（封面预览为空）
+- [202601190613_mtphoto_favorites_count](../../history/2026-01/202601190613_mtphoto_favorites_count/) - mtPhoto 相册列表展示收藏夹数量
