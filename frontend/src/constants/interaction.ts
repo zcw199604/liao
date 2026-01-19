@@ -12,6 +12,7 @@ export const DRAWER_CLOSE_MAX_Y_PX = 60
 
 // 列表 Tab 切换 (ChatSidebar)
 export const TAB_SWIPE_THRESHOLD = 80
+export const SWIPE_RESET_DURATION_MS = 300
 
 // 上下文菜单尺寸
 export const CONTEXT_MENU_WIDTH = 128

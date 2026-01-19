@@ -3,6 +3,12 @@ import { useSwipe, type UseSwipeOptions } from '@vueuse/core'
 
 export interface SwipeActionOptions {
   onSwipeEnd?: (direction: 'left' | 'right' | 'up' | 'down') => void
+  /**
+   * 手势结束时必触发（无论是否命中 threshold）。
+   * - deltaX/deltaY: 结束时的最终位移（带符号）
+   * - isTriggered: 是否命中阈值并触发了 onSwipeEnd
+   */
+  onSwipeFinish?: (deltaX: number, deltaY: number, isTriggered: boolean) => void
   threshold?: number
   passive?: boolean
   onSwipeProgress?: (deltaX: number, deltaY: number) => void
@@ -14,7 +20,7 @@ export interface SwipeActionOptions {
  * @param options 配置项
  */
 export function useSwipeAction(target: Ref<HTMLElement | null | undefined>, options: SwipeActionOptions = {}) {
-  const { threshold = 50, onSwipeEnd, onSwipeProgress, passive = true } = options
+  const { threshold = 50, onSwipeEnd, onSwipeFinish, onSwipeProgress, passive = true } = options
 
   const { lengthX, lengthY, direction, isSwiping, coordsStart, coordsEnd } = useSwipe(target, {
     threshold: 0, // 设置为0以便我们在 onSwipe 手动处理进度
@@ -33,17 +39,27 @@ export function useSwipeAction(target: Ref<HTMLElement | null | undefined>, opti
       }
     },
     onSwipeEnd: (_e, _direction) => {
-      // 可以在这里做最终判定
-      if (onSwipeEnd) {
-         // VueUse 的 direction 在极短滑动时可能不准，结合 distance 判断
-         const deltaX = coordsEnd.x - coordsStart.x
-         const deltaY = coordsEnd.y - coordsStart.y
-         
-         if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > threshold) {
-            onSwipeEnd(deltaX > 0 ? 'right' : 'left')
-         } else if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > threshold) {
-            onSwipeEnd(deltaY > 0 ? 'down' : 'up')
-         }
+      // VueUse 的 direction 在极短滑动时可能不准，结合位移判定。
+      const deltaX = coordsEnd.x - coordsStart.x
+      const deltaY = coordsEnd.y - coordsStart.y
+
+      let isTriggered = false
+      let endDirection: 'left' | 'right' | 'up' | 'down' | null = null
+
+      if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > threshold) {
+        isTriggered = true
+        endDirection = deltaX > 0 ? 'right' : 'left'
+      } else if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > threshold) {
+        isTriggered = true
+        endDirection = deltaY > 0 ? 'down' : 'up'
+      }
+
+      // 先触发阈值命中的业务回调，再做必触发的收尾回调，避免调用方出现动画时序冲突。
+      if (isTriggered && endDirection && onSwipeEnd) {
+        onSwipeEnd(endDirection)
+      }
+      if (onSwipeFinish) {
+        onSwipeFinish(deltaX, deltaY, isTriggered)
       }
     }
   })

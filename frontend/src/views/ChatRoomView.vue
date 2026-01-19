@@ -4,7 +4,7 @@
     class="page-container bg-[#0f0f13] relative overflow-hidden"
     :style="{
       transform: `translateX(${pageTranslateX}px)`,
-      transition: isPageAnimating ? 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none'
+      transition: isPageAnimating ? swipeTransition : 'none'
     }"
   >
     <!-- 侧边栏抽屉 -->
@@ -15,7 +15,7 @@
         class="absolute inset-y-0 left-0 w-[80%] max-w-sm z-50 shadow-2xl bg-[#0f0f13] border-r border-gray-800"
         :style="{
           transform: `translateX(${sidebarTranslateX}px)`,
-          transition: isSidebarAnimating ? 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none'
+          transition: isSidebarAnimating ? swipeTransition : 'none'
         }"
       >
         <ChatSidebar
@@ -214,7 +214,8 @@ import {
   EDGE_BACK_MAX_Y_PX, 
   DRAWER_CLOSE_EDGE_PX, 
   DRAWER_CLOSE_MIN_SWIPE_PX, 
-  DRAWER_CLOSE_MAX_Y_PX 
+  DRAWER_CLOSE_MAX_Y_PX,
+  SWIPE_RESET_DURATION_MS
 } from '@/constants/interaction'
 import * as mediaApi from '@/api/media'
 import ChatHeader from '@/components/chat/ChatHeader.vue'
@@ -326,6 +327,7 @@ const pageTranslateX = ref(0)
 const sidebarTranslateX = ref(0)
 const isPageAnimating = ref(false)
 const isSidebarAnimating = ref(false)
+const swipeTransition = `transform ${SWIPE_RESET_DURATION_MS}ms cubic-bezier(0.25, 0.46, 0.45, 0.94)`
 
 const messages = computed(() => {
   if (!chatStore.currentChatUser) return []
@@ -540,8 +542,24 @@ const { coordsStart: pageSwipeStart } = useSwipeAction(pageRef, {
        pageTranslateX.value = 0
        setTimeout(() => {
          isPageAnimating.value = false
-       }, 300)
+       }, SWIPE_RESET_DURATION_MS)
     }
+  },
+  onSwipeFinish: (_deltaX, _deltaY, isTriggered) => {
+    // useSwipeAction 在“方向不明确/未命中阈值”等情况下可能不会触发 onSwipeEnd；
+    // 这里做兜底复位，避免残留偏移卡住。
+    if (isTriggered) return
+    if (showSidebar.value) {
+      pageTranslateX.value = 0
+      isPageAnimating.value = false
+      return
+    }
+    if (pageTranslateX.value === 0) return
+    isPageAnimating.value = true
+    pageTranslateX.value = 0
+    setTimeout(() => {
+      isPageAnimating.value = false
+    }, SWIPE_RESET_DURATION_MS)
   }
 })
 
@@ -577,15 +595,30 @@ const { coordsStart: drawerSwipeStart } = useSwipeAction(sidebarRef, {
       // 关闭后需要重置状态，但 Transition 会处理离场，这里重置位移以便下次打开
       setTimeout(() => {
         sidebarTranslateX.value = 0
-      }, 300)
+      }, SWIPE_RESET_DURATION_MS)
     } else {
       // 回弹
       isSidebarAnimating.value = true
       sidebarTranslateX.value = 0
       setTimeout(() => {
         isSidebarAnimating.value = false
-      }, 300)
+      }, SWIPE_RESET_DURATION_MS)
     }
+  },
+  onSwipeFinish: (_deltaX, _deltaY, isTriggered) => {
+    // 兜底复位：避免极端手势结束时 onSwipeEnd 未触发导致的残留偏移
+    if (isTriggered) return
+    if (!showSidebar.value) {
+      sidebarTranslateX.value = 0
+      isSidebarAnimating.value = false
+      return
+    }
+    if (sidebarTranslateX.value === 0) return
+    isSidebarAnimating.value = true
+    sidebarTranslateX.value = 0
+    setTimeout(() => {
+      isSidebarAnimating.value = false
+    }, SWIPE_RESET_DURATION_MS)
   }
 })
 

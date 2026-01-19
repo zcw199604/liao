@@ -59,6 +59,7 @@
 | 202601190956 | fix_chat_scroll_jitter | 修复 | ✅已完成 | [链接](2026-01/202601190956_fix_chat_scroll_jitter/) |
 | 202601191023 | fix_wecom_notify_text | 修复 | ✅已完成 | [链接](2026-01/202601191023_fix_wecom_notify_text/) |
 | 202601191052 | fix_chat_mobile_keyboard_cover | 修复 | ✅已完成 | [链接](2026-01/202601191052_fix_chat_mobile_keyboard_cover/) |
+| 202601191138 | swipe_offset_stuck | 修复 | ✅已完成 | [链接](2026-01/202601191138_swipe_offset_stuck/) |
 
 ---
 
@@ -117,3 +118,4 @@
 - [202601190956_fix_chat_scroll_jitter](2026-01/202601190956_fix_chat_scroll_jitter/) - 修复聊天页媒体加载/失败导致的贴底滚动抖动（auto/smooth 分离 + 合并滚动 + 媒体 layout 事件）
 - [202601191023_fix_wecom_notify_text](2026-01/202601191023_fix_wecom_notify_text/) - GitHub Actions 企业微信通知改用文本消息并补充提交信息/镜像 tags
 - [202601191052_fix_chat_mobile_keyboard_cover](2026-01/202601191052_fix_chat_mobile_keyboard_cover/) - 修复移动端键盘弹出遮挡聊天最新消息（动态视口高度 + ResizeObserver 贴底）
+- [202601191138_swipe_offset_stuck](2026-01/202601191138_swipe_offset_stuck/) - 修复“消息/收藏”列表阈值内横滑残留偏移卡住（手势结束必复位）

@@ -92,7 +92,7 @@
 	        @click="closeContextMenu"
 	        :style="{ 
 	          transform: `translateX(${listTranslateX}px)`, 
-	          transition: isAnimating ? 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none' 
+	          transition: isAnimating ? listSwipeTransition : 'none' 
 	        }"
 	      >
 	        <!-- 骨架屏：首次加载用户列表时占位，减少跳动 -->
@@ -279,7 +279,7 @@ import { useWebSocket } from '@/composables/useWebSocket'
 import { useToast } from '@/composables/useToast'
 import { useSwipeAction } from '@/composables/useInteraction'
 import { getColorClass } from '@/constants/colors'
-import { TAB_SWIPE_THRESHOLD, CONTEXT_MENU_WIDTH, CONTEXT_MENU_HEIGHT } from '@/constants/interaction'
+import { TAB_SWIPE_THRESHOLD, SWIPE_RESET_DURATION_MS, CONTEXT_MENU_WIDTH, CONTEXT_MENU_HEIGHT } from '@/constants/interaction'
 import { formatTime } from '@/utils/time'
 import Toast from '@/components/common/Toast.vue'
 import SettingsDrawer from '@/components/settings/SettingsDrawer.vue'
@@ -319,12 +319,34 @@ const showSwitchIdentityDialog = ref(false)
 const showDeleteUserDialog = ref(false)
 	const userToDelete = ref<User | null>(null)
 	const listAreaRef = ref<HTMLElement | null>(null)
-	const isRefreshing = ref(false)
+const isRefreshing = ref(false)
 	const isInitialLoadingUsers = ref(false)
 
 // 列表偏移量 (用于跟手滑动)
 const listTranslateX = ref(0)
 const isAnimating = ref(false)
+let resetTranslateTimer: number | null = null
+const listSwipeTransition = `transform ${SWIPE_RESET_DURATION_MS}ms cubic-bezier(0.25, 0.46, 0.45, 0.94)`
+
+const resetListTranslateX = () => {
+  if (resetTranslateTimer !== null) {
+    clearTimeout(resetTranslateTimer)
+    resetTranslateTimer = null
+  }
+
+  // 已经处于 0 偏移时无需回弹，避免误触发动画状态
+  if (listTranslateX.value === 0) {
+    isAnimating.value = false
+    return
+  }
+
+  isAnimating.value = true
+  listTranslateX.value = 0
+  resetTranslateTimer = window.setTimeout(() => {
+    isAnimating.value = false
+    resetTranslateTimer = null
+  }, SWIPE_RESET_DURATION_MS)
+}
 
 // 上下文菜单状态
 const showContextMenu = ref(false)
@@ -447,6 +469,13 @@ const { isSwiping } = useSwipeAction(listAreaRef, {
   passive: true, // 保持滚动流畅，但在横滑判定后需要注意
   onSwipeProgress: (deltaX, deltaY) => {
     if (showContextMenu.value) return // 菜单打开时不滑动
+
+    // 如用户在回弹过程中再次滑动，立即取消回弹动画，确保跟手
+    if (resetTranslateTimer !== null) {
+      clearTimeout(resetTranslateTimer)
+      resetTranslateTimer = null
+    }
+    if (isAnimating.value) isAnimating.value = false
     
     // 简单的方向锁定：如果垂直移动明显，则忽略水平滑动
     if (Math.abs(deltaY) > Math.abs(deltaX)) {
@@ -466,7 +495,6 @@ const { isSwiping } = useSwipeAction(listAreaRef, {
   onSwipeEnd: (direction) => {
     if (showContextMenu.value) {
       closeContextMenu()
-      listTranslateX.value = 0
       return
     }
 
@@ -478,13 +506,21 @@ const { isSwiping } = useSwipeAction(listAreaRef, {
     } else if (direction === 'right' && chatStore.activeTab === 'favorite') {
       chatStore.activeTab = 'history'
     }
-
-    // 回弹复位
-    isAnimating.value = true
-    listTranslateX.value = 0
-    setTimeout(() => {
+  },
+  onSwipeFinish: (_deltaX, _deltaY, _isTriggered) => {
+    if (showContextMenu.value) {
+      // 菜单打开时不允许横滑，避免依赖其它路径来复位位移：这里直接收敛到 0，且不做动画
+      if (resetTranslateTimer !== null) {
+        clearTimeout(resetTranslateTimer)
+        resetTranslateTimer = null
+      }
       isAnimating.value = false
-    }, 300)
+      listTranslateX.value = 0
+      return
+    }
+
+    // 无论是否触发 Tab 切换，手势结束都需要回弹复位，避免残留偏移卡住
+    resetListTranslateX()
   }
 })
 
@@ -662,6 +698,10 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  if (resetTranslateTimer !== null) {
+    clearTimeout(resetTranslateTimer)
+    resetTranslateTimer = null
+  }
   window.removeEventListener('match-success', handleMatchSuccess)
   window.removeEventListener('check-online-result', onCheckOnlineResult)
   document.removeEventListener('click', closeContextMenu)
