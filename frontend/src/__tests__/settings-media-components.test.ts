@@ -325,7 +325,7 @@ describe('components/media/MediaPreview.vue', () => {
     await Promise.resolve()
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [href, options] = fetchMock.mock.calls[0]
+    const [href, options] = fetchMock.mock.calls[0]!
     expect(String(href)).toContain('/api/downloadMtPhotoOriginal')
     expect(options?.headers?.Authorization).toBe('Bearer t')
 
