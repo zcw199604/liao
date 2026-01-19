@@ -271,7 +271,7 @@ describe('components/media/MediaPreview.vue', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      headers: { get: () => "attachment; filename*=UTF-8''pic.jpg" },
+      headers: { get: () => 'attachment; filename=%E4%B8%AD%E6%96%87.jpg' },
       blob: async () => new Blob(['x'], { type: 'image/jpeg' })
     } as any)
     ;(globalThis as any).fetch = fetchMock
@@ -297,6 +297,15 @@ describe('components/media/MediaPreview.vue', () => {
     const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock' as any)
     const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const originalCreateElement = document.createElement.bind(document)
+    let createdAnchor: HTMLAnchorElement | null = null
+    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tagName: any) => {
+      const el = originalCreateElement(tagName)
+      if (String(tagName).toLowerCase() === 'a') {
+        createdAnchor = el as HTMLAnchorElement
+      }
+      return el
+    })
 
     localStorage.setItem('authToken', 't')
 
@@ -328,8 +337,10 @@ describe('components/media/MediaPreview.vue', () => {
     const [href, options] = fetchMock.mock.calls[0]!
     expect(String(href)).toContain('/api/downloadMtPhotoOriginal')
     expect(options?.headers?.Authorization).toBe('Bearer t')
+    expect((createdAnchor as any)?.download).toBe('中文.jpg')
 
     localStorage.removeItem('authToken')
+    createElementSpy.mockRestore()
     clickSpy.mockRestore()
     createObjectURLSpy.mockRestore()
     revokeObjectURLSpy.mockRestore()

@@ -59,6 +59,7 @@
 前端 `MediaPreview` 支持传入 `mediaList` 进行左右切换/滑动切换浏览；当预览内部切换当前项时会触发 `media-change` 事件。父组件如提供“上传/重传/导入”等动作，应监听该事件并同步当前目标，避免“切换后仍对首张执行操作”。
 预览顶部支持打开“详细信息”面板：仅当媒体对象携带任一元信息字段（如 `md5/fileSize/pHash/similarity` 等）时显示入口。
 当业务场景无法在列表阶段拿到真实文件名（如仅有 `md5`），可向 `MediaPreview` 传入可选的 `resolveOriginalFilename` 回调，在用户打开详情面板前按需解析并补齐 `originalFilename`（仅展示 basename，避免泄露目录结构）。
+预览顶部“下载”按钮在下载 `/api/*` 资源时会使用带 Authorization 的 blob 下载，并解析 `Content-Disposition` 的 `filename*`（RFC 5987）与 `filename`；当 `filename` 为 URL 编码时会在保存前解码，避免中文文件名被编码。
 “全站图片库/已上传图片”场景下，预览弹层背景使用毛玻璃（`backdrop-blur`），缩略图选中提供轻微缩小 + 弹性动画反馈以增强可感知性。
 
 ### 需求: 测试覆盖（Go）
@@ -138,6 +139,7 @@
 - [202601181549_mtphoto_preview_gallery](../../history/2026-01/202601181549_mtphoto_preview_gallery/) - 媒体预览画廊切换时对外同步当前媒体（用于 mtPhoto/全站图片库等场景）
 - [202601190109_mtphoto_preview_detail](../../history/2026-01/202601190109_mtphoto_preview_detail/) - 媒体预览支持按元信息显示“查看详情”入口并展示详情面板
 - [202601190702_mtphoto_preview_real_filename](../../history/2026-01/202601190702_mtphoto_preview_real_filename/) - mtPhoto 预览“查看详情”按需解析并展示真实文件名
+- [202601190728_mtphoto_download_filename_cn](../../history/2026-01/202601190728_mtphoto_download_filename_cn/) - 修复预览下载中文文件名被编码的问题（下载时解码）
 - [202601072058_fix_delete_media_403](../../history/2026-01/202601072058_fix_delete_media_403/) - 修复删除接口对多种 localPath 形式的兼容性（待复验）
 - [202601071248_go_backend_rewrite](../../history/2026-01/202601071248_go_backend_rewrite/) - Go 后端重构并实现媒体上传/记录/媒体库
 - [202601101607_image_hash_duplicate_check](../../history/2026-01/202601101607_image_hash_duplicate_check/) - 新增媒体查重接口（MD5 + pHash 相似度）

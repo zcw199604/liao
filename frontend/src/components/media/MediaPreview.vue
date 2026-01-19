@@ -284,19 +284,27 @@ const getFilenameFromContentDisposition = (value: string): string => {
   const raw = (value || '').trim()
   if (!raw) return ''
 
+  const decodeMaybeEscapedFilename = (input: string): string => {
+    const trimmed = (input || '').trim().replace(/^\"|\"$/g, '')
+    if (!trimmed) return ''
+    if (!/%[0-9A-Fa-f]{2}/.test(trimmed)) return trimmed
+    try {
+      return decodeURIComponent(trimmed.replace(/\+/g, '%20'))
+    } catch {
+      return trimmed
+    }
+  }
+
   // RFC 5987: filename*=UTF-8''...
   const m5987 = raw.match(/filename\*\s*=\s*UTF-8''([^;]+)/i)
   if (m5987 && m5987[1]) {
-    try {
-      return decodeURIComponent(m5987[1].trim())
-    } catch {
-      // ignore
-    }
+    const decoded = decodeMaybeEscapedFilename(m5987[1])
+    if (decoded) return decoded
   }
 
   const m = raw.match(/filename\s*=\s*\"([^\"]+)\"/i) || raw.match(/filename\s*=\s*([^;]+)/i)
   if (m && m[1]) {
-    return m[1].trim().replace(/^\"|\"$/g, '')
+    return decodeMaybeEscapedFilename(m[1])
   }
   return ''
 }
@@ -389,7 +397,7 @@ const handleDownload = async () => {
         return `download${ext}`
       })()
 
-    triggerBlobDownload(blob, filename)
+    triggerBlobDownload(blob, sanitizeFilename(filename) || 'download')
   } catch (e) {
     console.error('download failed:', e)
     show('下载失败')

@@ -37,6 +37,7 @@
 1. 预览展示继续使用缩略图（`/api/getMtPhotoThumb`），避免首屏加载过慢
 2. 用户点击预览顶部“下载”按钮时，前端优先使用 `downloadUrl`（`/api/downloadMtPhotoOriginal?id=<id>&md5=<md5>`）
 3. 后端代理 mtPhoto `gateway/fileDownload/{id}/{md5}` 流式透传原图内容并返回 `Content-Disposition: attachment` 以便浏览器保存
+4. 前端下载时解析 `Content-Disposition` 的 `filename*`（RFC 5987）与 `filename`：当 `filename` 为 URL 编码（如 `%E4%B8%AD%E6%96%87.jpg`）时会在保存前解码，确保中文文件名不被编码
 
 ### 5) 查看详情（真实文件名）
 1. 用户在预览中点击顶部“查看详情/信息”按钮打开详情面板
@@ -98,3 +99,4 @@
 - [202601190552_mtphoto_favorites_album](../../history/2026-01/202601190552_mtphoto_favorites_album/) - mtPhoto 相册列表置顶新增收藏夹入口（封面预览为空）
 - [202601190613_mtphoto_favorites_count](../../history/2026-01/202601190613_mtphoto_favorites_count/) - mtPhoto 相册列表展示收藏夹数量
 - [202601190702_mtphoto_preview_real_filename](../../history/2026-01/202601190702_mtphoto_preview_real_filename/) - mtPhoto 相册预览“查看详情”展示真实文件名（按需解析）
+- [202601190728_mtphoto_download_filename_cn](../../history/2026-01/202601190728_mtphoto_download_filename_cn/) - 修复 mtPhoto 相册预览下载中文文件名被编码的问题（下载时解码）
