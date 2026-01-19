@@ -44,69 +44,83 @@
           </div>
         </div>
 
-        <!-- 网格 -->
+        <!-- 瀑布流列表 -->
         <div
           v-else-if="mediaStore.allUploadImages && mediaStore.allUploadImages.length > 0"
           class="flex-1 overflow-y-auto p-6 no-scrollbar"
           @scroll="handleScroll"
           ref="scrollContainer"
         >
-          <div class="grid grid-cols-3 sm:grid-cols-4 gap-4">
+          <div class="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">
             <div
               v-for="(media, idx) in mediaStore.allUploadImages"
               :key="'all-upload-' + idx"
-              class="aspect-square rounded-xl overflow-hidden cursor-pointer border-2 transition-all relative group"
-              :class="[
-                mediaStore.selectedImages.includes(media.url) ? 'border-purple-500' : 'border-gray-700',
-                deletingUrls.has(media.url) ? 'opacity-50' : 'hover:border-blue-500 hover:scale-105'
-              ]"
+              class="break-inside-avoid relative group cursor-pointer"
               @click="handleMediaClick(media)"
             >
-              <!-- 多选复选框（管理模式 + 选择模式下显示） -->
-              <div
-                v-if="mediaStore.managementMode && mediaStore.selectionMode"
-                class="absolute top-2 left-2 z-10"
-                @click.stop="toggleSelection(media.url)"
+              <!-- 容器：处理缩放和圆角 -->
+              <div 
+                class="rounded-xl overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative bg-[#27272a]"
+                :class="[
+                  mediaStore.selectedImages.includes(media.url) ? 'transform scale-95 ring-2 ring-purple-500' : '',
+                  deletingUrls.has(media.url) ? 'opacity-50' : 'hover:brightness-110'
+                ]"
               >
-                <div class="w-6 h-6 rounded bg-black/50 flex items-center justify-center">
-                  <i
-                    v-if="mediaStore.selectedImages.includes(media.url)"
-                    class="fas fa-check-circle text-purple-500 text-lg"
-                  ></i>
-                  <i v-else class="far fa-circle text-white text-lg"></i>
+                 <!-- 多选复选框 -->
+                <div
+                  v-if="mediaStore.managementMode && mediaStore.selectionMode"
+                  class="absolute top-2 left-2 z-20 transition-transform duration-300"
+                  :class="mediaStore.selectedImages.includes(media.url) ? 'scale-100' : 'scale-90 opacity-80'"
+                  @click.stop="toggleSelection(media.url)"
+                >
+                  <div class="w-6 h-6 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center shadow-lg">
+                    <i
+                      v-if="mediaStore.selectedImages.includes(media.url)"
+                      class="fas fa-check-circle text-purple-400 text-lg drop-shadow-md transform transition-transform duration-300 scale-110"
+                    ></i>
+                    <i v-else class="far fa-circle text-white/80 text-lg hover:text-white"></i>
+                  </div>
                 </div>
-              </div>
 
-              <!-- 删除按钮（管理模式 + 非选择模式） -->
-              <button
-                v-if="mediaStore.managementMode && !mediaStore.selectionMode"
-                class="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/60 text-red-400 hidden group-hover:flex items-center justify-center"
-                @click.stop="confirmDelete([media.url])"
-              >
-                <i class="fas fa-trash text-xs"></i>
-              </button>
-
-              <img v-if="media.type === 'image'" :src="media.url" class="w-full h-full object-cover" />
-              <video v-else :src="media.url" class="w-full h-full object-cover"></video>
-
-              <div v-if="media.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/30">
-                <i class="fas fa-play-circle text-white text-3xl"></i>
+                <!-- 删除按钮 -->
+                <button
+                  v-if="mediaStore.managementMode && !mediaStore.selectionMode"
+                  class="absolute top-2 right-2 z-20 w-8 h-8 rounded-full bg-black/60 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-black/80"
+                  @click.stop="confirmDelete([media.url])"
+                >
+                  <i class="fas fa-trash text-sm"></i>
+                </button>
+                
+                <!-- 媒体内容 -->
+                <LazyImage
+                  v-if="media.type === 'image'"
+                  :src="media.url"
+                  container-class="w-full bg-[#27272a]"
+                  img-class="w-full h-auto block"
+                />
+                
+                <div v-else class="w-full aspect-video bg-[#27272a] relative">
+                    <video :src="media.url" class="w-full h-full object-cover"></video>
+                    <div class="absolute inset-0 flex items-center justify-center bg-black/30">
+                        <i class="fas fa-play-circle text-white text-4xl drop-shadow-lg"></i>
+                    </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div v-if="mediaStore.allUploadLoading" class="flex justify-center py-4 text-gray-500 text-sm">
-            <div class="flex items-center gap-2">
-              <span class="w-3 h-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin"></span>
-              <span>加载中...</span>
+          <div v-if="mediaStore.allUploadLoading" class="flex justify-center py-6 text-gray-500 text-sm w-full">
+            <div class="flex items-center gap-2 bg-[#27272a] px-4 py-2 rounded-full shadow-lg">
+              <span class="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></span>
+              <span>加载更多...</span>
             </div>
           </div>
 
           <div
             v-else-if="mediaStore.allUploadPage >= mediaStore.allUploadTotalPages && mediaStore.allUploadImages.length > 0"
-            class="flex justify-center py-4 text-gray-600 text-sm"
+            class="flex justify-center py-8 text-gray-600 text-xs w-full"
           >
-            已加载全部
+            <span class="px-3 py-1 bg-[#27272a]/50 rounded-full">已加载全部 {{ mediaStore.allUploadTotal }} 张图片</span>
           </div>
         </div>
 
@@ -179,6 +193,7 @@ import { useSystemConfigStore } from '@/stores/systemConfig'
 import * as mediaApi from '@/api/media'
 import Dialog from '@/components/common/Dialog.vue'
 import MediaPreview from '@/components/media/MediaPreview.vue'
+import LazyImage from '@/components/common/LazyImage.vue'
 import type { UploadedMedia } from '@/types'
 
 const mediaStore = useMediaStore()

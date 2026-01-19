@@ -3,7 +3,7 @@
     <transition name="fade">
       <div
         v-if="visible"
-        class="fixed inset-0 bg-black/95 flex items-center justify-center z-[100] overflow-hidden select-none"
+        class="fixed inset-0 bg-black/60 backdrop-blur-xl flex items-center justify-center z-[100] overflow-hidden select-none"
         @click.self="handleClose"
       >
         <!-- 顶部工具栏 -->
