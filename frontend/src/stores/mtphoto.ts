@@ -2,11 +2,17 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as mtphotoApi from '@/api/mtphoto'
 
+const MTPHOTO_FAVORITES_ALBUM_ID = 1
+
 export interface MtPhotoAlbum {
+  // 本地唯一ID（用于 v-for key / 选中态），避免与上游保留相册（如收藏夹）ID 冲突
   id: number
+  // 上游 mtPhoto 的相册ID（用于请求 filesV2/{id}）
+  mtPhotoAlbumId: number
   name: string
   cover: string
   count: number
+  isFavorites?: boolean
   startTime?: string
   endTime?: string
 }
@@ -60,7 +66,32 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     try {
       const res = await mtphotoApi.getMtPhotoAlbums()
       const data = Array.isArray(res?.data) ? res.data : []
-      albums.value = data
+
+      // 统一映射为本地模型，并置顶插入“收藏夹”（封面为空，后续进入时再从 total 同步数量）
+      const mapped: MtPhotoAlbum[] = data
+        .filter((a: any) => a && typeof a === 'object')
+        .map((a: any) => ({
+          id: Number(a.id),
+          mtPhotoAlbumId: Number(a.id),
+          name: String(a.name ?? ''),
+          cover: String(a.cover ?? ''),
+          count: Number(a.count ?? 0),
+          startTime: a.startTime ? String(a.startTime) : undefined,
+          endTime: a.endTime ? String(a.endTime) : undefined
+        }))
+        // 上游可能存在保留相册（如收藏夹），避免与本地置顶入口重复
+        .filter((a: MtPhotoAlbum) => a.mtPhotoAlbumId > 0 && a.mtPhotoAlbumId !== MTPHOTO_FAVORITES_ALBUM_ID)
+
+      const favorites: MtPhotoAlbum = {
+        id: -MTPHOTO_FAVORITES_ALBUM_ID,
+        mtPhotoAlbumId: MTPHOTO_FAVORITES_ALBUM_ID,
+        name: '收藏夹',
+        cover: '',
+        count: 0,
+        isFavorites: true
+      }
+
+      albums.value = [favorites, ...mapped]
       lastError.value = ''
     } catch (e: any) {
       console.error('加载 mtPhoto 相册失败:', e)
@@ -96,7 +127,7 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
 
     mediaLoading.value = true
     try {
-      const res = await mtphotoApi.getMtPhotoAlbumFiles(selectedAlbum.value.id, page, mediaPageSize.value)
+      const res = await mtphotoApi.getMtPhotoAlbumFiles(selectedAlbum.value.mtPhotoAlbumId, page, mediaPageSize.value)
       const data = Array.isArray(res?.data) ? res.data : []
 
       if (page === 1) {
@@ -109,6 +140,8 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
       mediaPage.value = Number(res?.page || page)
       mediaPageSize.value = Number(res?.pageSize || mediaPageSize.value)
       mediaTotalPages.value = Number(res?.totalPages || 0)
+      // 进入相册/收藏夹后以返回 total 同步数量，避免在列表页额外拉取
+      selectedAlbum.value.count = mediaTotal.value
       lastError.value = ''
     } catch (e: any) {
       console.error('加载 mtPhoto 相册媒体失败:', e)

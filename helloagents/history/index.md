@@ -49,6 +49,7 @@
 | 202601190200 | upgrade_go_toolchain_1_25_6 | 优化 | ✅已完成 | [链接](2026-01/202601190200_upgrade_go_toolchain_1_25_6/) |
 | 202601190355 | kb_recent_commits | 文档 | ✅已完成 | [链接](2026-01/202601190355_kb_recent_commits/) |
 | 202601190509 | mtphoto_download_original | 修复 | ⚠️待复验 | [链接](2026-01/202601190509_mtphoto_download_original/) |
+| 202601190552 | mtphoto_favorites_album | 功能 | ⚠️待复验 | [链接](2026-01/202601190552_mtphoto_favorites_album/) |
 
 ---
 
@@ -97,3 +98,4 @@
 - [202601190200_upgrade_go_toolchain_1_25_6](2026-01/202601190200_upgrade_go_toolchain_1_25_6/) - 升级 Go 模块版本至 1.25.6（`go 1.25` + `toolchain go1.25.6`），GitHub Actions（Release 工作流）改为从 `go.mod` 读取版本，Docker 构建镜像固定为 `golang:1.25.6-alpine`
 - [202601190355_kb_recent_commits](2026-01/202601190355_kb_recent_commits/) - 整理最近提交（媒体库瀑布流/网格切换、预览体验、InfiniteMediaGrid/LazyImage）到知识库
 - [202601190509_mtphoto_download_original](2026-01/202601190509_mtphoto_download_original/) - 修复 mtPhoto 相册预览下载为原图（代理 mtPhoto fileDownload）
+- [202601190552_mtphoto_favorites_album](2026-01/202601190552_mtphoto_favorites_album/) - mtPhoto 相册列表置顶新增收藏夹入口（封面预览为空），可浏览收藏夹媒体并复用预览/导入上传流程
