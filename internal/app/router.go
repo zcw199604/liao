@@ -77,6 +77,7 @@ func (a *App) buildRouter() http.Handler {
 		api.Get("/getMtPhotoAlbums", a.handleGetMtPhotoAlbums)
 		api.Get("/getMtPhotoAlbumFiles", a.handleGetMtPhotoAlbumFiles)
 		api.Get("/getMtPhotoThumb", a.handleGetMtPhotoThumb)
+		api.Get("/downloadMtPhotoOriginal", a.handleDownloadMtPhotoOriginal)
 		api.Get("/resolveMtPhotoFilePath", a.handleResolveMtPhotoFilePath)
 		api.Post("/importMtPhotoMedia", a.handleImportMtPhotoMedia)
 

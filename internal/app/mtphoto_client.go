@@ -605,3 +605,29 @@ func (s *MtPhotoService) GatewayGet(ctx context.Context, size, md5Value string) 
 		"Accept": "*/*",
 	}, nil, true, true)
 }
+
+// GatewayFileDownload 用于代理 mtPhoto /gateway/fileDownload/{id}/{md5}（下载原图/原文件）。
+// 返回 resp 由调用方负责关闭。
+func (s *MtPhotoService) GatewayFileDownload(ctx context.Context, fileID int64, md5Value string) (*http.Response, error) {
+	if !s.configured() {
+		return nil, fmt.Errorf("mtPhoto 未配置")
+	}
+
+	if fileID <= 0 {
+		return nil, fmt.Errorf("id 非法")
+	}
+
+	md5Value = strings.TrimSpace(md5Value)
+	if md5Value == "" {
+		return nil, fmt.Errorf("md5 为空")
+	}
+
+	urlStr, err := s.buildURL(fmt.Sprintf("/gateway/fileDownload/%d/%s", fileID, md5Value), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.doRequest(ctx, http.MethodGet, urlStr, map[string]string{
+		"Accept": "*/*",
+	}, nil, true, true)
+}

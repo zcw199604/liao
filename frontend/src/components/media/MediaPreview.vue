@@ -30,16 +30,13 @@
               </button>
 
               <!-- 下载按钮 -->
-              <a 
-                :href="currentMedia.url" 
-                download 
-                target="_blank"
+              <button
                 class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition backdrop-blur-sm"
                 title="下载"
-                @click.stop
+                @click.stop="handleDownload"
               >
                 <i class="fas fa-download text-sm"></i>
-              </a>
+              </button>
 
               <!-- 关闭按钮 -->
               <button
@@ -160,6 +157,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onUnmounted, nextTick } from 'vue'
 import type { UploadedMedia } from '@/types'
+import { useToast } from '@/composables/useToast'
 import MediaDetailPanel from './MediaDetailPanel.vue'
 
 interface Props {
@@ -180,6 +178,8 @@ const emit = defineEmits<{
   'upload': []
   'media-change': [media: UploadedMedia]
 }>()
+
+const { show } = useToast()
 
 // 状态管理
 const scale = ref(1)
@@ -232,6 +232,133 @@ const currentMedia = computed<UploadedMedia>(() => {
   if (item) return item
   return realMediaList.value[0] || { url: '', type: 'image' }
 })
+
+const isSameOriginApiUrl = (href: string) => {
+  const trimmed = (href || '').trim()
+  if (!trimmed) return false
+  try {
+    const u = new URL(trimmed, window.location.origin)
+    return u.origin === window.location.origin && u.pathname.startsWith('/api/')
+  } catch {
+    return trimmed.startsWith('/api/')
+  }
+}
+
+const getFilenameFromContentDisposition = (value: string): string => {
+  const raw = (value || '').trim()
+  if (!raw) return ''
+
+  // RFC 5987: filename*=UTF-8''...
+  const m5987 = raw.match(/filename\*\s*=\s*UTF-8''([^;]+)/i)
+  if (m5987 && m5987[1]) {
+    try {
+      return decodeURIComponent(m5987[1].trim())
+    } catch {
+      // ignore
+    }
+  }
+
+  const m = raw.match(/filename\s*=\s*\"([^\"]+)\"/i) || raw.match(/filename\s*=\s*([^;]+)/i)
+  if (m && m[1]) {
+    return m[1].trim().replace(/^\"|\"$/g, '')
+  }
+  return ''
+}
+
+const guessExtFromMime = (mime: string) => {
+  const mt = (mime || '').toLowerCase().split(';')[0]?.trim() || ''
+  switch (mt) {
+    case 'image/jpeg':
+      return '.jpg'
+    case 'image/png':
+      return '.png'
+    case 'image/gif':
+      return '.gif'
+    case 'image/webp':
+      return '.webp'
+    case 'video/mp4':
+      return '.mp4'
+    default:
+      return ''
+  }
+}
+
+const triggerBlobDownload = (blob: Blob, filename: string) => {
+  const blobUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = blobUrl
+  link.download = filename || 'download'
+  link.rel = 'noopener'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
+}
+
+const triggerDirectDownload = (href: string) => {
+  const link = document.createElement('a')
+  link.href = href
+  link.download = ''
+  link.target = '_blank'
+  link.rel = 'noopener'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
+const handleDownload = async () => {
+  const href = String(currentMedia.value.downloadUrl || currentMedia.value.url || '').trim()
+  if (!href) return
+
+  // /api 资源需要带 Authorization；其他 URL 保持直链下载行为。
+  if (!isSameOriginApiUrl(href)) {
+    triggerDirectDownload(href)
+    return
+  }
+
+  const token = localStorage.getItem('authToken')
+  if (!token) {
+    show('未登录或Token缺失')
+    return
+  }
+
+  try {
+    const resp = await fetch(href, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (!resp.ok) {
+      let msg = `下载失败: ${resp.status}`
+      try {
+        const data = await resp.json()
+        msg = data?.error || data?.msg || msg
+      } catch {
+        // ignore
+      }
+      show(msg)
+      return
+    }
+
+    const blob = await resp.blob()
+    const cd = resp.headers.get('Content-Disposition') || ''
+    const filenameFromHeader = getFilenameFromContentDisposition(cd)
+    const filename =
+      filenameFromHeader ||
+      currentMedia.value.originalFilename ||
+      currentMedia.value.localFilename ||
+      (() => {
+        const ext = guessExtFromMime(blob.type)
+        const md5 = currentMedia.value.md5 || ''
+        if (md5) return `mtphoto_${md5}${ext}`
+        return `download${ext}`
+      })()
+
+    triggerBlobDownload(blob, filename)
+  } catch (e) {
+    console.error('download failed:', e)
+    show('下载失败')
+  }
+}
 
 const mediaReloadSeq = ref(0)
 const mediaRetryCount = ref(0)

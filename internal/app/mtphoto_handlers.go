@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -89,6 +90,64 @@ func (a *App) handleGetMtPhotoThumb(w http.ResponseWriter, r *http.Request) {
 	if cc := strings.TrimSpace(resp.Header.Get("Cache-Control")); cc != "" {
 		w.Header().Set("Cache-Control", cc)
 	}
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
+}
+
+func (a *App) handleDownloadMtPhotoOriginal(w http.ResponseWriter, r *http.Request) {
+	if a == nil || a.mtPhoto == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "mtPhoto 服务未初始化"})
+		return
+	}
+
+	q := r.URL.Query()
+	fileID := int64(parseIntDefault(q.Get("id"), 0))
+	md5Value := strings.TrimSpace(q.Get("md5"))
+	if fileID <= 0 || !isValidMD5Hex(md5Value) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "id/md5 参数非法"})
+		return
+	}
+
+	resp, err := a.mtPhoto.GatewayFileDownload(r.Context(), fileID, md5Value)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "mtPhoto 下载失败: " + err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "mtPhoto 下载失败: " + resp.Status})
+		return
+	}
+
+	// 仅透传必要响应头，避免 Set-Cookie 等敏感头下发到前端
+	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
+	if contentType != "" {
+		w.Header().Set("Content-Type", contentType)
+	} else {
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+	if cc := strings.TrimSpace(resp.Header.Get("Cache-Control")); cc != "" {
+		w.Header().Set("Cache-Control", cc)
+	}
+	if cl := strings.TrimSpace(resp.Header.Get("Content-Length")); cl != "" {
+		w.Header().Set("Content-Length", cl)
+	}
+	if ar := strings.TrimSpace(resp.Header.Get("Accept-Ranges")); ar != "" {
+		w.Header().Set("Accept-Ranges", ar)
+	}
+
+	disp := strings.TrimSpace(resp.Header.Get("Content-Disposition"))
+	if disp == "" {
+		// mtPhoto 部分版本不会返回文件名；缺失时用 filesInMD5 解析文件名以改善下载体验。
+		originalFilename := ""
+		if item, err := a.mtPhoto.ResolveFilePath(r.Context(), md5Value); err == nil && item != nil {
+			originalFilename = filepath.Base(strings.TrimSpace(item.FilePath))
+		}
+		disp = buildDownloadContentDisposition(originalFilename, md5Value, contentType)
+	}
+	w.Header().Set("Content-Disposition", disp)
+
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
 }
@@ -276,6 +335,66 @@ func inferContentTypeFromFilename(filename string) string {
 	default:
 		return ""
 	}
+}
+
+func isValidMD5Hex(s string) bool {
+	if len(s) != 32 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		switch {
+		case ch >= '0' && ch <= '9':
+		case ch >= 'a' && ch <= 'f':
+		case ch >= 'A' && ch <= 'F':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func guessExtFromContentType(contentType string) string {
+	ct := strings.ToLower(strings.TrimSpace(contentType))
+	if ct == "" {
+		return ""
+	}
+	if i := strings.Index(ct, ";"); i >= 0 {
+		ct = strings.TrimSpace(ct[:i])
+	}
+
+	switch ct {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	case "video/mp4":
+		return ".mp4"
+	default:
+		return ""
+	}
+}
+
+func buildDownloadContentDisposition(originalFilename, md5Value, contentType string) string {
+	originalFilename = strings.TrimSpace(originalFilename)
+	ext := strings.ToLower(filepath.Ext(originalFilename))
+	if ext == "" {
+		ext = guessExtFromContentType(contentType)
+	}
+
+	fallback := "mtphoto_" + md5Value
+	if ext != "" {
+		fallback += ext
+	}
+	if originalFilename == "" {
+		originalFilename = fallback
+	}
+
+	return fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", fallback, url.PathEscape(originalFilename))
 }
 
 func openLocalFileForRead(absPath string) (*os.File, error) {

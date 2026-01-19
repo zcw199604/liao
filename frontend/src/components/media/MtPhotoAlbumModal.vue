@@ -200,6 +200,12 @@ const getThumbUrl = (size: 's260' | 'h220', md5: string) => {
   return `/api/getMtPhotoThumb?size=${size}&md5=${safeMD5}`
 }
 
+const getOriginalDownloadUrl = (id: number, md5: string) => {
+  const safeID = encodeURIComponent(String(id || ''))
+  const safeMD5 = encodeURIComponent(md5 || '')
+  return `/api/downloadMtPhotoOriginal?id=${safeID}&md5=${safeMD5}`
+}
+
 const close = () => {
   mtPhotoStore.close()
   showPreview.value = false
@@ -223,6 +229,7 @@ const handleMediaClick = async (item: MtPhotoMediaItem) => {
       .map(m => ({
         url: getThumbUrl('h220', m.md5),
         type: 'image',
+        downloadUrl: getOriginalDownloadUrl(m.id, m.md5),
         md5: m.md5,
         fileExtension: m.fileType ? String(m.fileType).trim().toLowerCase() : undefined,
         width: m.width,

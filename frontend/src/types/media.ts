@@ -1,6 +1,8 @@
 export interface UploadedMedia {
   url: string
   type: 'image' | 'video' | 'file'
+  // 用于下载（与展示 URL 解耦，例如 mtPhoto 预览展示缩略图，但下载原图）
+  downloadUrl?: string
   localFilename?: string
   // 新增字段 - 用于显示详细信息
   originalFilename?: string

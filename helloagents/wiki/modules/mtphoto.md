@@ -11,7 +11,7 @@
 ## 入口与交互
 - **聊天页上传菜单:** 新增“mtPhoto 相册”入口，打开相册弹窗
 - **系统设置（System）:** 新增“mtPhoto 相册”入口，打开相册弹窗
-- **相册弹窗:** 相册列表 → 相册媒体（网格/瀑布流可切换，无限滚动）→ 预览（图片支持左右切换浏览；预览顶部可查看详情）→ 点击“上传”触发导入（以当前预览图片为准）
+- **相册弹窗:** 相册列表 → 相册媒体（网格/瀑布流可切换，无限滚动）→ 预览（图片支持左右切换浏览；预览顶部可查看详情；下载按钮下载原图）→ 点击“上传”触发导入（以当前预览图片为准）
 
 ## 核心流程
 
@@ -32,6 +32,11 @@
 4. 后端将该文件上传到上游（与 `/api/uploadMedia` 同协议）
 5. 成功后写入 `media_file` 并加入 `imageCache`，前端将其加入“已上传的文件”
 
+### 4) 下载原图（mtPhoto 图片下载）
+1. 预览展示继续使用缩略图（`/api/getMtPhotoThumb`），避免首屏加载过慢
+2. 用户点击预览顶部“下载”按钮时，前端优先使用 `downloadUrl`（`/api/downloadMtPhotoOriginal?id=<id>&md5=<md5>`）
+3. 后端代理 mtPhoto `gateway/fileDownload/{id}/{md5}` 流式透传原图内容并返回 `Content-Disposition: attachment` 以便浏览器保存
+
 ## 鉴权与续期策略（mtPhoto 上游）
 
 - 登录：`POST {MTPHOTO_BASE_URL}/auth/login` → `access_token/auth_code/refresh_token/expires_in`
@@ -48,6 +53,7 @@
 - `GET /api/getMtPhotoAlbums`
 - `GET /api/getMtPhotoAlbumFiles`
 - `GET /api/getMtPhotoThumb`
+- `GET /api/downloadMtPhotoOriginal`
 - `GET /api/resolveMtPhotoFilePath`
 - `POST /api/importMtPhotoMedia`
 

@@ -804,6 +804,21 @@
 
 **响应**：图片二进制（透传 `Content-Type`）。
 
+#### [GET] /api/downloadMtPhotoOriginal
+**描述**：下载 mtPhoto 原图/原文件（后端代理 mtPhoto `gateway/fileDownload/{id}/{md5}`）。用于解决 mtPhoto 预览展示为缩略图时，“下载”应获取原图的问题。
+
+**请求（query）**
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| id | 是 | mtPhoto 文件 ID |
+| md5 | 是 | mtPhoto 文件 MD5（32位hex） |
+
+**响应**：二进制内容（原图/原文件），并尽量返回 `Content-Disposition: attachment` 以便浏览器保存。
+
+**备注**
+- 该接口要求 JWT（需携带 `Authorization: Bearer <token>`），不同于 `/api/getMtPhotoThumb` 的放行策略。
+- 后端仅透传必要响应头，避免 `Set-Cookie` 等敏感头下发到前端。
+
 #### [GET] /api/resolveMtPhotoFilePath
 **描述**：通过 md5 调用 mtPhoto `filesInMD5` 获取本地文件路径（形如 `/lsp/...`）。
 

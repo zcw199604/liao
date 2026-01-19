@@ -265,4 +265,80 @@ describe('components/media/MediaPreview.vue', () => {
 
     expect(wrapper.find('h3').exists()).toBe(false)
   })
+
+  it('downloads /api resource with Authorization when downloadUrl is provided', async () => {
+    const originalFetch = (globalThis as any).fetch
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => "attachment; filename*=UTF-8''pic.jpg" },
+      blob: async () => new Blob(['x'], { type: 'image/jpeg' })
+    } as any)
+    ;(globalThis as any).fetch = fetchMock
+
+    const originalCreateObjectURL = (URL as any).createObjectURL
+    const originalRevokeObjectURL = (URL as any).revokeObjectURL
+    const needRestoreCreateObjectURL = originalCreateObjectURL === undefined
+    const needRestoreRevokeObjectURL = originalRevokeObjectURL === undefined
+
+    if (!(URL as any).createObjectURL) {
+      Object.defineProperty(URL, 'createObjectURL', {
+        configurable: true,
+        value: vi.fn().mockReturnValue('blob:mock')
+      })
+    }
+    if (!(URL as any).revokeObjectURL) {
+      Object.defineProperty(URL, 'revokeObjectURL', {
+        configurable: true,
+        value: vi.fn()
+      })
+    }
+
+    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock' as any)
+    const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    localStorage.setItem('authToken', 't')
+
+    const wrapper = mount(MediaPreview, {
+      props: {
+        visible: false,
+        url: 'http://x/1.png',
+        type: 'image',
+        mediaList: [
+          {
+            url: 'http://x/1.png',
+            type: 'image',
+            md5: 'abc',
+            downloadUrl: '/api/downloadMtPhotoOriginal?id=1&md5=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+          }
+        ]
+      },
+      global: { stubs: { teleport: true } }
+    })
+
+    await wrapper.setProps({ visible: true })
+    await nextTick()
+
+    await wrapper.get('button[title=\"下载\"]').trigger('click')
+    await nextTick()
+    await Promise.resolve()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [href, options] = fetchMock.mock.calls[0]
+    expect(String(href)).toContain('/api/downloadMtPhotoOriginal')
+    expect(options?.headers?.Authorization).toBe('Bearer t')
+
+    localStorage.removeItem('authToken')
+    clickSpy.mockRestore()
+    createObjectURLSpy.mockRestore()
+    revokeObjectURLSpy.mockRestore()
+    if (needRestoreCreateObjectURL) {
+      ;(URL as any).createObjectURL = originalCreateObjectURL
+    }
+    if (needRestoreRevokeObjectURL) {
+      ;(URL as any).revokeObjectURL = originalRevokeObjectURL
+    }
+    ;(globalThis as any).fetch = originalFetch
+  })
 })
