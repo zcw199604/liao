@@ -1,7 +1,7 @@
 <template>
   <div
     ref="scrollContainer"
-    class="flex-1 overflow-y-auto p-6 no-scrollbar"
+    class="flex-1 overflow-y-auto p-4 no-scrollbar"
     @scroll="handleScroll"
   >
     <!-- Loading Initial -->

@@ -5,7 +5,7 @@
       class="fixed inset-0 z-[75] bg-black/70 flex items-center justify-center"
       @click="close"
     >
-      <div class="w-[95%] max-w-5xl h-[85vh] bg-[#18181b] rounded-2xl shadow-2xl flex flex-col" @click.stop>
+      <div class="w-[95%] max-w-[1600px] h-[90vh] h-[90dvh] bg-[#18181b] rounded-2xl shadow-2xl flex flex-col" @click.stop>
         <!-- 头部 -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <div class="flex items-center gap-2">

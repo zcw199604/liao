@@ -39,6 +39,7 @@
 - 支持瀑布流（masonry）与网格（grid）布局切换；为保证按时间排序时的视觉顺序，瀑布流采用“按行从左到右”的布局策略（行优先），并将用户选择持久化到 localStorage（`media_layout_mode`）
 - 支持无限滚动加载更多，复用 `InfiniteMediaGrid` 组件统一滚动/加载/空态/结束态逻辑
 - 缩略图使用 `LazyImage` 进行懒加载与错误兜底，并提供选中态动效；预览背景采用毛玻璃（`backdrop-blur`）提升沉浸感
+- 弹窗展示区域针对大屏做放宽：弹窗宽度上限提升（`max-w-[1600px]`），高度提升至 `90vh`（支持 `90dvh`），列表容器内边距下调以减少留白
 
 ### 需求: 删除兼容性（localPath 归一化）
 **模块:** Media
@@ -136,6 +137,7 @@
   - `internal/app/user_history_media_handlers_test.go`
 
 ## 变更历史
+- [202601191522_media_gallery_expand](../../history/2026-01/202601191522_media_gallery_expand/) - 放宽“全站图片库/mtPhoto 相册”弹窗与图片列表展示区域，减少留白
 - [202601181549_mtphoto_preview_gallery](../../history/2026-01/202601181549_mtphoto_preview_gallery/) - 媒体预览画廊切换时对外同步当前媒体（用于 mtPhoto/全站图片库等场景）
 - [202601190109_mtphoto_preview_detail](../../history/2026-01/202601190109_mtphoto_preview_detail/) - 媒体预览支持按元信息显示“查看详情”入口并展示详情面板
 - [202601190702_mtphoto_preview_real_filename](../../history/2026-01/202601190702_mtphoto_preview_real_filename/) - mtPhoto 预览“查看详情”按需解析并展示真实文件名
