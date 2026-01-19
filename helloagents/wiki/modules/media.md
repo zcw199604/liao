@@ -36,7 +36,7 @@
 ### 需求: 已上传图片浏览（布局切换/无限滚动）
 **模块:** Media
 “已上传的图片”（`AllUploadImageModal`）用于从“全站图片库”分页浏览素材并发送，前端要求：
-- 支持瀑布流（masonry）与网格（grid）布局切换，并将用户选择持久化到 localStorage（`media_layout_mode`）
+- 支持瀑布流（masonry）与网格（grid）布局切换；为保证按时间排序时的视觉顺序，瀑布流采用“按行从左到右”的布局策略（行优先），并将用户选择持久化到 localStorage（`media_layout_mode`）
 - 支持无限滚动加载更多，复用 `InfiniteMediaGrid` 组件统一滚动/加载/空态/结束态逻辑
 - 缩略图使用 `LazyImage` 进行懒加载与错误兜底，并提供选中态动效；预览背景采用毛玻璃（`backdrop-blur`）提升沉浸感
 

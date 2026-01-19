@@ -11,7 +11,7 @@
 ## 入口与交互
 - **聊天页上传菜单:** 新增“mtPhoto 相册”入口，打开相册弹窗
 - **系统设置（System）:** 新增“mtPhoto 相册”入口，打开相册弹窗
-- **相册弹窗:** 相册列表（首项“收藏夹”，封面预览为空）→ 相册媒体（网格/瀑布流可切换，无限滚动）→ 预览（图片支持左右切换浏览；预览顶部可查看详情并展示真实文件名等元信息；下载按钮下载原图）→ 点击“上传”触发导入（以当前预览图片为准）
+- **相册弹窗:** 相册列表（首项“收藏夹”，封面预览为空）→ 相册媒体（网格/瀑布流可切换，无限滚动；瀑布流按行从左到右渲染以保证时间顺序直觉）→ 预览（图片支持左右切换浏览；预览顶部可查看详情并展示真实文件名等元信息；下载按钮下载原图）→ 点击“上传”触发导入（以当前预览图片为准）
 
 ## 核心流程
 
@@ -24,7 +24,7 @@
 ### 2) 浏览相册媒体（懒加载）
 1. 前端滚动触底触发 `GET /api/getMtPhotoAlbumFiles?albumId=...&page=...&pageSize=...`
 2. 后端请求 mtPhoto 的 `/api-album/filesV2/{id}?listVer=v2`，将结果扁平化并做分页切片
-3. 前端使用 `InfiniteMediaGrid` 展示相册媒体（支持瀑布流/网格切换，localStorage: `media_layout_mode`），并使用 `loading="lazy"` 加载缩略图（`/api/getMtPhotoThumb`）
+3. 前端使用 `InfiniteMediaGrid` 展示相册媒体（支持瀑布流/网格切换，localStorage: `media_layout_mode`；瀑布流按行从左到右渲染以保证视觉顺序与数据顺序一致），并使用 `loading="lazy"` 加载缩略图（`/api/getMtPhotoThumb`）
 
 ### 3) 导入上传（与“全站图片库”工作流一致）
 1. 前端在预览中点击“上传”，调用 `POST /api/importMtPhotoMedia`（携带 `userid/md5` 与上游所需 headers 字段）
