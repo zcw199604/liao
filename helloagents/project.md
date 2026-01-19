@@ -3,7 +3,7 @@
 ---
 
 ## 技术栈
-- **后端:** Go 1.22（HTTP: chi；WebSocket: gorilla/websocket；MySQL: go-sql-driver/mysql；Redis 可选: go-redis）
+- **后端:** Go 1.25.6（HTTP: chi；WebSocket: gorilla/websocket；MySQL: go-sql-driver/mysql；Redis 可选: go-redis）
 - **前端:** Vue 3 / Vite / TypeScript
 - **缓存:** Redis（可选）/ 内存（默认）
 

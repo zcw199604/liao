@@ -37,6 +37,7 @@
 - 文档：标记历史 Java(Spring Boot) 后端目录（`src/main/java/`）为已弃用，仅供参考。
 
 ### 修复
+- 后端/CI：升级 Go 模块版本至 1.25.6（`go 1.25` + `toolchain go1.25.6`）；GitHub Actions（Release 工作流）改为从 `go.mod` 读取 Go 版本；Docker 构建镜像固定为 `golang:1.25.6-alpine`。
 - 修复聊天侧边栏匹配按钮点击后误自动进入聊天的问题（恢复 `startContinuousMatch(1)` 行为）。
 - 前端：mtPhoto 相册图片预览支持左右切换浏览，并确保切换后“上传/导入”作用于当前预览图片。
 - 前端：mtPhoto 相册预览支持查看详情（信息按钮 + 详情面板）。

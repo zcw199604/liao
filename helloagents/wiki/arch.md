@@ -18,7 +18,7 @@ flowchart TD
 ```
 
 ## 技术栈
-- **后端:** Go 1.22（chi、gorilla/websocket、JWT HS256）
+- **后端:** Go 1.25.6（chi、gorilla/websocket、JWT HS256）
 - **前端:** Vue 3 / Vite / TypeScript
 - **数据:** MySQL（必需）、Redis（可选；默认内存缓存）、本地文件系统（`./upload`）
 

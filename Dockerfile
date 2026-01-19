@@ -7,7 +7,7 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build -- --outDir=dist
 
-FROM golang:1.22-alpine AS backend-builder
+FROM golang:1.25.6-alpine AS backend-builder
 WORKDIR /app
 ENV GOPROXY=https://goproxy.cn,direct
 ENV GOSUMDB=sum.golang.google.cn

@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 项目概述
 
 这是一个匿名匹配聊天应用，采用**前后端分离架构**：
-- **后端**：Go 1.22 + WebSocket 代理 + MySQL（可选 Redis）
+- **后端**：Go 1.25.6 + WebSocket 代理 + MySQL（可选 Redis）
 - **前端**：Vue 3 + Vite + TypeScript + Pinia + Tailwind CSS
 
 核心功能是作为WebSocket代理服务器，连接上游聊天服务，并为多个客户端提供身份管理、消息转发、媒体上传等功能。

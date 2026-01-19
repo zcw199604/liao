@@ -46,6 +46,7 @@
 | 202601181746 | chat_ux_upgrade | 优化 | ✅已完成 | [链接](2026-01/202601181746_chat_ux_upgrade/) |
 | 202601190055 | mtphoto_refresh_token | 优化 | ✅已完成 | [链接](2026-01/202601190055_mtphoto_refresh_token/) |
 | 202601190109 | mtphoto_preview_detail | 修复 | ⚠️待复验 | [链接](2026-01/202601190109_mtphoto_preview_detail/) |
+| 202601190200 | upgrade_go_toolchain_1_25_6 | 优化 | ✅已完成 | [链接](2026-01/202601190200_upgrade_go_toolchain_1_25_6/) |
 
 ---
 
@@ -91,3 +92,4 @@
 - [202601181746_chat_ux_upgrade](2026-01/202601181746_chat_ux_upgrade/) - 聊天体验优化：乐观发送/骨架屏/虚拟滚动/ChatMedia
 - [202601190055_mtphoto_refresh_token](2026-01/202601190055_mtphoto_refresh_token/) - mtPhoto 续期支持 refresh_token（优先 `/auth/refresh`，失败回退 `/auth/login`）
 - [202601190109_mtphoto_preview_detail](2026-01/202601190109_mtphoto_preview_detail/) - mtPhoto 相册预览支持查看详情（信息按钮 + 详情面板）
+- [202601190200_upgrade_go_toolchain_1_25_6](2026-01/202601190200_upgrade_go_toolchain_1_25_6/) - 升级 Go 模块版本至 1.25.6（`go 1.25` + `toolchain go1.25.6`），GitHub Actions（Release 工作流）改为从 `go.mod` 读取版本，Docker 构建镜像固定为 `golang:1.25.6-alpine`
