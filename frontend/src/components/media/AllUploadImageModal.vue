@@ -44,29 +44,18 @@
           </div>
         </div>
 
-        <!-- 加载状态 -->
-        <div v-if="mediaStore.allUploadLoading && mediaStore.allUploadImages.length === 0" class="flex-1 flex items-center justify-center">
-          <div class="text-center">
-            <div class="radar-spinner mx-auto mb-3"></div>
-            <p class="text-gray-500 text-sm">加载中...</p>
-          </div>
-        </div>
-
         <!-- 列表容器 -->
-        <div
-          v-else-if="mediaStore.allUploadImages && mediaStore.allUploadImages.length > 0"
-          class="flex-1 overflow-y-auto p-6 no-scrollbar"
-          @scroll="handleScroll"
-          ref="scrollContainer"
+        <InfiniteMediaGrid
+          :items="mediaStore.allUploadImages"
+          :loading="mediaStore.allUploadLoading"
+          :finished="mediaStore.allUploadPage >= mediaStore.allUploadTotalPages"
+          :total="mediaStore.allUploadTotal"
+          :layout-mode="layoutMode"
+          :item-key="(item, idx) => 'all-upload-' + idx"
+          @load-more="loadMore"
         >
-          <div :class="layoutMode === 'masonry' ? 'columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4' : 'grid grid-cols-3 sm:grid-cols-4 gap-4'">
-            <div
-              v-for="(media, idx) in mediaStore.allUploadImages"
-              :key="'all-upload-' + idx"
-              class="relative group cursor-pointer"
-              :class="layoutMode === 'masonry' ? 'break-inside-avoid' : 'aspect-square'"
-              @click="handleMediaClick(media)"
-            >
+          <template #default="{ item: media }">
+            <div class="h-full cursor-pointer" @click="handleMediaClick(media)">
               <!-- 容器：处理缩放和圆角 -->
               <div 
                 class="rounded-xl overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative bg-[#27272a]"
@@ -117,30 +106,19 @@
                 </div>
               </div>
             </div>
-          </div>
+          </template>
 
-          <div v-if="mediaStore.allUploadLoading" class="flex justify-center py-6 text-gray-500 text-sm w-full">
-            <div class="flex items-center gap-2 bg-[#27272a] px-4 py-2 rounded-full shadow-lg">
-              <span class="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></span>
-              <span>加载更多...</span>
+          <template #empty>
+            <div class="text-center text-gray-500">
+              <i class="fas fa-image text-5xl mb-4 opacity-30"></i>
+              <p>暂无上传记录</p>
             </div>
-          </div>
+          </template>
 
-          <div
-            v-else-if="mediaStore.allUploadPage >= mediaStore.allUploadTotalPages && mediaStore.allUploadImages.length > 0"
-            class="flex justify-center py-8 text-gray-600 text-xs w-full"
-          >
-            <span class="px-3 py-1 bg-[#27272a]/50 rounded-full">已加载全部 {{ mediaStore.allUploadTotal }} 张图片</span>
-          </div>
-        </div>
-
-        <!-- 空状态 -->
-        <div v-else class="flex-1 flex items-center justify-center">
-          <div class="text-center text-gray-500">
-            <i class="fas fa-image text-5xl mb-4 opacity-30"></i>
-            <p>暂无上传记录</p>
-          </div>
-        </div>
+          <template #finished-text>
+            已加载全部 {{ mediaStore.allUploadTotal }} 张图片
+          </template>
+        </InfiniteMediaGrid>
 
         <!-- 底部 -->
         <div v-if="mediaStore.managementMode && mediaStore.selectionMode" class="px-6 py-4 border-t border-gray-800">
@@ -204,6 +182,7 @@ import * as mediaApi from '@/api/media'
 import Dialog from '@/components/common/Dialog.vue'
 import MediaPreview from '@/components/media/MediaPreview.vue'
 import LazyImage from '@/components/common/LazyImage.vue'
+import InfiniteMediaGrid from '@/components/common/InfiniteMediaGrid.vue'
 import type { UploadedMedia } from '@/types'
 
 const mediaStore = useMediaStore()
@@ -211,7 +190,6 @@ const userStore = useUserStore()
 const systemConfigStore = useSystemConfigStore()
 const { show } = useToast()
 
-const scrollContainer = ref<HTMLElement | null>(null)
 const deletingUrls = ref<Set<string>>(new Set())
 
 const showDeleteConfirm = ref(false)
@@ -256,13 +234,7 @@ const close = () => {
   mediaStore.selectedImages = []
 }
 
-const handleScroll = async () => {
-  const el = scrollContainer.value
-  if (!el) return
-
-  const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 120
-  if (!nearBottom) return
-
+const loadMore = async () => {
   if (mediaStore.allUploadLoading) return
   if (mediaStore.allUploadPage >= mediaStore.allUploadTotalPages) return
   if (!userStore.currentUser) return

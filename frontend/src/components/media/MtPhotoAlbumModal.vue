@@ -77,17 +77,19 @@
         </div>
 
         <!-- 相册媒体 -->
-        <div
+        <InfiniteMediaGrid
           v-else
-          ref="scrollContainer"
-          class="flex-1 overflow-y-auto p-6 no-scrollbar"
-          @scroll="handleScroll"
+          :items="mtPhotoStore.mediaItems"
+          :loading="mtPhotoStore.mediaLoading"
+          :finished="mtPhotoStore.mediaTotalPages > 0 && mtPhotoStore.mediaPage >= mtPhotoStore.mediaTotalPages"
+          :total="mtPhotoStore.mediaTotal"
+          layout-mode="grid"
+          :item-key="(item, idx) => item.md5 + '-' + idx"
+          @load-more="mtPhotoStore.loadMore"
         >
-          <div v-if="mtPhotoStore.mediaItems.length > 0" class="grid grid-cols-3 sm:grid-cols-4 gap-4">
+          <template #default="{ item }">
             <div
-              v-for="(item, idx) in mtPhotoStore.mediaItems"
-              :key="item.md5 + '-' + idx"
-              class="aspect-square rounded-xl overflow-hidden cursor-pointer border border-gray-700 hover:border-pink-500 transition relative group"
+              class="w-full h-full rounded-xl overflow-hidden cursor-pointer border border-gray-700 hover:border-pink-500 transition relative group"
               @click="handleMediaClick(item)"
             >
               <img
@@ -107,26 +109,18 @@
                 <i class="fas fa-play-circle text-white text-3xl"></i>
               </div>
             </div>
-          </div>
+          </template>
 
-          <div v-else class="flex-1 flex items-center justify-center text-gray-500 text-sm">
-            暂无媒体
-          </div>
-
-          <div v-if="mtPhotoStore.mediaLoading" class="flex justify-center py-4 text-gray-500 text-sm">
-            <div class="flex items-center gap-2">
-              <span class="w-3 h-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin"></span>
-              <span>加载中...</span>
+          <template #empty>
+            <div class="flex items-center justify-center text-gray-500 text-sm h-full">
+              暂无媒体
             </div>
-          </div>
+          </template>
 
-          <div
-            v-else-if="mtPhotoStore.mediaTotalPages > 0 && mtPhotoStore.mediaPage >= mtPhotoStore.mediaTotalPages"
-            class="text-center text-gray-600 text-xs py-4"
-          >
+          <template #finished-text>
             已加载全部
-          </div>
-        </div>
+          </template>
+        </InfiniteMediaGrid>
       </div>
 
       <MediaPreview
@@ -152,6 +146,7 @@ import { useToast } from '@/composables/useToast'
 import { generateCookie } from '@/utils/cookie'
 import * as mtphotoApi from '@/api/mtphoto'
 import MediaPreview from '@/components/media/MediaPreview.vue'
+import InfiniteMediaGrid from '@/components/common/InfiniteMediaGrid.vue'
 import type { UploadedMedia } from '@/types'
 
 const mtPhotoStore = useMtPhotoStore()
@@ -159,8 +154,6 @@ const userStore = useUserStore()
 const mediaStore = useMediaStore()
 const systemConfigStore = useSystemConfigStore()
 const { show } = useToast()
-
-const scrollContainer = ref<HTMLElement | null>(null)
 
 const showPreview = ref(false)
 const previewUrl = ref('')
@@ -191,14 +184,6 @@ const close = () => {
   previewUrl.value = ''
   previewMediaList.value = []
   previewMD5.value = ''
-}
-
-const handleScroll = async () => {
-  const el = scrollContainer.value
-  if (!el) return
-  const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 120
-  if (!nearBottom) return
-  await mtPhotoStore.loadMore()
 }
 
 const handleMediaClick = async (item: MtPhotoMediaItem) => {
