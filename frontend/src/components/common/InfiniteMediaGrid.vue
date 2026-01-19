@@ -18,11 +18,11 @@
     <!-- Content -->
     <template v-else-if="items.length > 0">
       <!-- Masonry Layout (JS Calculated) -->
-      <div v-if="layoutMode === 'masonry'" class="flex gap-4 items-start">
+      <div v-if="layoutMode === 'masonry'" class="flex gap-2 items-start">
         <div
           v-for="(colItems, colIndex) in masonryColumns"
           :key="colIndex"
-          class="flex-1 flex flex-col gap-4"
+          class="flex-1 flex flex-col gap-2"
         >
           <div
             v-for="{ data: item, originalIndex } in colItems"
