@@ -221,7 +221,7 @@
 
 <script setup lang="ts">
 // 消息列表：支持骨架屏、乐观发送状态、媒体渲染与虚拟滚动，保持长对话滚动流畅。
-import { computed, nextTick, onMounted, ref, useAttrs, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, useAttrs, watch } from 'vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import type { ChatMessage } from '@/types'
 import { formatTime } from '@/utils/time'
@@ -359,6 +359,22 @@ const getScrollerEl = (): HTMLElement | null => {
   return el || null
 }
 
+let scrollerResizeObserver: ResizeObserver | null = null
+const initScrollerResizeObserver = () => {
+  if (typeof ResizeObserver === 'undefined') return
+
+  const el = getScrollerEl()
+  if (!el) return
+
+  scrollerResizeObserver?.disconnect()
+  scrollerResizeObserver = new ResizeObserver(() => {
+    // 仅当用户本来就在底部时才维持贴底，避免打断用户阅读历史消息
+    if (!isAtBottom.value) return
+    scrollToBottom()
+  })
+  scrollerResizeObserver.observe(el)
+}
+
 // 检测滚动位置
 let scrollTimer: ReturnType<typeof setTimeout> | null = null
 const handleScroll = () => {
@@ -466,6 +482,15 @@ watch(
 onMounted(() => {
   scrollToBottom()
   isAtBottom.value = true
+
+  nextTick(() => {
+    initScrollerResizeObserver()
+  })
+})
+
+onUnmounted(() => {
+  scrollerResizeObserver?.disconnect()
+  scrollerResizeObserver = null
 })
 
 const getIsAtBottom = () => isAtBottom.value

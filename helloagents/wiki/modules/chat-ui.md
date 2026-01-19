@@ -133,6 +133,14 @@ lastMsg 预览（与后端缓存增强对齐）：
 - **媒体占位：** `ChatMedia` 支持 `aspectRatio` 预占位减少 CLS；未知尺寸时使用默认占位比例（image=4/3, video=16/9），并在 `load/error/loadeddata` 触发 `layout` 事件供列表触发一次贴底
 - **滚动锚定：** 消息列表滚动容器显式启用 `overflow-anchor: auto`，减少内容尺寸变化导致的可视区域跳动
 
+### 移动端键盘: 避免遮挡最新消息
+**模块:** Chat UI
+移动端（尤其 iOS Safari）弹出软键盘时，`100vh` 容器高度可能不会收缩，导致聊天页底部区域被键盘覆盖；同时由于滚动容器高度变小但滚动位置未同步更新，最新消息会“掉到视口外”。
+
+治理策略（前端实现）：
+- **动态视口高度：** `frontend/src/main.ts` 通过 `visualViewport.height`（无则回退 `innerHeight`）写入 CSS 变量 `--app-height`；`frontend/src/index.css` 让 `.page-container` 使用 `height: var(--app-height, 100dvh)`
+- **视口变化保持贴底：** `frontend/src/components/chat/MessageList.vue` 使用 `ResizeObserver` 监听滚动容器尺寸变化；仅当用户原本位于底部时触发一次 `scrollToBottom()`，避免打断用户阅读历史消息
+
 ### 媒体消息: 端口策略（全局配置）
 **模块:** Chat UI
 聊天消息中的媒体以 `[path]` 形式出现（`useMessage.sendImage/sendVideo` 发送），前端在展示时需将其拼接为 `http://{imgServer}:{port}/img/Upload/{path}`。
@@ -198,6 +206,7 @@ lastMsg 预览（与后端缓存增强对齐）：
 - [202601102319_image_port_strategy](../../history/2026-01/202601102319_image_port_strategy/) - 聊天/历史消息的图片端口改为配置驱动解析，并在 Settings 提供切换
 - [202601171004_fix_chat_media_dedup](../../history/2026-01/202601171004_fix_chat_media_dedup/) - 修复聊天记录媒体消息偶发重复显示（WS/历史合并语义去重）
 - [202601181746_chat_ux_upgrade](../../history/2026-01/202601181746_chat_ux_upgrade/) - 聊天体验升级：乐观发送/骨架屏/虚拟滚动/ChatMedia
+- [202601191052_fix_chat_mobile_keyboard_cover](../../history/2026-01/202601191052_fix_chat_mobile_keyboard_cover/) - 修复移动端键盘弹出导致最新消息被遮挡（动态视口高度 + ResizeObserver 贴底）
 - [202601190956_fix_chat_scroll_jitter](../../history/2026-01/202601190956_fix_chat_scroll_jitter/) - 修复聊天页媒体加载/失败导致的贴底滚动抖动（auto/smooth 分离 + 合并滚动 + 媒体 layout 事件）
 ## 匹配行为
 

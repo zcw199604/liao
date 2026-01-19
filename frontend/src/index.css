@@ -42,6 +42,9 @@ html, body, #app {
 
 .page-container {
   height: 100vh;
+  height: 100dvh;
+  /* JS 注入 --app-height 时可覆盖，用于规避移动端键盘导致的 100vh 失真 */
+  height: var(--app-height, 100dvh);
   display: flex;
   flex-direction: column;
   position: relative;
