@@ -22,7 +22,8 @@
         :alt="alt"
         class="w-full h-full object-cover block"
         loading="lazy"
-        @load="isLoaded = true"
+        decoding="async"
+        @load="handleLoaded"
         @error="onError"
       />
 
@@ -31,7 +32,7 @@
         :src="src"
         class="w-full h-full object-cover block"
         controls
-        @loadeddata="isLoaded = true"
+        @loadeddata="handleLoaded"
         @error="onError"
       ></video>
 
@@ -50,7 +51,7 @@ interface Props {
   src: string
   alt?: string
   previewable?: boolean
-  // 宽高比（width / height），用于预占位减少布局抖动；未知时可不传。
+  // 宽高比（width / height），用于预占位减少布局抖动；未知时将使用默认占位比例（image=4/3, video=16/9）。
   aspectRatio?: number
   containerClass?: string
 }
@@ -64,6 +65,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   preview: [url: string, type: 'image' | 'video']
+  layout: []
 }>()
 
 const rootRef = ref<HTMLElement | null>(null)
@@ -73,8 +75,14 @@ const hasError = ref(false)
 
 let observer: IntersectionObserver | null = null
 
-const aspectStyle = computed(() => {
+const effectiveAspectRatio = computed(() => {
   const r = props.aspectRatio
+  if (r && Number.isFinite(r) && r > 0) return r
+  return props.type === 'video' ? 16 / 9 : 4 / 3
+})
+
+const aspectStyle = computed(() => {
+  const r = effectiveAspectRatio.value
   if (!r || !Number.isFinite(r) || r <= 0) return undefined
   return { aspectRatio: String(r) }
 })
@@ -90,6 +98,13 @@ const errorText = computed(() => {
 const onError = () => {
   hasError.value = true
   isLoaded.value = false
+  emit('layout')
+}
+
+const handleLoaded = () => {
+  isLoaded.value = true
+  hasError.value = false
+  emit('layout')
 }
 
 const handleClick = () => {
@@ -128,4 +143,3 @@ onUnmounted(() => {
   observer = null
 })
 </script>
-

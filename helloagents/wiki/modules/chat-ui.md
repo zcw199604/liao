@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** 会话列表/聊天页/侧边栏抽屉的手势交互与弹层关闭行为
 - **状态:** ✅稳定
-- **最后更新:** 2026-01-18
+- **最后更新:** 2026-01-19
 
 ## 规范
 
@@ -121,6 +121,18 @@ lastMsg 预览（与后端缓存增强对齐）：
 - 组件：`frontend/src/components/chat/MessageList.vue` 使用 `DynamicScroller/DynamicScrollerItem` 渲染（保持“查看历史消息/回到底部/新消息提示”等交互一致）
 - 样式：`frontend/src/main.ts` 引入 `vue-virtual-scroller` CSS
 
+### 稳定性: 媒体加载/失败导致的贴底滚动抖动治理
+**模块:** Chat UI
+聊天消息中存在图片/视频时，媒体加载/失败会触发消息项高度变化；若同时存在“贴底滚动”与平滑滚动动画，容易出现“抖动/回弹”的视觉问题。
+
+行为约束（前端实现）：
+- **系统触发贴底（新消息/布局变化/媒体 load/error）：** 使用 `behavior: 'auto'`（避免与布局变化产生 scroll fighting）
+- **用户触发贴底（点击“回到底部/新消息”按钮）：** 可使用 `behavior: 'smooth'`（仅交互路径允许平滑）
+- **合并滚动请求：** 同一帧内多次贴底请求需合并为一次（`requestAnimationFrame` + `nextTick`），避免短时间重复滚动
+- **仅在用户位于底部时自动贴底：** 通过 `MessageList.getIsAtBottom()` 判定；用户阅读历史消息时不自动打断
+- **媒体占位：** `ChatMedia` 支持 `aspectRatio` 预占位减少 CLS；未知尺寸时使用默认占位比例（image=4/3, video=16/9），并在 `load/error/loadeddata` 触发 `layout` 事件供列表触发一次贴底
+- **滚动锚定：** 消息列表滚动容器显式启用 `overflow-anchor: auto`，减少内容尺寸变化导致的可视区域跳动
+
 ### 媒体消息: 端口策略（全局配置）
 **模块:** Chat UI
 聊天消息中的媒体以 `[path]` 形式出现（`useMessage.sendImage/sendVideo` 发送），前端在展示时需将其拼接为 `http://{imgServer}:{port}/img/Upload/{path}`。
@@ -186,6 +198,7 @@ lastMsg 预览（与后端缓存增强对齐）：
 - [202601102319_image_port_strategy](../../history/2026-01/202601102319_image_port_strategy/) - 聊天/历史消息的图片端口改为配置驱动解析，并在 Settings 提供切换
 - [202601171004_fix_chat_media_dedup](../../history/2026-01/202601171004_fix_chat_media_dedup/) - 修复聊天记录媒体消息偶发重复显示（WS/历史合并语义去重）
 - [202601181746_chat_ux_upgrade](../../history/2026-01/202601181746_chat_ux_upgrade/) - 聊天体验升级：乐观发送/骨架屏/虚拟滚动/ChatMedia
+- [202601190956_fix_chat_scroll_jitter](../../history/2026-01/202601190956_fix_chat_scroll_jitter/) - 修复聊天页媒体加载/失败导致的贴底滚动抖动（auto/smooth 分离 + 合并滚动 + 媒体 layout 事件）
 ## 匹配行为
 
 - 聊天侧边栏的匹配按钮（`MatchButton`）点击后调用 `startContinuousMatch(1)`，匹配成功不会自动进入聊天；需在 `MatchOverlay` 中手动点击“进入聊天”。

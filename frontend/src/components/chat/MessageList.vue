@@ -74,6 +74,7 @@
                       v-else-if="seg.kind === 'image'"
                       type="image"
                       :src="getMediaUrl(seg.url)"
+                      @layout="handleMediaLayout"
                       @preview="(url) => previewMedia(url, 'image')"
                     />
 
@@ -82,6 +83,7 @@
                       type="video"
                       :src="getMediaUrl(seg.url)"
                       :previewable="false"
+                      @layout="handleMediaLayout"
                     />
 
                     <div
@@ -124,6 +126,7 @@
                   <ChatMedia
                     type="image"
                     :src="getMediaUrl(row.message.imageUrl || row.message.content || '')"
+                    @layout="handleMediaLayout"
                     @preview="(url) => previewMedia(url, 'image')"
                   />
                 </template>
@@ -134,6 +137,7 @@
                   type="video"
                   :src="getMediaUrl(row.message.videoUrl || row.message.content || '')"
                   :previewable="false"
+                  @layout="handleMediaLayout"
                 />
 
                 <!-- 文件 -->
@@ -264,6 +268,39 @@ const { getMediaUrl } = useUpload()
 const isAtBottom = ref(true)
 const hasNewMessages = ref(false)
 
+let pendingScrollBehavior: ScrollBehavior = 'auto'
+let scrollScheduled = false
+
+const scheduleScrollToBottom = (behavior: ScrollBehavior) => {
+  if (behavior === 'smooth') pendingScrollBehavior = 'smooth'
+  if (scrollScheduled) return
+  scrollScheduled = true
+
+  const run = async () => {
+    scrollScheduled = false
+    const b = pendingScrollBehavior
+    pendingScrollBehavior = 'auto'
+
+    await nextTick()
+
+    const scroller = scrollerRef.value
+    if (scroller?.scrollToBottom) {
+      scroller.scrollToBottom()
+    } else if (scroller?.scrollToItem) {
+      scroller.scrollToItem(renderItems.value.length - 1)
+    }
+
+    const el = getScrollerEl()
+    el?.scrollTo({ top: el.scrollHeight, behavior: b })
+  }
+
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => void run())
+  } else {
+    void run()
+  }
+}
+
 const showHistorySkeleton = computed(() => messageStore.isLoadingHistory && props.messages.length === 0)
 
 const getMessageKey = (msg: ChatMessage): string => {
@@ -343,24 +380,14 @@ const handleScroll = () => {
 }
 
 const scrollToBottom = (force = false) => {
-  nextTick(() => {
-    const scroller = scrollerRef.value
-    if (scroller?.scrollToBottom) {
-      scroller.scrollToBottom()
-    } else if (scroller?.scrollToItem) {
-      scroller.scrollToItem(renderItems.value.length - 1)
-    } else {
-      const el = getScrollerEl()
-      el?.scrollTo({ top: (el?.scrollHeight || 0) + 5000, behavior: force ? 'smooth' : 'auto' })
-    }
+  hasNewMessages.value = false
+  if (force) isAtBottom.value = true
+  scheduleScrollToBottom(force ? 'smooth' : 'auto')
+}
 
-    if (force) {
-      const el = getScrollerEl()
-      el?.scrollTo({ top: (el?.scrollHeight || 0) + 5000, behavior: 'smooth' })
-    }
-
-    hasNewMessages.value = false
-  })
+const handleMediaLayout = () => {
+  if (!isAtBottom.value) return
+  scrollToBottom()
 }
 
 // 滚动到顶部（查看历史消息）
@@ -427,7 +454,7 @@ watch(
 
     if (newVal > oldVal) {
       if (isAtBottom.value) {
-        scrollToBottom(true)
+        scrollToBottom()
       } else {
         hasNewMessages.value = true
       }
@@ -464,5 +491,9 @@ defineExpose({
 .fade-leave-to {
   opacity: 0;
   transform: translateY(10px);
+}
+
+.chat-area {
+  overflow-anchor: auto;
 }
 </style>

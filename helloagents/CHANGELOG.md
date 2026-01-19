@@ -62,6 +62,7 @@
 - 前端：修复切换身份后 WebSocket 仍绑定旧用户，导致匹配无响应且仍收到旧身份消息。
 - 前端：修复图片端口策略为 real/probe 时，视频 URL 仍使用固定端口（8006）的问题。
 - 前端：修复聊天记录媒体消息偶发重复显示（WS 推送与历史拉取合并时按 remotePath + isSelf + 5s 时间窗口语义去重）。
+- 前端：修复聊天页在媒体加载/失败时可能出现的贴底滚动抖动（系统贴底 `auto`、用户触发 `smooth`；合并同帧滚动请求；`ChatMedia` 默认占位比例 + `layout` 事件）。
 - 前端：修复在聊天页自己发送消息回显时，会话未置顶到“消息/收藏”列表且 lastMsg 预览未加 `我: ` 前缀的问题。
 - 修复 `/api/getHistoryUserList` 在上游用户ID字段为 `UserID/userid` 时，未能填充 `lastMsg` / `lastTime` 的问题。
 - 修复上游返回的消息 `id/toid` 与 `myUserID` 不一致时，最后消息缓存会话Key无法命中导致 `lastMsg` / `lastTime` 缺失的问题。

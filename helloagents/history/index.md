@@ -56,6 +56,7 @@
 | 202601190823 | media_row_order | 修复 | ⚠️待复验 | [链接](2026-01/202601190823_media_row_order/) |
 | 202601190851 | sync_update_time_source | 修复 | ⚠️待复验 | [链接](2026-01/202601190851_sync_update_time_source/) |
 | 202601190907 | docker_timezone_shanghai | 修复 | ⚠️待复验 | [链接](2026-01/202601190907_docker_timezone_shanghai/) |
+| 202601190956 | fix_chat_scroll_jitter | 修复 | ✅已完成 | [链接](2026-01/202601190956_fix_chat_scroll_jitter/) |
 
 ---
 
@@ -111,3 +112,4 @@
 - [202601190823_media_row_order](2026-01/202601190823_media_row_order/) - 修复媒体列表按时间排序的视觉顺序（按行从左到右展示）
 - [202601190851_sync_update_time_source](2026-01/202601190851_sync_update_time_source/) - 统一 `update_time` 写入时间源，避免与数据库时间函数混用导致排序异常
 - [202601190907_docker_timezone_shanghai](2026-01/202601190907_docker_timezone_shanghai/) - Docker 镜像默认东八区（Asia/Shanghai）以对齐应用侧 now 与 DB 时区配置
+- [202601190956_fix_chat_scroll_jitter](2026-01/202601190956_fix_chat_scroll_jitter/) - 修复聊天页媒体加载/失败导致的贴底滚动抖动（auto/smooth 分离 + 合并滚动 + 媒体 layout 事件）
