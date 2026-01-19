@@ -68,6 +68,7 @@
   - `frontend/src/api/mtphoto.ts`
   - `frontend/src/stores/mtphoto.ts`
   - `frontend/src/components/media/MtPhotoAlbumModal.vue`
+  - `frontend/src/components/common/InfiniteMediaGrid.vue`
   - `frontend/src/components/chat/UploadMenu.vue`
   - `frontend/src/views/ChatRoomView.vue`
   - `frontend/src/components/settings/SettingsDrawer.vue`

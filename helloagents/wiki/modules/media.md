@@ -33,6 +33,13 @@
 **模块:** Media
 “全站图片库”接口返回分页数据，并包含 `port` 字段（用于前端在缺少样本路径时的兜底展示/兼容旧逻辑）。当需要高可靠性时，前端应优先走 `/api/resolveImagePort` 的解析结果。
 
+### 需求: 已上传图片浏览（布局切换/无限滚动）
+**模块:** Media
+“已上传的图片”（`AllUploadImageModal`）用于从“全站图片库”分页浏览素材并发送，前端要求：
+- 支持瀑布流（masonry）与网格（grid）布局切换，并将用户选择持久化到 localStorage（`media_layout_mode`）
+- 支持无限滚动加载更多，复用 `InfiniteMediaGrid` 组件统一滚动/加载/空态/结束态逻辑
+- 缩略图使用 `LazyImage` 进行懒加载与错误兜底，并提供选中态动效；预览背景采用毛玻璃（`backdrop-blur`）提升沉浸感
+
 ### 需求: 删除兼容性（localPath 归一化）
 **模块:** Media
 删除接口需兼容多种 `localPath` 形式（含/不含前导 `/`、带 `/upload` 前缀、完整 URL、含 `%2F` 编码等），并在错误场景返回与现状兼容的 HTTP 状态与 body。
@@ -51,6 +58,7 @@
 **模块:** Media
 前端 `MediaPreview` 支持传入 `mediaList` 进行左右切换/滑动切换浏览；当预览内部切换当前项时会触发 `media-change` 事件。父组件如提供“上传/重传/导入”等动作，应监听该事件并同步当前目标，避免“切换后仍对首张执行操作”。
 预览顶部支持打开“详细信息”面板：仅当媒体对象携带任一元信息字段（如 `md5/fileSize/pHash/similarity` 等）时显示入口。
+“全站图片库/已上传图片”场景下，预览弹层背景使用毛玻璃（`backdrop-blur`），缩略图选中提供轻微缩小 + 弹性动画反馈以增强可感知性。
 
 ### 需求: 测试覆盖（Go）
 **模块:** Media
@@ -89,21 +97,27 @@
 - `system_config`（系统全局配置）
 
 ## 依赖
-- `internal/app/media_upload.go`
-- `internal/app/media_history_handlers.go`
-- `internal/app/media_repair.go`
-- `internal/app/media_repair_handlers.go`
-- `internal/app/file_storage.go`
-- `internal/app/image_cache.go`
-- `internal/app/image_server.go`
-- `internal/app/image_hash.go`
-- `internal/app/image_hash_handlers.go`
-- `internal/app/system_config.go`
-- `internal/app/system_config_handlers.go`
-- `internal/app/image_port_strategy.go`
-- `internal/app/image_port_resolver.go`
-- `internal/app/port_detect.go`
-- `internal/app/schema.go`
+- 后端：
+  - `internal/app/media_upload.go`
+  - `internal/app/media_history_handlers.go`
+  - `internal/app/media_repair.go`
+  - `internal/app/media_repair_handlers.go`
+  - `internal/app/file_storage.go`
+  - `internal/app/image_cache.go`
+  - `internal/app/image_server.go`
+  - `internal/app/image_hash.go`
+  - `internal/app/image_hash_handlers.go`
+  - `internal/app/system_config.go`
+  - `internal/app/system_config_handlers.go`
+  - `internal/app/image_port_strategy.go`
+  - `internal/app/image_port_resolver.go`
+  - `internal/app/port_detect.go`
+  - `internal/app/schema.go`
+- 前端：
+  - `frontend/src/components/media/AllUploadImageModal.vue`
+  - `frontend/src/components/media/MediaPreview.vue`
+  - `frontend/src/components/common/InfiniteMediaGrid.vue`
+  - `frontend/src/components/common/LazyImage.vue`
 
 ## 测试
 - 运行：`go test ./...`
