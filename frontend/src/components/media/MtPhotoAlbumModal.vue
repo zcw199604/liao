@@ -100,20 +100,14 @@
 	        >
 	          <template #default="{ item }">
 	            <div
-	              class="w-full rounded-xl overflow-hidden cursor-pointer border border-gray-700 hover:border-pink-500 transition relative group"
+	              class="w-full rounded-xl overflow-hidden cursor-pointer border border-gray-700 hover:border-pink-500 transition relative group bg-gray-800"
 	              :class="layoutMode === 'grid' ? 'h-full' : ''"
+	              :style="layoutMode === 'masonry' && item.width && item.height ? { aspectRatio: `${item.width}/${item.height}`, contain: 'paint' } : {}"
 	              @click="handleMediaClick(item)"
 	            >
 	              <img
-	                v-if="item.type === 'image'"
 	                :src="getThumbUrl('h220', item.md5)"
-	                :class="layoutMode === 'grid' ? 'w-full h-full object-cover' : 'w-full h-auto block'"
-	                loading="lazy"
-	              />
-	              <img
-	                v-else
-	                :src="getThumbUrl('h220', item.md5)"
-	                :class="layoutMode === 'grid' ? 'w-full h-full object-cover' : 'w-full h-auto block'"
+	                class="w-full h-full object-cover block"
 	                loading="lazy"
 	              />
 
