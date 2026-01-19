@@ -22,7 +22,7 @@
               <!-- 信息按钮 -->
               <button
                 v-if="hasMediaDetails"
-                @click.stop="showDetails = true"
+                @click.stop="handleShowDetails"
                 class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition backdrop-blur-sm"
                 title="查看详细信息"
               >
@@ -166,6 +166,7 @@ interface Props {
   type: 'image' | 'video' | 'file'
   canUpload?: boolean
   mediaList?: UploadedMedia[]
+  resolveOriginalFilename?: (media: UploadedMedia) => Promise<string | undefined | null>
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -191,6 +192,41 @@ const thumbnailContainer = ref<HTMLElement | null>(null)
 
 // 详情面板状态
 const showDetails = ref(false)
+
+const sanitizeFilename = (value: string): string => {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const normalized = raw.replace(/\\/g, '/')
+  const withoutQuery = normalized.split('?')[0] || ''
+  const withoutHash = withoutQuery.split('#')[0] || ''
+  const parts = withoutHash.split('/').filter(Boolean)
+  return parts[parts.length - 1] || ''
+}
+
+const resolveCurrentOriginalFilename = async () => {
+  const resolver = props.resolveOriginalFilename
+  if (!resolver) return
+
+  const media = currentMedia.value
+  if (!media || media.originalFilename) return
+  if (!media.md5) return
+
+  try {
+    const resolved = await resolver(media)
+    const safeName = sanitizeFilename(String(resolved || ''))
+    if (!safeName) return
+
+    // 避免将 filePath 等路径信息写入或展示：仅保存 basename。
+    media.originalFilename = safeName
+  } catch (e) {
+    console.warn('resolveOriginalFilename failed:', e)
+  }
+}
+
+const handleShowDetails = async () => {
+  await resolveCurrentOriginalFilename()
+  showDetails.value = true
+}
 
 // 判断是否有详细信息
 const hasMediaDetails = computed(() => {

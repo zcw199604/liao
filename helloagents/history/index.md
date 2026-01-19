@@ -51,6 +51,7 @@
 | 202601190509 | mtphoto_download_original | 修复 | ⚠️待复验 | [链接](2026-01/202601190509_mtphoto_download_original/) |
 | 202601190552 | mtphoto_favorites_album | 功能 | ⚠️待复验 | [链接](2026-01/202601190552_mtphoto_favorites_album/) |
 | 202601190613 | mtphoto_favorites_count | 功能 | ⚠️待复验 | [链接](2026-01/202601190613_mtphoto_favorites_count/) |
+| 202601190702 | mtphoto_preview_real_filename | 修复 | ⚠️待复验 | [链接](2026-01/202601190702_mtphoto_preview_real_filename/) |
 
 ---
 
@@ -101,3 +102,4 @@
 - [202601190509_mtphoto_download_original](2026-01/202601190509_mtphoto_download_original/) - 修复 mtPhoto 相册预览下载为原图（代理 mtPhoto fileDownload）
 - [202601190552_mtphoto_favorites_album](2026-01/202601190552_mtphoto_favorites_album/) - mtPhoto 相册列表置顶新增收藏夹入口（封面预览为空），可浏览收藏夹媒体并复用预览/导入上传流程
 - [202601190613_mtphoto_favorites_count](2026-01/202601190613_mtphoto_favorites_count/) - mtPhoto 相册列表展示收藏夹数量（读取收藏夹 `totalCount`/`total`）
+- [202601190702_mtphoto_preview_real_filename](2026-01/202601190702_mtphoto_preview_real_filename/) - mtPhoto 相册预览“查看详情”展示真实文件名（按需解析 + md5 缓存）

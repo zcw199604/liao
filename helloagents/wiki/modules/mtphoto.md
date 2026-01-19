@@ -11,7 +11,7 @@
 ## 入口与交互
 - **聊天页上传菜单:** 新增“mtPhoto 相册”入口，打开相册弹窗
 - **系统设置（System）:** 新增“mtPhoto 相册”入口，打开相册弹窗
-- **相册弹窗:** 相册列表（首项“收藏夹”，封面预览为空）→ 相册媒体（网格/瀑布流可切换，无限滚动）→ 预览（图片支持左右切换浏览；预览顶部可查看详情；下载按钮下载原图）→ 点击“上传”触发导入（以当前预览图片为准）
+- **相册弹窗:** 相册列表（首项“收藏夹”，封面预览为空）→ 相册媒体（网格/瀑布流可切换，无限滚动）→ 预览（图片支持左右切换浏览；预览顶部可查看详情并展示真实文件名等元信息；下载按钮下载原图）→ 点击“上传”触发导入（以当前预览图片为准）
 
 ## 核心流程
 
@@ -37,6 +37,11 @@
 1. 预览展示继续使用缩略图（`/api/getMtPhotoThumb`），避免首屏加载过慢
 2. 用户点击预览顶部“下载”按钮时，前端优先使用 `downloadUrl`（`/api/downloadMtPhotoOriginal?id=<id>&md5=<md5>`）
 3. 后端代理 mtPhoto `gateway/fileDownload/{id}/{md5}` 流式透传原图内容并返回 `Content-Disposition: attachment` 以便浏览器保存
+
+### 5) 查看详情（真实文件名）
+1. 用户在预览中点击顶部“查看详情/信息”按钮打开详情面板
+2. 当前媒体缺少 `originalFilename` 时，前端按需调用 `GET /api/resolveMtPhotoFilePath?md5=<md5>` 获取 `filePath`
+3. 前端仅取 `filePath` 的 basename 作为“原始文件名”展示，并按 `md5` 缓存解析结果（不在 UI 中展示完整路径）
 
 ## 鉴权与续期策略（mtPhoto 上游）
 
@@ -92,3 +97,4 @@
 - [202601190109_mtphoto_preview_detail](../../history/2026-01/202601190109_mtphoto_preview_detail/) - mtPhoto 相册预览支持查看详情（信息按钮 + 详情面板）
 - [202601190552_mtphoto_favorites_album](../../history/2026-01/202601190552_mtphoto_favorites_album/) - mtPhoto 相册列表置顶新增收藏夹入口（封面预览为空）
 - [202601190613_mtphoto_favorites_count](../../history/2026-01/202601190613_mtphoto_favorites_count/) - mtPhoto 相册列表展示收藏夹数量
+- [202601190702_mtphoto_preview_real_filename](../../history/2026-01/202601190702_mtphoto_preview_real_filename/) - mtPhoto 相册预览“查看详情”展示真实文件名（按需解析）

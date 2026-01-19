@@ -141,6 +141,7 @@
         :type="previewType"
         :can-upload="previewCanUpload"
         :media-list="previewMediaList"
+        :resolve-original-filename="resolveMtPhotoOriginalFilename"
         @upload="confirmImportUpload"
         @media-change="handlePreviewMediaChange"
       />
@@ -173,6 +174,39 @@ const previewType = ref<'image' | 'video' | 'file'>('image')
 	const previewCanUpload = ref(true)
 	const previewMediaList = ref<UploadedMedia[]>([])
 	const previewMD5 = ref('')
+
+	// 真实文件名解析缓存：md5 -> basename(filename)
+	const mtPhotoOriginalFilenameCache = new Map<string, string>()
+
+	const extractBasename = (value: string): string => {
+	  const raw = String(value || '').trim()
+	  if (!raw) return ''
+	  const normalized = raw.replace(/\\/g, '/')
+	  const withoutQuery = normalized.split('?')[0] || ''
+	  const withoutHash = withoutQuery.split('#')[0] || ''
+	  const parts = withoutHash.split('/').filter(Boolean)
+	  return parts[parts.length - 1] || ''
+	}
+
+	const resolveMtPhotoOriginalFilename = async (media: UploadedMedia): Promise<string> => {
+	  const md5Value = String(media.md5 || '').trim()
+	  if (!md5Value) return ''
+	  const cached = mtPhotoOriginalFilenameCache.get(md5Value)
+	  if (cached) return cached
+
+	  try {
+	    const res = await mtphotoApi.resolveMtPhotoFilePath(md5Value)
+	    const filename = extractBasename(String(res?.filePath || ''))
+	    if (filename) {
+	      mtPhotoOriginalFilenameCache.set(md5Value, filename)
+	      return filename
+	    }
+	  } catch (e) {
+	    console.warn('解析 mtPhoto 文件名失败:', e)
+	  }
+
+	  return ''
+	}
 
 	// 布局模式：'masonry' | 'grid'（与“全站图片库”保持一致）
 	const layoutMode = ref<'masonry' | 'grid'>(
@@ -231,6 +265,7 @@ const handleMediaClick = async (item: MtPhotoMediaItem) => {
         type: 'image',
         downloadUrl: getOriginalDownloadUrl(m.id, m.md5),
         md5: m.md5,
+        originalFilename: mtPhotoOriginalFilenameCache.get(m.md5),
         fileExtension: m.fileType ? String(m.fileType).trim().toLowerCase() : undefined,
         width: m.width,
         height: m.height,
@@ -243,6 +278,10 @@ const handleMediaClick = async (item: MtPhotoMediaItem) => {
       const res = await mtphotoApi.resolveMtPhotoFilePath(item.md5)
       if (res?.filePath) {
         previewUrl.value = res.filePath
+        const filename = extractBasename(res.filePath)
+        if (filename) {
+          mtPhotoOriginalFilenameCache.set(item.md5, filename)
+        }
       }
     } catch {
       // ignore
@@ -252,6 +291,7 @@ const handleMediaClick = async (item: MtPhotoMediaItem) => {
         url: previewUrl.value,
         type: 'video',
         md5: item.md5,
+        originalFilename: mtPhotoOriginalFilenameCache.get(item.md5),
         fileExtension: item.fileType ? String(item.fileType).trim().toLowerCase() : undefined,
         width: item.width,
         height: item.height,
