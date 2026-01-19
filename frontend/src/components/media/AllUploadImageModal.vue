@@ -28,6 +28,14 @@
             </button>
 
             <button
+              @click="toggleLayout"
+              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+              :title="layoutMode === 'masonry' ? '切换到网格视图' : '切换到瀑布流视图'"
+            >
+              <i :class="layoutMode === 'masonry' ? 'fas fa-th' : 'fas fa-stream'"></i>
+            </button>
+
+            <button
               @click="close"
               class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
             >
@@ -44,18 +52,19 @@
           </div>
         </div>
 
-        <!-- 瀑布流列表 -->
+        <!-- 列表容器 -->
         <div
           v-else-if="mediaStore.allUploadImages && mediaStore.allUploadImages.length > 0"
           class="flex-1 overflow-y-auto p-6 no-scrollbar"
           @scroll="handleScroll"
           ref="scrollContainer"
         >
-          <div class="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">
+          <div :class="layoutMode === 'masonry' ? 'columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4' : 'grid grid-cols-3 sm:grid-cols-4 gap-4'">
             <div
               v-for="(media, idx) in mediaStore.allUploadImages"
               :key="'all-upload-' + idx"
-              class="break-inside-avoid relative group cursor-pointer"
+              class="relative group cursor-pointer"
+              :class="layoutMode === 'masonry' ? 'break-inside-avoid' : 'aspect-square'"
               @click="handleMediaClick(media)"
             >
               <!-- 容器：处理缩放和圆角 -->
@@ -63,7 +72,8 @@
                 class="rounded-xl overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative bg-[#27272a]"
                 :class="[
                   mediaStore.selectedImages.includes(media.url) ? 'transform scale-95 ring-2 ring-purple-500' : '',
-                  deletingUrls.has(media.url) ? 'opacity-50' : 'hover:brightness-110'
+                  deletingUrls.has(media.url) ? 'opacity-50' : 'hover:brightness-110',
+                  layoutMode === 'grid' ? 'w-full h-full' : ''
                 ]"
               >
                  <!-- 多选复选框 -->
@@ -95,11 +105,11 @@
                 <LazyImage
                   v-if="media.type === 'image'"
                   :src="media.url"
-                  container-class="w-full bg-[#27272a]"
-                  img-class="w-full h-auto block"
+                  :container-class="layoutMode === 'grid' ? 'w-full h-full bg-[#27272a]' : 'w-full bg-[#27272a]'"
+                  :img-class="layoutMode === 'grid' ? 'w-full h-full object-cover' : 'w-full h-auto block'"
                 />
                 
-                <div v-else class="w-full aspect-video bg-[#27272a] relative">
+                <div v-else class="w-full bg-[#27272a] relative" :class="layoutMode === 'grid' ? 'h-full' : 'aspect-video'">
                     <video :src="media.url" class="w-full h-full object-cover"></video>
                     <div class="absolute inset-0 flex items-center justify-center bg-black/30">
                         <i class="fas fa-play-circle text-white text-4xl drop-shadow-lg"></i>
@@ -212,6 +222,16 @@ const previewUrl = ref('')
 const previewType = ref<'image' | 'video' | 'file'>('image')
 const previewCanUpload = ref(false)
 const previewTarget = ref<UploadedMedia | null>(null)
+
+// 布局模式：'masonry' | 'grid'
+const layoutMode = ref<'masonry' | 'grid'>(
+  (localStorage.getItem('media_layout_mode') as 'masonry' | 'grid') || 'masonry'
+)
+
+const toggleLayout = () => {
+  layoutMode.value = layoutMode.value === 'masonry' ? 'grid' : 'masonry'
+  localStorage.setItem('media_layout_mode', layoutMode.value)
+}
 
 const handlePreviewMediaChange = (media: UploadedMedia) => {
   // 预览切换后同步当前媒体，避免“切换后仍对首张执行上传/重传”等不一致行为。
