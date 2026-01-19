@@ -17,7 +17,25 @@
 
     <!-- Content -->
     <template v-else-if="items.length > 0">
-      <div :class="gridClass">
+      <!-- Masonry Layout (JS Calculated) -->
+      <div v-if="layoutMode === 'masonry'" class="flex gap-4 items-start">
+        <div
+          v-for="(colItems, colIndex) in masonryColumns"
+          :key="colIndex"
+          class="flex-1 flex flex-col gap-4"
+        >
+          <div
+            v-for="{ data: item, originalIndex } in colItems"
+            :key="getItemKey(item, originalIndex)"
+            class="relative group w-full will-change-transform"
+          >
+            <slot :item="item" :index="originalIndex"></slot>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grid Layout (CSS Grid) -->
+      <div v-else :class="gridClass">
         <div
           v-for="(item, index) in items"
           :key="getItemKey(item, index)"
@@ -60,6 +78,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useBreakpoints, breakpointsTailwind } from '@vueuse/core'
 
 const props = withDefaults(defineProps<{
   items: any[]
@@ -79,6 +98,58 @@ const emit = defineEmits<{
 
 const scrollContainer = ref<HTMLElement | null>(null)
 
+// 响应式断点
+const breakpoints = useBreakpoints(breakpointsTailwind)
+
+// 根据屏幕宽度自动计算列数
+const columnCount = computed(() => {
+  if (breakpoints.xl.value) return 4
+  if (breakpoints.lg.value) return 3
+  if (breakpoints.md.value) return 2
+  return 2 // 移动端默认 2 列
+})
+
+// JS 计算的瀑布流列数据
+const masonryColumns = computed(() => {
+  if (props.layoutMode !== 'masonry') return []
+  
+  const count = columnCount.value
+  // 存储包装对象 { data: item, originalIndex: number }
+  const result: { data: any, originalIndex: number }[][] = Array.from({ length: count }, () => [])
+  const heights = Array(count).fill(0)
+  
+  props.items.forEach((item, index) => {
+    // 找到当前最矮的列
+    let minHeightIndex = 0
+    let minHeight = heights[0]
+    
+    for (let i = 1; i < count; i++) {
+      if (heights[i] < minHeight) {
+        minHeight = heights[i]
+        minHeightIndex = i
+      }
+    }
+    
+    // 分配项目
+    const targetCol = result[minHeightIndex]
+    if (targetCol) {
+      targetCol.push({ data: item, originalIndex: index })
+    }
+    
+    // 累加高度：使用宽高比计算占位高度
+    // 如果没有宽高，默认给个 1 (正方形)
+    // 注意：item.width 和 item.height 可能是字符串或数字
+    const w = Number(item.width)
+    const h = Number(item.height)
+    const ratio = (w && h) ? h / w : 1
+    
+    // 累加高度 (加上间距因子，这里简化为高度比)
+    heights[minHeightIndex] += ratio
+  })
+  
+  return result
+})
+
 const handleScroll = () => {
   const el = scrollContainer.value
   if (!el) return
@@ -92,21 +163,12 @@ const handleScroll = () => {
 }
 
 const gridClass = computed(() => {
-  if (props.layoutMode === 'masonry') {
-    // 使用 CSS 多列布局实现真正的瀑布流：columns-* 设置列数，gap-4 设置列间距
-    return 'columns-2 md:columns-3 lg:columns-4 gap-4'
-  }
+  // 仅在 Grid 模式下使用
   return 'grid grid-cols-3 sm:grid-cols-4 gap-4'
 })
 
 const itemClass = computed(() => {
-   if (props.layoutMode === 'masonry') {
-     // break-inside-avoid: 防止图片被切成两半
-     // mb-4: 定义垂直间距（因为 gap 只管列间距）
-     // w-full: 确保占满列宽
-     // will-change-transform: 防止渲染闪烁
-     return 'break-inside-avoid mb-4 w-full will-change-transform'
-   }
+   // 仅在 Grid 模式下使用
    return 'aspect-square'
 })
 
@@ -117,6 +179,7 @@ const getItemKey = (item: any, index: number) => {
   if (props.itemKey && item[props.itemKey]) {
     return item[props.itemKey]
   }
-  return index
+  // 尝试使用常见的唯一标识字段，最后使用索引
+  return item.id ?? item.md5 ?? index
 }
 </script>
