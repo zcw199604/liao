@@ -323,13 +323,14 @@ public class MediaUploadService {
         // 更新时间（全局：不按 user_id 限制，用于“所有上传图片”按活跃度排序）
         int updatedRows = 0;
         if (localPath != null && !localPath.trim().isEmpty()) {
+            LocalDateTime now = LocalDateTime.now();
             String normalizedPath = localPath.trim().replace("\\", "/");
-            updatedRows += mediaFileRepository.updateTimeByLocalPathIgnoreUser(normalizedPath);
+            updatedRows += mediaFileRepository.updateTimeByLocalPathIgnoreUser(normalizedPath, now);
 
             // 兼容历史数据：local_path 可能存在无前导 "/" 的存储
             String altPath = normalizedPath.startsWith("/") ? normalizedPath.substring(1) : "/" + normalizedPath;
             if (!altPath.equals(normalizedPath)) {
-                updatedRows += mediaFileRepository.updateTimeByLocalPathIgnoreUser(altPath);
+                updatedRows += mediaFileRepository.updateTimeByLocalPathIgnoreUser(altPath, now);
             }
         }
         if (updatedRows == 0) {

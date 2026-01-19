@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.List;
 
@@ -56,10 +57,10 @@ public interface MediaFileRepository extends JpaRepository<MediaFile, Long> {
     int deleteByUserIdAndLocalPath(String userId, String localPath);
     
     @Modifying
-    @Query("UPDATE MediaFile m SET m.updateTime = CURRENT_TIMESTAMP WHERE m.localPath = ?1 AND m.userId = ?2")
-    int updateTimeByLocalPath(String localPath, String userId);
+    @Query("UPDATE MediaFile m SET m.updateTime = ?3 WHERE m.localPath = ?1 AND m.userId = ?2")
+    int updateTimeByLocalPath(String localPath, String userId, LocalDateTime updateTime);
 
     @Modifying
-    @Query("UPDATE MediaFile m SET m.updateTime = CURRENT_TIMESTAMP WHERE m.localPath = ?1")
-    int updateTimeByLocalPathIgnoreUser(String localPath);
+    @Query("UPDATE MediaFile m SET m.updateTime = ?2 WHERE m.localPath = ?1")
+    int updateTimeByLocalPathIgnoreUser(String localPath, LocalDateTime updateTime);
 }

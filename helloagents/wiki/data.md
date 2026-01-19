@@ -72,6 +72,7 @@
 - `idx_mf_local_path (local_path)`
 
 **维护建议**
+- `update_time` 用于全站图片库/上传历史的排序，应避免混用“应用侧 now”与“数据库 CURRENT_TIMESTAMP”等不同时间源；建议统一由服务端写入同一时间源（当前实现为应用侧 `now`），避免因时区/时钟漂移导致排序异常。
 - 若遗留表 `media_upload_history` 存在 `file_md5` 为空或出现多条相同 `file_md5` 的情况，可使用 `/api/repairMediaHistory` 批量补齐与去重（默认 dry-run，需 `commit=true` 才会写入/删除）。
 
 ---

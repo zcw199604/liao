@@ -19,7 +19,11 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/liao ./
 COPY --from=frontend-builder /app/frontend/dist /out/static
 
 FROM alpine:3.19
-RUN apk add --no-cache ca-certificates tzdata && mkdir -p /app/upload
+ENV TZ=Asia/Shanghai
+RUN apk add --no-cache ca-certificates tzdata \
+  && ln -snf "/usr/share/zoneinfo/${TZ}" /etc/localtime \
+  && echo "${TZ}" > /etc/timezone \
+  && mkdir -p /app/upload
 WORKDIR /app
 COPY --from=backend-builder /out/liao /app/
 COPY --from=backend-builder /out/static /app/static/

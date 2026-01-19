@@ -48,6 +48,7 @@ flowchart TD
 
 常用环境变量（非穷举）：
 - 数据库：`DB_URL`、`DB_USERNAME`、`DB_PASSWORD`
+- 时区：`TZ`（镜像默认 `Asia/Shanghai`；如需变更请同时确保 `DB_URL` 的 `serverTimezone` 与应用时区一致）
 - 鉴权：`AUTH_ACCESS_CODE`、`JWT_SECRET`、`TOKEN_EXPIRE_HOURS`
 - WS 上游降级：`WEBSOCKET_UPSTREAM_URL`
 - 缓存：`CACHE_TYPE`（memory/redis）、`UPSTASH_REDIS_URL`/`REDIS_URL`（支持 `rediss://`）、`REDIS_HOST`、`REDIS_PORT`、`REDIS_PASSWORD`、`REDIS_DB`、`CACHE_REDIS_FLUSH_INTERVAL_SECONDS`（写入批量 flush 间隔）、`CACHE_REDIS_LOCAL_TTL_SECONDS`（Redis 本地缓存 TTL）

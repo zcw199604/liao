@@ -87,10 +87,11 @@ func (s *MediaUploadService) SaveUploadRecord(ctx context.Context, record Upload
 			return nil, err
 		}
 		if existing != nil {
-			if _, err := s.db.ExecContext(ctx, "UPDATE media_file SET update_time = CURRENT_TIMESTAMP WHERE id = ?", existing.ID); err != nil {
+			now := time.Now()
+			if _, err := s.db.ExecContext(ctx, "UPDATE media_file SET update_time = ? WHERE id = ?", now, existing.ID); err != nil {
 				return nil, err
 			}
-			existing.UpdateTime = time.Now().Format("2006-01-02 15:04:05")
+			existing.UpdateTime = now.Format("2006-01-02 15:04:05")
 			return existing, nil
 		}
 	}
@@ -402,7 +403,8 @@ func (s *MediaUploadService) ReuploadLocalFile(ctx context.Context, userID, loca
 	normalizedPath := strings.ReplaceAll(strings.TrimSpace(localPath), "\\", "/")
 	updatedRows := 0
 	if normalizedPath != "" {
-		updatedRows += s.updateTimeByLocalPathIgnoreUser(ctx, normalizedPath)
+		now := time.Now()
+		updatedRows += s.updateTimeByLocalPathIgnoreUser(ctx, normalizedPath, now)
 		altPath := normalizedPath
 		if strings.HasPrefix(altPath, "/") {
 			altPath = strings.TrimPrefix(altPath, "/")
@@ -410,7 +412,7 @@ func (s *MediaUploadService) ReuploadLocalFile(ctx context.Context, userID, loca
 			altPath = "/" + altPath
 		}
 		if altPath != normalizedPath {
-			updatedRows += s.updateTimeByLocalPathIgnoreUser(ctx, altPath)
+			updatedRows += s.updateTimeByLocalPathIgnoreUser(ctx, altPath, now)
 		}
 	}
 	_ = updatedRows
@@ -830,8 +832,8 @@ func (s *MediaUploadService) findSendLog(ctx context.Context, remoteURL, fromUse
 	return &out, nil
 }
 
-func (s *MediaUploadService) updateTimeByLocalPathIgnoreUser(ctx context.Context, localPath string) int {
-	res, err := s.db.ExecContext(ctx, "UPDATE media_file SET update_time = CURRENT_TIMESTAMP WHERE local_path = ?", localPath)
+func (s *MediaUploadService) updateTimeByLocalPathIgnoreUser(ctx context.Context, localPath string, now time.Time) int {
+	res, err := s.db.ExecContext(ctx, "UPDATE media_file SET update_time = ? WHERE local_path = ?", now, localPath)
 	if err != nil {
 		return 0
 	}

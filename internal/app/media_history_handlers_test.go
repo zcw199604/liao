@@ -349,11 +349,11 @@ func TestHandleReuploadHistoryImage_SuccessWritesCache(t *testing.T) {
 			sql.NullTime{Valid: false},
 		))
 
-	mock.ExpectExec(`UPDATE media_file SET update_time = CURRENT_TIMESTAMP WHERE local_path = \?`).
-		WithArgs(localPath).
+	mock.ExpectExec(`UPDATE media_file SET update_time = \? WHERE local_path = \?`).
+		WithArgs(sqlmock.AnyArg(), localPath).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`UPDATE media_file SET update_time = CURRENT_TIMESTAMP WHERE local_path = \?`).
-		WithArgs(strings.TrimPrefix(localPath, "/")).
+	mock.ExpectExec(`UPDATE media_file SET update_time = \? WHERE local_path = \?`).
+		WithArgs(sqlmock.AnyArg(), strings.TrimPrefix(localPath, "/")).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	app := &App{

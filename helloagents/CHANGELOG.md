@@ -50,6 +50,8 @@
 - 前端：修复 mtPhoto 相册预览下载中文文件名被编码的问题（下载时解码 `Content-Disposition: filename`）。
 - 前端：全站图片库预览切换后同步当前媒体，避免“切换后仍对首张执行上传/重传”的不一致行为。
 - 前端：调整瀑布流布局为按行从左到右渲染，保证“全站图片库/mtPhoto 相册”按时间排序时的视觉顺序一致。
+- 后端：统一 `media_file.update_time` 的更新时间源为应用侧 `now`，避免与数据库 `CURRENT_TIMESTAMP` 混用导致排序异常。
+- Docker：默认时区设置为 `Asia/Shanghai`（东八区），避免容器内 `now` 与 DB 时区配置不一致导致时间偏移。
 - 后端：图片端口策略优化：`real` 改为并发竞速（HTTP 200/206 即胜出并取消其余请求），并在全部失败时降级到 `probe`（并发 TCP 通断）或最终回退 `fixed`，避免串行探测导致卡顿。
 - 后端：`/api/getFavoriteUserList` 对齐 `/api/getHistoryUserList` 的缓存增强逻辑，补全用户信息并补齐 `lastMsg/lastTime`。
 - 后端：修复 `lastMsg` 格式化将表情文本（如 `[doge]`）误识别为 `[文件]`，导致会话列表预览显示不正确的问题。
