@@ -93,14 +93,19 @@ const handleScroll = () => {
 
 const gridClass = computed(() => {
   if (props.layoutMode === 'masonry') {
-    return 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-start'
+    // 使用 CSS 多列布局实现真正的瀑布流：columns-* 设置列数，gap-4 设置列间距
+    return 'columns-2 md:columns-3 lg:columns-4 gap-4'
   }
   return 'grid grid-cols-3 sm:grid-cols-4 gap-4'
 })
 
 const itemClass = computed(() => {
    if (props.layoutMode === 'masonry') {
-     return 'self-start'
+     // break-inside-avoid: 防止图片被切成两半
+     // mb-4: 定义垂直间距（因为 gap 只管列间距）
+     // w-full: 确保占满列宽
+     // will-change-transform: 防止渲染闪烁
+     return 'break-inside-avoid mb-4 w-full will-change-transform'
    }
    return 'aspect-square'
 })
