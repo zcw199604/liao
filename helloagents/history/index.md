@@ -57,6 +57,7 @@
 | 202601190851 | sync_update_time_source | 修复 | ⚠️待复验 | [链接](2026-01/202601190851_sync_update_time_source/) |
 | 202601190907 | docker_timezone_shanghai | 修复 | ⚠️待复验 | [链接](2026-01/202601190907_docker_timezone_shanghai/) |
 | 202601190956 | fix_chat_scroll_jitter | 修复 | ✅已完成 | [链接](2026-01/202601190956_fix_chat_scroll_jitter/) |
+| 202601191023 | fix_wecom_notify_text | 修复 | ✅已完成 | [链接](2026-01/202601191023_fix_wecom_notify_text/) |
 
 ---
 
@@ -113,3 +114,4 @@
 - [202601190851_sync_update_time_source](2026-01/202601190851_sync_update_time_source/) - 统一 `update_time` 写入时间源，避免与数据库时间函数混用导致排序异常
 - [202601190907_docker_timezone_shanghai](2026-01/202601190907_docker_timezone_shanghai/) - Docker 镜像默认东八区（Asia/Shanghai）以对齐应用侧 now 与 DB 时区配置
 - [202601190956_fix_chat_scroll_jitter](2026-01/202601190956_fix_chat_scroll_jitter/) - 修复聊天页媒体加载/失败导致的贴底滚动抖动（auto/smooth 分离 + 合并滚动 + 媒体 layout 事件）
+- [202601191023_fix_wecom_notify_text](2026-01/202601191023_fix_wecom_notify_text/) - GitHub Actions 企业微信通知改用文本消息并补充提交信息/镜像 tags

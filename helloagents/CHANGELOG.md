@@ -42,6 +42,7 @@
 
 ### 修复
 - 后端/CI：升级 Go 模块版本至 1.25.6（`go 1.25` + `toolchain go1.25.6`）；GitHub Actions（Release 工作流）改为从 `go.mod` 读取 Go 版本；Docker 构建镜像固定为 `golang:1.25.6-alpine`。
+- CI：企业微信通知改为“文本消息”并补充提交信息/链接与镜像 tags（逗号分隔），避免 markdown 样式在企业微信内显示不一致。
 - 修复聊天侧边栏匹配按钮点击后误自动进入聊天的问题（恢复 `startContinuousMatch(1)` 行为）。
 - 前端/后端：修复 mtPhoto 相册图片预览“下载”实际下载缩略图的问题；现在点击下载将通过 mtPhoto `fileDownload` 获取原图。
 - 前端：mtPhoto 相册图片预览支持左右切换浏览，并确保切换后“上传/导入”作用于当前预览图片。
