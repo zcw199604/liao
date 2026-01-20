@@ -195,6 +195,7 @@ describe('views/IdentityPicker.vue', () => {
           IdentityList: true,
           CreateDialog: true,
           Dialog: true,
+          SettingsDrawer: true,
           Toast: true
         }
       }
@@ -220,6 +221,7 @@ describe('views/IdentityPicker.vue', () => {
           IdentityList: true,
           CreateDialog: true,
           Dialog: true,
+          SettingsDrawer: true,
           Toast: true
         }
       }
@@ -230,8 +232,9 @@ describe('views/IdentityPicker.vue', () => {
 
     identityMocks.loadList.mockClear()
 
-    const buttons = wrapper.findAll('button')
-    await buttons[0]?.trigger('click')
+    const quickCreateBtn = wrapper.findAll('button').find(btn => btn.text().includes('快速进入'))
+    expect(quickCreateBtn).toBeTruthy()
+    await quickCreateBtn!.trigger('click')
 
     await Promise.resolve()
     await nextTick()

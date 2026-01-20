@@ -5,7 +5,7 @@
         <!-- 头部 -->
         <div class="h-14 flex items-center justify-between px-4 border-b border-gray-800 shrink-0">
           <h2 class="text-lg font-bold text-white">
-            {{ mode === 'identity' ? '身份信息' : mode === 'system' ? '系统设置' : '全局收藏' }}
+            {{ mode === 'identity' ? '身份信息' : mode === 'system' ? '系统设置' : mode === 'media' ? '图片管理' : '全局收藏' }}
           </h2>
           <div class="flex items-center gap-2">
             <button
@@ -118,8 +118,11 @@
             @disconnect-all="confirmDisconnectAll"
             @clear-forceout="confirmClearForceout"
           />
+        </div>
 
-          <!-- 媒体管理 (优化后) -->
+        <!-- 图片管理 -->
+        <div v-else-if="mode === 'media'" class="p-6 space-y-6">
+          <!-- 媒体库 -->
           <div class="bg-[#27272a] rounded-xl p-4">
              <h3 class="text-white font-medium mb-3 flex items-center gap-2">
                 <i class="fas fa-photo-video text-purple-400"></i>
@@ -133,7 +136,7 @@
                 <div class="p-4 flex items-center justify-between z-10 relative">
                    <div>
                       <div class="text-2xl font-bold text-white mb-1">{{ mediaStore.allUploadTotal || 0 }}</div>
-                      <div class="text-xs text-gray-400 group-hover:text-purple-300 transition-colors">已上传文件</div>
+                      <div class="text-xs text-gray-400 group-hover:text-purple-300 transition-colors">所有上传图片</div>
                    </div>
                    <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-purple-500 group-hover:text-white transition-all">
                       <i class="fas fa-chevron-right"></i>
@@ -146,7 +149,7 @@
              
              <p class="text-xs text-gray-500 mt-3 flex items-center gap-1.5">
                <i class="fas fa-info-circle"></i>
-               <span>点击卡片管理或清理历史图片</span>
+               <span>点击卡片进入管理或清理历史图片</span>
              </p>
 
              <div
@@ -163,6 +166,22 @@
                    </div>
                 </div>
                 <i class="fas fa-photo-video absolute -bottom-4 -right-2 text-6xl text-white/5 group-hover:text-white/10 transition-colors rotate-12"></i>
+             </div>
+
+             <div
+               @click="openDuplicateCheck"
+               class="group relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-900/40 to-cyan-900/40 border border-white/5 cursor-pointer hover:border-blue-500/50 transition-all mt-4"
+             >
+                <div class="p-4 flex items-center justify-between z-10 relative">
+                   <div>
+                      <div class="text-base font-bold text-white mb-1">图片查重</div>
+                      <div class="text-xs text-gray-400 group-hover:text-blue-300 transition-colors">按相似度检测重复图片</div>
+                   </div>
+                   <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-all">
+                      <i class="fas fa-chevron-right"></i>
+                   </div>
+                </div>
+                <i class="fas fa-search absolute -bottom-4 -right-2 text-6xl text-white/5 group-hover:text-white/10 transition-colors rotate-12"></i>
              </div>
           </div>
         </div>
@@ -186,6 +205,8 @@
           confirm-button-class="bg-amber-600"
           @confirm="doClearForceout"
         />
+
+        <DuplicateCheckModal v-model:visible="showDuplicateCheck" />
       </div>
     </div>
   </teleport>
@@ -206,8 +227,9 @@ import * as identityApi from '@/api/identity'
 import SystemSettings from '@/components/settings/SystemSettings.vue'
 import GlobalFavorites from '@/components/settings/GlobalFavorites.vue'
 import Dialog from '@/components/common/Dialog.vue'
+import DuplicateCheckModal from '@/components/media/DuplicateCheckModal.vue'
 
-type Mode = 'identity' | 'system' | 'favorites'
+type Mode = 'identity' | 'system' | 'media' | 'favorites'
 
 interface Props {
   visible: boolean
@@ -237,6 +259,7 @@ const edit = ref({ id: '', name: '', sex: '男' })
 
 const showDisconnectAllDialog = ref(false)
 const showClearForceoutDialog = ref(false)
+const showDuplicateCheck = ref(false)
 
 const close = () => {
   editMode.value = false
@@ -381,7 +404,6 @@ const doClearForceout = async () => {
 }
 
 const openMediaManagement = async () => {
-  if (!currentUser.value) return
   mediaStore.managementMode = true
   mediaStore.selectionMode = false
   mediaStore.selectedImages = []
@@ -390,8 +412,11 @@ const openMediaManagement = async () => {
 }
 
 const openMtPhotoAlbums = async () => {
-  if (!currentUser.value) return
   await mtPhotoStore.open()
+}
+
+const openDuplicateCheck = () => {
+  showDuplicateCheck.value = true
 }
 
 watch(
@@ -401,9 +426,10 @@ watch(
 
     if (props.mode === 'system') {
       await refreshSystem()
-      if (currentUser.value) {
-        await mediaStore.loadAllUploadImages(1)
-      }
+    }
+
+    if (props.mode === 'media') {
+      await mediaStore.loadAllUploadImages(1)
     }
   }
 )

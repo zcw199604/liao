@@ -32,18 +32,18 @@
             <span>系统设置</span>
           </button>
           <button
+            @click="handleOpenMediaManagement"
+            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-gray-700 transition"
+          >
+            <i class="fas fa-images text-purple-400"></i>
+            <span>图片管理</span>
+          </button>
+          <button
             @click="handleOpenFavorites"
             class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-gray-700 transition"
           >
             <i class="fas fa-star text-yellow-500"></i>
             <span>全局收藏</span>
-          </button>
-          <button
-            @click="handleOpenDuplicateCheck"
-            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-gray-700 transition"
-          >
-            <i class="fas fa-search text-blue-400"></i>
-            <span>图片查重</span>
           </button>
           <button
             @click="handleSwitchIdentity"
@@ -262,8 +262,6 @@
         </div>
       </div>
     </Dialog>
-
-    <DuplicateCheckModal v-model:visible="showDuplicateCheck" />
   </div>
 </template>
 
@@ -288,7 +286,6 @@ import Dialog from '@/components/common/Dialog.vue'
 	import Skeleton from '@/components/common/Skeleton.vue'
 	import MatchButton from '@/components/chat/MatchButton.vue'
 	import MatchOverlay from '@/components/chat/MatchOverlay.vue'
-	import DuplicateCheckModal from '@/components/media/DuplicateCheckModal.vue'
 import DraggableBadge from '@/components/common/DraggableBadge.vue'
 import type { User } from '@/types'
 import { deleteUser } from '@/api/chat'
@@ -313,8 +310,7 @@ const { show } = useToast()
 
 const showTopMenu = ref(false)
 const showSettings = ref(false)
-const showDuplicateCheck = ref(false)
-const settingsMode = ref<'identity' | 'system' | 'favorites'>('identity')
+const settingsMode = ref<'identity' | 'system' | 'media' | 'favorites'>('identity')
 const showSwitchIdentityDialog = ref(false)
 const showDeleteUserDialog = ref(false)
 	const userToDelete = ref<User | null>(null)
@@ -634,17 +630,18 @@ const handleOpenSystemSettings = () => {
   showSettings.value = true
 }
 
+const handleOpenMediaManagement = () => {
+  closeContextMenu()
+  showTopMenu.value = false
+  settingsMode.value = 'media'
+  showSettings.value = true
+}
+
 const handleOpenFavorites = () => {
   closeContextMenu()
   showTopMenu.value = false
   settingsMode.value = 'favorites'
   showSettings.value = true
-}
-
-const handleOpenDuplicateCheck = () => {
-  closeContextMenu()
-  showTopMenu.value = false
-  showDuplicateCheck.value = true
 }
 
 const handleSwitchIdentity = () => {

@@ -237,7 +237,6 @@ const close = () => {
 const loadMore = async () => {
   if (mediaStore.allUploadLoading) return
   if (mediaStore.allUploadPage >= mediaStore.allUploadTotalPages) return
-  if (!userStore.currentUser) return
 
   await mediaStore.loadAllUploadImages(mediaStore.allUploadPage + 1)
 }
@@ -277,12 +276,16 @@ const handleMediaClick = (media: UploadedMedia) => {
   previewTarget.value = media
   previewUrl.value = media.url
   previewType.value = media.type
-  previewCanUpload.value = !mediaStore.managementMode
+  previewCanUpload.value = !mediaStore.managementMode && !!userStore.currentUser
   showPreview.value = true
 }
 
 const confirmPreviewUpload = async () => {
-  if (!previewTarget.value || !userStore.currentUser) return
+  if (!previewTarget.value) return
+  if (!userStore.currentUser) {
+    show('请先选择身份后再重新上传')
+    return
+  }
 
   if (!mediaStore.imgServer) {
     await mediaStore.loadImgServer()
@@ -338,9 +341,13 @@ const confirmDelete = (targets: string[]) => {
 }
 
 const executeDelete = async () => {
-  if (!userStore.currentUser) return
+  if (!userStore.currentUser?.id) {
+    show('请先登录后再删除')
+    return
+  }
   if (!deleteTargets.value.length) return
 
+  const userId = userStore.currentUser?.id || 'pre_identity'
   const urls = deleteTargets.value.slice(0, 50)
   urls.forEach(u => deletingUrls.value.add(u))
 
@@ -348,7 +355,7 @@ const executeDelete = async () => {
     const localPaths = urls.map(extractUploadLocalPath)
 
     if (localPaths.length === 1) {
-      const res = await mediaApi.deleteMedia(localPaths[0]!, userStore.currentUser.id)
+      const res = await mediaApi.deleteMedia(localPaths[0]!, userId)
       if (res.code === 0) {
         mediaStore.allUploadImages = mediaStore.allUploadImages.filter(m => m.url !== urls[0])
         mediaStore.allUploadTotal = Math.max(0, mediaStore.allUploadTotal - 1)
@@ -359,7 +366,7 @@ const executeDelete = async () => {
       return
     }
 
-    const res = await mediaApi.batchDeleteMedia(userStore.currentUser.id, localPaths)
+    const res = await mediaApi.batchDeleteMedia(userId, localPaths)
     if (res.code === 0) {
       mediaStore.allUploadImages = mediaStore.allUploadImages.filter(m => !urls.includes(m.url))
       mediaStore.allUploadTotal = Math.max(0, mediaStore.allUploadTotal - localPaths.length)

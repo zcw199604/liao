@@ -23,6 +23,17 @@
       </button>
     </div>
 
+    <!-- 图片管理 -->
+    <div class="px-4 mb-4">
+      <button
+        @click="showMediaDrawer = true"
+        class="w-full py-3 bg-[#27272a] text-white rounded-xl font-medium border border-gray-700 hover:bg-[#333] transition flex items-center justify-center gap-2"
+      >
+        <i class="fas fa-images text-purple-400"></i>
+        <span>图片管理</span>
+      </button>
+    </div>
+
     <!-- 身份列表 -->
     <div class="list-area no-scrollbar px-4">
       <!-- 加载中 -->
@@ -56,6 +67,8 @@
     />
 
     <Toast />
+
+    <SettingsDrawer v-model:visible="showMediaDrawer" mode="media" />
   </div>
 </template>
 
@@ -68,6 +81,7 @@ import IdentityList from '@/components/identity/IdentityList.vue'
 import CreateDialog from '@/components/identity/CreateDialog.vue'
 import Dialog from '@/components/common/Dialog.vue'
 import Toast from '@/components/common/Toast.vue'
+import SettingsDrawer from '@/components/settings/SettingsDrawer.vue'
 import type { Identity } from '@/types'
 
 const identityStore = useIdentityStore()
@@ -78,6 +92,7 @@ const loading = ref(false)
 const showCreateDialog = ref(false)
 const showDeleteDialog = ref(false)
 const deleteTarget = ref<Identity | null>(null)
+const showMediaDrawer = ref(false)
 
 const handleSelect = async (identity: Identity) => {
   loading.value = true

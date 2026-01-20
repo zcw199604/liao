@@ -245,7 +245,7 @@ const close = () => {
 const handleMediaClick = async (item: MtPhotoMediaItem) => {
   previewMD5.value = item.md5
   previewType.value = item.type
-  previewCanUpload.value = true
+  previewCanUpload.value = !!userStore.currentUser
 
   // 图片直接用网关缩略图预览；视频则解析本地路径以便播放
   previewUrl.value = getThumbUrl('h220', item.md5)
@@ -308,7 +308,10 @@ const handlePreviewMediaChange = (media: UploadedMedia) => {
 }
 
 const confirmImportUpload = async () => {
-  if (!userStore.currentUser) return
+  if (!userStore.currentUser) {
+    show('请先选择身份后再导入上传')
+    return
+  }
   if (!previewMD5.value) return
 
   if (!mediaStore.imgServer) {
