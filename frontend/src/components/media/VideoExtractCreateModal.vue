@@ -2,7 +2,7 @@
   <teleport to="body">
     <div
       v-if="videoExtractStore.showCreateModal"
-      class="fixed inset-0 z-[85] bg-black/70 flex items-center justify-center p-4"
+      class="fixed inset-0 z-[90] bg-black/70 flex items-center justify-center p-4"
       @click="close"
     >
       <div
@@ -420,4 +420,3 @@ watch(
   }
 )
 </script>
-

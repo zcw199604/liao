@@ -524,6 +524,19 @@
 
 > 说明：该模块为新增能力，通过 `ffprobe/ffmpeg` 在后端异步执行抽帧，并将产物落盘到 `./upload/extract/{taskId}/frames/`，前端可预览并支持“终止/继续”。
 
+#### [POST] /api/uploadVideoExtractInput
+**描述**：上传视频文件到本地（不做类型限制），返回 `localPath`，供后续 `probeVideo/createVideoExtractTask` 使用（任务中心“上传”入口使用该接口）。
+
+**请求（multipart/form-data）**
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| file | 是 | 文件内容（前端选择不限制类型；服务端仅落盘，是否为可解析视频由 `probeVideo` 决定） |
+
+**响应（HTTP 200）**
+```json
+{"code":0,"msg":"success","data":{"localPath":"/videos/2026/01/20/xxx.mp4","url":"http://host/upload/videos/2026/01/20/xxx.mp4"}}
+```
+
 #### [GET] /api/probeVideo
 **描述**：探测视频基础信息（宽高、时长、平均 FPS），用于前端表单提示与预估输出量。
 

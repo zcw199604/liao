@@ -56,9 +56,23 @@
             :class="isMobile && mobilePane === 'detail' ? 'hidden' : ''"
           >
             <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
-              <div class="text-sm text-gray-300 font-medium">任务列表</div>
+              <div class="flex items-center gap-2">
+                <div class="text-sm text-gray-300 font-medium">任务列表</div>
+                <button
+                  class="px-2.5 py-1.5 text-[11px] rounded-lg bg-purple-600 hover:bg-purple-500 text-white transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  :disabled="uploading"
+                  @click="pickUploadFile"
+                  title="上传视频并创建抽帧任务（不限制文件类型）"
+                >
+                  <span v-if="uploading" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  <i v-else class="fas fa-upload"></i>
+                  <span class="hidden sm:inline">{{ uploading ? '上传中' : '上传' }}</span>
+                </button>
+              </div>
               <div class="text-xs text-gray-500">{{ videoExtractStore.listTotal }} 个</div>
             </div>
+
+            <input ref="uploadInputRef" type="file" class="hidden" @change="handleUploadInputChange" />
 
             <div class="flex-1 overflow-y-auto no-scrollbar">
               <div v-if="videoExtractStore.listLoading && videoExtractStore.tasks.length === 0" class="p-6 text-center text-gray-500 text-sm">
@@ -428,20 +442,26 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { breakpointsTailwind, useBreakpoints, useElementSize } from '@vueuse/core'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import { useToast } from '@/composables/useToast'
+import { useUserStore } from '@/stores/user'
 import { useVideoExtractStore } from '@/stores/videoExtract'
 import InfiniteMediaGrid from '@/components/common/InfiniteMediaGrid.vue'
 import Dialog from '@/components/common/Dialog.vue'
 import MediaPreview from '@/components/media/MediaPreview.vue'
+import * as videoExtractApi from '@/api/videoExtract'
 import type { UploadedMedia, VideoExtractTask } from '@/types'
 
 const videoExtractStore = useVideoExtractStore()
 const { show } = useToast()
+const userStore = useUserStore()
 
 const breakpoints = useBreakpoints(breakpointsTailwind)
 const isMobile = computed(() => !breakpoints.md.value)
 const mobilePane = ref<'list' | 'detail'>('list')
 
 const layoutMode = ref<'masonry' | 'grid'>((localStorage.getItem('video_extract_layout') as any) || 'grid')
+
+const uploadInputRef = ref<HTMLInputElement | null>(null)
+const uploading = ref(false)
 
 const showCancelConfirm = ref(false)
 const showDeleteConfirm = ref(false)
@@ -487,6 +507,47 @@ const backToList = () => {
 
 const refresh = async () => {
   await videoExtractStore.loadTasks(videoExtractStore.listPage)
+}
+
+const pickUploadFile = () => {
+  if (uploading.value) return
+  uploadInputRef.value?.click()
+}
+
+const handleUploadInputChange = async (e: Event) => {
+  const input = e.target as HTMLInputElement | null
+  const file = input?.files?.[0]
+  if (input) input.value = ''
+  if (!file) return
+
+  uploading.value = true
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await videoExtractApi.uploadVideoExtractInput(form)
+    if (res?.code !== 0 || !res.data?.localPath) {
+      throw new Error(String(res?.msg || '上传失败'))
+    }
+
+    const url = String(res.data.url || '').trim() || `${window.location.origin}/upload${res.data.localPath}`
+    const media: UploadedMedia = {
+      url,
+      type: 'video',
+      originalFilename: file.name,
+      fileSize: file.size,
+      fileType: file.type || res.data.contentType || undefined
+    }
+
+    const ok = await videoExtractStore.openCreateFromMedia(media, userStore.currentUser?.id)
+    if (!ok) {
+      show('当前文件不支持抽帧')
+    }
+  } catch (err: any) {
+    console.error('uploadVideoExtractInput failed', err)
+    show(String(err?.message || '上传失败'))
+  } finally {
+    uploading.value = false
+  }
 }
 
 const openDetail = async (taskId: string) => {

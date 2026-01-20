@@ -74,6 +74,7 @@ func (a *App) buildRouter() http.Handler {
 		api.Post("/repairMediaHistory", a.handleRepairMediaHistory)
 
 		// Video extract（视频抽帧任务）
+		api.Post("/uploadVideoExtractInput", a.handleUploadVideoExtractInput)
 		api.Get("/probeVideo", a.handleProbeVideo)
 		api.Post("/createVideoExtractTask", a.handleCreateVideoExtractTask)
 		api.Get("/getVideoExtractTaskList", a.handleGetVideoExtractTaskList)

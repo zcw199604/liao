@@ -2,6 +2,20 @@ import request from './request'
 import type { ApiResponse, PaginationResponse } from '@/types'
 import type { VideoExtractFramesPage, VideoExtractTask, VideoProbeResult } from '@/types'
 
+export interface VideoExtractUploadInputResult {
+  localPath: string
+  url?: string
+  originalFilename?: string
+  localFilename?: string
+  fileSize?: number
+  contentType?: string
+  suggestSourceType?: string
+}
+
+export const uploadVideoExtractInput = (formData: FormData) => {
+  return request.post<any, ApiResponse<VideoExtractUploadInputResult>>('/uploadVideoExtractInput', formData)
+}
+
 export const probeVideo = (params: { sourceType: 'upload' | 'mtPhoto'; localPath?: string; md5?: string }) => {
   return request.get<any, ApiResponse<VideoProbeResult>>('/probeVideo', { params })
 }
@@ -31,4 +45,3 @@ export const continueVideoExtractTask = (data: { taskId: string; endSec?: number
 export const deleteVideoExtractTask = (data: { taskId: string; deleteFiles: boolean }) => {
   return request.post<any, ApiResponse>('/deleteVideoExtractTask', data)
 }
-

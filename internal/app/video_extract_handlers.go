@@ -6,9 +6,57 @@ package app
 import (
 	"encoding/json"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
+
+func (a *App) handleUploadVideoExtractInput(w http.ResponseWriter, r *http.Request) {
+	if a == nil || a.fileStorage == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"code": 500, "msg": "服务未初始化"})
+		return
+	}
+
+	if err := r.ParseMultipartForm(220 << 20); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": "请求解析失败: " + err.Error()})
+		return
+	}
+
+	files := r.MultipartForm.File["file"]
+	if len(files) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": "缺少文件"})
+		return
+	}
+	fh := files[0]
+
+	// 说明：该接口用于“抽帧任务输入”，前端文件选择不做类型限制；
+	// 服务端仅负责落盘并返回 localPath，后续由 /api/probeVideo 使用 ffprobe 校验是否为可解析的视频。
+	localPath, err := a.fileStorage.SaveFile(fh, "video")
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"code": 500, "msg": "保存失败: " + err.Error()})
+		return
+	}
+
+	hostHeader := requestHostHeader(r)
+	url := ""
+	if strings.TrimSpace(hostHeader) != "" {
+		url = "http://" + strings.TrimSpace(hostHeader) + "/upload" + localPath
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"code": 0,
+		"msg":  "success",
+		"data": map[string]any{
+			"localPath":         localPath,
+			"url":               url,
+			"originalFilename":  fh.Filename,
+			"localFilename":     filepath.Base(strings.TrimPrefix(localPath, "/")),
+			"fileSize":          fh.Size,
+			"contentType":       strings.TrimSpace(fh.Header.Get("Content-Type")),
+			"suggestSourceType": string(VideoExtractSourceUpload),
+		},
+	})
+}
 
 func (a *App) handleProbeVideo(w http.ResponseWriter, r *http.Request) {
 	if a == nil || a.videoExtract == nil {
@@ -232,4 +280,3 @@ func parseFloatDefault(raw string, def float64) float64 {
 	}
 	return f
 }
-
