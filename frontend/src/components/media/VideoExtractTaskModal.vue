@@ -2,16 +2,24 @@
   <teleport to="body">
     <div
       v-if="videoExtractStore.showTaskModal"
-      class="fixed inset-0 z-[85] bg-black/70 flex items-center justify-center p-4"
+      class="fixed inset-0 z-[85] bg-black/70 flex items-stretch justify-stretch md:items-center md:justify-center p-0 md:p-4"
       @click="close"
     >
       <div
-        class="w-full max-w-6xl h-[88vh] bg-[#18181b] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-700"
+        class="w-full md:max-w-6xl h-[100dvh] md:h-[88vh] bg-[#18181b] rounded-none md:rounded-2xl shadow-2xl flex flex-col overflow-hidden border-0 md:border border-gray-700 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] md:pt-0 md:pb-0"
         @click.stop
       >
         <!-- Header -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-[#1f1f23]">
           <div class="flex items-center gap-3 min-w-0">
+            <button
+              v-if="isMobile && mobilePane === 'detail'"
+              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+              @click="backToList"
+              title="返回任务列表"
+            >
+              <i class="fas fa-arrow-left"></i>
+            </button>
             <div class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
               <i class="fas fa-tasks text-purple-400"></i>
             </div>
@@ -43,7 +51,10 @@
 
         <div class="flex flex-1 overflow-hidden">
           <!-- Left: task list -->
-          <div class="w-full md:w-[360px] bg-[#1f1f23] border-r border-gray-800 flex flex-col overflow-hidden">
+          <div
+            class="w-full md:w-[360px] bg-[#1f1f23] border-r border-gray-800 flex flex-col overflow-hidden"
+            :class="isMobile && mobilePane === 'detail' ? 'hidden' : ''"
+          >
             <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
               <div class="text-sm text-gray-300 font-medium">任务列表</div>
               <div class="text-xs text-gray-500">{{ videoExtractStore.listTotal }} 个</div>
@@ -96,16 +107,30 @@
           </div>
 
           <!-- Right: detail -->
-          <div class="flex-1 flex flex-col overflow-hidden">
-            <div v-if="!videoExtractStore.selectedTask" class="flex-1 flex items-center justify-center text-gray-600">
+          <div class="flex-1 flex flex-col overflow-hidden" :class="isMobile && mobilePane === 'list' ? 'hidden' : ''">
+            <div v-if="!videoExtractStore.selectedTaskId" class="flex-1 flex items-center justify-center text-gray-600">
               <div class="text-center">
                 <i class="fas fa-hand-pointer text-4xl mb-3 opacity-30"></i>
                 <div class="text-sm">选择一个任务查看详情</div>
               </div>
             </div>
 
+            <div v-else-if="videoExtractStore.detailLoading && !videoExtractStore.selectedTask" class="flex-1 flex items-center justify-center text-gray-600">
+              <div class="text-center">
+                <span class="w-6 h-6 border-2 border-gray-500 border-t-transparent rounded-full animate-spin inline-block mb-3"></span>
+                <div class="text-sm">加载任务详情...</div>
+              </div>
+            </div>
+
+            <div v-else-if="!videoExtractStore.selectedTask" class="flex-1 flex items-center justify-center text-gray-600">
+              <div class="text-center">
+                <i class="fas fa-exclamation-circle text-4xl mb-3 opacity-30"></i>
+                <div class="text-sm">任务不存在或已删除</div>
+              </div>
+            </div>
+
             <div v-else class="flex-1 flex flex-col overflow-hidden">
-              <div class="px-6 py-4 border-b border-gray-800 bg-[#18181b]">
+              <div class="px-6 py-4 border-b border-gray-800 bg-[#18181b] max-h-[46vh] overflow-y-auto no-scrollbar md:max-h-none md:overflow-visible">
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
                     <div class="text-base text-white font-bold truncate">
@@ -400,7 +425,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { useElementSize } from '@vueuse/core'
+import { breakpointsTailwind, useBreakpoints, useElementSize } from '@vueuse/core'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import { useToast } from '@/composables/useToast'
 import { useVideoExtractStore } from '@/stores/videoExtract'
@@ -411,6 +436,10 @@ import type { UploadedMedia, VideoExtractTask } from '@/types'
 
 const videoExtractStore = useVideoExtractStore()
 const { show } = useToast()
+
+const breakpoints = useBreakpoints(breakpointsTailwind)
+const isMobile = computed(() => !breakpoints.md.value)
+const mobilePane = ref<'list' | 'detail'>('list')
 
 const layoutMode = ref<'masonry' | 'grid'>((localStorage.getItem('video_extract_layout') as any) || 'grid')
 
@@ -452,6 +481,10 @@ const close = () => {
   videoExtractStore.closeTaskModal()
 }
 
+const backToList = () => {
+  mobilePane.value = 'list'
+}
+
 const refresh = async () => {
   await videoExtractStore.loadTasks(videoExtractStore.listPage)
 }
@@ -460,6 +493,9 @@ const openDetail = async (taskId: string) => {
   await videoExtractStore.openTaskDetail(taskId)
   continueEndSec.value = null
   continueMaxFrames.value = null
+  if (isMobile.value) {
+    mobilePane.value = 'detail'
+  }
 }
 
 const isRunning = (status?: string) => status === 'PENDING' || status === 'PREPARING' || status === 'RUNNING'
@@ -679,7 +715,11 @@ const doContinue = async () => {
 watch(
   () => videoExtractStore.showTaskModal,
   async (v) => {
-    if (!v) return
+    if (!v) {
+      mobilePane.value = 'list'
+      return
+    }
+    mobilePane.value = isMobile.value && videoExtractStore.selectedTaskId ? 'detail' : 'list'
     await videoExtractStore.loadTasks(1)
   }
 )
@@ -687,5 +727,12 @@ watch(
 watch([gridItemSize, gridColumns], async () => {
   await nextTick()
   framesScrollerRef.value?.updateVisibleItems?.(true)
+})
+
+watch([isMobile, () => videoExtractStore.selectedTaskId], ([mobile, id]) => {
+  if (!videoExtractStore.showTaskModal) return
+  if (mobile) {
+    mobilePane.value = id ? 'detail' : 'list'
+  }
 })
 </script>
