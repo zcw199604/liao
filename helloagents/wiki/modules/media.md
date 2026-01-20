@@ -67,6 +67,8 @@
 预览顶部支持打开“详细信息”面板：仅当媒体对象携带任一元信息字段（如 `md5/fileSize/pHash/similarity` 等）时显示入口。
 当业务场景无法在列表阶段拿到真实文件名（如仅有 `md5`），可向 `MediaPreview` 传入可选的 `resolveOriginalFilename` 回调，在用户打开详情面板前按需解析并补齐 `originalFilename`（仅展示 basename，避免泄露目录结构）。
 预览顶部“下载”按钮在下载 `/api/*` 资源时会使用带 Authorization 的 blob 下载，并解析 `Content-Disposition` 的 `filename*`（RFC 5987）与 `filename`；当 `filename` 为 URL 编码时会在保存前解码，避免中文文件名被编码。
+视频预览支持倍速/慢放（`playbackRate`），默认档位：0.1/0.25/0.5/1/1.5/2/5，并将用户选择持久化到 localStorage（`media_preview_playback_rate`）。
+视频预览支持“暂停抓帧”：点击后会先暂停视频，再基于 Canvas 抓取当前帧生成 PNG 图片，并同时执行“直接下载 + 上传到图片库”；若未选择身份则降级为仅下载；跨域视频可能因 CORS 限制无法抓帧，会给出提示并引导使用“抽帧任务/先上传到本地库”等替代路径。
 “全站图片库/已上传图片”场景下，预览弹层背景使用毛玻璃（`backdrop-blur`），缩略图选中提供轻微缩小 + 弹性动画反馈以增强可感知性。
 当 `mediaList` 过大（>200）时，底部缩略图栏会自动切换为虚拟滚动（`vue-virtual-scroller` 的 `RecycleScroller`）以避免一次性渲染大量 DOM。
 
@@ -145,6 +147,7 @@
   - `internal/app/user_history_media_handlers_test.go`
 
 ## 变更历史
+- [202601201117_video_pause_capture_frame](../../history/2026-01/202601201117_video_pause_capture_frame/) - 视频预览支持倍速/慢放与暂停抓帧（下载 + 上传到图片库）
 - [202601191522_media_gallery_expand](../../history/2026-01/202601191522_media_gallery_expand/) - 放宽“全站图片库/mtPhoto 相册”弹窗与图片列表展示区域，减少留白
 - [202601181549_mtphoto_preview_gallery](../../history/2026-01/202601181549_mtphoto_preview_gallery/) - 媒体预览画廊切换时对外同步当前媒体（用于 mtPhoto/全站图片库等场景）
 - [202601190109_mtphoto_preview_detail](../../history/2026-01/202601190109_mtphoto_preview_detail/) - 媒体预览支持按元信息显示“查看详情”入口并展示详情面板

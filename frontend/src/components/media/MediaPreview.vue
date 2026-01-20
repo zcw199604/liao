@@ -29,6 +29,20 @@
                 <i class="fas fa-info-circle text-sm"></i>
               </button>
 
+              <!-- 倍速/慢放（仅视频） -->
+              <div
+                v-if="currentMedia.type === 'video'"
+                class="h-10 px-3 rounded-full bg-white/10 hover:bg-white/20 flex items-center gap-2 text-white transition backdrop-blur-sm"
+                title="播放倍速"
+              >
+                <i class="fas fa-tachometer-alt text-xs text-white/80"></i>
+                <select v-model.number="playbackRate" class="bg-transparent text-xs text-white outline-none cursor-pointer">
+                  <option v-for="r in playbackRateOptions" :key="r" :value="r">
+                    x{{ r }}
+                  </option>
+                </select>
+              </div>
+
               <!-- 下载按钮 -->
               <button
                 class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition backdrop-blur-sm"
@@ -92,10 +106,12 @@
         <div v-else-if="currentMedia.type === 'video'" class="relative w-full h-full flex items-center justify-center pb-20">
              <video
               :key="currentMedia.url + '-video'"
+              ref="videoRef"
               :src="currentMediaDisplayUrl"
               controls
               autoplay
               class="max-w-[95%] max-h-[95%] shadow-2xl rounded-lg bg-black"
+              @loadedmetadata="handleVideoLoadedMetadata"
               @error="handleMediaError"
             ></video>
         </div>
@@ -169,6 +185,18 @@
         <!-- 上传按钮（如果允许上传） -->
         <div class="absolute bottom-28 left-1/2 transform -translate-x-1/2 flex items-center gap-3 z-50">
           <button
+            v-if="currentMedia.type === 'video'"
+            class="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-full font-medium transition shadow-lg shadow-sky-600/30 flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            title="暂停并抓取当前帧（下载+上传）"
+            :disabled="captureFrameLoading"
+            @click.stop="handleCaptureFrame"
+          >
+            <span v-if="captureFrameLoading" class="w-4 h-4 border-2 border-white/90 border-t-transparent rounded-full animate-spin"></span>
+            <i v-else class="fas fa-camera"></i>
+            <span>抓帧</span>
+          </button>
+
+          <button
             v-if="canExtractFrames"
             @click.stop="handleExtractFrames"
             class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full font-medium transition shadow-lg shadow-emerald-600/30 flex items-center gap-2"
@@ -200,6 +228,7 @@ import { ref, watch, computed, onUnmounted, nextTick } from 'vue'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import type { UploadedMedia } from '@/types'
 import { useToast } from '@/composables/useToast'
+import { useUpload } from '@/composables/useUpload'
 import { useUserStore } from '@/stores/user'
 import { useVideoExtractStore } from '@/stores/videoExtract'
 import MediaDetailPanel from './MediaDetailPanel.vue'
@@ -227,6 +256,7 @@ const emit = defineEmits<{
 const { show } = useToast()
 const userStore = useUserStore()
 const videoExtractStore = useVideoExtractStore()
+const { uploadFile } = useUpload()
 
 // 状态管理
 const scale = ref(1)
@@ -239,6 +269,126 @@ const thumbnailScrollerRef = ref<any>(null)
 
 // 详情面板状态
 const showDetails = ref(false)
+
+const videoRef = ref<HTMLVideoElement | null>(null)
+
+const playbackRateOptions = [0.1, 0.25, 0.5, 1, 1.5, 2, 5]
+const playbackRate = ref<number>(1)
+try {
+  const raw = localStorage.getItem('media_preview_playback_rate')
+  const v = raw === null ? NaN : Number(raw)
+  if (playbackRateOptions.includes(v)) playbackRate.value = v
+} catch {
+  // ignore
+}
+
+const applyVideoPlaybackRate = () => {
+  const video = videoRef.value
+  if (!video) return
+  const r = Number(playbackRate.value || 1)
+  if (!Number.isFinite(r) || r <= 0) return
+  // 同时设置 defaultPlaybackRate，避免部分浏览器在重新加载后回退到 1
+  video.playbackRate = r
+  video.defaultPlaybackRate = r
+}
+
+const handleVideoLoadedMetadata = () => {
+  applyVideoPlaybackRate()
+}
+
+watch(playbackRate, () => {
+  try {
+    localStorage.setItem('media_preview_playback_rate', String(playbackRate.value))
+  } catch {
+    // ignore
+  }
+  applyVideoPlaybackRate()
+})
+
+const captureFrameLoading = ref(false)
+
+const handleCaptureFrame = async () => {
+  if (captureFrameLoading.value) return
+  const video = videoRef.value
+  if (!video) {
+    show('视频未就绪')
+    return
+  }
+
+  captureFrameLoading.value = true
+  try {
+    // 用户希望“暂停后抓帧”，这里若仍在播放则先暂停，确保画面稳定。
+    if (!video.paused) {
+      video.pause()
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()))
+      }
+    }
+
+    // HAVE_CURRENT_DATA=2，保证当前帧可用
+    if (video.readyState < 2 || video.videoWidth <= 0 || video.videoHeight <= 0) {
+      show('视频未加载完成，无法抓帧')
+      return
+    }
+
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      show('Canvas 不可用，无法抓帧')
+      return
+    }
+
+    try {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    } catch (e: any) {
+      const name = String(e?.name || '')
+      if (name === 'SecurityError') {
+        show('跨域视频受浏览器安全限制，无法抓帧；建议先上传到本地库或使用“抽帧”功能')
+        return
+      }
+      show('抓帧失败')
+      return
+    }
+
+    const blob = await new Promise<Blob | null>(resolve => {
+      canvas.toBlob(b => resolve(b), 'image/png')
+    })
+    if (!blob) {
+      show('抓帧失败')
+      return
+    }
+
+    const rawBase =
+      sanitizeFilename(String(currentMedia.value.originalFilename || '')) ||
+      sanitizeFilename(String(currentMedia.value.localFilename || '')) ||
+      'video'
+    const base = rawBase.replace(/\.[a-zA-Z0-9]+$/, '') || 'video'
+    const tMs = Math.max(0, Math.round((video.currentTime || 0) * 1000))
+    const filename = sanitizeFilename(`${base}_frame_${tMs}ms.png`) || `frame_${tMs}ms.png`
+
+    // 1) 直接下载
+    triggerBlobDownload(blob, filename)
+
+    // 2) 上传到图片库（需要身份）
+    const u = userStore.currentUser
+    if (!u?.id || !u?.name) {
+      show('已下载抓帧图片；选择身份后可自动上传到图片库')
+      return
+    }
+
+    const file = new File([blob], filename, { type: blob.type || 'image/png' })
+    const uploaded = await uploadFile(file, u.id, u.name)
+    if (uploaded) {
+      show('抓帧已下载并上传（可在上传列表中使用）')
+    } else {
+      show('抓帧已下载，但上传失败')
+    }
+  } finally {
+    captureFrameLoading.value = false
+  }
+}
 
 const sanitizeFilename = (value: string): string => {
   const raw = String(value || '').trim()
@@ -593,6 +743,7 @@ watch(
   () => currentMedia.value.url,
   () => {
     resetMediaLoadState()
+    nextTick(() => applyVideoPlaybackRate())
   }
 )
 
