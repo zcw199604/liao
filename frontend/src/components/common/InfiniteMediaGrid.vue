@@ -1,7 +1,7 @@
 <template>
   <div
     ref="scrollContainer"
-    class="flex-1 overflow-y-auto p-4 no-scrollbar"
+    class="flex-1 overflow-y-auto p-2 no-scrollbar"
     @scroll="handleScroll"
   >
     <!-- Loading Initial -->
@@ -164,7 +164,7 @@ const handleScroll = () => {
 
 const gridClass = computed(() => {
   // 仅在 Grid 模式下使用
-  return 'grid grid-cols-3 sm:grid-cols-4 gap-4'
+  return 'grid grid-cols-3 sm:grid-cols-4 gap-2'
 })
 
 const itemClass = computed(() => {

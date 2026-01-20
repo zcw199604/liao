@@ -63,6 +63,7 @@
 | 202601191522 | media_gallery_expand | 优化 | ⚠️待复验 | [链接](2026-01/202601191522_media_gallery_expand/) |
 | 202601200032 | image_menu_separate | 优化 | ✅已完成 | [链接](2026-01/202601200032_image_menu_separate/) |
 | 202601200043 | media_pre_identity | 优化 | ✅已完成 | [链接](2026-01/202601200043_media_pre_identity/) |
+| 202601200337 | media_gallery_spacing_compact | 优化 | ✅已完成 | [链接](2026-01/202601200337_media_gallery_spacing_compact/) |
 
 ---
 
@@ -125,3 +126,4 @@
 - [202601191522_media_gallery_expand](2026-01/202601191522_media_gallery_expand/) - 放宽“全站图片库/mtPhoto 相册”弹窗与图片列表展示区域，减少留白
 - [202601200032_image_menu_separate](2026-01/202601200032_image_menu_separate/) - 新增“图片管理”菜单并将“所有上传图片/mtPhoto/图片查重”入口从系统设置移出
 - [202601200043_media_pre_identity](2026-01/202601200043_media_pre_identity/) - 登录后、选择身份前可使用“图片管理”（所有上传图片/mtPhoto/图片查重）
+- [202601200337_media_gallery_spacing_compact](2026-01/202601200337_media_gallery_spacing_compact/) - 紧凑化“所有上传图片/mtPhoto 相册”弹窗图片列表边距与网格间距，提升图片可视面积

@@ -52,12 +52,12 @@
         </div>
 
         <!-- 相册列表 -->
-        <div v-if="mtPhotoStore.view === 'albums'" class="flex-1 overflow-y-auto p-6 no-scrollbar">
+        <div v-if="mtPhotoStore.view === 'albums'" class="flex-1 overflow-y-auto p-2 no-scrollbar">
           <div v-if="mtPhotoStore.albumsLoading" class="flex-1 flex items-center justify-center text-gray-500 text-sm">
             加载中...
           </div>
 
-          <div v-else-if="mtPhotoStore.albums.length > 0" class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div v-else-if="mtPhotoStore.albums.length > 0" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <button
               v-for="album in mtPhotoStore.albums"
               :key="album.id"
