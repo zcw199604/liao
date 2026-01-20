@@ -108,44 +108,85 @@
         </div>
 
         <!-- 底部缩略图栏 -->
-        <div 
+        <div
           v-if="realMediaList.length > 1"
           class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-end justify-center z-40 pb-6 pointer-events-auto"
           @click.stop
         >
-           <div 
-             ref="thumbnailContainer"
-             class="flex gap-3 px-4 overflow-x-auto no-scrollbar max-w-full items-center h-16 w-full sm:w-auto sm:max-w-[80vw]"
-           >
-             <div 
-               v-for="(item, idx) in realMediaList" 
-               :key="'thumb-' + idx"
-               class="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden cursor-pointer border-2 transition-all duration-200 shadow-lg"
-               :class="idx === currentIndex ? 'border-indigo-500 scale-110 opacity-100 ring-2 ring-indigo-500/30' : 'border-transparent opacity-40 hover:opacity-80 hover:scale-105'"
-               @click="jumpTo(idx)"
-             >
-                <img v-if="item.type === 'image'" :src="item.url" class="w-full h-full object-cover" loading="lazy" />
-                <video v-else-if="item.type === 'video'" :src="item.url" class="w-full h-full object-cover"></video>
-                <div v-else class="w-full h-full flex items-center justify-center bg-gray-800 text-gray-400">
+          <RecycleScroller
+            v-if="useVirtualThumbnails"
+            ref="thumbnailScrollerRef"
+            class="no-scrollbar max-w-full items-center h-16 w-full sm:w-auto sm:max-w-[80vw]"
+            :items="realMediaList"
+            :item-size="thumbItemSize"
+            direction="horizontal"
+            key-field="url"
+          >
+            <template #default="{ item, index }">
+              <div class="w-[60px] h-full flex items-center justify-center">
+                <div
+                  class="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden cursor-pointer border-2 transition-all duration-200 shadow-lg"
+                  :class="index === currentIndex ? 'border-indigo-500 scale-110 opacity-100 ring-2 ring-indigo-500/30' : 'border-transparent opacity-40 hover:opacity-80 hover:scale-105'"
+                  @click="jumpTo(index)"
+                >
+                  <img v-if="item.type === 'image'" :src="item.url" class="w-full h-full object-cover" loading="lazy" />
+                  <video v-else-if="item.type === 'video'" :src="item.url" class="w-full h-full object-cover"></video>
+                  <div v-else class="w-full h-full flex items-center justify-center bg-gray-800 text-gray-400">
                     <i class="fas fa-file text-sm"></i>
+                  </div>
+                  <div v-if="item.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/40">
+                    <i class="fas fa-play text-[8px] text-white/90"></i>
+                  </div>
                 </div>
-                <!-- Video indicator -->
-                <div v-if="item.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/40">
-                  <i class="fas fa-play text-[8px] text-white/90"></i>
-                </div>
-             </div>
-           </div>
+              </div>
+            </template>
+          </RecycleScroller>
+
+          <div
+            v-else
+            ref="thumbnailContainer"
+            class="flex gap-3 px-4 overflow-x-auto no-scrollbar max-w-full items-center h-16 w-full sm:w-auto sm:max-w-[80vw]"
+          >
+            <div
+              v-for="(item, idx) in realMediaList"
+              :key="'thumb-' + idx"
+              class="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden cursor-pointer border-2 transition-all duration-200 shadow-lg"
+              :class="idx === currentIndex ? 'border-indigo-500 scale-110 opacity-100 ring-2 ring-indigo-500/30' : 'border-transparent opacity-40 hover:opacity-80 hover:scale-105'"
+              @click="jumpTo(idx)"
+            >
+              <img v-if="item.type === 'image'" :src="item.url" class="w-full h-full object-cover" loading="lazy" />
+              <video v-else-if="item.type === 'video'" :src="item.url" class="w-full h-full object-cover"></video>
+              <div v-else class="w-full h-full flex items-center justify-center bg-gray-800 text-gray-400">
+                <i class="fas fa-file text-sm"></i>
+              </div>
+              <div v-if="item.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/40">
+                <i class="fas fa-play text-[8px] text-white/90"></i>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- 上传按钮（如果允许上传） -->
-        <button
-          v-if="canUpload"
-          @click="$emit('upload')"
-          class="absolute bottom-28 left-1/2 transform -translate-x-1/2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-medium transition shadow-lg shadow-indigo-600/30 flex items-center gap-2 z-50"
-        >
-          <i class="fas fa-cloud-upload-alt"></i>
-          <span>上传此{{ currentMedia.type === 'image' ? '图片' : (currentMedia.type === 'video' ? '视频' : '文件') }}</span>
-        </button>
+        <div class="absolute bottom-28 left-1/2 transform -translate-x-1/2 flex items-center gap-3 z-50">
+          <button
+            v-if="canExtractFrames"
+            @click.stop="handleExtractFrames"
+            class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full font-medium transition shadow-lg shadow-emerald-600/30 flex items-center gap-2"
+            title="从该视频抽取图片"
+          >
+            <i class="fas fa-film"></i>
+            <span>抽帧</span>
+          </button>
+
+          <button
+            v-if="canUpload"
+            @click="$emit('upload')"
+            class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-medium transition shadow-lg shadow-indigo-600/30 flex items-center gap-2"
+          >
+            <i class="fas fa-cloud-upload-alt"></i>
+            <span>上传此{{ currentMedia.type === 'image' ? '图片' : (currentMedia.type === 'video' ? '视频' : '文件') }}</span>
+          </button>
+        </div>
       </div>
     </transition>
 
@@ -156,8 +197,11 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onUnmounted, nextTick } from 'vue'
+import { RecycleScroller } from 'vue-virtual-scroller'
 import type { UploadedMedia } from '@/types'
 import { useToast } from '@/composables/useToast'
+import { useUserStore } from '@/stores/user'
+import { useVideoExtractStore } from '@/stores/videoExtract'
 import MediaDetailPanel from './MediaDetailPanel.vue'
 
 interface Props {
@@ -181,6 +225,8 @@ const emit = defineEmits<{
 }>()
 
 const { show } = useToast()
+const userStore = useUserStore()
+const videoExtractStore = useVideoExtractStore()
 
 // 状态管理
 const scale = ref(1)
@@ -189,6 +235,7 @@ const translateY = ref(0)
 const isDragging = ref(false)
 const currentIndex = ref(0)
 const thumbnailContainer = ref<HTMLElement | null>(null)
+const thumbnailScrollerRef = ref<any>(null)
 
 // 详情面板状态
 const showDetails = ref(false)
@@ -228,6 +275,15 @@ const handleShowDetails = async () => {
   showDetails.value = true
 }
 
+const handleExtractFrames = async () => {
+  const ok = await videoExtractStore.openCreateFromMedia(currentMedia.value, userStore.currentUser?.id)
+  if (!ok) {
+    show('当前媒体不支持抽帧')
+    return
+  }
+  handleClose()
+}
+
 // 判断是否有详细信息
 const hasMediaDetails = computed(() => {
   const media = currentMedia.value
@@ -251,6 +307,17 @@ const hasMediaDetails = computed(() => {
   )
 })
 
+const canExtractFrames = computed(() => {
+  const media = currentMedia.value
+  if (!media || media.type !== 'video') return false
+  const url = String(media.url || '').trim()
+  const md5 = String(media.md5 || '').trim()
+  if (md5 && (url.startsWith('/lsp/') || url.startsWith('/api/'))) return true
+  if (url.startsWith('/videos/') || url.startsWith('/upload/')) return true
+  if (url.includes('/upload/')) return true
+  return false
+})
+
 // 整合后的媒体列表
 const realMediaList = computed<UploadedMedia[]>(() => {
   if (props.mediaList && props.mediaList.length > 0) {
@@ -259,6 +326,9 @@ const realMediaList = computed<UploadedMedia[]>(() => {
   // 兼容旧模式：单张图片构造成列表
   return [{ url: props.url, type: props.type }]
 })
+
+const thumbItemSize = 60
+const useVirtualThumbnails = computed(() => realMediaList.value.length > 200)
 
 const currentMedia = computed<UploadedMedia>(() => {
   if (realMediaList.value.length === 0) {
@@ -483,26 +553,39 @@ const handleKeydown = (e: KeyboardEvent) => {
   if (e.key === 'Escape') handleClose()
 }
 
+const scrollThumbnailToIndex = (index: number, behavior: ScrollBehavior) => {
+  if (realMediaList.value.length <= 1) return
+
+  if (useVirtualThumbnails.value) {
+    const el = thumbnailScrollerRef.value?.$el as HTMLElement | undefined
+    if (!el) return
+    const containerWidth = el.clientWidth
+    const left = Math.max(0, index * thumbItemSize - containerWidth / 2 + thumbItemSize / 2)
+    el.scrollTo({ left, behavior })
+    return
+  }
+
+  if (!thumbnailContainer.value) return
+  const container = thumbnailContainer.value
+  const children = container.children
+  if (!children[index]) return
+
+  const target = children[index] as HTMLElement
+  const containerWidth = container.clientWidth
+  const targetLeft = target.offsetLeft
+  const targetWidth = target.clientWidth
+
+  container.scrollTo({
+    left: targetLeft - containerWidth / 2 + targetWidth / 2,
+    behavior
+  })
+}
+
 // 自动滚动缩略图
 watch(currentIndex, (newIndex) => {
   if (!props.visible) return
   nextTick(() => {
-    if (thumbnailContainer.value && realMediaList.value.length > 1) {
-      const container = thumbnailContainer.value
-      const children = container.children
-      if (children[newIndex]) {
-        const target = children[newIndex] as HTMLElement
-        // Scroll to center
-        const containerWidth = container.clientWidth
-        const targetLeft = target.offsetLeft
-        const targetWidth = target.clientWidth
-        
-        container.scrollTo({
-          left: targetLeft - containerWidth / 2 + targetWidth / 2,
-          behavior: 'smooth'
-        })
-      }
-    }
+    scrollThumbnailToIndex(newIndex, 'smooth')
   })
 })
 
@@ -649,21 +732,7 @@ watch(() => props.visible, (val) => {
       
       // Initial scroll to active thumbnail
       nextTick(() => {
-        if (thumbnailContainer.value && realMediaList.value.length > 1) {
-             const idx = currentIndex.value
-             const container = thumbnailContainer.value
-             const children = container.children
-             if (children[idx]) {
-                const target = children[idx] as HTMLElement
-                const containerWidth = container.clientWidth
-                const targetLeft = target.offsetLeft
-                const targetWidth = target.clientWidth
-                container.scrollTo({
-                    left: targetLeft - containerWidth / 2 + targetWidth / 2,
-                    behavior: 'instant' as ScrollBehavior // Instant for initial load
-                })
-             }
-        }
+        scrollThumbnailToIndex(currentIndex.value, 'auto')
       })
     } else {
       currentIndex.value = 0

@@ -68,6 +68,7 @@
 当业务场景无法在列表阶段拿到真实文件名（如仅有 `md5`），可向 `MediaPreview` 传入可选的 `resolveOriginalFilename` 回调，在用户打开详情面板前按需解析并补齐 `originalFilename`（仅展示 basename，避免泄露目录结构）。
 预览顶部“下载”按钮在下载 `/api/*` 资源时会使用带 Authorization 的 blob 下载，并解析 `Content-Disposition` 的 `filename*`（RFC 5987）与 `filename`；当 `filename` 为 URL 编码时会在保存前解码，避免中文文件名被编码。
 “全站图片库/已上传图片”场景下，预览弹层背景使用毛玻璃（`backdrop-blur`），缩略图选中提供轻微缩小 + 弹性动画反馈以增强可感知性。
+当 `mediaList` 过大（>200）时，底部缩略图栏会自动切换为虚拟滚动（`vue-virtual-scroller` 的 `RecycleScroller`）以避免一次性渲染大量 DOM。
 
 ### 需求: 测试覆盖（Go）
 **模块:** Media
@@ -125,6 +126,7 @@
 - 前端：
   - `frontend/src/components/media/AllUploadImageModal.vue`
   - `frontend/src/components/media/MediaPreview.vue`
+  - `frontend/src/components/media/VideoExtractTaskModal.vue`
   - `frontend/src/components/common/InfiniteMediaGrid.vue`
   - `frontend/src/components/common/LazyImage.vue`
 

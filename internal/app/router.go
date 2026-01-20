@@ -73,6 +73,15 @@ func (a *App) buildRouter() http.Handler {
 		api.Post("/batchDeleteMedia", a.handleBatchDeleteMedia)
 		api.Post("/repairMediaHistory", a.handleRepairMediaHistory)
 
+		// Video extract（视频抽帧任务）
+		api.Get("/probeVideo", a.handleProbeVideo)
+		api.Post("/createVideoExtractTask", a.handleCreateVideoExtractTask)
+		api.Get("/getVideoExtractTaskList", a.handleGetVideoExtractTaskList)
+		api.Get("/getVideoExtractTaskDetail", a.handleGetVideoExtractTaskDetail)
+		api.Post("/cancelVideoExtractTask", a.handleCancelVideoExtractTask)
+		api.Post("/continueVideoExtractTask", a.handleContinueVideoExtractTask)
+		api.Post("/deleteVideoExtractTask", a.handleDeleteVideoExtractTask)
+
 		// mtPhoto 相册
 		api.Get("/getMtPhotoAlbums", a.handleGetMtPhotoAlbums)
 		api.Get("/getMtPhotoAlbumFiles", a.handleGetMtPhotoAlbumFiles)

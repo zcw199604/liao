@@ -51,6 +51,13 @@ type Config struct {
 	MtPhotoLoginUsername string
 	MtPhotoLoginPassword string
 	MtPhotoLoginOTP      string
+
+	// 视频抽帧（ffmpeg/ffprobe）配置。
+	FFmpegPath              string
+	FFprobePath             string
+	VideoExtractWorkers     int
+	VideoExtractQueueSize   int
+	VideoExtractFramePageSz int
 }
 
 func Load() (Config, error) {
@@ -91,6 +98,12 @@ func Load() (Config, error) {
 		MtPhotoLoginUsername: getEnv("MTPHOTO_LOGIN_USERNAME", ""),
 		MtPhotoLoginPassword: getEnv("MTPHOTO_LOGIN_PASSWORD", ""),
 		MtPhotoLoginOTP:      getEnv("MTPHOTO_LOGIN_OTP", ""),
+
+		FFmpegPath:              getEnv("FFMPEG_PATH", "ffmpeg"),
+		FFprobePath:             getEnv("FFPROBE_PATH", "ffprobe"),
+		VideoExtractWorkers:     getEnvInt("VIDEO_EXTRACT_WORKERS", 1),
+		VideoExtractQueueSize:   getEnvInt("VIDEO_EXTRACT_QUEUE_SIZE", 32),
+		VideoExtractFramePageSz: getEnvInt("VIDEO_EXTRACT_FRAME_PAGE_SIZE", 120),
 	}
 
 	if cfg.ServerPort <= 0 || cfg.ServerPort > 65535 {
@@ -121,6 +134,22 @@ func Load() (Config, error) {
 
 	if cfg.CacheRedisLocalTTLSeconds <= 0 {
 		cfg.CacheRedisLocalTTLSeconds = 3600
+	}
+
+	if strings.TrimSpace(cfg.FFmpegPath) == "" {
+		cfg.FFmpegPath = "ffmpeg"
+	}
+	if strings.TrimSpace(cfg.FFprobePath) == "" {
+		cfg.FFprobePath = "ffprobe"
+	}
+	if cfg.VideoExtractWorkers <= 0 {
+		cfg.VideoExtractWorkers = 1
+	}
+	if cfg.VideoExtractQueueSize <= 0 {
+		cfg.VideoExtractQueueSize = 32
+	}
+	if cfg.VideoExtractFramePageSz <= 0 {
+		cfg.VideoExtractFramePageSz = 120
 	}
 
 	return cfg, nil

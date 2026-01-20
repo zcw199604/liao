@@ -169,6 +169,68 @@
 - `image_port_fixed`：固定模式图片端口（默认 `9006`）
 - `image_port_real_min_bytes`：真实图片请求最小字节阈值（默认 `2048`）
 
+---
+
+### 1.8 `video_extract_task`（视频抽帧任务表）
+
+**用途**：记录视频抽帧任务的来源、参数、状态与进度信息；产物目录落在 `./upload/extract/{taskId}/frames/`，由前端“任务中心”分页预览。  
+**创建位置**：`internal/app/schema.go`（启动时 `CREATE TABLE IF NOT EXISTS`）。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| id | BIGINT | PK, AUTO_INCREMENT | 主键 |
+| task_id | VARCHAR(64) | UNIQUE | 任务ID（uuid） |
+| user_id | VARCHAR(32) | 可空 | 创建者用户ID（前端可传；非强鉴权） |
+| source_type | VARCHAR(16) | NOT NULL | 来源类型：`upload` / `mtPhoto` |
+| source_ref | VARCHAR(500) | NOT NULL | 来源引用：upload=localPath；mtPhoto=md5 |
+| input_abs_path | TEXT | NOT NULL | 输入文件绝对路径（仅服务端内部使用） |
+| output_dir_local_path | VARCHAR(500) | NOT NULL | 输出目录（相对 upload，形如 `/extract/{taskId}`） |
+| output_format | VARCHAR(8) | NOT NULL | 输出图片格式：`jpg`/`png` |
+| jpg_quality | INT | 可空 | JPG 质量（ffmpeg `-q:v`，1-31） |
+| mode | VARCHAR(16) | NOT NULL | 抽帧模式：`keyframe`/`fps`/`all` |
+| keyframe_mode | VARCHAR(16) | 可空 | 关键帧模式：`iframe`/`scene` |
+| fps | DOUBLE | 可空 | 固定 FPS（mode=fps） |
+| scene_threshold | DOUBLE | 可空 | 场景阈值（keyframe_mode=scene） |
+| start_sec | DOUBLE | 可空 | 起始秒 |
+| end_sec | DOUBLE | 可空 | 结束秒 |
+| max_frames_total | INT | NOT NULL | 最大帧数上限（总） |
+| frames_extracted | INT | NOT NULL | 已输出帧数 |
+| video_width | INT | NOT NULL | 视频宽 |
+| video_height | INT | NOT NULL | 视频高 |
+| duration_sec | DOUBLE | 可空 | 视频时长（秒） |
+| cursor_out_time_sec | DOUBLE | 可空 | 续跑游标（秒，绝对时间） |
+| status | VARCHAR(16) | NOT NULL | `PENDING/PREPARING/RUNNING/PAUSED_USER/PAUSED_LIMIT/FINISHED/FAILED` |
+| stop_reason | VARCHAR(32) | 可空 | `MAX_FRAMES/END_SEC/EOF/USER/ERROR` |
+| last_error | TEXT | 可空 | 最后错误 |
+| last_logs | TEXT | 可空 | 最后日志片段（JSON 数组字符串） |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+| updated_at | DATETIME | NOT NULL | 更新时间 |
+
+**索引**
+- `uk_vet_task_id (task_id)`
+- `idx_vet_updated_at (updated_at DESC)`
+- `idx_vet_user_id (user_id)`
+
+---
+
+### 1.9 `video_extract_frame`（视频抽帧帧索引表）
+
+**用途**：记录每个任务生成的帧图文件列表，支持按 `seq` 增量分页返回（用于运行中实时预览）。  
+**创建位置**：`internal/app/schema.go`。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| id | BIGINT | PK, AUTO_INCREMENT | 主键 |
+| task_id | VARCHAR(64) | NOT NULL | 任务ID |
+| seq | INT | NOT NULL | 帧序号（从 1 开始；跨续跑单调递增） |
+| rel_path | VARCHAR(500) | NOT NULL | 相对 upload 路径（`/extract/{taskId}/frames/frame_000001.jpg`） |
+| time_sec | DOUBLE | 可空 | 帧时间（秒，可选） |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+
+**索引**
+- `uk_vef_task_seq (task_id, seq)`
+- `idx_vef_task_id (task_id)`
+
 ## 2. 缓存（内存 / Redis）
 
 ### 2.1 用户信息缓存（UserInfoCacheService）

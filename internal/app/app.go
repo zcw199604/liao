@@ -35,6 +35,7 @@ type App struct {
 	imageHash       *ImageHashService
 	mediaUpload     *MediaUploadService
 	mtPhoto         *MtPhotoService
+	videoExtract    *VideoExtractService
 	userInfoCache   UserInfoCacheService
 	forceoutManager *ForceoutManager
 	wsManager       *UpstreamWebSocketManager
@@ -104,6 +105,7 @@ func New(cfg config.Config) (*App, error) {
 	application.wsManager = NewUpstreamWebSocketManager(application.httpClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache)
 	application.mediaUpload = NewMediaUploadService(db, cfg.ServerPort, application.fileStorage, application.imageServer, application.httpClient)
 	application.mtPhoto = NewMtPhotoService(cfg.MtPhotoBaseURL, cfg.MtPhotoLoginUsername, cfg.MtPhotoLoginPassword, cfg.MtPhotoLoginOTP, cfg.LspRoot, application.httpClient)
+	application.videoExtract = NewVideoExtractService(db, cfg, application.fileStorage, application.mtPhoto)
 
 	application.handler = application.buildRouter()
 	return application, nil
@@ -116,6 +118,9 @@ func (a *App) Handler() http.Handler {
 func (a *App) Shutdown(ctx context.Context) {
 	if a.wsManager != nil {
 		a.wsManager.CloseAllConnections()
+	}
+	if a.videoExtract != nil {
+		a.videoExtract.Shutdown()
 	}
 	if closer, ok := a.userInfoCache.(interface{ Close() error }); ok {
 		_ = closer.Close()

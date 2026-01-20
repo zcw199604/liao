@@ -518,6 +518,111 @@
 #### [POST] /api/recordImageSend
 **描述**：记录“媒体发送”关系，用于聊天历史图片查询。
 
+---
+
+### 4.6 Video Extract（视频抽帧任务）
+
+> 说明：该模块为新增能力，通过 `ffprobe/ffmpeg` 在后端异步执行抽帧，并将产物落盘到 `./upload/extract/{taskId}/frames/`，前端可预览并支持“终止/继续”。
+
+#### [GET] /api/probeVideo
+**描述**：探测视频基础信息（宽高、时长、平均 FPS），用于前端表单提示与预估输出量。
+
+**请求参数（query）**
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| sourceType | 是 | `upload` / `mtPhoto` |
+| localPath | 否 | `sourceType=upload` 时必填（支持 `/videos/...`、`/upload/videos/...` 或完整 URL） |
+| md5 | 否 | `sourceType=mtPhoto` 时必填（32位 hex） |
+
+**响应（HTTP 200）**
+```json
+{"code":0,"msg":"success","data":{"durationSec":12.34,"width":1920,"height":1080,"avgFps":29.97}}
+```
+
+#### [POST] /api/createVideoExtractTask
+**描述**：创建抽帧任务（异步执行），并立即返回 `taskId` 与 `probe` 信息。
+
+**请求（application/json）**
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| sourceType | 是 | `upload` / `mtPhoto` |
+| localPath | 否 | upload 视频路径（sourceType=upload 时必填） |
+| md5 | 否 | mtPhoto 视频 md5（sourceType=mtPhoto 时必填） |
+| mode | 是 | `keyframe` / `fps` / `all` |
+| keyframeMode | 否 | `iframe` / `scene`（mode=keyframe；默认 iframe） |
+| sceneThreshold | 否 | `0-1`（keyframeMode=scene；默认 0.3） |
+| fps | 否 | 固定 FPS（mode=fps） |
+| startSec | 否 | 起始秒（>=0） |
+| endSec | 否 | 结束秒（>startSec；为空表示到结尾） |
+| maxFrames | 是 | 最大帧数上限（必填；达到后任务将以“因限制暂停”结束，可继续） |
+| outputFormat | 否 | `jpg` / `png`（默认 jpg） |
+| jpgQuality | 否 | `1-31`（仅 jpg 有效） |
+
+**响应（HTTP 200）**
+```json
+{"code":0,"msg":"success","data":{"taskId":"...","probe":{"durationSec":12.34,"width":1920,"height":1080}}}
+```
+
+#### [GET] /api/getVideoExtractTaskList
+**描述**：分页返回抽帧任务列表（按 `updated_at DESC`）。
+
+**请求参数（query）**
+| 参数 | 必填 | 默认 |
+|---|---|---|
+| page | 否 | 1 |
+| pageSize | 否 | 20（最大100） |
+
+**响应（HTTP 200）**
+```json
+{"code":0,"data":{"items":[{"taskId":"...","status":"RUNNING"}],"total":1,"page":1,"pageSize":20}}
+```
+
+#### [GET] /api/getVideoExtractTaskDetail
+**描述**：返回任务详情 + 帧图列表分页（用于实时预览增量输出）。
+
+**请求参数（query）**
+| 参数 | 必填 | 默认 | 说明 |
+|---|---|---|---|
+| taskId | 是 | - | 任务ID |
+| cursor | 否 | 0 | 已加载的最后 `seq`（仅返回 `seq > cursor` 的帧） |
+| pageSize | 否 | 120 | 单次返回帧数（服务端有上限） |
+
+**响应（HTTP 200）**
+```json
+{"code":0,"data":{"task":{"taskId":"...","status":"RUNNING","videoWidth":1920,"videoHeight":1080},"frames":{"items":[{"seq":1,"url":"http://host/upload/extract/.../frames/frame_000001.jpg"}],"nextCursor":1,"hasMore":false}}}
+```
+
+#### [POST] /api/cancelVideoExtractTask
+**描述**：终止当前运行（保留已生成帧图），任务状态变更为 `PAUSED_USER`。
+
+**请求（application/json）**
+```json
+{"taskId":"..."}
+```
+
+#### [POST] /api/continueVideoExtractTask
+**描述**：在同一任务上继续抽帧（追加到同一输出目录）。仅支持 `PAUSED_USER/PAUSED_LIMIT/FINISHED` 状态。
+
+**请求（application/json）**
+```json
+{"taskId":"...","endSec":120.0,"maxFrames":2000}
+```
+
+#### [POST] /api/deleteVideoExtractTask
+**描述**：删除任务记录，可选同时删除输出目录文件（运行中会先尝试终止）。
+
+**请求（application/json）**
+```json
+{"taskId":"...","deleteFiles":true}
+```
+
+#### 任务状态机（简要）
+- `PENDING` 排队中 → `RUNNING` 运行中
+- `PAUSED_LIMIT` 因限制暂停（达到 `maxFrames` 或 `endSec`）→ 可通过 continue 扩展后继续
+- `PAUSED_USER` 用户终止 → 可继续
+- `FINISHED` 自然结束（EOF）
+- `FAILED` 执行失败（保存 `lastError` 与最后日志片段）
+
 **请求参数（application/x-www-form-urlencoded）**
 | 参数 | 必填 | 说明 |
 |---|---|---|

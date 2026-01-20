@@ -65,6 +65,7 @@
 | 202601200043 | media_pre_identity | 优化 | ✅已完成 | [链接](2026-01/202601200043_media_pre_identity/) |
 | 202601200337 | media_gallery_spacing_compact | 优化 | ✅已完成 | [链接](2026-01/202601200337_media_gallery_spacing_compact/) |
 | 202601200500 | media_modal_fullscreen | 优化 | ⚠️待复验 | [链接](2026-01/202601200500_media_modal_fullscreen/) |
+| 202601200738 | video_extract_frames | 功能 | ✅已完成 | [链接](2026-01/202601200738_video_extract_frames/) |
 
 ---
 
@@ -129,3 +130,4 @@
 - [202601200043_media_pre_identity](2026-01/202601200043_media_pre_identity/) - 登录后、选择身份前可使用“图片管理”（所有上传图片/mtPhoto/图片查重）
 - [202601200337_media_gallery_spacing_compact](2026-01/202601200337_media_gallery_spacing_compact/) - 紧凑化“所有上传图片/mtPhoto 相册”弹窗图片列表边距与网格间距，提升图片可视面积
 - [202601200500_media_modal_fullscreen](2026-01/202601200500_media_modal_fullscreen/) - 为“所有上传图片/mtPhoto 相册”弹窗新增全屏模式（按钮 + `F/Esc`），最大化浏览区域便于查看大量图片
+- [202601200738_video_extract_frames](2026-01/202601200738_video_extract_frames/) - 新增视频抽帧任务（关键帧/固定FPS/逐帧）与任务中心（实时预览、终止、继续）

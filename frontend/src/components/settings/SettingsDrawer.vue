@@ -183,6 +183,22 @@
                 </div>
                 <i class="fas fa-search absolute -bottom-4 -right-2 text-6xl text-white/5 group-hover:text-white/10 transition-colors rotate-12"></i>
              </div>
+
+             <div
+               @click="openVideoExtractTasks"
+               class="group relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-900/40 to-indigo-900/40 border border-white/5 cursor-pointer hover:border-purple-500/50 transition-all mt-4"
+             >
+                <div class="p-4 flex items-center justify-between z-10 relative">
+                   <div>
+                      <div class="text-base font-bold text-white mb-1">抽帧任务中心</div>
+                      <div class="text-xs text-gray-400 group-hover:text-purple-300 transition-colors">查看/终止/继续抽帧任务</div>
+                   </div>
+                   <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-purple-500 group-hover:text-white transition-all">
+                      <i class="fas fa-chevron-right"></i>
+                   </div>
+                </div>
+                <i class="fas fa-tasks absolute -bottom-4 -right-2 text-6xl text-white/5 group-hover:text-white/10 transition-colors rotate-12"></i>
+             </div>
           </div>
         </div>
 
@@ -219,6 +235,7 @@ import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
 import { useMediaStore } from '@/stores/media'
 import { useMtPhotoStore } from '@/stores/mtphoto'
+import { useVideoExtractStore } from '@/stores/videoExtract'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useSettings } from '@/composables/useSettings'
 import { useToast } from '@/composables/useToast'
@@ -246,6 +263,7 @@ const chatStore = useChatStore()
 const messageStore = useMessageStore()
 const mediaStore = useMediaStore()
 const mtPhotoStore = useMtPhotoStore()
+const videoExtractStore = useVideoExtractStore()
 const { disconnect, connect, send } = useWebSocket()
 const { show } = useToast()
 
@@ -417,6 +435,10 @@ const openMtPhotoAlbums = async () => {
 
 const openDuplicateCheck = () => {
   showDuplicateCheck.value = true
+}
+
+const openVideoExtractTasks = async () => {
+  await videoExtractStore.openTaskCenter()
 }
 
 watch(

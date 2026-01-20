@@ -6,12 +6,16 @@
   </router-view>
   <AllUploadImageModal />
   <MtPhotoAlbumModal />
+  <VideoExtractCreateModal />
+  <VideoExtractTaskModal />
 </template>
 
 <script setup lang="ts">
 // 根组件：所有路由页面的容器
 import AllUploadImageModal from '@/components/media/AllUploadImageModal.vue'
 import MtPhotoAlbumModal from '@/components/media/MtPhotoAlbumModal.vue'
+import VideoExtractCreateModal from '@/components/media/VideoExtractCreateModal.vue'
+import VideoExtractTaskModal from '@/components/media/VideoExtractTaskModal.vue'
 </script>
 
 <style>

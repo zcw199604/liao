@@ -20,7 +20,7 @@ COPY --from=frontend-builder /app/frontend/dist /out/static
 
 FROM alpine:3.19
 ENV TZ=Asia/Shanghai
-RUN apk add --no-cache ca-certificates tzdata \
+RUN apk add --no-cache ca-certificates tzdata ffmpeg \
   && ln -snf "/usr/share/zoneinfo/${TZ}" /etc/localtime \
   && echo "${TZ}" > /etc/timezone \
   && mkdir -p /app/upload

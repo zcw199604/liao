@@ -110,6 +110,53 @@ func ensureSchema(db *sql.DB) error {
 			created_at DATETIME NOT NULL COMMENT '创建时间',
 			updated_at DATETIME NOT NULL COMMENT '更新时间'
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统全局配置表'`,
+
+		// video_extract_task（视频抽帧任务）
+		`CREATE TABLE IF NOT EXISTS video_extract_task (
+			id BIGINT AUTO_INCREMENT PRIMARY KEY,
+			task_id VARCHAR(64) NOT NULL COMMENT '任务ID',
+			user_id VARCHAR(32) NULL COMMENT '创建者用户ID（可选）',
+			source_type VARCHAR(16) NOT NULL COMMENT '来源类型：upload/mtPhoto',
+			source_ref VARCHAR(500) NOT NULL COMMENT '来源引用：upload为localPath，mtPhoto为md5',
+			input_abs_path TEXT NOT NULL COMMENT '输入文件绝对路径（服务端内部使用）',
+			output_dir_local_path VARCHAR(500) NOT NULL COMMENT '输出目录（相对upload，形如 /extract/{taskId}）',
+			output_format VARCHAR(8) NOT NULL COMMENT '输出图片格式：jpg/png',
+			jpg_quality INT NULL COMMENT 'JPG质量（ffmpeg -q:v，1-31；可空）',
+			mode VARCHAR(16) NOT NULL COMMENT '抽帧模式：keyframe/fps/all',
+			keyframe_mode VARCHAR(16) NULL COMMENT '关键帧模式：iframe/scene',
+			fps DOUBLE NULL COMMENT '固定FPS（mode=fps）',
+			scene_threshold DOUBLE NULL COMMENT '场景阈值（keyframe_mode=scene）',
+			start_sec DOUBLE NULL COMMENT '起始时间（秒）',
+			end_sec DOUBLE NULL COMMENT '结束时间（秒）',
+			max_frames_total INT NOT NULL COMMENT '最大输出帧数上限（总）',
+			frames_extracted INT NOT NULL COMMENT '已输出帧数',
+			video_width INT NOT NULL COMMENT '视频宽',
+			video_height INT NOT NULL COMMENT '视频高',
+			duration_sec DOUBLE NULL COMMENT '视频时长（秒）',
+			cursor_out_time_sec DOUBLE NULL COMMENT '续跑游标（秒，绝对时间）',
+			status VARCHAR(16) NOT NULL COMMENT '状态：PENDING/PREPARING/RUNNING/PAUSED_USER/PAUSED_LIMIT/FINISHED/FAILED',
+			stop_reason VARCHAR(32) NULL COMMENT '停止原因：MAX_FRAMES/END_SEC/EOF/USER/ERROR',
+			last_error TEXT NULL COMMENT '最后错误信息',
+			last_logs TEXT NULL COMMENT '最后日志片段（JSON数组字符串，可空）',
+			created_at DATETIME NOT NULL COMMENT '创建时间',
+			updated_at DATETIME NOT NULL COMMENT '更新时间',
+			UNIQUE KEY uk_vet_task_id (task_id),
+			INDEX idx_vet_updated_at (updated_at DESC),
+			INDEX idx_vet_user_id (user_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='视频抽帧任务'`,
+
+		// video_extract_frame（视频抽帧帧索引）
+		`CREATE TABLE IF NOT EXISTS video_extract_frame (
+			id BIGINT AUTO_INCREMENT PRIMARY KEY,
+			task_id VARCHAR(64) NOT NULL COMMENT '任务ID',
+			seq INT NOT NULL COMMENT '帧序号（从1开始，跨续跑单调递增）',
+			rel_path VARCHAR(500) NOT NULL COMMENT '相对upload路径（/extract/{taskId}/frames/xxx.jpg）',
+			time_sec DOUBLE NULL COMMENT '帧时间（秒，可选）',
+			created_at DATETIME NOT NULL COMMENT '创建时间',
+			UNIQUE KEY uk_vef_task_seq (task_id, seq),
+			INDEX idx_vef_task_id (task_id),
+			INDEX idx_vef_seq (task_id, seq)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='视频抽帧帧索引'`,
 	}
 
 	for _, stmt := range statements {
