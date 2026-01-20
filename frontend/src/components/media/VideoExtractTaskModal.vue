@@ -157,6 +157,15 @@
 
                   <div class="flex items-center gap-2">
                     <button
+                      v-if="canPreviewSourceVideo(videoExtractStore.selectedTask)"
+                      class="px-3 py-2 text-xs rounded-lg bg-white/10 hover:bg-white/15 text-gray-200 transition"
+                      @click="openSourcePreview(videoExtractStore.selectedTask)"
+                      title="预览源视频（支持倍速与抓帧）"
+                    >
+                      <i class="fas fa-play mr-1"></i>
+                      源视频
+                    </button>
+                    <button
                       v-if="isRunning(videoExtractStore.selectedTask.status)"
                       class="px-3 py-2 text-xs rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition"
                       @click="confirmCancel"
@@ -427,7 +436,7 @@
         <MediaPreview
           v-model:visible="showPreview"
           :url="previewUrl"
-          :type="'image'"
+          :type="previewType"
           :can-upload="false"
           :media-list="previewMediaList"
           @media-change="handlePreviewMediaChange"
@@ -473,6 +482,7 @@ const continueSubmitting = ref(false)
 
 const showPreview = ref(false)
 const previewUrl = ref('')
+const previewType = ref<'image' | 'video' | 'file'>('image')
 const previewMediaList = ref<UploadedMedia[]>([])
 
 const framesScrollerHost = ref<HTMLElement | null>(null)
@@ -693,6 +703,7 @@ const handleFramesScrollerUpdate = (_startIndex: number, _endIndex: number, _vis
 }
 
 const openPreview = (item: any) => {
+  previewType.value = 'image'
   previewUrl.value = item.url
   const t = videoExtractStore.selectedTask
   const w = Number(t?.videoWidth || 0) || undefined
@@ -712,8 +723,56 @@ const openPreview = (item: any) => {
   showPreview.value = true
 }
 
+const normalizeUploadLocalPath = (input: string): string => {
+  let p = String(input || '').trim()
+  if (!p) return ''
+
+  p = p.replace(/\\/g, '/')
+  try {
+    const u = new URL(p)
+    p = u.pathname || p
+  } catch {
+    // ignore
+  }
+
+  p = (p.split('?')[0] || '').split('#')[0] || ''
+  if (p.startsWith('/upload/')) p = p.slice('/upload'.length)
+  p = p.trim()
+  if (!p) return ''
+  if (!p.startsWith('/')) p = '/' + p
+  return p
+}
+
+const buildUploadPreviewUrl = (localPath: string): string => {
+  const p = normalizeUploadLocalPath(localPath)
+  if (!p) return ''
+  return `/upload${p}`
+}
+
+const canPreviewSourceVideo = (t?: VideoExtractTask | null) => {
+  if (!t) return false
+  if (t.sourceType !== 'upload') return false
+  return !!buildUploadPreviewUrl(t.sourceRef || '')
+}
+
+const openSourcePreview = (t: VideoExtractTask) => {
+  const url = buildUploadPreviewUrl(t.sourceRef || '')
+  if (!url) {
+    show('源视频不可预览')
+    return
+  }
+
+  previewType.value = 'video'
+  previewUrl.value = url
+  previewMediaList.value = [{ url, type: 'video', originalFilename: t.sourceRef.split('/').pop() || undefined }]
+  showPreview.value = true
+}
+
 const handlePreviewMediaChange = (media: UploadedMedia) => {
   previewUrl.value = media.url || previewUrl.value
+  if (media.type === 'image' || media.type === 'video' || media.type === 'file') {
+    previewType.value = media.type
+  }
 }
 
 const confirmCancel = () => {

@@ -24,6 +24,15 @@
           </div>
           <div class="flex items-center gap-2">
             <button
+              class="px-3 py-2 text-xs rounded-lg bg-white/10 hover:bg-white/15 text-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="!sourcePreviewMedia"
+              @click="openSourcePreview"
+              title="预览源视频（支持倍速与抓帧）"
+            >
+              <i class="fas fa-play mr-1"></i>
+              预览/抓帧
+            </button>
+            <button
               class="px-3 py-2 text-xs rounded-lg bg-white/10 hover:bg-white/15 text-gray-200 transition"
               :disabled="videoExtractStore.probeLoading"
               @click="refreshProbe"
@@ -257,16 +266,85 @@
       </div>
     </div>
   </teleport>
+
+  <MediaPreview
+    v-model:visible="showSourcePreview"
+    :url="sourcePreviewMedia?.url || ''"
+    :type="'video'"
+    :can-upload="false"
+    :media-list="sourcePreviewMediaList"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useToast } from '@/composables/useToast'
 import { useVideoExtractStore } from '@/stores/videoExtract'
-import type { VideoProbeResult } from '@/types'
+import type { UploadedMedia, VideoProbeResult } from '@/types'
+import MediaPreview from '@/components/media/MediaPreview.vue'
 
 const videoExtractStore = useVideoExtractStore()
 const { show } = useToast()
+
+const showSourcePreview = ref(false)
+
+const normalizeUploadLocalPath = (input: string): string => {
+  let p = String(input || '').trim()
+  if (!p) return ''
+
+  p = p.replace(/\\/g, '/')
+  try {
+    const u = new URL(p)
+    p = u.pathname || p
+  } catch {
+    // ignore
+  }
+
+  p = (p.split('?')[0] || '').split('#')[0] || ''
+  if (p.startsWith('/upload/')) p = p.slice('/upload'.length)
+  p = p.trim()
+  if (!p) return ''
+  if (!p.startsWith('/')) p = '/' + p
+  return p
+}
+
+const buildUploadPreviewUrl = (localPath: string): string => {
+  const p = normalizeUploadLocalPath(localPath)
+  if (!p) return ''
+  return `/upload${p}`
+}
+
+const sourcePreviewMedia = computed<UploadedMedia | null>(() => {
+  const src = videoExtractStore.createSource
+  if (!src) return null
+
+  if (src.sourceType === 'upload' && src.localPath) {
+    const url = buildUploadPreviewUrl(src.localPath)
+    if (!url) return null
+    return {
+      url,
+      type: 'video',
+      originalFilename: src.displayName,
+      localFilename: src.displayName
+    }
+  }
+
+  const u = String(src.mediaUrl || '').trim()
+  if (!u) return null
+  return {
+    url: u,
+    type: 'video',
+    originalFilename: src.displayName,
+    localFilename: src.displayName
+  }
+})
+
+const sourcePreviewMediaList = computed<UploadedMedia[]>(() => (sourcePreviewMedia.value ? [sourcePreviewMedia.value] : []))
+
+const openSourcePreview = () => {
+  if (!sourcePreviewMedia.value) return
+  showSourcePreview.value = true
+}
 
 const mode = ref<'keyframe' | 'fps' | 'all'>('keyframe')
 const keyframeMode = ref<'iframe' | 'scene'>('iframe')
@@ -417,6 +495,14 @@ watch(
     maxFrames.value = 500
     outputFormat.value = 'jpg'
     jpgQuality.value = null
+  }
+)
+
+watch(
+  () => videoExtractStore.showCreateModal,
+  (v) => {
+    if (v) return
+    showSourcePreview.value = false
   }
 )
 </script>

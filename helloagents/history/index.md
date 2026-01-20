@@ -67,6 +67,7 @@
 | 202601200500 | media_modal_fullscreen | 优化 | ⚠️待复验 | [链接](2026-01/202601200500_media_modal_fullscreen/) |
 | 202601200738 | video_extract_frames | 功能 | ✅已完成 | [链接](2026-01/202601200738_video_extract_frames/) |
 | 202601201117 | video_pause_capture_frame | 功能 | ⚠️待复验 | [链接](2026-01/202601201117_video_pause_capture_frame/) |
+| 202601201457 | video_extract_source_video_preview | 功能 | ⚠️待复验 | [链接](2026-01/202601201457_video_extract_source_video_preview/) |
 
 ---
 
@@ -133,3 +134,4 @@
 - [202601200500_media_modal_fullscreen](2026-01/202601200500_media_modal_fullscreen/) - 为“所有上传图片/mtPhoto 相册”弹窗新增全屏模式（按钮 + `F/Esc`），最大化浏览区域便于查看大量图片
 - [202601200738_video_extract_frames](2026-01/202601200738_video_extract_frames/) - 新增视频抽帧任务（关键帧/固定FPS/逐帧）与任务中心（实时预览、终止、继续）
 - [202601201117_video_pause_capture_frame](2026-01/202601201117_video_pause_capture_frame/) - 视频预览支持倍速/慢放与暂停抓帧（下载 + 上传到图片库）
+- [202601201457_video_extract_source_video_preview](2026-01/202601201457_video_extract_source_video_preview/) - 抽帧任务上传视频支持预览源视频并抓帧（创建/详情入口）
