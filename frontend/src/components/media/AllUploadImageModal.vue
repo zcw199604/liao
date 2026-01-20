@@ -5,7 +5,15 @@
       class="fixed inset-0 z-[75] bg-black/70 flex items-center justify-center"
       @click="close"
     >
-      <div class="w-[95%] max-w-[1600px] h-[90vh] h-[90dvh] bg-[#18181b] rounded-2xl shadow-2xl flex flex-col" @click.stop>
+      <div
+        :class="[
+          'bg-[#18181b] flex flex-col min-h-0 transition-all duration-200 ease-out',
+          isFullscreen
+            ? 'w-full max-w-none h-full h-[100dvh] rounded-none shadow-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]'
+            : 'w-[95%] max-w-[1600px] h-[90vh] h-[90dvh] rounded-2xl shadow-2xl'
+        ]"
+        @click.stop
+      >
         <!-- 头部 -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <div class="flex items-center gap-2">
@@ -33,6 +41,14 @@
               :title="layoutMode === 'masonry' ? '切换到网格视图' : '切换到瀑布流视图'"
             >
               <i :class="layoutMode === 'masonry' ? 'fas fa-th' : 'fas fa-stream'"></i>
+            </button>
+
+            <button
+              @click="toggleFullscreen"
+              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+              :title="isFullscreen ? '退出全屏' : '全屏'"
+            >
+              <i :class="isFullscreen ? 'fas fa-compress' : 'fas fa-expand'"></i>
             </button>
 
             <button
@@ -175,6 +191,7 @@ import { computed, ref } from 'vue'
 import { useMediaStore } from '@/stores/media'
 import { useUserStore } from '@/stores/user'
 import { useToast } from '@/composables/useToast'
+import { useModalFullscreen } from '@/composables/useModalFullscreen'
 import { generateCookie } from '@/utils/cookie'
 import { extractUploadLocalPath } from '@/utils/media'
 import { useSystemConfigStore } from '@/stores/systemConfig'
@@ -200,6 +217,23 @@ const previewUrl = ref('')
 const previewType = ref<'image' | 'video' | 'file'>('image')
 const previewCanUpload = ref(false)
 const previewTarget = ref<UploadedMedia | null>(null)
+
+const close = () => {
+  mediaStore.showAllUploadImageModal = false
+  mediaStore.selectionMode = false
+  mediaStore.selectedImages = []
+  showPreview.value = false
+  previewUrl.value = ''
+  previewType.value = 'image'
+  previewCanUpload.value = false
+  previewTarget.value = null
+}
+
+const { isFullscreen, toggleFullscreen } = useModalFullscreen({
+  isModalOpen: () => mediaStore.showAllUploadImageModal,
+  isBlocked: () => showPreview.value,
+  onRequestClose: close
+})
 
 // 布局模式：'masonry' | 'grid'
 const layoutMode = ref<'masonry' | 'grid'>(
@@ -227,12 +261,6 @@ const deleteConfirmContent = computed(() => {
   if (deleteTargets.value.length <= 1) return '确定要删除该媒体文件吗？此操作无法撤销。'
   return `确定要删除选中的 ${deleteTargets.value.length} 个媒体文件吗？此操作无法撤销。`
 })
-
-const close = () => {
-  mediaStore.showAllUploadImageModal = false
-  mediaStore.selectionMode = false
-  mediaStore.selectedImages = []
-}
 
 const loadMore = async () => {
   if (mediaStore.allUploadLoading) return
