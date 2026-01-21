@@ -30,7 +30,7 @@
               </button>
 
               <!-- 倍速/慢放（仅视频） -->
-              <div v-if="currentMedia.type === 'video'" ref="speedMenuRef" class="relative">
+              <div v-if="currentMedia.type === 'video' && !isVideoFullscreen" ref="speedMenuRef" class="relative">
                 <button
                   class="h-10 px-3 rounded-full bg-white/10 hover:bg-white/20 flex items-center gap-2 text-white transition backdrop-blur-sm select-none"
                   :title="isTempSpeedBoosting ? '临时 2x 播放中，松开恢复' : '播放倍速（长按临时 x2）'"
@@ -148,12 +148,56 @@
 	              class="media-preview-video max-w-[95%] max-h-[95%] shadow-2xl rounded-lg bg-black"
 	              @loadedmetadata="handleVideoLoadedMetadata"
 	              @error="handleMediaError"
-	            ></video>
+		            ></video>
 
-	            <!-- 点击浮现三按钮（倒退/播放暂停/快进），1秒后自动隐藏 -->
-	            <div
-	              v-show="showVideoOverlayControls"
-	              class="absolute inset-0 z-40 flex items-center justify-center pointer-events-none"
+		            <!-- 全屏左上：倍速/慢放（避免与右侧抓帧/抽帧重叠；同时保证真全屏时仍可调速） -->
+		            <div
+		              v-if="isVideoFullscreen"
+		              ref="speedMenuRef"
+		              class="absolute left-3 sm:left-4 top-3 sm:top-4 z-50 pointer-events-none"
+		            >
+		              <div class="relative pointer-events-auto" @pointerdown.stop>
+		                <button
+		                  class="h-10 px-3 rounded-full bg-black/35 hover:bg-black/45 flex items-center gap-2 text-white transition backdrop-blur-md border border-white/15 shadow-xl select-none"
+		                  :title="isTempSpeedBoosting ? '临时 2x 播放中，松开恢复' : '播放倍速（长按临时 x2）'"
+		                  @click.stop="handleToggleSpeedMenu"
+		                  @pointerdown="handleSpeedPressStart"
+		                  @pointerup="handleSpeedPressEnd"
+		                  @pointercancel="handleSpeedPressCancel"
+		                  @pointerleave="handleSpeedPressCancel"
+		                  @contextmenu.prevent
+		                >
+		                  <i class="fas fa-tachometer-alt text-xs text-white/80"></i>
+		                  <span class="text-xs font-medium">x{{ playbackRate }}</span>
+		                  <i class="fas fa-chevron-down text-[10px] text-white/70"></i>
+		                  <span
+		                    v-if="isTempSpeedBoosting"
+		                    class="ml-0.5 px-1.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 text-[10px] font-semibold"
+		                  >2X</span>
+		                </button>
+
+		                <div
+		                  v-if="showSpeedMenu"
+		                  class="absolute left-0 top-12 min-w-[120px] bg-[#111113]/95 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50"
+		                  @click.stop
+		                >
+		                  <button
+		                    v-for="r in playbackRateOptions"
+		                    :key="r"
+		                    class="w-full px-4 py-2 text-left text-sm text-white/90 hover:bg-white/10 transition flex items-center justify-between"
+		                    @click.stop="selectPlaybackRate(r)"
+		                  >
+		                    <span>x{{ r }}</span>
+		                    <i v-if="playbackRate === r" class="fas fa-check text-indigo-400 text-xs"></i>
+		                  </button>
+		                </div>
+		              </div>
+		            </div>
+
+		            <!-- 点击浮现三按钮（倒退/播放暂停/快进），1秒后自动隐藏 -->
+		            <div
+		              v-show="showVideoOverlayControls"
+		              class="absolute inset-0 z-40 flex items-center justify-center pointer-events-none"
 	            >
 	              <div class="pointer-events-auto flex items-center gap-6 sm:gap-8">
 	                <button
@@ -283,26 +327,26 @@
           </div>
         </div>
 
-        <!-- 上传按钮（如果允许上传） -->
-        <div class="absolute bottom-28 left-1/2 transform -translate-x-1/2 flex items-center gap-3 z-50">
-	          <button
-	            v-if="currentMedia.type === 'video'"
-	            class="h-11 px-4 bg-white/10 hover:bg-white/20 text-white rounded-full font-medium transition shadow-lg shadow-black/30 backdrop-blur-sm border border-white/10 flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-	            title="暂停并抓取当前帧（下载+上传）"
-	            :disabled="captureFrameLoading"
-	            @click.stop="handleCaptureFrame"
-	          >
+	        <!-- 上传按钮（如果允许上传） -->
+	        <div class="absolute bottom-28 left-1/2 transform -translate-x-1/2 flex items-center gap-3 z-50">
+		          <button
+		            v-if="currentMedia.type === 'video' && !isVideoFullscreen"
+		            class="h-11 px-4 bg-black/35 hover:bg-black/45 text-white rounded-full font-medium transition shadow-xl backdrop-blur-md border border-white/15 flex items-center gap-2 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+		            title="暂停并抓取当前帧（下载+上传）"
+		            :disabled="captureFrameLoading"
+		            @click.stop="handleCaptureFrame"
+		          >
             <span v-if="captureFrameLoading" class="w-4 h-4 border-2 border-white/90 border-t-transparent rounded-full animate-spin"></span>
             <i v-else class="fas fa-camera"></i>
             <span>抓帧</span>
           </button>
 
-	          <button
-	            v-if="canExtractFrames"
-	            @click.stop="handleExtractFrames"
-	            class="h-11 px-4 bg-white/10 hover:bg-white/20 text-white rounded-full font-medium transition shadow-lg shadow-black/30 backdrop-blur-sm border border-white/10 flex items-center gap-2"
-	            title="从该视频抽取图片"
-	          >
+		          <button
+		            v-if="canExtractFrames && !isVideoFullscreen"
+		            @click.stop="handleExtractFrames"
+		            class="h-11 px-4 bg-black/35 hover:bg-black/45 text-white rounded-full font-medium transition shadow-xl backdrop-blur-md border border-white/15 flex items-center gap-2 active:scale-95"
+		            title="从该视频抽取图片"
+		          >
             <i class="fas fa-film"></i>
             <span>抽帧</span>
           </button>
@@ -390,7 +434,8 @@ const isVideoPlaying = ref(false)
 const isVideoFullscreen = ref(false)
 let overlayHideTimer: ReturnType<typeof setTimeout> | null = null
 
-const VIDEO_GESTURE_THRESHOLD_PX = 18
+const VIDEO_GESTURE_THRESHOLD_PX = 22
+const VIDEO_SWIPE_SEEK_STEP_SEC = 1
 const DOUBLE_TAP_WINDOW_MS = 300
 const DOUBLE_TAP_MAX_DIST_PX = 24
 let tapTimer: ReturnType<typeof setTimeout> | null = null
@@ -822,16 +867,13 @@ const applyVideoGestureFrame = () => {
   if (!video) return
 
   if (videoGesture.direction === 'H') {
-    const durationSec = videoGesture.durationSec
+    // 短视频场景：左右滑动采用“步进”而非按时长线性映射，避免轻微滑动导致跳跃过大
     const width = videoGesture.rectWidth
-    if (Number.isFinite(durationSec) && durationSec > 0 && Number.isFinite(width) && width > 0) {
-      const target = videoGesture.startTimeSec + (videoGesture.latestDx / width) * durationSec
-      setVideoCurrentTime(target)
-      return
-    }
-    // 兜底：无法获取宽度/时长时使用较慢的固定映射，避免误触跳跃过大
-    const secPerPxFallback = 0.03
-    setVideoCurrentTime(videoGesture.startTimeSec + videoGesture.latestDx * secPerPxFallback)
+    const stepPx =
+      Number.isFinite(width) && width > 0 ? Math.max(40, Math.min(80, width * 0.08)) : 48
+    const steps = Math.trunc(videoGesture.latestDx / stepPx)
+    const target = videoGesture.startTimeSec + steps * VIDEO_SWIPE_SEEK_STEP_SEC
+    setVideoCurrentTime(target)
   } else {
     if (volumeGestureSupported === false) return
     const height = videoGesture.rectHeight
@@ -909,7 +951,12 @@ const handleVideoPointerMove = (e: PointerEvent) => {
   if (!videoGesture.started) {
     if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return
     videoGesture.started = true
-    videoGesture.direction = Math.abs(dx) >= Math.abs(dy) ? 'H' : 'V'
+    const absDx = Math.abs(dx)
+    const absDy = Math.abs(dy)
+    const lockRatio = 1.5
+    if (absDx >= absDy * lockRatio) videoGesture.direction = 'H'
+    else if (absDy >= absDx * lockRatio) videoGesture.direction = 'V'
+    else videoGesture.direction = absDx >= absDy ? 'H' : 'V'
     showOverlayDuringGesture()
     // 一旦进入滑动模式，取消可能存在的“单击/双击”判定，避免误触发播放/暂停
     if (tapTimer) {
