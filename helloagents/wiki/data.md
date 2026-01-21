@@ -284,12 +284,14 @@ Key 示例：
 - `CACHE_REDIS_FLUSH_INTERVAL_SECONDS`（同上；用于批量写入降低成本）
 
 Key 示例（以 `conversationKey=min(u1,u2)+"_"+max(u1,u2)`）：
-- 索引：`user:chathistory:{conversationKey}:index` → ZSET（score=tid，member=tid）
-- 单消息：`user:chathistory:{conversationKey}:msg:{tid}` → JSON 字符串（TTL=expireDays）
+- 单 key：`user:chathistory:{conversationKey}` → ZSET
+  - score：`tid`（可解析为 int64）
+  - member：`"{tid}|{json}"`（`json` 为上游 `contents_list` 单条消息对象；用于保持字段兼容）
+  - ttl：`CACHE_REDIS_CHAT_HISTORY_EXPIRE_DAYS`
 
 **清理策略**
-- 单消息 key 使用 TTL 自动过期。
-- 读取历史时若发现索引 member 对应消息 key 不存在，会 best-effort 从 ZSET 中移除该 member，避免索引膨胀。
+- 每次写入会对相同 `tid` 先做 `ZREMRANGEBYSCORE(tid,tid)` 再 `ZADD`，避免重复记录同一条消息。
+- 会话 key 使用 TTL 过期：在最近一次写入后 `CACHE_REDIS_CHAT_HISTORY_EXPIRE_DAYS` 天过期。
 
 ### 2.4 内存缓存补充
 

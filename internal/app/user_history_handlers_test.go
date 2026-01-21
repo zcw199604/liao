@@ -364,3 +364,63 @@ func TestHandleGetMessageHistory_ReturnsRedisWhenUpstreamFails(t *testing.T) {
 		t.Fatalf("tid=%q, want %q", tid, "9")
 	}
 }
+
+func TestHandleGetMessageHistory_SkipsUpstreamWhenRedisHasEnough(t *testing.T) {
+	called := 0
+	client := &http.Client{
+		Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			if r.URL.String() == upstreamMsgURL {
+				called++
+				return newTextResponse(http.StatusBadGateway, `{"error":"should-not-call"}`), nil
+			}
+			return newTextResponse(http.StatusNotFound, `{"error":"unexpected"}`), nil
+		}),
+	}
+
+	msgs := make([]map[string]any, 0, 20)
+	for i := 20; i >= 1; i-- {
+		msgs = append(msgs, map[string]any{
+			"Tid":     toString(i),
+			"id":      "me",
+			"toid":    "u2",
+			"content": "m",
+			"time":    "t",
+		})
+	}
+
+	historyCache := &stubChatHistoryCache{messages: msgs}
+	app := &App{
+		httpClient:       client,
+		userInfoCache:    NewMemoryUserInfoCacheService(),
+		chatHistoryCache: historyCache,
+	}
+
+	form := url.Values{}
+	form.Set("myUserID", "me")
+	form.Set("UserToID", "u2")
+	form.Set("isFirst", "1")
+	form.Set("firstTid", "0")
+	req := newURLEncodedRequest(t, http.MethodPost, "http://example.com/api/getMessageHistory", form)
+	rr := httptest.NewRecorder()
+
+	app.handleGetMessageHistory(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusOK)
+	}
+	if called != 0 {
+		t.Fatalf("upstream called=%d, want 0", called)
+	}
+
+	var obj map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &obj); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if code := toInt(obj["code"]); code != 0 {
+		t.Fatalf("code=%d, want 0", code)
+	}
+	contents, ok := obj["contents_list"].([]any)
+	if !ok || len(contents) != 20 {
+		t.Fatalf("contents_list len mismatch: %v", obj["contents_list"])
+	}
+}

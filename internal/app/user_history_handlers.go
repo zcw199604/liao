@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -295,7 +294,59 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("获取消息历史请求", "myUserID", myUserID, "UserToID", userToID, "isFirst", isFirst, "firstTid", firstTid)
 
+	const defaultHistoryPageSize = 20
 	conversationKey := generateConversationKey(strings.TrimSpace(myUserID), strings.TrimSpace(userToID))
+	cacheEnabled := a.chatHistoryCache != nil && conversationKey != ""
+
+	var cachedMessages []map[string]any
+	if cacheEnabled {
+		cached, err := a.chatHistoryCache.GetMessages(r.Context(), conversationKey, firstTid, defaultHistoryPageSize)
+		if err != nil {
+			slog.Warn("读取Redis聊天记录失败(降级为仅上游)", "conversationKey", conversationKey, "error", err)
+			cacheEnabled = false
+		} else {
+			cachedMessages = cached
+		}
+	}
+
+	// 优先 Redis：当缓存足够覆盖本次请求页大小时，直接返回，减少对上游的请求次数。
+	if cacheEnabled && len(cachedMessages) >= defaultHistoryPageSize {
+		if a.userInfoCache != nil && isFirst == "1" && len(cachedMessages) > 0 {
+			first := cachedMessages[0]
+			fromUserID := strings.TrimSpace(toString(first["id"]))
+			toUserID := strings.TrimSpace(toString(first["toid"]))
+			content := strings.TrimSpace(toString(first["content"]))
+			tm := strings.TrimSpace(toString(first["time"]))
+			tp := inferMessageType(content)
+			if fromUserID != "" && toUserID != "" && content != "" && tm != "" {
+				cacheFrom := fromUserID
+				cacheTo := toUserID
+				if myUserID != fromUserID && myUserID != toUserID {
+					if userToID == fromUserID {
+						cacheTo = myUserID
+					} else if userToID == toUserID {
+						cacheFrom = myUserID
+					}
+				}
+				a.userInfoCache.SaveLastMessage(CachedLastMessage{
+					FromUserID: cacheFrom,
+					ToUserID:   cacheTo,
+					Content:    content,
+					Type:       tp,
+					Time:       tm,
+				})
+			}
+		}
+
+		resp := map[string]any{
+			"code":          0,
+			"contents_list": cachedMessages[:defaultHistoryPageSize],
+		}
+		if raw, err := json.Marshal(resp); err == nil {
+			writeText(w, http.StatusOK, string(raw))
+			return
+		}
+	}
 
 	form := url.Values{}
 	form.Set("myUserID", myUserID)
@@ -317,54 +368,14 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("请求参数", "myUserID", myUserID, "UserToID", userToID, "isFirst", isFirst, "firstTid", firstTid, "vipcode", vipcode, "serverPort", serverPort)
 
-	type upstreamResult struct {
-		status int
-		body   string
-		err    error
-		ms     int64
-	}
-
-	var upstream upstreamResult
-	var cachedMessages []map[string]any
-	var cachedErr error
-
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		upstreamStart := time.Now()
-		status, body, err := a.postForm(r.Context(), upstreamMsgURL, form, headers)
-		upstream = upstreamResult{
-			status: status,
-			body:   body,
-			err:    err,
-			ms:     time.Since(upstreamStart).Milliseconds(),
-		}
-	}()
-
-	const defaultHistoryPageSize = 20
-	const redisOverfetchFactor = 3
-	if a.chatHistoryCache != nil && conversationKey != "" {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			cachedMessages, cachedErr = a.chatHistoryCache.GetMessages(r.Context(), conversationKey, firstTid, defaultHistoryPageSize*redisOverfetchFactor)
-		}()
-	}
-
-	wg.Wait()
-
-	if cachedErr != nil {
-		slog.Warn("读取Redis聊天记录失败(降级为仅上游)", "conversationKey", conversationKey, "error", cachedErr)
-		cachedMessages = nil
-	}
-
-	if upstream.err != nil || upstream.status != http.StatusOK {
-		err := upstream.err
+	upstreamStart := time.Now()
+	status, body, err := a.postForm(r.Context(), upstreamMsgURL, form, headers)
+	upstreamMs := time.Since(upstreamStart).Milliseconds()
+	if err != nil || status != http.StatusOK {
 		if err == nil {
-			err = fmt.Errorf("upstream status %d", upstream.status)
+			err = fmt.Errorf("upstream status %d", status)
 		}
-		slog.Error("获取消息历史失败", "status", upstream.status, "upstreamMs", upstream.ms, "error", err)
+		slog.Error("获取消息历史失败", "status", status, "upstreamMs", upstreamMs, "error", err)
 
 		if len(cachedMessages) > 0 {
 			limit := defaultHistoryPageSize
@@ -385,8 +396,7 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body := upstream.body
-	slog.Info("上游接口返回", "status", upstream.status, "bodyLength", len(body), "upstreamMs", upstream.ms)
+	slog.Info("上游接口返回", "status", status, "bodyLength", len(body), "upstreamMs", upstreamMs)
 	slog.Debug("上游接口 body", "api", "/api/getMessageHistory", "body", body)
 
 	if strings.TrimSpace(body) == "" {
@@ -445,16 +455,12 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 
-				if a.chatHistoryCache != nil && conversationKey != "" && len(upstreamList) > 0 {
+				if cacheEnabled && len(upstreamList) > 0 {
 					// best-effort 回填：用于弥补上游历史过期导致的缺口
 					a.chatHistoryCache.SaveMessages(context.Background(), conversationKey, upstreamList)
 				}
 
-				targetLimit := len(upstreamList)
-				if targetLimit < defaultHistoryPageSize {
-					targetLimit = defaultHistoryPageSize
-				}
-				merged := mergeHistoryMessages(upstreamList, cachedMessages, targetLimit)
+				merged := mergeHistoryMessages(upstreamList, cachedMessages, defaultHistoryPageSize)
 				obj["contents_list"] = merged
 
 				if enhanced, err := json.Marshal(obj); err == nil {

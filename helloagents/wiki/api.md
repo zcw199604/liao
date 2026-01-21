@@ -298,7 +298,7 @@
 - Headers 强制携带 Cookie：`headers.set("Cookie", cookieData)`
 
 #### [POST] /api/getMessageHistory
-**描述**：代理上游消息历史；在新格式下缓存最后一条消息以提升列表页 lastMsg 命中率；当启用 Redis 模式时会将聊天记录写入 Redis，并在拉取历史时并发合并“上游 + Redis”结果以延长可回溯周期（默认 30 天）。
+**描述**：代理上游消息历史；在新格式下缓存最后一条消息以提升列表页 lastMsg 命中率；当启用 Redis 模式时会将聊天记录写入 Redis，并在拉取历史时**优先返回 Redis**（命中足够则跳过上游请求），不足时再请求上游并合并去重后返回，以延长可回溯周期（默认 30 天）并减少上游请求次数。
 
 **请求参数（application/x-www-form-urlencoded）**
 | 参数 | 必填 | 默认值 |
@@ -321,9 +321,10 @@
   - 取 `contents_list[0]` 作为“最新消息”，推断类型并写入最后消息缓存
   - 注意：当上游 `id/toid` 不含 `myUserID` 时，以请求参数 `(myUserID, UserToID)` 为准做补写归一化
   - 当启用 Redis 聊天记录缓存（`CACHE_TYPE=redis`）时：
-    - 将上游 `contents_list` 回填至 Redis（best-effort）
-    - 并发读取 Redis 历史并与上游结果合并去重后返回（保持 `contents_list` newest-first 语义；优先以 `Tid/tid` 去重）
-  - **返回增强后的响应**（仅替换 `contents_list`，其余字段保持上游原样）
+    - 优先读取 Redis：若 Redis 对应页数据条数已达到后端页大小（默认 20），直接返回（不请求上游）
+    - 若 Redis 不足：请求上游并将 `contents_list` 回填至 Redis（best-effort），再与 Redis 结果合并去重后返回（保持 `contents_list` newest-first 语义；优先以 `Tid/tid` 去重）
+    - 上游失败时：若 Redis 有数据则返回 Redis（HTTP 200），否则返回错误
+  - **返回增强后的响应**（当触发合并/兜底时仅替换 `contents_list`；其余字段尽量保持上游原样）
 - 若响应为 JSON 数组（旧格式）：
   - `batchEnrichUserInfo(list,"userid")` 后返回增强数组 JSON
 

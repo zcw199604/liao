@@ -16,12 +16,16 @@ type pendingChatHistoryMessage struct {
 	conversationKey string
 	tid             string
 	score           float64
-	payload         []byte
+	member          string
 }
 
-// RedisChatHistoryCacheService 基于 ZSET index + 单消息 key 的聊天记录缓存。
-// - index: {prefix}{conversationKey}:index (score=tid, member=tid)
-// - msg:   {prefix}{conversationKey}:msg:{tid} (value=JSON, ttl=expire)
+// RedisChatHistoryCacheService 基于「单 key ZSET」的聊天记录缓存（每个会话一个 key）。
+//
+// Key:
+// - {prefix}{conversationKey} -> ZSET（score=tid）
+//
+// Member:
+// - "{tid}|{json}"（json 为上游 contents_list 单条消息对象）
 type RedisChatHistoryCacheService struct {
 	client    *redis.Client
 	keyPrefix string
@@ -29,7 +33,7 @@ type RedisChatHistoryCacheService struct {
 
 	flushInterval time.Duration
 	pendingMu     sync.Mutex
-	pending       map[string]pendingChatHistoryMessage // key=messageKey，避免重复写入
+	pending       map[string]pendingChatHistoryMessage // key=conversationKey|tid，避免重复写入
 	stopCh        chan struct{}
 	wg            sync.WaitGroup
 	closeOnce     sync.Once
@@ -140,12 +144,19 @@ func (s *RedisChatHistoryCacheService) flushPending(ctx context.Context) error {
 	s.pending = make(map[string]pendingChatHistoryMessage, 2048)
 	s.pendingMu.Unlock()
 
+	grouped := make(map[string][]pendingChatHistoryMessage, 32)
+	for _, msg := range batch {
+		grouped[msg.conversationKey] = append(grouped[msg.conversationKey], msg)
+	}
+
 	_, err := s.client.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-		for messageKey, msg := range batch {
-			indexKey := s.indexKey(msg.conversationKey)
-			pipe.Set(ctx, messageKey, msg.payload, s.expire)
-			pipe.ZAdd(ctx, indexKey, redis.Z{Score: msg.score, Member: msg.tid})
-			pipe.Expire(ctx, indexKey, s.expire)
+		for conv, msgs := range grouped {
+			key := s.zsetKey(conv)
+			for _, msg := range msgs {
+				pipe.ZRemRangeByScore(ctx, key, msg.tid, msg.tid)
+				pipe.ZAdd(ctx, key, redis.Z{Score: msg.score, Member: msg.member})
+			}
+			pipe.Expire(ctx, key, s.expire)
 		}
 		return nil
 	})
@@ -175,11 +186,12 @@ func (s *RedisChatHistoryCacheService) SaveMessages(ctx context.Context, convers
 		if err != nil {
 			continue
 		}
+		member := tid + "|" + string(raw)
 		batch = append(batch, pendingChatHistoryMessage{
 			conversationKey: conversationKey,
 			tid:             tid,
 			score:           float64(scoreInt),
-			payload:         raw,
+			member:          member,
 		})
 	}
 	if len(batch) == 0 {
@@ -198,7 +210,7 @@ func (s *RedisChatHistoryCacheService) SaveMessages(ctx context.Context, convers
 	s.pendingMu.Lock()
 	if s.pending != nil {
 		for _, msg := range batch {
-			s.pending[s.messageKey(conversationKey, msg.tid)] = msg
+			s.pending[conversationKey+"|"+msg.tid] = msg
 		}
 	}
 	s.pendingMu.Unlock()
@@ -209,13 +221,19 @@ func (s *RedisChatHistoryCacheService) writeBatch(ctx context.Context, msgs []pe
 		return nil
 	}
 
+	grouped := make(map[string][]pendingChatHistoryMessage, 32)
+	for _, msg := range msgs {
+		grouped[msg.conversationKey] = append(grouped[msg.conversationKey], msg)
+	}
+
 	_, err := s.client.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-		for _, msg := range msgs {
-			messageKey := s.messageKey(msg.conversationKey, msg.tid)
-			indexKey := s.indexKey(msg.conversationKey)
-			pipe.Set(ctx, messageKey, msg.payload, s.expire)
-			pipe.ZAdd(ctx, indexKey, redis.Z{Score: msg.score, Member: msg.tid})
-			pipe.Expire(ctx, indexKey, s.expire)
+		for conv, items := range grouped {
+			key := s.zsetKey(conv)
+			for _, msg := range items {
+				pipe.ZRemRangeByScore(ctx, key, msg.tid, msg.tid)
+				pipe.ZAdd(ctx, key, redis.Z{Score: msg.score, Member: msg.member})
+			}
+			pipe.Expire(ctx, key, s.expire)
 		}
 		return nil
 	})
@@ -240,8 +258,8 @@ func (s *RedisChatHistoryCacheService) GetMessages(ctx context.Context, conversa
 		}
 	}
 
-	indexKey := s.indexKey(conversationKey)
-	tids, err := s.client.ZRevRangeByScore(readCtx, indexKey, &redis.ZRangeBy{
+	key := s.zsetKey(conversationKey)
+	members, err := s.client.ZRevRangeByScore(readCtx, key, &redis.ZRangeBy{
 		Max:    maxScore,
 		Min:    "-inf",
 		Offset: 0,
@@ -250,73 +268,32 @@ func (s *RedisChatHistoryCacheService) GetMessages(ctx context.Context, conversa
 	if err != nil {
 		return nil, err
 	}
-	if len(tids) == 0 {
+	if len(members) == 0 {
 		return []map[string]any{}, nil
 	}
 
-	pipe := s.client.Pipeline()
-	cmds := make([]*redis.StringCmd, 0, len(tids))
-	orderedTids := make([]string, 0, len(tids))
-	for _, tid := range tids {
-		tid = strings.TrimSpace(tid)
-		if tid == "" {
+	out := make([]map[string]any, 0, len(members))
+	for _, member := range members {
+		member = strings.TrimSpace(member)
+		if member == "" {
 			continue
 		}
-		orderedTids = append(orderedTids, tid)
-		cmds = append(cmds, pipe.Get(readCtx, s.messageKey(conversationKey, tid)))
-	}
-	_, _ = pipe.Exec(readCtx)
 
-	out := make([]map[string]any, 0, len(cmds))
-	missing := make([]string, 0, len(cmds))
-	for i, cmd := range cmds {
-		tid := ""
-		if i < len(orderedTids) {
-			tid = orderedTids[i]
-		}
-
-		raw, err := cmd.Result()
-		if err != nil {
-			if err == redis.Nil {
-				if tid != "" {
-					missing = append(missing, tid)
-				}
-				continue
-			}
-			return nil, err
+		payload := member
+		if idx := strings.IndexByte(member, '|'); idx >= 0 && idx+1 < len(member) {
+			payload = member[idx+1:]
 		}
 
 		var msg map[string]any
-		if unmarshalErr := json.Unmarshal([]byte(raw), &msg); unmarshalErr != nil || msg == nil {
-			if tid != "" {
-				missing = append(missing, tid)
-			}
+		if unmarshalErr := json.Unmarshal([]byte(payload), &msg); unmarshalErr != nil || msg == nil {
 			continue
 		}
 		out = append(out, msg)
 	}
 
-	if len(missing) > 0 {
-		members := make([]any, 0, len(missing))
-		for _, tid := range missing {
-			tid = strings.TrimSpace(tid)
-			if tid == "" {
-				continue
-			}
-			members = append(members, tid)
-		}
-		if len(members) > 0 {
-			_ = s.client.ZRem(readCtx, indexKey, members...).Err()
-		}
-	}
-
 	return out, nil
 }
 
-func (s *RedisChatHistoryCacheService) indexKey(conversationKey string) string {
-	return s.keyPrefix + conversationKey + ":index"
-}
-
-func (s *RedisChatHistoryCacheService) messageKey(conversationKey string, tid string) string {
-	return s.keyPrefix + conversationKey + ":msg:" + tid
+func (s *RedisChatHistoryCacheService) zsetKey(conversationKey string) string {
+	return s.keyPrefix + conversationKey
 }

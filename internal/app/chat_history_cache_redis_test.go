@@ -61,7 +61,7 @@ func TestRedisChatHistoryCacheService_SaveAndQuery(t *testing.T) {
 	}
 }
 
-func TestRedisChatHistoryCacheService_CleansMissingMembers(t *testing.T) {
+func TestRedisChatHistoryCacheService_DedupByTid(t *testing.T) {
 	mr := miniredis.RunT(t)
 
 	svc, err := NewRedisChatHistoryCacheService(
@@ -85,26 +85,25 @@ func TestRedisChatHistoryCacheService_CleansMissingMembers(t *testing.T) {
 		{"Tid": "2", "id": "a", "toid": "b", "content": "m2", "time": "t2"},
 	})
 
-	// 模拟消息 key 丢失（过期/被清理）
-	mr.Del("test:ch:" + conv + ":msg:2")
+	// 重复写入相同 Tid：应覆盖旧值而不是产生重复
+	svc.SaveMessages(context.Background(), conv, []map[string]any{
+		{"Tid": "2", "id": "a", "toid": "b", "content": "m2-new", "time": "t2"},
+	})
 
 	got, err := svc.GetMessages(context.Background(), conv, "0", 10)
 	if err != nil {
 		t.Fatalf("GetMessages failed: %v", err)
 	}
-	if len(got) != 1 {
-		t.Fatalf("len=%d, want 1", len(got))
+	if len(got) != 2 {
+		t.Fatalf("len=%d, want 2", len(got))
 	}
-	if tid := extractHistoryMessageTid(got[0]); tid != "1" {
-		t.Fatalf("tid=%q, want %q", tid, "1")
+	if tid := extractHistoryMessageTid(got[0]); tid != "2" {
+		t.Fatalf("tid[0]=%q, want %q", tid, "2")
 	}
-
-	// 再查一次：应已从 index 中移除缺失 member
-	got, err = svc.GetMessages(context.Background(), conv, "0", 10)
-	if err != nil {
-		t.Fatalf("GetMessages second failed: %v", err)
+	if content := toString(got[0]["content"]); content != "m2-new" {
+		t.Fatalf("content[0]=%q, want %q", content, "m2-new")
 	}
-	if len(got) != 1 {
-		t.Fatalf("len(second)=%d, want 1", len(got))
+	if tid := extractHistoryMessageTid(got[1]); tid != "1" {
+		t.Fatalf("tid[1]=%q, want %q", tid, "1")
 	}
 }
