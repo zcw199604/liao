@@ -7,6 +7,8 @@
 ## [Unreleased]
 
 ### 新增
+- 知识库：新增外部参考文档《TikTokDownloader Web API（FastAPI）整理》（`helloagents/wiki/external/tiktokdownloader-web-api.md`）。
+- 知识库：补充《TikTokDownloader Web API 调用指南与 SDK 草稿》（`helloagents/wiki/external/tiktokdownloader-web-api-sdk.md`）。
 - 增强聊天交互：会话列表左右滑切换“消息/收藏”、聊天页边缘右滑返回、侧边栏左滑关闭、长按菜单点击外关闭
 - 后端/前端：新增视频抽帧任务（关键帧/固定FPS/逐帧），支持时间区间与最大帧数上限；提供任务中心可实时预览帧图并支持终止/继续（网格视图使用虚拟滚动）；Docker 镜像新增 `ffmpeg/ffprobe` 运行依赖。
 - 前端/后端：抽帧任务中心支持直接上传视频并创建抽帧任务（文件选择不限制类型，先落盘再由 `probeVideo` 校验）。

@@ -70,6 +70,8 @@
 | 202601201457 | video_extract_source_video_preview | 功能 | ⚠️待复验 | [链接](2026-01/202601201457_video_extract_source_video_preview/) |
 | 202601210135 | video_extract_temp_input_cleanup | 优化 | ✅已完成 | [链接](2026-01/202601210135_video_extract_temp_input_cleanup/) |
 | 202601210202 | video_extract_temp_input_outside_upload | 优化 | ✅已完成 | [链接](2026-01/202601210202_video_extract_temp_input_outside_upload/) |
+| 202601210327 | tiktokdownloader_web_api_kb | 文档 | ✅已完成 | [链接](2026-01/202601210327_tiktokdownloader_web_api_kb/) |
+| 202601210339 | tiktokdownloader_web_api_sdk_guide | 文档 | ✅已完成 | [链接](2026-01/202601210339_tiktokdownloader_web_api_sdk_guide/) |
 
 ---
 
@@ -139,3 +141,5 @@
 - [202601201457_video_extract_source_video_preview](2026-01/202601201457_video_extract_source_video_preview/) - 抽帧任务上传视频支持预览源视频并抓帧（创建/详情入口）
 - [202601210135_video_extract_temp_input_cleanup](2026-01/202601210135_video_extract_temp_input_cleanup/) - 抽帧任务中心上传视频改为临时目录并在退出时自动清理
 - [202601210202_video_extract_temp_input_outside_upload](2026-01/202601210202_video_extract_temp_input_outside_upload/) - 临时输入视频迁出 upload 挂载目录（改用系统临时目录）
+- [202601210327_tiktokdownloader_web_api_kb](2026-01/202601210327_tiktokdownloader_web_api_kb/) - 整理 TikTokDownloader Web API（FastAPI）接口清单并沉淀到知识库
+- [202601210339_tiktokdownloader_web_api_sdk_guide](2026-01/202601210339_tiktokdownloader_web_api_sdk_guide/) - 补充 TikTokDownloader Web API 调用指南、错误处理约定与 SDK 草稿
