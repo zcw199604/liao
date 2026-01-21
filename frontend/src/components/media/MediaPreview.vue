@@ -128,14 +128,15 @@
 
 	       <!-- 视频预览 -->
 	        <div v-else-if="currentMedia.type === 'video'" class="relative w-full h-full flex items-center justify-center pb-20">
-	          <div
-	            class="relative inline-flex touch-none"
-	            @pointerdown="handleVideoPointerDown"
-	            @pointermove="handleVideoPointerMove"
-	            @pointerup="handleVideoPointerUp"
-	            @pointercancel="handleVideoPointerCancel"
-	            @contextmenu.prevent
-	          >
+		          <div
+		            ref="videoWrapperRef"
+		            class="media-preview-video-wrapper relative inline-flex touch-none"
+		            @pointerdown="handleVideoPointerDown"
+		            @pointermove="handleVideoPointerMove"
+		            @pointerup="handleVideoPointerUp"
+		            @pointercancel="handleVideoPointerCancel"
+		            @contextmenu.prevent
+		          >
 	             <video
 	              :key="currentMedia.url + '-video'"
 	              ref="videoRef"
@@ -157,12 +158,12 @@
 	              <div class="pointer-events-auto flex items-center gap-6 sm:gap-8">
 	                <button
 	                  class="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-black/35 hover:bg-black/45 text-white border border-white/15 backdrop-blur-md shadow-xl transition active:scale-95 flex items-center justify-center"
-	                  title="倒退 10 秒"
-	                  @click.stop="handleOverlaySeek(-10)"
-	                  @pointerdown.stop
-	                >
-	                  <i class="fas fa-backward text-lg"></i>
-	                </button>
+		                  title="倒退 1 秒"
+		                  @click.stop="handleOverlaySeek(-1)"
+		                  @pointerdown.stop
+		                >
+		                  <i class="fas fa-backward text-lg"></i>
+		                </button>
 	                <button
 	                  class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/15 hover:bg-white/25 text-white border border-white/20 backdrop-blur-md shadow-2xl transition active:scale-95 flex items-center justify-center"
 	                  :title="isVideoPlaying ? '暂停' : '播放'"
@@ -174,16 +175,47 @@
 	                </button>
 	                <button
 	                  class="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-black/35 hover:bg-black/45 text-white border border-white/15 backdrop-blur-md shadow-xl transition active:scale-95 flex items-center justify-center"
-	                  title="快进 10 秒"
-	                  @click.stop="handleOverlaySeek(10)"
-	                  @pointerdown.stop
-	                >
-	                  <i class="fas fa-forward text-lg"></i>
-	                </button>
-	              </div>
-	            </div>
-	          </div>
-	        </div>
+		                  title="快进 1 秒"
+		                  @click.stop="handleOverlaySeek(1)"
+		                  @pointerdown.stop
+		                >
+		                  <i class="fas fa-forward text-lg"></i>
+		                </button>
+		              </div>
+		            </div>
+
+		            <!-- 全屏右侧：抓帧/抽帧快捷按钮（随控制浮层显示/隐藏） -->
+		            <div
+		              v-if="isVideoFullscreen && showVideoOverlayControls"
+		              class="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-50 pointer-events-none"
+		            >
+		              <div class="pointer-events-auto flex flex-col gap-3">
+		                <button
+		                  class="w-11 h-11 rounded-full bg-black/35 hover:bg-black/45 text-white border border-white/15 backdrop-blur-md shadow-xl transition active:scale-95 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+		                  title="抓帧（暂停并抓取当前帧）"
+		                  :disabled="captureFrameLoading"
+		                  @click.stop="handleCaptureFrame"
+		                  @pointerdown.stop
+		                >
+		                  <span
+		                    v-if="captureFrameLoading"
+		                    class="w-4 h-4 border-2 border-white/90 border-t-transparent rounded-full animate-spin"
+		                  ></span>
+		                  <i v-else class="fas fa-camera"></i>
+		                </button>
+		                <button
+		                  v-if="canExtractFrames"
+		                  class="w-11 h-11 rounded-full bg-black/35 hover:bg-black/45 text-white border border-white/15 backdrop-blur-md shadow-xl transition active:scale-95 flex items-center justify-center"
+		                  title="抽帧（进入抽帧任务）"
+		                  @click.stop="handleExtractFrames"
+		                  @pointerdown.stop
+		                >
+		                  <i class="fas fa-film"></i>
+		                </button>
+		              </div>
+		            </div>
+		          </div>
+		        </div>
 
         <!-- 文件预览 -->
         <div v-else-if="currentMedia.type === 'file'" class="relative w-full h-full flex flex-col items-center justify-center pb-20 text-white">
@@ -342,6 +374,7 @@ const thumbnailScrollerRef = ref<any>(null)
 // 详情面板状态
 const showDetails = ref(false)
 
+const videoWrapperRef = ref<HTMLElement | null>(null)
 const videoRef = ref<HTMLVideoElement | null>(null)
 let plyrInstance: Plyr | null = null
 
@@ -354,7 +387,17 @@ let speedBoostWasPaused = false
 
 const showVideoOverlayControls = ref(false)
 const isVideoPlaying = ref(false)
+const isVideoFullscreen = ref(false)
 let overlayHideTimer: ReturnType<typeof setTimeout> | null = null
+
+const VIDEO_GESTURE_THRESHOLD_PX = 18
+const DOUBLE_TAP_WINDOW_MS = 300
+const DOUBLE_TAP_MAX_DIST_PX = 24
+let tapTimer: ReturnType<typeof setTimeout> | null = null
+let tapCount = 0
+let lastTapAt = 0
+let lastTapX = 0
+let lastTapY = 0
 
 type VideoGestureDirection = 'H' | 'V'
 type VideoGestureState = {
@@ -366,6 +409,9 @@ type VideoGestureState = {
   started: boolean
   startTimeSec: number
   startVolume: number
+  durationSec: number
+  rectWidth: number
+  rectHeight: number
   rafId: number | null
   latestDx: number
   latestDy: number
@@ -600,6 +646,111 @@ const handleOverlaySeek = (deltaSec: number) => {
   setVideoCurrentTime(cur + deltaSec)
 }
 
+const syncFullscreenState = () => {
+  const plyrActive = Boolean((plyrInstance as any)?.fullscreen?.active)
+  const doc: any = typeof document !== 'undefined' ? document : null
+  const el = videoWrapperRef.value
+  const docEl = doc ? doc.fullscreenElement || doc.webkitFullscreenElement : null
+  isVideoFullscreen.value = plyrActive || (!!el && docEl === el)
+}
+
+const handleDocumentFullscreenChange = () => {
+  syncFullscreenState()
+}
+
+const toggleVideoFullscreen = () => {
+  if (plyrInstance && (plyrInstance as any)?.fullscreen?.toggle) {
+    try {
+      ;(plyrInstance as any).fullscreen.toggle()
+      syncFullscreenState()
+      return
+    } catch {
+      // ignore
+    }
+  }
+
+  const el = videoWrapperRef.value as any
+  const doc: any = typeof document !== 'undefined' ? document : null
+  if (!el || !doc) return
+
+  const docEl = doc.fullscreenElement || doc.webkitFullscreenElement
+  try {
+    if (docEl) {
+      ;(doc.exitFullscreen || doc.webkitExitFullscreen)?.call(doc)
+    } else {
+      ;(el.requestFullscreen || el.webkitRequestFullscreen)?.call(el)
+    }
+  } catch {
+    // ignore
+  } finally {
+    syncFullscreenState()
+  }
+}
+
+const exitVideoFullscreen = () => {
+  try {
+    ;(plyrInstance as any)?.fullscreen?.exit?.()
+  } catch {
+    // ignore
+  }
+
+  const doc: any = typeof document !== 'undefined' ? document : null
+  try {
+    if (doc?.fullscreenElement || doc?.webkitFullscreenElement) {
+      ;(doc.exitFullscreen || doc.webkitExitFullscreen)?.call(doc)
+    }
+  } catch {
+    // ignore
+  } finally {
+    isVideoFullscreen.value = false
+  }
+}
+
+const clearTapState = () => {
+  if (tapTimer) {
+    clearTimeout(tapTimer)
+    tapTimer = null
+  }
+  tapCount = 0
+  lastTapAt = 0
+}
+
+const handleVideoTap = (e: PointerEvent) => {
+  const now = Date.now()
+  const x = e.clientX
+  const y = e.clientY
+  const dt = now - lastTapAt
+  const dx = x - lastTapX
+  const dy = y - lastTapY
+  const maxDist = DOUBLE_TAP_MAX_DIST_PX
+  const isSecondTap =
+    tapCount === 1 &&
+    dt > 0 &&
+    dt <= DOUBLE_TAP_WINDOW_MS &&
+    dx * dx + dy * dy <= maxDist * maxDist
+
+  if (isSecondTap) {
+    clearTapState()
+    toggleVideoFullscreen()
+    showOverlayWithAutoHide()
+    return
+  }
+
+  // 延迟单击：留出时间窗口识别双击
+  lastTapAt = now
+  lastTapX = x
+  lastTapY = y
+  tapCount = 1
+  // 立即给出可见反馈（浮层），播放/暂停动作延迟到窗口结束
+  showOverlayWithAutoHide()
+  if (tapTimer) clearTimeout(tapTimer)
+  tapTimer = setTimeout(() => {
+    tapTimer = null
+    tapCount = 0
+    void toggleVideoPlay()
+  }, DOUBLE_TAP_WINDOW_MS)
+}
+
 const clearSpeedLongPressTimer = () => {
   if (!speedLongPressTimer) return
   clearTimeout(speedLongPressTimer)
@@ -671,14 +822,28 @@ const applyVideoGestureFrame = () => {
   if (!video) return
 
   if (videoGesture.direction === 'H') {
-    const secPerPx = 0.1
-    const target = videoGesture.startTimeSec + videoGesture.latestDx * secPerPx
-    setVideoCurrentTime(target)
+    const durationSec = videoGesture.durationSec
+    const width = videoGesture.rectWidth
+    if (Number.isFinite(durationSec) && durationSec > 0 && Number.isFinite(width) && width > 0) {
+      const target = videoGesture.startTimeSec + (videoGesture.latestDx / width) * durationSec
+      setVideoCurrentTime(target)
+      return
+    }
+    // 兜底：无法获取宽度/时长时使用较慢的固定映射，避免误触跳跃过大
+    const secPerPxFallback = 0.03
+    setVideoCurrentTime(videoGesture.startTimeSec + videoGesture.latestDx * secPerPxFallback)
   } else {
     if (volumeGestureSupported === false) return
-    const volPerPx = 1 / 150
-    const target = videoGesture.startVolume - videoGesture.latestDy * volPerPx
-    setVideoVolume(target)
+    const height = videoGesture.rectHeight
+    if (Number.isFinite(height) && height > 0) {
+      // 上滑增加音量：dy 为负 -> -dy/height 为正
+      const target = videoGesture.startVolume + (-videoGesture.latestDy / height)
+      setVideoVolume(target)
+      return
+    }
+    // 兜底：按固定像素映射
+    const volPerPxFallback = 1 / 220
+    setVideoVolume(videoGesture.startVolume - videoGesture.latestDy * volPerPxFallback)
   }
 }
 
@@ -705,6 +870,10 @@ const handleVideoPointerDown = (e: PointerEvent) => {
 
   const startTimeSec = Number.isFinite(video.currentTime) ? video.currentTime : 0
   const startVolume = typeof video.volume === 'number' ? video.volume : 1
+  const durationSec = Number(video.duration)
+  const rect = (e.currentTarget as HTMLElement | null)?.getBoundingClientRect()
+  const rectWidth = rect?.width || 0
+  const rectHeight = rect?.height || 0
   videoGesture = {
     pointerId: e.pointerId,
     startX: e.clientX,
@@ -714,6 +883,9 @@ const handleVideoPointerDown = (e: PointerEvent) => {
     started: false,
     startTimeSec,
     startVolume,
+    durationSec,
+    rectWidth,
+    rectHeight,
     rafId: null,
     latestDx: 0,
     latestDy: 0
@@ -733,27 +905,36 @@ const handleVideoPointerMove = (e: PointerEvent) => {
   videoGesture.latestDx = dx
   videoGesture.latestDy = dy
 
-  const threshold = 10
+  const threshold = VIDEO_GESTURE_THRESHOLD_PX
   if (!videoGesture.started) {
     if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return
     videoGesture.started = true
     videoGesture.direction = Math.abs(dx) >= Math.abs(dy) ? 'H' : 'V'
     showOverlayDuringGesture()
+    // 一旦进入滑动模式，取消可能存在的“单击/双击”判定，避免误触发播放/暂停
+    if (tapTimer) {
+      clearTimeout(tapTimer)
+      tapTimer = null
+    }
+    tapCount = 0
+    lastTapAt = 0
   }
 
   if (videoGesture.started && e.cancelable) e.preventDefault()
   scheduleVideoGestureApply()
 }
 
-const finishVideoGesture = (asTap: boolean) => {
-  cancelVideoGestureRaf()
-  if (!videoGesture) return
+const handleVideoPointerUp = (e: PointerEvent) => {
+  if (!videoGesture || videoGesture.pointerId !== e.pointerId) return
+  const elapsed = Date.now() - videoGesture.startAtMs
+  const moved = Math.max(Math.abs(videoGesture.latestDx), Math.abs(videoGesture.latestDy))
+  const asTap = elapsed < 500 && moved < VIDEO_GESTURE_THRESHOLD_PX
   const wasStarted = videoGesture.started
+  cancelVideoGestureRaf()
   videoGesture = null
 
   if (asTap && !wasStarted) {
-    void toggleVideoPlay()
-    showOverlayWithAutoHide()
+    handleVideoTap(e)
     return
   }
 
@@ -762,17 +943,10 @@ const finishVideoGesture = (asTap: boolean) => {
   }
 }
 
-const handleVideoPointerUp = (e: PointerEvent) => {
-  if (!videoGesture || videoGesture.pointerId !== e.pointerId) return
-  const elapsed = Date.now() - videoGesture.startAtMs
-  const moved = Math.max(Math.abs(videoGesture.latestDx), Math.abs(videoGesture.latestDy))
-  const asTap = elapsed < 500 && moved < 10
-  finishVideoGesture(asTap)
-}
-
 const handleVideoPointerCancel = (e: PointerEvent) => {
   if (!videoGesture || videoGesture.pointerId !== e.pointerId) return
-  finishVideoGesture(false)
+  cancelVideoGestureRaf()
+  videoGesture = null
 }
 
 const initPlyr = () => {
@@ -786,6 +960,7 @@ const initPlyr = () => {
   if (plyrInstance && (plyrInstance as any).media === video) {
     applyVideoPlaybackRate()
     attachVideoStateListeners()
+    syncFullscreenState()
     return
   }
 
@@ -797,6 +972,13 @@ const initPlyr = () => {
       controls: ['play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
       // 由组件自己处理“点击播放/暂停”，避免与自定义手势/浮层冲突
       clickToPlay: false,
+      // 禁用 iOS 原生全屏接管，确保自定义浮层/按钮在“全屏模式”可见（使用 Plyr fallback/CSS 全屏）
+      fullscreen: {
+        enabled: true,
+        fallback: true,
+        iosNative: false,
+        container: '.media-preview-video-wrapper'
+      },
       // 避免与 MediaPreview 的全局快捷键（←/→/Esc）冲突
       keyboard: { focused: false, global: false }
     })
@@ -808,6 +990,7 @@ const initPlyr = () => {
 
   applyVideoPlaybackRate()
   attachVideoStateListeners()
+  syncFullscreenState()
 }
 
 watch(playbackRate, () => {
@@ -1256,6 +1439,8 @@ watch(currentIndex, (newIndex) => {
 watch(
   () => currentMedia.value.url,
   () => {
+    clearTapState()
+    exitVideoFullscreen()
     clearOverlayHideTimer()
     showVideoOverlayControls.value = false
     cancelVideoGestureRaf()
@@ -1285,6 +1470,8 @@ const imageStyle = computed(() => {
 })
 
 const handleClose = () => {
+  clearTapState()
+  exitVideoFullscreen()
   clearOverlayHideTimer()
   showVideoOverlayControls.value = false
   cancelVideoGestureRaf()
@@ -1405,6 +1592,9 @@ watch(() => props.visible, (val) => {
     showDetails.value = false
     window.addEventListener('keydown', handleKeydown)
     window.addEventListener('pointerdown', handleDocumentPointerDown, true)
+    document.addEventListener('fullscreenchange', handleDocumentFullscreenChange)
+    document.addEventListener('webkitfullscreenchange' as any, handleDocumentFullscreenChange)
+    syncFullscreenState()
     
     // 初始化 currentIndex
     // 如果有传入 mediaList，尝试找到 url 对应的 index
@@ -1423,6 +1613,8 @@ watch(() => props.visible, (val) => {
     nextTick(() => initPlyr())
   } else {
     showDetails.value = false
+    clearTapState()
+    exitVideoFullscreen()
     clearOverlayHideTimer()
     showVideoOverlayControls.value = false
     cancelVideoGestureRaf()
@@ -1432,13 +1624,19 @@ watch(() => props.visible, (val) => {
     destroyPlyr()
     window.removeEventListener('keydown', handleKeydown)
     window.removeEventListener('pointerdown', handleDocumentPointerDown, true)
+    document.removeEventListener('fullscreenchange', handleDocumentFullscreenChange)
+    document.removeEventListener('webkitfullscreenchange' as any, handleDocumentFullscreenChange)
   }
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
   window.removeEventListener('pointerdown', handleDocumentPointerDown, true)
+  document.removeEventListener('fullscreenchange', handleDocumentFullscreenChange)
+  document.removeEventListener('webkitfullscreenchange' as any, handleDocumentFullscreenChange)
   destroyPlyr()
+  clearTapState()
+  exitVideoFullscreen()
   clearOverlayHideTimer()
   resetMediaLoadState()
 })
