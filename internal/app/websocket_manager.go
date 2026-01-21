@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -41,15 +43,16 @@ type UpstreamWebSocketManager struct {
 
 	forceout *ForceoutManager
 	cache    UserInfoCacheService
+	history  ChatHistoryCacheService
 
-	mu                   sync.Mutex
+	mu                    sync.Mutex
 	upstreamClients       map[string]*UpstreamWebSocketClient
 	downstreamSessions    map[string]map[*DownstreamSession]struct{}
 	pendingCloseTasks     map[string]*time.Timer
 	connectionCreateMilli map[string]int64
 }
 
-func NewUpstreamWebSocketManager(httpClient *http.Client, fallbackWS string, forceout *ForceoutManager, cache UserInfoCacheService) *UpstreamWebSocketManager {
+func NewUpstreamWebSocketManager(httpClient *http.Client, fallbackWS string, forceout *ForceoutManager, cache UserInfoCacheService, history ChatHistoryCacheService) *UpstreamWebSocketManager {
 	if strings.TrimSpace(fallbackWS) == "" {
 		fallbackWS = "ws://localhost:9999"
 	}
@@ -58,6 +61,7 @@ func NewUpstreamWebSocketManager(httpClient *http.Client, fallbackWS string, for
 		fallbackWS:            fallbackWS,
 		forceout:              forceout,
 		cache:                 cache,
+		history:               history,
 		upstreamClients:       make(map[string]*UpstreamWebSocketClient),
 		downstreamSessions:    make(map[string]map[*DownstreamSession]struct{}),
 		pendingCloseTasks:     make(map[string]*time.Timer),
@@ -592,6 +596,7 @@ func (c *UpstreamWebSocketClient) onMessage(message string) {
 			content := strings.TrimSpace(toString(firstNonNil(fromUser["content"], node["content"])))
 			tm := strings.TrimSpace(toString(firstNonNil(fromUser["time"], node["time"])))
 			msgType := strings.TrimSpace(toString(firstNonNil(fromUser["type"], node["type"])))
+			tid := strings.TrimSpace(toString(firstNonNil(fromUser["Tid"], fromUser["tid"], node["Tid"], node["tid"])))
 			if msgType == "" {
 				msgType = "text"
 			}
@@ -622,6 +627,50 @@ func (c *UpstreamWebSocketClient) onMessage(message string) {
 						Type:       msgType,
 						Time:       tm,
 					})
+				}
+			}
+
+			if tid != "" && content != "" && tm != "" && c.manager != nil && c.manager.history != nil {
+				normalizedFrom := fromUserID
+				normalizedTo := toUserID
+				localMD5 := md5HexLower(c.userID)
+				if localMD5 != "" {
+					if strings.EqualFold(normalizedFrom, localMD5) {
+						normalizedFrom = c.userID
+					}
+					if strings.EqualFold(normalizedTo, localMD5) {
+						normalizedTo = c.userID
+					}
+				}
+
+				historyMsg := map[string]any{
+					"Tid":     tid,
+					"id":      normalizedFrom,
+					"toid":    normalizedTo,
+					"content": content,
+					"time":    tm,
+				}
+				if nickname := strings.TrimSpace(toString(firstNonNil(fromUser["nickname"], fromUser["name"], node["nickname"], node["name"]))); nickname != "" {
+					historyMsg["nickname"] = nickname
+				}
+
+				conversationKeys := make(map[string]struct{}, 3)
+				if key := generateConversationKey(normalizedFrom, normalizedTo); key != "" {
+					conversationKeys[key] = struct{}{}
+				}
+
+				// 兼容：上游返回的 toUserId 有时不是本地身份 userId，补写会话 key，保证历史查询可命中。
+				if strings.TrimSpace(c.userID) != "" && c.userID != normalizedFrom && c.userID != normalizedTo {
+					if key := generateConversationKey(normalizedFrom, c.userID); key != "" {
+						conversationKeys[key] = struct{}{}
+					}
+					if key := generateConversationKey(c.userID, normalizedTo); key != "" {
+						conversationKeys[key] = struct{}{}
+					}
+				}
+
+				for key := range conversationKeys {
+					c.manager.history.SaveMessages(context.Background(), key, []map[string]any{historyMsg})
 				}
 			}
 		}
@@ -711,4 +760,13 @@ func firstNonNil(values ...any) any {
 		}
 	}
 	return nil
+}
+
+func md5HexLower(input string) string {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return ""
+	}
+	sum := md5.Sum([]byte(input))
+	return hex.EncodeToString(sum[:])
 }

@@ -9,7 +9,7 @@
 - **chi** - HTTP 路由
 - **gorilla/websocket** - WebSocket（下游服务端 + 上游客户端）
 - **MySQL (go-sql-driver/mysql)** - 数据库驱动
-- **Redis (可选：go-redis)** - 用户信息/最后消息缓存
+- **Redis (可选：go-redis)** - 用户信息/最后消息/聊天记录缓存
 - **JWT (golang-jwt/jwt)** - 身份认证
 
 ### 前端技术
@@ -175,6 +175,9 @@ docker run -d -p 8080:8080 \
 - `CACHE_TYPE` - `memory` 或 `redis`（默认 `memory`）
 - `REDIS_URL` / `UPSTASH_REDIS_URL` - Redis 连接串（支持 `redis://` / `rediss://`，优先级高于传统四元组；适合 Upstash）
 - `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB` - Redis 连接参数（当未设置 `REDIS_URL` 时生效；`CACHE_TYPE=redis`）
+- `CACHE_REDIS_EXPIRE_DAYS` - 用户信息/最后消息缓存 TTL（天，默认7；`CACHE_TYPE=redis`）
+- `CACHE_REDIS_CHAT_HISTORY_PREFIX` - 聊天记录缓存 key 前缀（默认 `user:chathistory:`；`CACHE_TYPE=redis`）
+- `CACHE_REDIS_CHAT_HISTORY_EXPIRE_DAYS` - 聊天记录缓存 TTL（天，默认30；`CACHE_TYPE=redis`）
 - `CACHE_REDIS_FLUSH_INTERVAL_SECONDS` - Redis 写入批量 flush 间隔（秒，默认60；用于降低写入频率/成本）
 - `CACHE_REDIS_LOCAL_TTL_SECONDS` - Redis L1 本地缓存 TTL（秒，默认3600；用于降低 Redis 读频率/提升响应速度）
 

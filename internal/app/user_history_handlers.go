@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -294,6 +295,8 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("获取消息历史请求", "myUserID", myUserID, "UserToID", userToID, "isFirst", isFirst, "firstTid", firstTid)
 
+	conversationKey := generateConversationKey(strings.TrimSpace(myUserID), strings.TrimSpace(userToID))
+
 	form := url.Values{}
 	form.Set("myUserID", myUserID)
 	form.Set("UserToID", userToID)
@@ -314,75 +317,170 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("请求参数", "myUserID", myUserID, "UserToID", userToID, "isFirst", isFirst, "firstTid", firstTid, "vipcode", vipcode, "serverPort", serverPort)
 
-	upstreamStart := time.Now()
-	status, body, err := a.postForm(r.Context(), upstreamMsgURL, form, headers)
-	upstreamMs := time.Since(upstreamStart).Milliseconds()
-	if err != nil || status != http.StatusOK {
-		if err == nil {
-			err = fmt.Errorf("upstream status %d", status)
+	type upstreamResult struct {
+		status int
+		body   string
+		err    error
+		ms     int64
+	}
+
+	var upstream upstreamResult
+	var cachedMessages []map[string]any
+	var cachedErr error
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		upstreamStart := time.Now()
+		status, body, err := a.postForm(r.Context(), upstreamMsgURL, form, headers)
+		upstream = upstreamResult{
+			status: status,
+			body:   body,
+			err:    err,
+			ms:     time.Since(upstreamStart).Milliseconds(),
 		}
-		slog.Error("获取消息历史失败", "status", status, "upstreamMs", upstreamMs, "error", err)
+	}()
+
+	const defaultHistoryPageSize = 20
+	const redisOverfetchFactor = 3
+	if a.chatHistoryCache != nil && conversationKey != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cachedMessages, cachedErr = a.chatHistoryCache.GetMessages(r.Context(), conversationKey, firstTid, defaultHistoryPageSize*redisOverfetchFactor)
+		}()
+	}
+
+	wg.Wait()
+
+	if cachedErr != nil {
+		slog.Warn("读取Redis聊天记录失败(降级为仅上游)", "conversationKey", conversationKey, "error", cachedErr)
+		cachedMessages = nil
+	}
+
+	if upstream.err != nil || upstream.status != http.StatusOK {
+		err := upstream.err
+		if err == nil {
+			err = fmt.Errorf("upstream status %d", upstream.status)
+		}
+		slog.Error("获取消息历史失败", "status", upstream.status, "upstreamMs", upstream.ms, "error", err)
+
+		if len(cachedMessages) > 0 {
+			limit := defaultHistoryPageSize
+			if len(cachedMessages) < limit {
+				limit = len(cachedMessages)
+			}
+			resp := map[string]any{
+				"code":          0,
+				"contents_list": cachedMessages[:limit],
+			}
+			if raw, marshalErr := json.Marshal(resp); marshalErr == nil {
+				writeText(w, http.StatusOK, string(raw))
+				return
+			}
+		}
+
 		writeText(w, http.StatusInternalServerError, "{\"error\":\"获取消息历史失败: "+err.Error()+"\"}")
 		return
 	}
 
-	slog.Info("上游接口返回", "status", status, "bodyLength", len(body), "upstreamMs", upstreamMs)
+	body := upstream.body
+	slog.Info("上游接口返回", "status", upstream.status, "bodyLength", len(body), "upstreamMs", upstream.ms)
 	slog.Debug("上游接口 body", "api", "/api/getMessageHistory", "body", body)
 
-	if a.userInfoCache != nil && strings.TrimSpace(body) != "" {
-		var root any
-		if err := json.Unmarshal([]byte(body), &root); err == nil {
-			// 新格式：包含 contents_list（不改写 body，只写入最后消息缓存）
-			if obj, ok := root.(map[string]any); ok {
-				if contents, ok := obj["contents_list"]; ok {
-					if arr, ok := contents.([]any); ok && len(arr) > 0 {
-						if first, ok := arr[0].(map[string]any); ok {
-							fromUserID := strings.TrimSpace(toString(first["id"]))
-							toUserID := strings.TrimSpace(toString(first["toid"]))
-							content := strings.TrimSpace(toString(first["content"]))
-							tm := strings.TrimSpace(toString(first["time"]))
-							tp := inferMessageType(content)
+	if strings.TrimSpace(body) == "" {
+		writeText(w, http.StatusOK, body)
+		return
+	}
 
-							if fromUserID != "" && toUserID != "" && content != "" && tm != "" {
-								cacheFrom := fromUserID
-								cacheTo := toUserID
-								if myUserID != fromUserID && myUserID != toUserID {
-									if userToID == fromUserID {
-										cacheTo = myUserID
-									} else if userToID == toUserID {
-										cacheFrom = myUserID
-									}
-								}
-								a.userInfoCache.SaveLastMessage(CachedLastMessage{
-									FromUserID: cacheFrom,
-									ToUserID:   cacheTo,
-									Content:    content,
-									Type:       tp,
-									Time:       tm,
-								})
-							}
-						}
-					}
+	needParse := a.userInfoCache != nil || a.chatHistoryCache != nil
+	if !needParse {
+		writeText(w, http.StatusOK, body)
+		return
+	}
 
-					writeText(w, http.StatusOK, body)
-					return
-				}
-			}
+	var root any
+	if err := json.Unmarshal([]byte(body), &root); err != nil {
+		writeText(w, http.StatusOK, body)
+		return
+	}
 
-			// 旧格式：数组，增强用户信息后返回增强数组
-			if arr, ok := root.([]any); ok {
-				list := make([]map[string]any, 0, len(arr))
+	// 新格式：包含 contents_list（合并 Redis 历史 + 回填缓存 + 写入最后消息缓存）
+	if obj, ok := root.(map[string]any); ok {
+		if contents, ok := obj["contents_list"]; ok {
+			if arr, ok := contents.([]any); ok {
+				upstreamList := make([]map[string]any, 0, len(arr))
 				for _, item := range arr {
 					if m, ok := item.(map[string]any); ok {
-						list = append(list, m)
+						upstreamList = append(upstreamList, m)
 					}
 				}
-				list = a.userInfoCache.BatchEnrichUserInfo(list, "userid")
-				if enhanced, err := json.Marshal(list); err == nil {
+
+				if a.userInfoCache != nil && len(upstreamList) > 0 {
+					first := upstreamList[0]
+					fromUserID := strings.TrimSpace(toString(first["id"]))
+					toUserID := strings.TrimSpace(toString(first["toid"]))
+					content := strings.TrimSpace(toString(first["content"]))
+					tm := strings.TrimSpace(toString(first["time"]))
+					tp := inferMessageType(content)
+
+					if fromUserID != "" && toUserID != "" && content != "" && tm != "" {
+						cacheFrom := fromUserID
+						cacheTo := toUserID
+						if myUserID != fromUserID && myUserID != toUserID {
+							if userToID == fromUserID {
+								cacheTo = myUserID
+							} else if userToID == toUserID {
+								cacheFrom = myUserID
+							}
+						}
+						a.userInfoCache.SaveLastMessage(CachedLastMessage{
+							FromUserID: cacheFrom,
+							ToUserID:   cacheTo,
+							Content:    content,
+							Type:       tp,
+							Time:       tm,
+						})
+					}
+				}
+
+				if a.chatHistoryCache != nil && conversationKey != "" && len(upstreamList) > 0 {
+					// best-effort 回填：用于弥补上游历史过期导致的缺口
+					a.chatHistoryCache.SaveMessages(context.Background(), conversationKey, upstreamList)
+				}
+
+				targetLimit := len(upstreamList)
+				if targetLimit < defaultHistoryPageSize {
+					targetLimit = defaultHistoryPageSize
+				}
+				merged := mergeHistoryMessages(upstreamList, cachedMessages, targetLimit)
+				obj["contents_list"] = merged
+
+				if enhanced, err := json.Marshal(obj); err == nil {
 					writeText(w, http.StatusOK, string(enhanced))
 					return
 				}
 			}
+
+			// contents_list 存在但解析失败：保持兼容，返回原 body
+			writeText(w, http.StatusOK, body)
+			return
+		}
+	}
+
+	// 旧格式：数组，增强用户信息后返回增强数组
+	if arr, ok := root.([]any); ok && a.userInfoCache != nil {
+		list := make([]map[string]any, 0, len(arr))
+		for _, item := range arr {
+			if m, ok := item.(map[string]any); ok {
+				list = append(list, m)
+			}
+		}
+		list = a.userInfoCache.BatchEnrichUserInfo(list, "userid")
+		if enhanced, err := json.Marshal(list); err == nil {
+			writeText(w, http.StatusOK, string(enhanced))
+			return
 		}
 	}
 

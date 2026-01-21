@@ -268,7 +268,30 @@ Key 示例：
 - 用户信息：`user:info:{userId}` → JSON（CachedUserInfo）
 - 最后消息：`user:lastmsg:{conversationKey}` → JSON（CachedLastMessage）
 
-### 2.3 内存缓存补充
+### 2.3 聊天记录缓存（ChatHistoryCacheService，Redis 模式）
+
+接口：`internal/app.ChatHistoryCacheService`  
+实现：
+- Redis：`internal/app.RedisChatHistoryCacheService`（`CACHE_TYPE=redis` 时启用；best-effort）
+
+**缓存格式**
+- 对齐上游 `/api/getMessageHistory` 新格式的 `contents_list`：单条消息 JSON 中保留 `Tid/id/toid/content/time` 等字段（字段可能随上游变化，缓存以“尽量不丢字段”为原则）。
+
+**Redis Key 约定**
+由 `RedisChatHistoryCacheService` 读取配置：
+- `CACHE_REDIS_CHAT_HISTORY_PREFIX`（默认：`user:chathistory:`）
+- `CACHE_REDIS_CHAT_HISTORY_EXPIRE_DAYS`（默认：30 天）
+- `CACHE_REDIS_FLUSH_INTERVAL_SECONDS`（同上；用于批量写入降低成本）
+
+Key 示例（以 `conversationKey=min(u1,u2)+"_"+max(u1,u2)`）：
+- 索引：`user:chathistory:{conversationKey}:index` → ZSET（score=tid，member=tid）
+- 单消息：`user:chathistory:{conversationKey}:msg:{tid}` → JSON 字符串（TTL=expireDays）
+
+**清理策略**
+- 单消息 key 使用 TTL 自动过期。
+- 读取历史时若发现索引 member 对应消息 key 不存在，会 best-effort 从 ZSET 中移除该 member，避免索引膨胀。
+
+### 2.4 内存缓存补充
 
 - `ImageCacheService`：缓存 `userId -> local_path[]`，过期 3 小时（用于上传弹窗快速展示）
 - `ForceoutManager`：缓存被 forceout 的 userId 与过期时间戳（5 分钟）

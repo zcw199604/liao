@@ -298,7 +298,7 @@
 - Headers 强制携带 Cookie：`headers.set("Cookie", cookieData)`
 
 #### [POST] /api/getMessageHistory
-**描述**：代理上游消息历史，并在新格式下缓存最后一条消息以提升列表页 lastMsg 命中率。
+**描述**：代理上游消息历史；在新格式下缓存最后一条消息以提升列表页 lastMsg 命中率；当启用 Redis 模式时会将聊天记录写入 Redis，并在拉取历史时并发合并“上游 + Redis”结果以延长可回溯周期（默认 30 天）。
 
 **请求参数（application/x-www-form-urlencoded）**
 | 参数 | 必填 | 默认值 |
@@ -320,7 +320,10 @@
 - 若响应 JSON 包含 `contents_list`（新格式）：
   - 取 `contents_list[0]` 作为“最新消息”，推断类型并写入最后消息缓存
   - 注意：当上游 `id/toid` 不含 `myUserID` 时，以请求参数 `(myUserID, UserToID)` 为准做补写归一化
-  - **返回原始响应**（不修改 body）
+  - 当启用 Redis 聊天记录缓存（`CACHE_TYPE=redis`）时：
+    - 将上游 `contents_list` 回填至 Redis（best-effort）
+    - 并发读取 Redis 历史并与上游结果合并去重后返回（保持 `contents_list` newest-first 语义；优先以 `Tid/tid` 去重）
+  - **返回增强后的响应**（仅替换 `contents_list`，其余字段保持上游原样）
 - 若响应为 JSON 数组（旧格式）：
   - `batchEnrichUserInfo(list,"userid")` 后返回增强数组 JSON
 

@@ -27,18 +27,19 @@ type App struct {
 	systemConfig      *SystemConfigService
 	imagePortResolver *ImagePortResolver
 
-	identityService *IdentityService
-	favoriteService *FavoriteService
-	fileStorage     *FileStorageService
-	imageServer     *ImageServerService
-	imageCache      *ImageCacheService
-	imageHash       *ImageHashService
-	mediaUpload     *MediaUploadService
-	mtPhoto         *MtPhotoService
-	videoExtract    *VideoExtractService
-	userInfoCache   UserInfoCacheService
-	forceoutManager *ForceoutManager
-	wsManager       *UpstreamWebSocketManager
+	identityService  *IdentityService
+	favoriteService  *FavoriteService
+	fileStorage      *FileStorageService
+	imageServer      *ImageServerService
+	imageCache       *ImageCacheService
+	imageHash        *ImageHashService
+	mediaUpload      *MediaUploadService
+	mtPhoto          *MtPhotoService
+	videoExtract     *VideoExtractService
+	userInfoCache    UserInfoCacheService
+	chatHistoryCache ChatHistoryCacheService
+	forceoutManager  *ForceoutManager
+	wsManager        *UpstreamWebSocketManager
 
 	staticDir string
 	handler   http.Handler
@@ -62,6 +63,7 @@ func New(cfg config.Config) (*App, error) {
 	}
 
 	var userInfoCache UserInfoCacheService
+	var chatHistoryCache ChatHistoryCacheService
 	switch cfg.CacheType {
 	case "redis":
 		userInfoCache, err = NewRedisUserInfoCacheService(
@@ -80,29 +82,48 @@ func New(cfg config.Config) (*App, error) {
 			_ = db.Close()
 			return nil, err
 		}
+
+		chatHistoryCache, err = NewRedisChatHistoryCacheService(
+			cfg.RedisURL,
+			cfg.RedisHost,
+			cfg.RedisPort,
+			cfg.RedisPassword,
+			cfg.RedisDB,
+			cfg.CacheRedisChatHistoryPrefix,
+			cfg.CacheRedisChatHistoryExpireDays,
+			cfg.CacheRedisFlushIntervalSec,
+		)
+		if err != nil {
+			if closer, ok := userInfoCache.(interface{ Close() error }); ok {
+				_ = closer.Close()
+			}
+			_ = db.Close()
+			return nil, err
+		}
 	default:
 		userInfoCache = NewMemoryUserInfoCacheService()
 	}
 
 	application := &App{
-		cfg:             cfg,
-		db:              db,
-		httpClient:      &http.Client{Timeout: 15 * time.Second},
-		jwt:             NewJWTService(cfg.JWTSecret, cfg.TokenExpireHours),
-		identityService: NewIdentityService(db),
-		favoriteService: NewFavoriteService(db),
-		fileStorage:     NewFileStorageService(db),
-		imageServer:     NewImageServerService(cfg.ImageServerHost, cfg.ImageServerPort),
-		imageCache:      NewImageCacheService(),
-		imageHash:       NewImageHashService(db),
-		userInfoCache:   userInfoCache,
-		forceoutManager: NewForceoutManager(),
-		staticDir:       staticDir,
+		cfg:              cfg,
+		db:               db,
+		httpClient:       &http.Client{Timeout: 15 * time.Second},
+		jwt:              NewJWTService(cfg.JWTSecret, cfg.TokenExpireHours),
+		identityService:  NewIdentityService(db),
+		favoriteService:  NewFavoriteService(db),
+		fileStorage:      NewFileStorageService(db),
+		imageServer:      NewImageServerService(cfg.ImageServerHost, cfg.ImageServerPort),
+		imageCache:       NewImageCacheService(),
+		imageHash:        NewImageHashService(db),
+		userInfoCache:    userInfoCache,
+		chatHistoryCache: chatHistoryCache,
+		forceoutManager:  NewForceoutManager(),
+		staticDir:        staticDir,
 	}
 	application.systemConfig = NewSystemConfigService(db)
 	application.imagePortResolver = NewImagePortResolver(application.httpClient)
 	_ = application.systemConfig.EnsureDefaults(context.Background())
-	application.wsManager = NewUpstreamWebSocketManager(application.httpClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache)
+	application.wsManager = NewUpstreamWebSocketManager(application.httpClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache, application.chatHistoryCache)
 	application.mediaUpload = NewMediaUploadService(db, cfg.ServerPort, application.fileStorage, application.imageServer, application.httpClient)
 	application.mtPhoto = NewMtPhotoService(cfg.MtPhotoBaseURL, cfg.MtPhotoLoginUsername, cfg.MtPhotoLoginPassword, cfg.MtPhotoLoginOTP, cfg.LspRoot, application.httpClient)
 	application.videoExtract = NewVideoExtractService(db, cfg, application.fileStorage, application.mtPhoto)
@@ -123,6 +144,9 @@ func (a *App) Shutdown(ctx context.Context) {
 		a.videoExtract.Shutdown()
 	}
 	if closer, ok := a.userInfoCache.(interface{ Close() error }); ok {
+		_ = closer.Close()
+	}
+	if closer, ok := a.chatHistoryCache.(interface{ Close() error }); ok {
 		_ = closer.Close()
 	}
 	if a.db != nil {

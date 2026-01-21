@@ -30,6 +30,7 @@
 - 后端：Redis 缓存支持 `UPSTASH_REDIS_URL`/`REDIS_URL`（支持 `rediss://` TLS），便于接入 Upstash Redis。
 - 后端：Redis 写入改为队列批量 flush（默认 60 秒，可通过 `CACHE_REDIS_FLUSH_INTERVAL_SECONDS` 调整），降低 Upstash 按量计费成本。
 - 后端：历史/收藏用户列表的用户信息/最后消息增强改为并发批量读取，并将 Redis L1 本地缓存 TTL 默认调为 1 小时（`CACHE_REDIS_LOCAL_TTL_SECONDS`），降低 Redis 读频率/提升响应速度。
+- 后端：支持将聊天记录缓存到 Redis（默认 30 天，可通过 `CACHE_REDIS_CHAT_HISTORY_EXPIRE_DAYS` 配置），`/api/getMessageHistory` 并发合并“上游 + Redis”历史以弥补上游过期缺口。
 - 前端：接入 Vitest + jsdom，并为核心模块补充单元测试（utils/time/string、useToast、request、auth store）。
 - 前端：补充 Vue 组件级测试（Dialog/Toast/Loading/UserList/ChatSidebar）。
 - 前端：补充视图级页面测试（LoginPage/IdentityPicker/ChatListView/ChatRoomView）。

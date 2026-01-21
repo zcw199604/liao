@@ -71,7 +71,7 @@ func TestUpstreamWebSocketManager_RegisterDownstream_SendsSignMessage(t *testing
 		srv.Close()
 	})
 
-	m := NewUpstreamWebSocketManager(nil, toWSURL(srv.URL), nil, nil)
+	m := NewUpstreamWebSocketManager(nil, toWSURL(srv.URL), nil, nil, nil)
 	t.Cleanup(m.CloseAllConnections)
 
 	session := &DownstreamSession{}
@@ -107,7 +107,7 @@ func TestUpstreamWebSocketManager_UnregisterDownstream_ClosesAfterDelay(t *testi
 		srv.Close()
 	})
 
-	m := NewUpstreamWebSocketManager(nil, toWSURL(srv.URL), nil, nil)
+	m := NewUpstreamWebSocketManager(nil, toWSURL(srv.URL), nil, nil, nil)
 	t.Cleanup(m.CloseAllConnections)
 
 	session := &DownstreamSession{}
@@ -155,7 +155,7 @@ func TestUpstreamWebSocketManager_ReRegister_CancelsPendingClose(t *testing.T) {
 		srv.Close()
 	})
 
-	m := NewUpstreamWebSocketManager(nil, toWSURL(srv.URL), nil, nil)
+	m := NewUpstreamWebSocketManager(nil, toWSURL(srv.URL), nil, nil, nil)
 	t.Cleanup(m.CloseAllConnections)
 
 	session := &DownstreamSession{}
@@ -204,7 +204,7 @@ func TestUpstreamWebSocketManager_RegisterDownstream_EvictsOldestIdentity(t *tes
 		srv.Close()
 	})
 
-	m := NewUpstreamWebSocketManager(nil, toWSURL(srv.URL), nil, nil)
+	m := NewUpstreamWebSocketManager(nil, toWSURL(srv.URL), nil, nil, nil)
 	t.Cleanup(m.CloseAllConnections)
 
 	s1 := &DownstreamSession{}
@@ -273,7 +273,7 @@ func (s *spyUserInfoCache) BatchEnrichWithLastMessage(userList []map[string]any,
 
 func TestUpstreamWebSocketClient_OnMessage_CachesUserInfoAndLastMessage(t *testing.T) {
 	cache := &spyUserInfoCache{}
-	m := NewUpstreamWebSocketManager(nil, "ws://unused", nil, cache)
+	m := NewUpstreamWebSocketManager(nil, "ws://unused", nil, cache, nil)
 
 	c := NewUpstreamWebSocketClient("u0", "ws://unused", m)
 
@@ -309,7 +309,7 @@ func TestUpstreamWebSocketClient_OnMessage_ForceoutMarksForbidden(t *testing.T) 
 	t.Cleanup(func() { wsForceoutDelay = oldDelay })
 
 	forceout := NewForceoutManager()
-	m := NewUpstreamWebSocketManager(nil, "ws://unused", forceout, nil)
+	m := NewUpstreamWebSocketManager(nil, "ws://unused", forceout, nil, nil)
 	c := NewUpstreamWebSocketClient("u1", "ws://unused", m)
 
 	c.onMessage(`{"code":-3,"forceout":true,"content":"x"}`)
@@ -341,7 +341,7 @@ func TestUpstreamWebSocketManager_BroadcastToDownstream_RemovesZombieSession(t *
 	_ = conn.Close()
 
 	session := &DownstreamSession{conn: conn}
-	manager := NewUpstreamWebSocketManager(nil, "ws://unused", nil, nil)
+	manager := NewUpstreamWebSocketManager(nil, "ws://unused", nil, nil, nil)
 	t.Cleanup(manager.CloseAllConnections)
 
 	manager.mu.Lock()

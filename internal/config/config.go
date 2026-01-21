@@ -38,6 +38,9 @@ type Config struct {
 	CacheRedisFlushIntervalSec  int
 	CacheRedisLocalTTLSeconds   int
 
+	CacheRedisChatHistoryPrefix     string
+	CacheRedisChatHistoryExpireDays int
+
 	ImageServerHost        string
 	ImageServerPort        string
 	ImageServerUpstreamURL string
@@ -88,6 +91,9 @@ func Load() (Config, error) {
 		CacheRedisFlushIntervalSec:  getEnvInt("CACHE_REDIS_FLUSH_INTERVAL_SECONDS", 60),
 		CacheRedisLocalTTLSeconds:   getEnvInt("CACHE_REDIS_LOCAL_TTL_SECONDS", 3600),
 
+		CacheRedisChatHistoryPrefix:     getEnv("CACHE_REDIS_CHAT_HISTORY_PREFIX", "user:chathistory:"),
+		CacheRedisChatHistoryExpireDays: getEnvInt("CACHE_REDIS_CHAT_HISTORY_EXPIRE_DAYS", 30),
+
 		ImageServerHost:        getEnv("IMG_SERVER_HOST", "149.88.79.98"),
 		ImageServerPort:        getEnv("IMG_SERVER_PORT", "9003"),
 		ImageServerUpstreamURL: getEnv("IMG_SERVER_UPSTREAM_URL", "http://v1.chat2019.cn/asmx/method.asmx/getImgServer"),
@@ -134,6 +140,10 @@ func Load() (Config, error) {
 
 	if cfg.CacheRedisLocalTTLSeconds <= 0 {
 		cfg.CacheRedisLocalTTLSeconds = 3600
+	}
+
+	if cfg.CacheRedisChatHistoryExpireDays <= 0 {
+		cfg.CacheRedisChatHistoryExpireDays = 30
 	}
 
 	if strings.TrimSpace(cfg.FFmpegPath) == "" {

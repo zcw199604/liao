@@ -46,7 +46,7 @@ func TestHandleWebSocket_ProxiesMessagesAfterSign(t *testing.T) {
 		upstream.Close()
 	})
 
-	wsManager := NewUpstreamWebSocketManager(nil, toWSURL(upstream.URL), nil, nil)
+	wsManager := NewUpstreamWebSocketManager(nil, toWSURL(upstream.URL), nil, nil, nil)
 	t.Cleanup(wsManager.CloseAllConnections)
 
 	jwtService := NewJWTService("secret-1", 1)
@@ -122,7 +122,7 @@ func TestHandleWebSocket_IgnoresBinaryAndInvalidJSON(t *testing.T) {
 		upstream.Close()
 	})
 
-	wsManager := NewUpstreamWebSocketManager(nil, toWSURL(upstream.URL), nil, nil)
+	wsManager := NewUpstreamWebSocketManager(nil, toWSURL(upstream.URL), nil, nil, nil)
 	t.Cleanup(wsManager.CloseAllConnections)
 
 	jwtService := NewJWTService("secret-1", 1)
@@ -186,7 +186,7 @@ func TestHandleWebSocket_IgnoresMismatchedUserIDAfterSign(t *testing.T) {
 		upstream.Close()
 	})
 
-	wsManager := NewUpstreamWebSocketManager(nil, toWSURL(upstream.URL), nil, nil)
+	wsManager := NewUpstreamWebSocketManager(nil, toWSURL(upstream.URL), nil, nil, nil)
 	t.Cleanup(wsManager.CloseAllConnections)
 
 	jwtService := NewJWTService("secret-1", 1)
@@ -264,7 +264,7 @@ func TestHandleWebSocket_SignSwitch_RebindsSession(t *testing.T) {
 		upstream.Close()
 	})
 
-	wsManager := NewUpstreamWebSocketManager(nil, toWSURL(upstream.URL), nil, nil)
+	wsManager := NewUpstreamWebSocketManager(nil, toWSURL(upstream.URL), nil, nil, nil)
 	t.Cleanup(wsManager.CloseAllConnections)
 
 	jwtService := NewJWTService("secret-1", 1)
@@ -356,7 +356,7 @@ func TestHandleWebSocket_RejectsForbiddenUserOnSign(t *testing.T) {
 	forceout := NewForceoutManager()
 	forceout.AddForceoutUser("u1")
 
-	wsManager := NewUpstreamWebSocketManager(nil, "ws://unused", forceout, nil)
+	wsManager := NewUpstreamWebSocketManager(nil, "ws://unused", forceout, nil, nil)
 	t.Cleanup(wsManager.CloseAllConnections)
 
 	jwtService := NewJWTService("secret-1", 1)

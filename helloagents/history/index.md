@@ -72,6 +72,7 @@
 | 202601210202 | video_extract_temp_input_outside_upload | 优化 | ✅已完成 | [链接](2026-01/202601210202_video_extract_temp_input_outside_upload/) |
 | 202601210243 | media_preview_hide_pause_icon | 修复 | ✅已完成 | [链接](2026-01/202601210243_media_preview_hide_pause_icon/) |
 | 202601210322 | media_preview_plyr | 优化 | ✅已完成 | [链接](2026-01/202601210322_media_preview_plyr/) |
+| 202601210359 | redis_chat_history_cache | 功能 | ✅已完成 | [链接](2026-01/202601210359_redis_chat_history_cache/) |
 
 ---
 
@@ -143,3 +144,4 @@
 - [202601210202_video_extract_temp_input_outside_upload](2026-01/202601210202_video_extract_temp_input_outside_upload/) - 临时输入视频迁出 upload 挂载目录（改用系统临时目录）
 - [202601210243_media_preview_hide_pause_icon](2026-01/202601210243_media_preview_hide_pause_icon/) - 媒体预览暂停遮罩图标隐藏（已随 Plyr 集成一并落地）
 - [202601210322_media_preview_plyr](2026-01/202601210322_media_preview_plyr/) - 媒体预览主视频播放器升级为 Plyr（控制栏美化，功能保持一致）
+- [202601210359_redis_chat_history_cache](2026-01/202601210359_redis_chat_history_cache/) - Redis 缓存聊天记录（默认 30 天可配），历史接口并发合并上游 + Redis 返回
