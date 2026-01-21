@@ -297,6 +297,8 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 	const defaultHistoryPageSize = 20
 	conversationKey := generateConversationKey(strings.TrimSpace(myUserID), strings.TrimSpace(userToID))
 	cacheEnabled := a.chatHistoryCache != nil && conversationKey != ""
+	trimmedFirstTid := strings.TrimSpace(firstTid)
+	isHistoryPage := trimmedFirstTid != "" && trimmedFirstTid != "0"
 
 	var cachedMessages []map[string]any
 	if cacheEnabled {
@@ -309,35 +311,9 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 优先 Redis：当缓存足够覆盖本次请求页大小时，直接返回，减少对上游的请求次数。
-	if cacheEnabled && len(cachedMessages) >= defaultHistoryPageSize {
-		if a.userInfoCache != nil && isFirst == "1" && len(cachedMessages) > 0 {
-			first := cachedMessages[0]
-			fromUserID := strings.TrimSpace(toString(first["id"]))
-			toUserID := strings.TrimSpace(toString(first["toid"]))
-			content := strings.TrimSpace(toString(first["content"]))
-			tm := strings.TrimSpace(toString(first["time"]))
-			tp := inferMessageType(content)
-			if fromUserID != "" && toUserID != "" && content != "" && tm != "" {
-				cacheFrom := fromUserID
-				cacheTo := toUserID
-				if myUserID != fromUserID && myUserID != toUserID {
-					if userToID == fromUserID {
-						cacheTo = myUserID
-					} else if userToID == toUserID {
-						cacheFrom = myUserID
-					}
-				}
-				a.userInfoCache.SaveLastMessage(CachedLastMessage{
-					FromUserID: cacheFrom,
-					ToUserID:   cacheTo,
-					Content:    content,
-					Type:       tp,
-					Time:       tm,
-				})
-			}
-		}
-
+	// 仅“历史翻页”（firstTid>0）允许在缓存足够时跳过上游；
+	// 最新页（firstTid=0）必须请求上游以保证拿到最新消息（避免仅靠缓存漏消息）。
+	if cacheEnabled && isHistoryPage && len(cachedMessages) >= defaultHistoryPageSize {
 		resp := map[string]any{
 			"code":          0,
 			"contents_list": cachedMessages[:defaultHistoryPageSize],
@@ -378,6 +354,33 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 		slog.Error("获取消息历史失败", "status", status, "upstreamMs", upstreamMs, "error", err)
 
 		if len(cachedMessages) > 0 {
+			if a.userInfoCache != nil && isFirst == "1" && !isHistoryPage && len(cachedMessages) > 0 {
+				first := cachedMessages[0]
+				fromUserID := strings.TrimSpace(toString(first["id"]))
+				toUserID := strings.TrimSpace(toString(first["toid"]))
+				content := strings.TrimSpace(toString(first["content"]))
+				tm := strings.TrimSpace(toString(first["time"]))
+				tp := inferMessageType(content)
+				if fromUserID != "" && toUserID != "" && content != "" && tm != "" {
+					cacheFrom := fromUserID
+					cacheTo := toUserID
+					if myUserID != fromUserID && myUserID != toUserID {
+						if userToID == fromUserID {
+							cacheTo = myUserID
+						} else if userToID == toUserID {
+							cacheFrom = myUserID
+						}
+					}
+					a.userInfoCache.SaveLastMessage(CachedLastMessage{
+						FromUserID: cacheFrom,
+						ToUserID:   cacheTo,
+						Content:    content,
+						Type:       tp,
+						Time:       tm,
+					})
+				}
+			}
+
 			limit := defaultHistoryPageSize
 			if len(cachedMessages) < limit {
 				limit = len(cachedMessages)
@@ -427,7 +430,7 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 
-				if a.userInfoCache != nil && len(upstreamList) > 0 {
+				if a.userInfoCache != nil && isFirst == "1" && !isHistoryPage && len(upstreamList) > 0 {
 					first := upstreamList[0]
 					fromUserID := strings.TrimSpace(toString(first["id"]))
 					toUserID := strings.TrimSpace(toString(first["toid"]))

@@ -318,11 +318,11 @@
 
 **增强逻辑**
 - 若响应 JSON 包含 `contents_list`（新格式）：
-  - 取 `contents_list[0]` 作为“最新消息”，推断类型并写入最后消息缓存
+  - 当 `isFirst=1` 且 `firstTid=0` 时：取 `contents_list[0]` 作为“最新消息”，推断类型并写入最后消息缓存
   - 注意：当上游 `id/toid` 不含 `myUserID` 时，以请求参数 `(myUserID, UserToID)` 为准做补写归一化
   - 当启用 Redis 聊天记录缓存（`CACHE_TYPE=redis`）时：
-    - 优先读取 Redis：若 Redis 对应页数据条数已达到后端页大小（默认 20），直接返回（不请求上游）
-    - 若 Redis 不足：请求上游并将 `contents_list` 回填至 Redis（best-effort），再与 Redis 结果合并去重后返回（保持 `contents_list` newest-first 语义；优先以 `Tid/tid` 去重）
+    - **最新页（`firstTid=0`）始终请求上游**以保证拿到最新消息；同时读取 Redis 并合并去重后返回（保持 `contents_list` newest-first 语义；优先以 `Tid/tid` 去重）
+    - **历史翻页（`firstTid>0`）**：若 Redis 对应页数据条数已达到后端页大小（默认 20），直接返回 Redis（跳过上游）；否则请求上游并将 `contents_list` 回填至 Redis（best-effort），再与 Redis 结果合并去重后返回
     - 上游失败时：若 Redis 有数据则返回 Redis（HTTP 200），否则返回错误
   - **返回增强后的响应**（当触发合并/兜底时仅替换 `contents_list`；其余字段尽量保持上游原样）
 - 若响应为 JSON 数组（旧格式）：

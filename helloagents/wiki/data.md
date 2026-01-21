@@ -293,6 +293,10 @@ Key 示例（以 `conversationKey=min(u1,u2)+"_"+max(u1,u2)`）：
 - 每次写入会对相同 `tid` 先做 `ZREMRANGEBYSCORE(tid,tid)` 再 `ZADD`，避免重复记录同一条消息。
 - 会话 key 使用 TTL 过期：在最近一次写入后 `CACHE_REDIS_CHAT_HISTORY_EXPIRE_DAYS` 天过期。
 
+**读取策略（与接口行为关联）**
+- `/api/getMessageHistory` 最新页（`firstTid=0`）始终请求上游以保证最新消息，同时读取 Redis 合并去重。
+- 历史翻页（`firstTid>0`）若 Redis 命中足够覆盖页大小（默认 20）可跳过上游直接返回 Redis；不足时再拉取上游并合并。
+
 ### 2.4 内存缓存补充
 
 - `ImageCacheService`：缓存 `userId -> local_path[]`，过期 3 小时（用于上传弹窗快速展示）
