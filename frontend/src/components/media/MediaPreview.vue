@@ -1712,6 +1712,44 @@ onUnmounted(() => {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.55);
 }
 
+/* 全屏模式：让全屏容器占满视口并居中内容 */
+.media-preview-video-wrapper:fullscreen,
+.media-preview-video-wrapper:-webkit-full-screen,
+.media-preview-video-wrapper:-moz-full-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  background: #000;
+}
+
+/* 全屏模式：取消 95% 限制与圆角阴影，避免偏移与“黑边”视觉 */
+.media-preview-video-wrapper:fullscreen :deep(.plyr),
+.media-preview-video-wrapper:-webkit-full-screen :deep(.plyr),
+.media-preview-video-wrapper:-moz-full-screen :deep(.plyr) {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.media-preview-video-wrapper:fullscreen .media-preview-video,
+.media-preview-video-wrapper:-webkit-full-screen .media-preview-video,
+.media-preview-video-wrapper:-moz-full-screen .media-preview-video {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+  object-fit: contain;
+}
+
 /* 保留原生 controls 作为降级时，隐藏 WebKit/Blink 的中央遮罩按钮（渐进增强） */
 .media-preview-video::-webkit-media-controls-overlay-play-button {
   display: none !important;
