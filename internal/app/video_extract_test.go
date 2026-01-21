@@ -35,7 +35,8 @@ func TestParseFFprobeFrameRate(t *testing.T) {
 
 func TestResolveUploadAbsPath(t *testing.T) {
 	tmp := t.TempDir()
-	fileStore := &FileStorageService{baseUploadAbs: tmp}
+	tempBase := filepath.Join(tmp, "temp")
+	fileStore := &FileStorageService{baseUploadAbs: tmp, baseTempAbs: tempBase}
 	svc := &VideoExtractService{fileStore: fileStore, cfg: config.Config{ServerPort: 8080}}
 
 	if _, err := svc.resolveUploadAbsPath("/../../etc/passwd"); err == nil {
@@ -59,5 +60,24 @@ func TestResolveUploadAbsPath(t *testing.T) {
 	if got != target {
 		t.Fatalf("got=%q, want %q", got, target)
 	}
-}
 
+	// 临时输入视频：/tmp/video_extract_inputs/...
+	if _, err := svc.resolveUploadAbsPath("/tmp/video_extract_inputs/../../etc/passwd"); err == nil {
+		t.Fatalf("expected error for temp traversal")
+	}
+
+	tempTarget := filepath.Join(tempBase, "2026", "01", "21", "b.mp4")
+	if err := os.MkdirAll(filepath.Dir(tempTarget), 0o755); err != nil {
+		t.Fatalf("mkdir temp: %v", err)
+	}
+	if err := os.WriteFile(tempTarget, []byte("y"), 0o644); err != nil {
+		t.Fatalf("write temp: %v", err)
+	}
+	gotTemp, err := svc.resolveUploadAbsPath("/tmp/video_extract_inputs/2026/01/21/b.mp4")
+	if err != nil {
+		t.Fatalf("resolve temp failed: %v", err)
+	}
+	if gotTemp != tempTarget {
+		t.Fatalf("got=%q, want %q", gotTemp, tempTarget)
+	}
+}

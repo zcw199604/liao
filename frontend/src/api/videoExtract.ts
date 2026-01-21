@@ -16,6 +16,10 @@ export const uploadVideoExtractInput = (formData: FormData) => {
   return request.post<any, ApiResponse<VideoExtractUploadInputResult>>('/uploadVideoExtractInput', formData)
 }
 
+export const cleanupVideoExtractInput = (localPath: string) => {
+  return request.post<any, ApiResponse<{ deleted: boolean }>>('/cleanupVideoExtractInput', { localPath })
+}
+
 export const probeVideo = (params: { sourceType: 'upload' | 'mtPhoto'; localPath?: string; md5?: string }) => {
   return request.get<any, ApiResponse<VideoProbeResult>>('/probeVideo', { params })
 }

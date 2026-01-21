@@ -21,7 +21,10 @@ import (
 type FileStorageService struct {
 	db            *sql.DB
 	baseUploadAbs string
+	baseTempAbs   string
 }
+
+const tempVideoExtractInputsDir = "tmp/video_extract_inputs"
 
 func NewFileStorageService(db *sql.DB) *FileStorageService {
 	wd, err := os.Getwd()
@@ -29,7 +32,8 @@ func NewFileStorageService(db *sql.DB) *FileStorageService {
 	if err == nil && wd != "" {
 		base = filepath.Join(wd, "upload")
 	}
-	return &FileStorageService{db: db, baseUploadAbs: base}
+	tempBase := filepath.Join(os.TempDir(), "video_extract_inputs")
+	return &FileStorageService{db: db, baseUploadAbs: base, baseTempAbs: tempBase}
 }
 
 var supportedMediaTypes = map[string]struct{}{
@@ -142,6 +146,51 @@ func (s *FileStorageService) SaveFile(file *multipart.FileHeader, fileType strin
 	// 返回形如：/images/2025/12/19/xxx.jpg
 	rel = filepath.ToSlash(rel)
 	return "/" + rel, nil
+}
+
+// SaveTempVideoExtractInput 将“抽帧任务输入视频”保存到系统临时目录（默认 os.TempDir()/video_extract_inputs），避免写入挂载的 upload 目录。
+// 返回可对外访问的 localPath（形如 /tmp/video_extract_inputs/yyyy/MM/dd/xxx.mp4，URL 访问路径为 /upload{localPath}）。
+func (s *FileStorageService) SaveTempVideoExtractInput(file *multipart.FileHeader) (string, error) {
+	if file == nil || file.Size == 0 {
+		return "", fmt.Errorf("文件为空")
+	}
+
+	originalFilename := file.Filename
+	unique := s.generateUniqueFilename(originalFilename)
+
+	now := time.Now()
+	year := now.Format("2006")
+	month := now.Format("01")
+	day := now.Format("02")
+
+	baseTempAbs := strings.TrimSpace(s.baseTempAbs)
+	if baseTempAbs == "" {
+		baseTempAbs = filepath.Join(os.TempDir(), "video_extract_inputs")
+	}
+	storageDir := filepath.Join(baseTempAbs, year, month, day)
+	if err := os.MkdirAll(storageDir, 0o755); err != nil {
+		return "", fmt.Errorf("无法创建存储目录: %w", err)
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		return "", err
+	}
+	defer src.Close()
+
+	dstPath := filepath.Join(storageDir, unique)
+	dst, err := os.Create(dstPath)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = dst.Close() }()
+
+	if _, err := io.Copy(dst, src); err != nil {
+		return "", err
+	}
+
+	localPath := filepath.ToSlash(filepath.Join("/", tempVideoExtractInputsDir, year, month, day, unique))
+	return localPath, nil
 }
 
 // SaveFileFromReader 将 reader 内容保存到本地 upload 目录，并返回可对外访问的 localPath。

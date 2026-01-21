@@ -471,6 +471,7 @@ const layoutMode = ref<'masonry' | 'grid'>((localStorage.getItem('video_extract_
 
 const uploadInputRef = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
+const tempInputLocalPaths = ref<string[]>([])
 
 const showCancelConfirm = ref(false)
 const showDeleteConfirm = ref(false)
@@ -507,7 +508,25 @@ const gridItemSize = computed(() => {
   return Math.max(84, size)
 })
 
+const cleanupTempInputs = async () => {
+  const raw = Array.isArray(tempInputLocalPaths.value) ? tempInputLocalPaths.value : []
+  if (raw.length === 0) return
+
+  const unique = Array.from(new Set(raw.map(p => String(p || '').trim()).filter(Boolean))).filter(p => p.startsWith('/tmp/video_extract_inputs/'))
+  tempInputLocalPaths.value = []
+
+  if (unique.length === 0) return
+
+  const results = await Promise.allSettled(unique.map(p => videoExtractApi.cleanupVideoExtractInput(p)))
+  for (const r of results) {
+    if (r.status === 'rejected') {
+      console.warn('cleanupVideoExtractInput failed', r.reason)
+    }
+  }
+}
+
 const close = () => {
+  void cleanupTempInputs()
   videoExtractStore.closeTaskModal()
 }
 
@@ -539,7 +558,12 @@ const handleUploadInputChange = async (e: Event) => {
       throw new Error(String(res?.msg || '上传失败'))
     }
 
-    const url = String(res.data.url || '').trim() || `${window.location.origin}/upload${res.data.localPath}`
+    const localPath = String(res.data.localPath || '').trim()
+    if (localPath.startsWith('/tmp/video_extract_inputs/')) {
+      tempInputLocalPaths.value = Array.from(new Set([...tempInputLocalPaths.value, localPath]))
+    }
+
+    const url = String(res.data.url || '').trim() || `${window.location.origin}/upload${localPath}`
     const media: UploadedMedia = {
       url,
       type: 'video',
@@ -839,6 +863,7 @@ watch(
       mobilePane.value = 'list'
       return
     }
+    tempInputLocalPaths.value = []
     mobilePane.value = isMobile.value && videoExtractStore.selectedTaskId ? 'detail' : 'list'
     await videoExtractStore.loadTasks(1)
   }

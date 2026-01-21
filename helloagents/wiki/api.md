@@ -525,7 +525,7 @@
 > 说明：该模块为新增能力，通过 `ffprobe/ffmpeg` 在后端异步执行抽帧，并将产物落盘到 `./upload/extract/{taskId}/frames/`，前端可预览并支持“终止/继续”。
 
 #### [POST] /api/uploadVideoExtractInput
-**描述**：上传视频文件到本地（不做类型限制），返回 `localPath`，供后续 `probeVideo/createVideoExtractTask` 使用（任务中心“上传”入口使用该接口）。
+**描述**：上传视频文件到系统临时目录（默认 `os.TempDir()/video_extract_inputs`；不在 `./upload` 下）（不做类型限制），返回 `localPath`，供后续 `probeVideo/createVideoExtractTask` 使用（任务中心“上传”入口使用该接口）。临时视频不写入媒体库表 `media_file`，避免污染“全站图片库/所有上传图片”列表。
 
 **请求（multipart/form-data）**
 | 字段 | 必填 | 说明 |
@@ -534,7 +534,20 @@
 
 **响应（HTTP 200）**
 ```json
-{"code":0,"msg":"success","data":{"localPath":"/videos/2026/01/20/xxx.mp4","url":"http://host/upload/videos/2026/01/20/xxx.mp4"}}
+{"code":0,"msg":"success","data":{"localPath":"/tmp/video_extract_inputs/2026/01/21/xxx.mp4","url":"http://host/upload/tmp/video_extract_inputs/2026/01/21/xxx.mp4"}}
+```
+
+#### [POST] /api/cleanupVideoExtractInput
+**描述**：清理临时输入视频文件（仅允许删除 `os.TempDir()/video_extract_inputs` 映射到的 `localPath=/tmp/video_extract_inputs/...` 文件）。前端在“抽帧任务中心”退出时调用该接口，避免临时视频堆积。
+
+**请求（application/json）**
+```json
+{"localPath":"/tmp/video_extract_inputs/2026/01/21/xxx.mp4"}
+```
+
+**响应（HTTP 200）**
+```json
+{"code":0,"msg":"success","data":{"deleted":true}}
 ```
 
 #### [GET] /api/probeVideo
@@ -544,7 +557,7 @@
 | 参数 | 必填 | 说明 |
 |---|---|---|
 | sourceType | 是 | `upload` / `mtPhoto` |
-| localPath | 否 | `sourceType=upload` 时必填（支持 `/videos/...`、`/upload/videos/...` 或完整 URL） |
+| localPath | 否 | `sourceType=upload` 时必填（支持 `/videos/...`、`/tmp/video_extract_inputs/...`、`/upload/...` 或完整 URL） |
 | md5 | 否 | `sourceType=mtPhoto` 时必填（32位 hex） |
 
 **响应（HTTP 200）**

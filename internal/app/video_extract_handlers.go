@@ -6,6 +6,7 @@ package app
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -31,7 +32,7 @@ func (a *App) handleUploadVideoExtractInput(w http.ResponseWriter, r *http.Reque
 
 	// 说明：该接口用于“抽帧任务输入”，前端文件选择不做类型限制；
 	// 服务端仅负责落盘并返回 localPath，后续由 /api/probeVideo 使用 ffprobe 校验是否为可解析的视频。
-	localPath, err := a.fileStorage.SaveFile(fh, "video")
+	localPath, err := a.fileStorage.SaveTempVideoExtractInput(fh)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"code": 500, "msg": "保存失败: " + err.Error()})
 		return
@@ -56,6 +57,67 @@ func (a *App) handleUploadVideoExtractInput(w http.ResponseWriter, r *http.Reque
 			"suggestSourceType": string(VideoExtractSourceUpload),
 		},
 	})
+}
+
+func (a *App) handleCleanupVideoExtractInput(w http.ResponseWriter, r *http.Request) {
+	if a == nil || a.fileStorage == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"code": 500, "msg": "服务未初始化"})
+		return
+	}
+
+	var req struct {
+		LocalPath string `json:"localPath"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": "请求解析失败"})
+		return
+	}
+
+	localPath := normalizeUploadLocalPathInput(req.LocalPath)
+	if localPath == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": "localPath 不能为空"})
+		return
+	}
+
+	// 仅允许清理临时输入视频（localPath 需以 /tmp/video_extract_inputs/ 开头），避免误删媒体库文件。
+	prefix := "/" + tempVideoExtractInputsDir + "/"
+	if !strings.HasPrefix(localPath, prefix) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": "仅允许清理临时目录下的文件"})
+		return
+	}
+
+	baseTempAbs := strings.TrimSpace(a.fileStorage.baseTempAbs)
+	if baseTempAbs == "" {
+		baseTempAbs = filepath.Join(os.TempDir(), "video_extract_inputs")
+	}
+
+	inner := strings.TrimPrefix(localPath, prefix)
+	cleanInner := filepath.Clean(filepath.FromSlash(inner))
+	if cleanInner == "." || cleanInner == string(filepath.Separator) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": "localPath 非法"})
+		return
+	}
+
+	full := filepath.Join(baseTempAbs, cleanInner)
+	rel, err := filepath.Rel(baseTempAbs, full)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": "仅允许清理临时目录下的文件"})
+		return
+	}
+
+	fi, statErr := os.Stat(full)
+	if statErr != nil || fi.IsDir() {
+		// 已不存在或不是文件：视为已清理
+		writeJSON(w, http.StatusOK, map[string]any{"code": 0, "msg": "success", "data": map[string]any{"deleted": false}})
+		return
+	}
+
+	if err := os.Remove(full); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"code": 500, "msg": "删除失败: " + err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"code": 0, "msg": "success", "data": map[string]any{"deleted": true}})
 }
 
 func (a *App) handleProbeVideo(w http.ResponseWriter, r *http.Request) {

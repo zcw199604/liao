@@ -88,20 +88,20 @@ type VideoExtractCreateRequest struct {
 	UserID string `json:"userId,omitempty"`
 
 	SourceType VideoExtractSourceType `json:"sourceType"`
-	LocalPath  string                `json:"localPath,omitempty"` // sourceType=upload
-	MD5        string                `json:"md5,omitempty"`       // sourceType=mtPhoto
+	LocalPath  string                 `json:"localPath,omitempty"` // sourceType=upload
+	MD5        string                 `json:"md5,omitempty"`       // sourceType=mtPhoto
 
-	Mode         VideoExtractMode        `json:"mode"`
+	Mode         VideoExtractMode         `json:"mode"`
 	KeyframeMode VideoExtractKeyframeMode `json:"keyframeMode,omitempty"`
-	SceneThresh  *float64               `json:"sceneThreshold,omitempty"`
-	FPS          *float64               `json:"fps,omitempty"`
+	SceneThresh  *float64                 `json:"sceneThreshold,omitempty"`
+	FPS          *float64                 `json:"fps,omitempty"`
 
 	StartSec  *float64 `json:"startSec,omitempty"`
 	EndSec    *float64 `json:"endSec,omitempty"`
 	MaxFrames int      `json:"maxFrames"`
 
 	OutputFormat VideoExtractOutputFormat `json:"outputFormat,omitempty"`
-	JPGQuality   *int                    `json:"jpgQuality,omitempty"`
+	JPGQuality   *int                     `json:"jpgQuality,omitempty"`
 }
 
 type VideoExtractContinueRequest struct {
@@ -126,17 +126,17 @@ type VideoExtractTask struct {
 	UserID string `json:"userId,omitempty"`
 
 	SourceType VideoExtractSourceType `json:"sourceType"`
-	SourceRef  string                `json:"sourceRef"`
+	SourceRef  string                 `json:"sourceRef"`
 
-	OutputDirLocalPath string                `json:"outputDirLocalPath"`
-	OutputDirURL       string                `json:"outputDirUrl,omitempty"`
+	OutputDirLocalPath string                   `json:"outputDirLocalPath"`
+	OutputDirURL       string                   `json:"outputDirUrl,omitempty"`
 	OutputFormat       VideoExtractOutputFormat `json:"outputFormat"`
-	JPGQuality         *int                  `json:"jpgQuality,omitempty"`
+	JPGQuality         *int                     `json:"jpgQuality,omitempty"`
 
 	Mode         VideoExtractMode         `json:"mode"`
 	KeyframeMode VideoExtractKeyframeMode `json:"keyframeMode,omitempty"`
-	FPS          *float64                `json:"fps,omitempty"`
-	SceneThresh  *float64                `json:"sceneThreshold,omitempty"`
+	FPS          *float64                 `json:"fps,omitempty"`
+	SceneThresh  *float64                 `json:"sceneThreshold,omitempty"`
 
 	StartSec  *float64 `json:"startSec,omitempty"`
 	EndSec    *float64 `json:"endSec,omitempty"`
@@ -149,8 +149,8 @@ type VideoExtractTask struct {
 
 	CursorOutTimeSec *float64 `json:"cursorOutTimeSec,omitempty"`
 
-	Status     VideoExtractTaskStatus  `json:"status"`
-	StopReason VideoExtractStopReason  `json:"stopReason,omitempty"`
+	Status     VideoExtractTaskStatus `json:"status"`
+	StopReason VideoExtractStopReason `json:"stopReason,omitempty"`
 	LastError  string                 `json:"lastError,omitempty"`
 
 	CreatedAt string `json:"createdAt,omitempty"`
@@ -618,6 +618,40 @@ func (s *VideoExtractService) resolveUploadAbsPath(localPath string) (string, er
 	}
 	if !strings.HasPrefix(localPath, "/") {
 		localPath = "/" + localPath
+	}
+
+	// 临时输入视频：/tmp/video_extract_inputs/...（物理路径位于 fileStore.baseTempAbs）
+	tempPrefix := "/" + tempVideoExtractInputsDir + "/"
+	if strings.HasPrefix(localPath, tempPrefix) {
+		if s.fileStore == nil {
+			return "", fmt.Errorf("文件服务未初始化")
+		}
+
+		baseTempAbs := strings.TrimSpace(s.fileStore.baseTempAbs)
+		if baseTempAbs == "" {
+			baseTempAbs = filepath.Join(os.TempDir(), "video_extract_inputs")
+		}
+
+		inner := strings.TrimPrefix(localPath, tempPrefix)
+		cleanInner := filepath.Clean(filepath.FromSlash(inner))
+		if cleanInner == "." || cleanInner == string(filepath.Separator) {
+			return "", fmt.Errorf("localPath 非法")
+		}
+
+		full := filepath.Join(baseTempAbs, cleanInner)
+		rel, err := filepath.Rel(baseTempAbs, full)
+		if err != nil {
+			return "", fmt.Errorf("路径解析失败: %w", err)
+		}
+		if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return "", fmt.Errorf("检测到路径越界")
+		}
+
+		fi, err := os.Stat(full)
+		if err != nil || fi.IsDir() {
+			return "", fmt.Errorf("视频文件不存在")
+		}
+		return full, nil
 	}
 
 	clean := filepath.Clean(filepath.FromSlash(strings.TrimPrefix(localPath, "/")))

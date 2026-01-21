@@ -148,6 +148,41 @@ func TestFileStorageService_SaveReadDeleteAndMD5(t *testing.T) {
 	}
 }
 
+func TestFileStorageService_SaveTempVideoExtractInput(t *testing.T) {
+	tempDir := t.TempDir()
+	svc := &FileStorageService{baseUploadAbs: tempDir, baseTempAbs: tempDir}
+
+	content := []byte("temp-video")
+	_, fileHeader := newMultipartRequest(
+		t,
+		"POST",
+		"http://example.com/upload",
+		"file",
+		"test.mp4",
+		"video/mp4",
+		content,
+		map[string]string{},
+	)
+
+	localPath, err := svc.SaveTempVideoExtractInput(fileHeader)
+	if err != nil {
+		t.Fatalf("SaveTempVideoExtractInput failed: %v", err)
+	}
+	if !strings.HasPrefix(localPath, "/tmp/video_extract_inputs/") {
+		t.Fatalf("localPath=%q, want prefix %q", localPath, "/tmp/video_extract_inputs/")
+	}
+	if !strings.HasSuffix(localPath, ".mp4") {
+		t.Fatalf("localPath=%q, want suffix %q", localPath, ".mp4")
+	}
+
+	inner := strings.TrimPrefix(localPath, "/tmp/video_extract_inputs/")
+	full := filepath.Join(tempDir, filepath.FromSlash(inner))
+	fi, err := os.Stat(full)
+	if err != nil || fi.IsDir() {
+		t.Fatalf("saved file not found: %v", err)
+	}
+}
+
 func TestFileStorageService_FindLocalPathByMD5(t *testing.T) {
 	tempDir := t.TempDir()
 	db, mock, cleanup := newSQLMock(t)

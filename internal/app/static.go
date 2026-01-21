@@ -42,7 +42,24 @@ func (a *App) spaHandler() http.Handler {
 }
 
 func (a *App) uploadFileServer() http.Handler {
-	return http.StripPrefix("/upload", http.FileServer(http.Dir("upload")))
+	uploadFS := http.StripPrefix("/upload", http.FileServer(http.Dir("upload")))
+
+	baseTempAbs := ""
+	if a != nil && a.fileStorage != nil {
+		baseTempAbs = strings.TrimSpace(a.fileStorage.baseTempAbs)
+	}
+	if baseTempAbs == "" {
+		baseTempAbs = filepath.Join(os.TempDir(), "video_extract_inputs")
+	}
+	tempFS := http.StripPrefix("/upload/"+tempVideoExtractInputsDir, http.FileServer(http.Dir(baseTempAbs)))
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r != nil && strings.HasPrefix(r.URL.Path, "/upload/"+tempVideoExtractInputsDir+"/") {
+			tempFS.ServeHTTP(w, r)
+			return
+		}
+		uploadFS.ServeHTTP(w, r)
+	})
 }
 
 func (a *App) lspFileServer() http.Handler {

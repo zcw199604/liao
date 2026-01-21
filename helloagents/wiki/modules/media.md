@@ -72,6 +72,10 @@
 “全站图片库/已上传图片”场景下，预览弹层背景使用毛玻璃（`backdrop-blur`），缩略图选中提供轻微缩小 + 弹性动画反馈以增强可感知性。
 当 `mediaList` 过大（>200）时，底部缩略图栏会自动切换为虚拟滚动（`vue-virtual-scroller` 的 `RecycleScroller`）以避免一次性渲染大量 DOM。
 
+### 需求: 抽帧任务临时视频（落盘隔离 + 退出清理）
+**模块:** Media / Video Extract
+抽帧任务中心“上传视频”入口使用 `/api/uploadVideoExtractInput` 将文件落盘到系统临时目录（默认 `os.TempDir()/video_extract_inputs`；不在 `./upload` 下）（不写入 `media_file`），并在退出任务中心时调用 `/api/cleanupVideoExtractInput` 删除该临时视频，避免污染媒体库目录与堆积占用空间。
+
 ### 需求: 测试覆盖（Go）
 **模块:** Media
 为文件功能补齐可重复执行的测试用例，覆盖：
