@@ -12,11 +12,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 架构设计
 
-> 重要说明：
-> - `src/main/java/` 与 `pom.xml` 为历史 Java(Spring Boot) 实现，**已弃用，仅供参考**（详见 `src/README.md`）。
-> - 当前可运行后端以 Go 版本为准：入口 `cmd/liao/main.go`，核心实现位于 `internal/`。
-
 ### 后端架构（Go）
+
+入口 `cmd/liao/main.go`，核心实现位于 `internal/`。
 
 **目录结构**：
 - `cmd/liao/` - Go 服务入口（加载配置、启动 HTTP Server、优雅关闭）
@@ -125,7 +123,7 @@ docker run -d -p 8080:8080 \
 - `CACHE_REDIS_LOCAL_TTL_SECONDS` - Redis L1 本地缓存 TTL（秒，默认3600；用于降低 Redis 读频率/提升响应速度）
 
 **说明**：
-- `src/main/resources/application.yml` 为历史配置约定文件（Go 运行时不读取该文件），用于记录环境变量名与默认值对齐规则。
+- `src/main/resources/application.yml` 为配置约定参考文件（Go 运行时不读取该文件），用于记录环境变量名与默认值对齐规则。
 
 ### 数据库初始化
 
