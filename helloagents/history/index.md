@@ -79,6 +79,9 @@
 | 202601210515 | media_preview_video_gesture_tune | 功能 | ✅已完成 | [链接](2026-01/202601210515_media_preview_video_gesture_tune/) |
 | 202601210551 | media_preview_video_gesture_step_seek_fullscreen_ui | 优化 | ✅已完成 | [链接](2026-01/202601210551_media_preview_video_gesture_step_seek_fullscreen_ui/) |
 | 202601210823 | media_preview_video_fullscreen_layout_fix | 修复 | ✅已完成 | [链接](2026-01/202601210823_media_preview_video_fullscreen_layout_fix/) |
+| 202601211132 | douyin_downloader | 功能 | ✅已完成 | [链接](2026-01/202601211132_douyin_downloader/) |
+| 202601211234 | douyin_downloader_ux | 优化 | ✅已完成 | [链接](2026-01/202601211234_douyin_downloader_ux/) |
+| 202601211358 | sync_docs_remove_java | 文档 | ✅已完成 | [链接](2026-01/202601211358_sync_docs_remove_java/) |
 
 ---
 
@@ -159,3 +162,4 @@
 - [202601210823_media_preview_video_fullscreen_layout_fix](2026-01/202601210823_media_preview_video_fullscreen_layout_fix/) - 修复 MediaPreview 视频真全屏布局偏移（居中/黑边）
 - [202601211132_douyin_downloader](2026-01/202601211132_douyin_downloader/) - 对接 TikTokDownloader Web API：抖音作品解析/下载/导入上传（支持视频/图集，导入按 MD5 去重）
 - [202601211234_douyin_downloader_ux](2026-01/202601211234_douyin_downloader_ux/) - 抖音下载弹窗交互增强（批量操作/剪贴板预填/文件大小探测/导入状态与去重提示）
+- [202601211358_sync_docs_remove_java](2026-01/202601211358_sync_docs_remove_java/) - 同步清理文档/知识库中的 Java 路径与旧构建指令（Java 源码已移除）

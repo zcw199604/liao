@@ -55,7 +55,7 @@
 - 前端：聊天消息列表新增骨架屏占位（历史加载/侧边栏/收藏列表）并引入虚拟滚动（vue-virtual-scroller）；媒体渲染抽取 `ChatMedia`（加载占位/懒加载/错误兜底）以减少布局抖动。
 - CI：新增 `Release` GitHub Actions 工作流，用于创建 `v*` Tag 并生成 GitHub Release 产物。
 - 知识库：补齐 Wiki 概览/架构文档，并补充关键模块文档（Auth/Identity/WebSocket Proxy/Media）。
-- 文档：标记历史 Java(Spring Boot) 后端目录（`src/main/java/`）为已弃用，仅供参考。
+- 文档：历史 Java(Spring Boot) 源码已移除；同步清理仓库文档/知识库中对旧 Java 路径与 Maven 构建指令的引用。
 
 ### 修复
 - 后端/CI：升级 Go 模块版本至 1.25.6（`go 1.25` + `toolchain go1.25.6`）；GitHub Actions（Release 工作流）改为从 `go.mod` 读取 Go 版本；Docker 构建镜像固定为 `golang:1.25.6-alpine`。

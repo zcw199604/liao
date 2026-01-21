@@ -9,7 +9,7 @@
 ### 目标与背景
 Liao 是一个基于 WebSocket 的匿名匹配聊天应用/代理服务：前端通过 `/ws` 与后端建立下游连接，后端再连接上游聊天服务并转发消息，同时提供本地身份管理、缓存增强、媒体上传与静态资源托管能力。
 
-> 注：仓库中 `src/main/java/` 为历史 Java(Spring Boot) 后端实现，已弃用仅供参考（详见 `src/README.md`）；当前后端以 Go 实现为准（`cmd/liao` + `internal/`）。
+> 注：历史 Java(Spring Boot) 源码已从仓库移除；本文与 `api.md` / `data.md` 均以 Go 实现为准（`cmd/liao` + `internal/`），并在必要处说明与“原 Spring Boot 行为”的兼容点。
 
 ### 范围
 - **范围内:** 匿名聊天核心链路（登录/JWT、会话列表、聊天收发、WebSocket 代理）、本地身份池、媒体上传与媒体库、上游 HTTP/WS 代理与缓存增强（用户信息/最后消息）。

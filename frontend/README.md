@@ -53,7 +53,7 @@ npm run dev
 npm run build
 
 # 输出到 ../src/main/resources/static/
-# Spring Boot可直接使用
+# Go 后端可直接托管
 ```
 
 ## 核心功能

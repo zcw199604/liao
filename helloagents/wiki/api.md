@@ -1,6 +1,6 @@
 # API 手册（后端接口与处理逻辑 SSOT）
 
- > 本文档整理后端接口（原 Spring Boot：`src/main/java/com/zcw/`；现 Go 实现：`cmd/liao` + `internal/app/`）的全部 HTTP/WebSocket 接口及其关键处理逻辑，作为 100% 兼容实现的唯一真实来源（SSOT）。
+ > 本文档整理后端接口（兼容目标为“原 Spring Boot 行为”，但源码已移除；现行实现为 Go：`cmd/liao` + `internal/app/`）的全部 HTTP/WebSocket 接口及其关键处理逻辑，作为 100% 兼容实现的唯一真实来源（SSOT）。
 
 ---
 
@@ -26,7 +26,7 @@
 
 ### 2.2 HTTP 拦截规则（强一致性要求）
 
-拦截器（`com.zcw.interceptor.JwtInterceptor`）拦截所有 `/api/**`：
+Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 - **放行**：
   - `/api/auth/login`
   - `/api/auth/verify`
@@ -37,7 +37,7 @@
 
 ### 2.3 WebSocket 握手校验
 
-握手拦截器（`com.zcw.websocket.JwtWebSocketInterceptor`）规则：
+握手校验（`internal/app/websocket_proxy.go`）规则：
 - 从 URL query 读取 `token` 参数
 - Token 缺失或无效：握手拒绝（连接建立失败）
 
@@ -48,7 +48,7 @@
 ### 3.1 下游（前端）→ 后端
 
 - 连接地址：`ws(s)://{host}/ws?token=<jwt>`
-- 后端处理器：`com.zcw.websocket.ProxyWebSocketHandler`
+- 后端处理器：`internal/app/websocket_proxy.go`
 - **第一条消息必须为登录 sign**（前端实现会在 `onopen` 发送）：
   - JSON 中要求至少包含：
     - `act`：`"sign"`
@@ -60,7 +60,7 @@
 
 ### 3.2 上游（外部 WS）连接池与转发
 
-管理器：`com.zcw.websocket.UpstreamWebSocketManager`，核心规则：
+管理器：`internal/app/websocket_manager.go`，核心规则：
 
 - **一人一条上游连接**：同一 `userId` 的多个下游 WebSocketSession 共享一条上游连接。
 - **最多同时 2 个身份（userId）活跃**：`MAX_CONCURRENT_IDENTITIES = 2`
@@ -69,7 +69,7 @@
     - `{"code":-6,"content":"由于新身份连接，您已被自动断开","evicted":true}`
   - 通知后 1 秒：关闭该 userId 的上游连接与全部下游连接
 - **上游地址获取**：
-  - 每次创建上游连接时通过 `com.zcw.service.WebSocketAddressService#getUpstreamWebSocketUrl` 动态获取
+  - 每次创建上游连接时动态获取（`internal/app/websocket_manager.go`）
   - 调用：`http://v1.chat2019.cn/Act/WebService.asmx/getRandServer?ServerInfo=serversdeskry&_=<ts>`
   - 解析失败/异常：降级 `ws://localhost:9999`
 - **延迟关闭**：
@@ -80,8 +80,8 @@
 
 ### 3.3 Forceout（防重连/封禁）逻辑
 
-- 触发来源：上游消息满足 `code = -3` 且 `forceout = true`（解析于 `com.zcw.websocket.UpstreamWebSocketClient#onMessage`）
-- 处理逻辑（`UpstreamWebSocketManager#handleForceout` + `ForceoutManager`）：
+- 触发来源：上游消息满足 `code = -3` 且 `forceout = true`（解析于 `internal/app/websocket_manager.go` 的 `(*UpstreamWebSocketClient).onMessage`）
+- 处理逻辑（`internal/app/websocket_manager.go` + `internal/app/forceout.go`）：
   1. 将 userId 加入禁止列表 **5 分钟**
   2. 广播原始 forceout 消息到该 userId 的全部下游（让前端停止重连）
   3. 关闭该 userId 的上游连接
@@ -92,7 +92,7 @@
 
 ### 3.4 上游消息侧的缓存增强
 
-`UpstreamWebSocketClient#onMessage` 会尝试解析 JSON 并执行：
+`internal/app/websocket_manager.go` 的 `(*UpstreamWebSocketClient).onMessage` 会尝试解析 JSON 并执行：
 - 若 `code=15`：提取匹配用户信息并缓存（`UserInfoCacheService.saveUserInfo`）
 - 若 `code=7`：缓存最后一条消息（`UserInfoCacheService.saveLastMessage`），并包含“会话 key 归一化补写”以提升命中率
 - 最终：将上游消息原文广播给该 userId 的所有下游
@@ -134,8 +134,8 @@
 
 ### 4.2 Identity（本地身份管理，MySQL）
 
-控制器：`com.zcw.controller.IdentityController`（Base：`/api`）  
-存储：`com.zcw.service.IdentityService`（表：`identity`，启动时 `CREATE TABLE IF NOT EXISTS`）
+处理器：`internal/app/identity_handlers.go`（Base：`/api`）  
+存储：`internal/app/identity.go`（表：`identity`；建表兜底：`internal/app/schema.go`）
 
 #### [GET] /api/getIdentityList
 **描述**：获取身份列表（按 `last_used_at` 倒序）。
@@ -214,7 +214,7 @@
 
 ### 4.3 Favorite（本地聊天收藏，MySQL/JPA）
 
-控制器：`com.zcw.controller.FavoriteController`（Base：`/api/favorite`）  
+处理器：`internal/app/favorite_handlers.go`（Base：`/api/favorite`）  
 存储：`chat_favorites`（JPA 自动建表/更新：`ddl-auto=update`）
 
 #### [POST] /api/favorite/add
@@ -243,7 +243,7 @@
 
 ### 4.4 User History（上游历史/收藏/消息代理 + 缓存增强）
 
-控制器：`com.zcw.controller.UserHistoryController`（Base：`/api`）  
+处理器：`internal/app/user_history_handlers.go`（Base：`/api`）  
 上游域：`v1.chat2019.cn`（HTTP 表单 + 特定 Header + Cookie 透传）
 
 #### [POST] /api/getHistoryUserList
@@ -492,7 +492,7 @@
 
 ### 4.5 Media History（本地媒体历史/图片库）
 
-控制器：`com.zcw.controller.MediaHistoryController`（Base：`/api`）  
+处理器：`internal/app/media_history_handlers.go`（Base：`/api`）  
 存储：`media_file` + `media_send_log`（由 `MediaUploadService` 管理）
 
 #### [POST] /api/repairMediaHistory
@@ -836,7 +836,7 @@
 
 ### 4.6 System（系统管理）
 
-控制器：`com.zcw.controller.SystemController`（Base：`/api`）
+处理器：`internal/app/system_handlers.go`、`internal/app/system_config_handlers.go`（Base：`/api`）
 
 #### [POST] /api/deleteUpstreamUser
 **描述**：调用上游删除用户接口。
@@ -1066,8 +1066,6 @@
   - 静态资源与回退入口：`internal/app/router.go` → `r.Handle("/*", a.spaHandler())`
   - 回退逻辑：`internal/app/static.go` → `(*App).spaHandler`
     - `GET/HEAD`：优先返回命中的静态文件；否则对 **无扩展名路径** 或 `Accept: text/html` 的请求回退 `index.html`，用于支持 Vue Router `createWebHistory()`（如 `/list`、`/chat/:userId?` 刷新不 404）
-- Java(Spring Boot)（历史版本，已弃用，仅供参考）：
-  - 路由回退控制器：`com.zcw.controller.SpaForwardController`
-    - `GET /`、`/login`、`/identity`、`/list`、`/chat`、`/chat/**` → `forward:/index.html`
+- 历史 Java(Spring Boot) 版本已从仓库移除；本文仅维护 Go 现行实现。
 - 上传文件访问：
   - `GET /upload/**` → 映射到本地目录 `./upload/`

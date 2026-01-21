@@ -5,7 +5,7 @@
 ## 技术栈
 
 ### 后端技术
-- **Go** 1.22 - 开发语言
+- **Go** 1.25.6 - 开发语言
 - **chi** - HTTP 路由
 - **gorilla/websocket** - WebSocket（下游服务端 + 上游客户端）
 - **MySQL (go-sql-driver/mysql)** - 数据库驱动
@@ -30,7 +30,7 @@
 - **消息转发** - 实时消息双向转发
 - **媒体上传** - 图片、视频、文件上传和历史记录
 - **JWT认证** - 访问码登录和Token鉴权
-- **防重连机制** - ForceoutManager防止IP被封（80秒防重连）
+- **防重连机制** - Forceout：`code=-3` + `forceout=true` 时 5 分钟内禁止重新 sign；下游断开后上游连接延迟 80 秒关闭
 
 ## 快速开始
 
@@ -38,7 +38,7 @@
 
 - **Node.js** 18+ 和 npm
 - **MySQL** 8.0+
-- **Go** 1.22（本地开发需要；生产建议 Docker）
+- **Go** 1.25.6（本地开发需要；生产建议 Docker）
 
 ### 安装步骤
 
@@ -55,23 +55,16 @@ CREATE DATABASE hot_img CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 3. **配置环境变量**
 
-创建 `application.yml` 或设置环境变量：
-```yaml
-spring:
-  datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/hot_img?useSSL=false&serverTimezone=Asia/Shanghai}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:yourpassword}
+Go 服务通过环境变量读取配置；`src/main/resources/application.yml` 仅作为 env 变量名与默认值对照表保留（运行时不读取）。
 
-websocket:
-  upstream:
-    url: ${WEBSOCKET_UPSTREAM_URL:ws://upstream-host:9999}
-
-auth:
-  access-code: ${AUTH_ACCESS_CODE:your-access-code}
-
-jwt:
-  secret: ${JWT_SECRET:your-jwt-secret-at-least-256-bits}
+```bash
+export DB_URL="jdbc:mysql://localhost:3306/hot_img?useSSL=false&serverTimezone=Asia/Shanghai"
+export DB_USERNAME="root"
+export DB_PASSWORD="yourpassword"
+export AUTH_ACCESS_CODE="your-access-code"
+export JWT_SECRET="your-jwt-secret-at-least-256-bits-long-please-change-this-to-random-string"
+# 可选：上游 WS 地址降级值（未配置时默认 ws://localhost:9999；正常情况会动态获取）
+export WEBSOCKET_UPSTREAM_URL="ws://localhost:9999"
 ```
 
 4. **安装前端依赖**

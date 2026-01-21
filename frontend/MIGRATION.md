@@ -43,12 +43,11 @@
 
 ### 开发环境
 ```bash
-# 1. 确保Spring Boot后端运行在8080端口
-cd D:\workspace-idea\liao
-mvn spring-boot:run
+# 1. 确保 Go 后端运行在 8080 端口
+go run ./cmd/liao
 
 # 2. 启动Vite前端开发服务器
-cd D:\workspace-idea\liao\frontend
+cd frontend
 npm run dev
 
 # 3. 访问 http://localhost:3000 (或3001/3002，看端口分配)
@@ -57,14 +56,15 @@ npm run dev
 ### 生产部署
 ```bash
 # 1. 构建前端
-cd D:\workspace-idea\liao\frontend
+cd frontend
 npm run build
 
-# 输出到: D:\workspace-idea\liao\src\main\resources\static\
+# 输出到: ../src/main/resources/static/
 
-# 2. 启动Spring Boot（和之前完全一样）
-cd D:\workspace-idea\liao
-java -jar target/liao-1.0-SNAPSHOT.jar
+# 2. 构建并启动 Go 后端
+cd ..
+go build ./cmd/liao
+./liao
 
 # 访问 http://localhost:8080
 ```
@@ -74,7 +74,7 @@ java -jar target/liao-1.0-SNAPSHOT.jar
 ## 📁 项目结构
 
 ```
-D:\workspace-idea\liao\
+liao/
 ├── frontend/                          # Vite前端项目
 │   ├── src/
 │   │   ├── types/                    ✅ 6个类型定义
@@ -105,7 +105,10 @@ D:\workspace-idea\liao\
 │   └── index.html                    ✅ 入口HTML
 ├── src/main/resources/static/
 │   └── index.html                    (旧版本，备份保留)
-└── pom.xml
+├── cmd/liao/                          # Go 后端入口
+├── internal/                          # Go 后端业务代码
+├── go.mod
+└── go.sum
 ```
 
 ---

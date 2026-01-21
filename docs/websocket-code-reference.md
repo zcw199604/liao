@@ -106,13 +106,13 @@
 **处理逻辑**：
 - 上游处理函数：`Double_Con_Limit(json)`
 - 本地行为：
-  - 如果 `forceout=true`，触发ForceoutManager机制
-  - 80秒内禁止重连，防止IP被封
+  - 如果 `forceout=true`，触发 Forceout 机制
+  - 当前 Go 实现：forceout 用户 5 分钟内禁止重新 sign（见 `internal/app/forceout.go`）
   - 显示警告提示
 - 特殊字段：`forceout` - 是否为强制下线
 
 **相关代码**：
-- ForceoutManager: `src/main/java/com/zcw/websocket/ForceoutManager.java`
+- ForceoutManager: `internal/app/forceout.go`
 
 ---
 
@@ -973,10 +973,10 @@ export const FILTERED_SYSTEM_CODES = [
 
 | 文件路径 | 功能说明 |
 |---------|---------|
-| `src/main/java/com/zcw/websocket/ProxyWebSocketHandler.java` | WebSocket消息代理处理器 |
-| `src/main/java/com/zcw/websocket/UpstreamWebSocketClient.java` | 上游WebSocket客户端 |
-| `src/main/java/com/zcw/websocket/UpstreamWebSocketManager.java` | 上游连接池管理 |
-| `src/main/java/com/zcw/websocket/ForceoutManager.java` | 强制下线管理（80秒防重连） |
+| `internal/app/websocket_proxy.go` | WebSocket消息代理处理器 |
+| `internal/app/websocket_manager.go` | 上游WebSocket客户端 |
+| `internal/app/websocket_manager.go` | 上游连接池管理 |
+| `internal/app/forceout.go` | 强制下线管理（forceout=5分钟；上游延迟关闭=80秒） |
 
 ### 上游参考
 
@@ -996,7 +996,7 @@ export const FILTERED_SYSTEM_CODES = [
          │ 发送消息 {code, content, ...}
          ▼
 ┌─────────────────────────────────────┐
-│  后端代理服务器 (Spring Boot)        │
+│  后端代理服务器 (Go)                │
 │  UpstreamWebSocketClient             │
 │  - 接收上游消息                       │
 │  - ForceoutManager检查（code=-1）    │

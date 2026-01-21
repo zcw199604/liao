@@ -1,6 +1,6 @@
 # 数据模型（MySQL / Redis / 内存缓存）
 
-> 本文档整理后端使用到的主要数据表与缓存结构，用于保持 Java/Go 之间 100% 行为兼容（含已知“历史遗留/不一致”点的说明）。Go 侧建表与缓存实现见 `internal/app/schema.go`、`internal/app/user_info_cache*.go`、`internal/app/image_cache.go`、`internal/app/forceout.go`。
+> 本文档整理当前 Go 后端使用到的主要数据表与缓存结构；历史 Java(Spring Boot) 源码已从仓库移除，文中提到“原 Java 行为”仅用于兼容性说明。建表与缓存实现见 `internal/app/schema.go`、`internal/app/user_info_cache*.go`、`internal/app/image_cache.go`、`internal/app/forceout.go`。
 
 ---
 
@@ -8,7 +8,8 @@
 
 ### 1.1 `identity`（身份表）
 
-**创建位置**：`com.zcw.service.IdentityService#createTableIfNotExists`（启动时执行 `CREATE TABLE IF NOT EXISTS`）  
+**创建位置**：`internal/app/schema.go`（启动时执行 `CREATE TABLE IF NOT EXISTS`）  
+**CRUD 实现**：`internal/app/identity.go`、`internal/app/identity_handlers.go`  
 **用途**：本地身份池管理（Identity CRUD + last_used_at 排序）
 
 | 字段 | 类型 | 约束 | 说明 |
@@ -26,7 +27,8 @@
 
 ### 1.2 `chat_favorites`（本地聊天收藏）
 
-**实体/仓库**：`com.zcw.model.Favorite` + `com.zcw.repository.FavoriteRepository`（JPA 自动建表/更新）  
+**创建位置**：`internal/app/schema.go`（启动时 `CREATE TABLE IF NOT EXISTS`）  
+**实现**：`internal/app/favorite.go`、`internal/app/favorite_handlers.go`  
 **用途**：前端“本地收藏列表”（与上游收藏接口无关）
 
 | 字段 | 类型 | 约束 | 说明 |
@@ -38,14 +40,15 @@
 | create_time | DATETIME | NOT NULL | 创建时间（@PrePersist 自动填充） |
 
 **索引**
-- `idx_identity_id (identityId)`
-- `idx_target_user_id (targetUserId)`
+- `idx_identity_id (identity_id)`
+- `idx_target_user_id (target_user_id)`
 
 ---
 
 ### 1.3 `media_file`（媒体库：物理文件与元数据）
 
-**实体/仓库**：`com.zcw.model.MediaFile` + `com.zcw.repository.MediaFileRepository`（JPA 自动建表/更新）  
+**创建位置**：`internal/app/schema.go`（启动时 `CREATE TABLE IF NOT EXISTS`）  
+**相关实现**：`internal/app/media_upload.go`、`internal/app/media_history_handlers.go`、`internal/app/file_storage.go`  
 **用途**：记录每个用户上传的媒体文件（按 MD5 去重的意图），用于“全站图片库/用户上传历史”等。
 
 | 字段 | 类型 | 约束 | 说明 |
@@ -79,7 +82,8 @@
 
 ### 1.4 `media_send_log`（媒体发送日志）
 
-**实体/仓库**：`com.zcw.model.MediaSendLog` + `com.zcw.repository.MediaSendLogRepository`（JPA 自动建表/更新）  
+**创建位置**：`internal/app/schema.go`（启动时 `CREATE TABLE IF NOT EXISTS`）  
+**相关实现**：`internal/app/media_upload.go`、`internal/app/media_history_handlers.go`  
 **用途**：记录“fromUserId → toUserId”发送了哪个本地文件（local_path），用于聊天历史图片查询与去重。
 
 | 字段 | 类型 | 约束 | 说明 |
@@ -102,13 +106,13 @@
 ### 1.5 `media_upload_history`（历史遗留上传记录表）
 
 **SQL 来源**：`sql/init.sql`  
-**实体/仓库**：`com.zcw.model.MediaUploadHistory` + `com.zcw.repository.MediaUploadHistoryRepository`  
+**创建位置**：`internal/app/schema.go`（兜底建表；与 `sql/init.sql` 一致）  
 **当前状态**：
-- 业务主链路已迁移为 `media_file + media_send_log`（见 `com.zcw.service.MediaUploadService`）
-- 但 `com.zcw.service.FileStorageService#findLocalPathByMD5` 仍查询该表：  
+- 业务主链路已迁移为 `media_file + media_send_log`（见 `internal/app/media_upload.go`）
+- 但 `internal/app/file_storage.go` 的 `FindLocalPathByMD5` 仍查询该表：  
   `SELECT local_path FROM media_upload_history WHERE file_md5 = ? LIMIT 1`
 
-> Go 重构需注意：为保持“现状兼容”，需要保留对该表的读取逻辑（即便新上传记录主要写入 `media_file`）。
+> 为保持“现状兼容”，Go 实现仍保留对该表的读取逻辑（即便新上传记录主要写入 `media_file`）。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
