@@ -102,19 +102,21 @@
           />
         </div>
 
-        <!-- 视频预览 -->
-        <div v-else-if="currentMedia.type === 'video'" class="relative w-full h-full flex items-center justify-center pb-20">
-             <video
-              :key="currentMedia.url + '-video'"
-              ref="videoRef"
-              :src="currentMediaDisplayUrl"
-              controls
-              autoplay
-              class="max-w-[95%] max-h-[95%] shadow-2xl rounded-lg bg-black"
-              @loadedmetadata="handleVideoLoadedMetadata"
-              @error="handleMediaError"
-            ></video>
-        </div>
+	       <!-- 视频预览 -->
+	        <div v-else-if="currentMedia.type === 'video'" class="relative w-full h-full flex items-center justify-center pb-20">
+	             <video
+	              :key="currentMedia.url + '-video'"
+	              ref="videoRef"
+	              :src="currentMediaDisplayUrl"
+	              playsinline
+	              webkit-playsinline
+	              controls
+	              autoplay
+	              class="media-preview-video max-w-[95%] max-h-[95%] shadow-2xl rounded-lg bg-black"
+	              @loadedmetadata="handleVideoLoadedMetadata"
+	              @error="handleMediaError"
+	            ></video>
+	        </div>
 
         <!-- 文件预览 -->
         <div v-else-if="currentMedia.type === 'file'" class="relative w-full h-full flex flex-col items-center justify-center pb-20 text-white">
@@ -231,6 +233,8 @@ import { useToast } from '@/composables/useToast'
 import { useUpload } from '@/composables/useUpload'
 import { useUserStore } from '@/stores/user'
 import { useVideoExtractStore } from '@/stores/videoExtract'
+import Plyr from 'plyr'
+import 'plyr/dist/plyr.css'
 import MediaDetailPanel from './MediaDetailPanel.vue'
 
 interface Props {
@@ -271,6 +275,18 @@ const thumbnailScrollerRef = ref<any>(null)
 const showDetails = ref(false)
 
 const videoRef = ref<HTMLVideoElement | null>(null)
+let plyrInstance: Plyr | null = null
+
+const destroyPlyr = () => {
+  if (!plyrInstance) return
+  try {
+    plyrInstance.destroy()
+  } catch (e) {
+    console.warn('Plyr destroy failed:', e)
+  } finally {
+    plyrInstance = null
+  }
+}
 
 const playbackRateOptions = [0.1, 0.25, 0.5, 1, 1.5, 2, 5]
 const playbackRate = ref<number>(1)
@@ -293,6 +309,37 @@ const applyVideoPlaybackRate = () => {
 }
 
 const handleVideoLoadedMetadata = () => {
+  applyVideoPlaybackRate()
+}
+
+const initPlyr = () => {
+  if (typeof window === 'undefined') return
+  if (!props.visible) return
+  if (currentMedia.value.type !== 'video') return
+  const video = videoRef.value
+  if (!video) return
+
+  // 同一元素不重复初始化
+  if (plyrInstance && (plyrInstance as any).media === video) {
+    applyVideoPlaybackRate()
+    return
+  }
+
+  destroyPlyr()
+
+  try {
+    plyrInstance = new Plyr(video, {
+      // 去掉中央大按钮（play-large），避免遮挡暂停画面；其余能力与原生 controls 等价。
+      controls: ['play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
+      // 避免与 MediaPreview 的全局快捷键（←/→/Esc）冲突
+      keyboard: { focused: false, global: false }
+    })
+  } catch (e) {
+    console.warn('Plyr init failed:', e)
+    plyrInstance = null
+    return
+  }
+
   applyVideoPlaybackRate()
 }
 
@@ -743,7 +790,11 @@ watch(
   () => currentMedia.value.url,
   () => {
     resetMediaLoadState()
-    nextTick(() => applyVideoPlaybackRate())
+    destroyPlyr()
+    nextTick(() => {
+      applyVideoPlaybackRate()
+      initPlyr()
+    })
   }
 )
 
@@ -889,14 +940,17 @@ watch(() => props.visible, (val) => {
       currentIndex.value = 0
     }
     emitMediaChange()
+    nextTick(() => initPlyr())
   } else {
     showDetails.value = false
+    destroyPlyr()
     window.removeEventListener('keydown', handleKeydown)
   }
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
+  destroyPlyr()
   resetMediaLoadState()
 })
 </script>
@@ -907,5 +961,28 @@ onUnmounted(() => {
 }
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
+}
+
+/* Plyr 主题与布局适配（仅作用于 MediaPreview 内的播放器） */
+:deep(.plyr) {
+  --plyr-color-main: rgb(99 102 241); /* indigo-500 */
+  --plyr-tooltip-background: rgba(17, 17, 19, 0.95);
+  --plyr-menu-background: rgba(17, 17, 19, 0.95);
+  --plyr-menu-color: rgba(255, 255, 255, 0.92);
+
+  max-width: 95%;
+  max-height: 95%;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.55);
+}
+
+/* 保留原生 controls 作为降级时，隐藏 WebKit/Blink 的中央遮罩按钮（渐进增强） */
+.media-preview-video::-webkit-media-controls-overlay-play-button {
+  display: none !important;
+}
+.media-preview-video::-webkit-media-controls-start-playback-button {
+  display: none !important;
 }
 </style>

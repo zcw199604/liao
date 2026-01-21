@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** 上传/重传媒体；记录发送日志；分页查询上传/发送历史；全站媒体库分页；删除与批量删除；历史数据修复（repair）
 - **状态:** ✅稳定
-- **最后更新:** 2026-01-20
+- **最后更新:** 2026-01-21
 
 ## 入口与交互
 - **聊天页上传菜单:** “所有上传图片”（浏览后发送）/“mtPhoto 相册”
@@ -63,14 +63,17 @@
 
 ### 需求: 媒体预览（画廊模式）
 **模块:** Media
-前端 `MediaPreview` 支持传入 `mediaList` 进行左右切换/滑动切换浏览；当预览内部切换当前项时会触发 `media-change` 事件。父组件如提供“上传/重传/导入”等动作，应监听该事件并同步当前目标，避免“切换后仍对首张执行操作”。
-预览顶部支持打开“详细信息”面板：仅当媒体对象携带任一元信息字段（如 `md5/fileSize/pHash/similarity` 等）时显示入口。
-当业务场景无法在列表阶段拿到真实文件名（如仅有 `md5`），可向 `MediaPreview` 传入可选的 `resolveOriginalFilename` 回调，在用户打开详情面板前按需解析并补齐 `originalFilename`（仅展示 basename，避免泄露目录结构）。
-预览顶部“下载”按钮在下载 `/api/*` 资源时会使用带 Authorization 的 blob 下载，并解析 `Content-Disposition` 的 `filename*`（RFC 5987）与 `filename`；当 `filename` 为 URL 编码时会在保存前解码，避免中文文件名被编码。
-视频预览支持倍速/慢放（`playbackRate`），默认档位：0.1/0.25/0.5/1/1.5/2/5，并将用户选择持久化到 localStorage（`media_preview_playback_rate`）。
-视频预览支持“暂停抓帧”：点击后会先暂停视频，再基于 Canvas 抓取当前帧生成 PNG 图片，并同时执行“直接下载 + 上传到图片库”；若未选择身份则降级为仅下载；跨域视频可能因 CORS 限制无法抓帧，会给出提示并引导使用“抽帧任务/先上传到本地库”等替代路径。
-“全站图片库/已上传图片”场景下，预览弹层背景使用毛玻璃（`backdrop-blur`），缩略图选中提供轻微缩小 + 弹性动画反馈以增强可感知性。
-当 `mediaList` 过大（>200）时，底部缩略图栏会自动切换为虚拟滚动（`vue-virtual-scroller` 的 `RecycleScroller`）以避免一次性渲染大量 DOM。
+`MediaPreview` 提供全屏沉浸式预览（图片/视频/文件），支持“受控 visible + 内部索引”的画廊模式（`mediaList`）：
+- **入口:** 聊天消息/历史预览、全站图片库、mtPhoto 相册、抽帧任务中心等场景复用该组件进行预览。
+- **画廊与同步:** 支持左右按钮/左右键/滑动切换；内部切换当前项会触发 `media-change`。父组件如提供“上传/重传/导入”等动作，应监听该事件同步目标，避免“切换后仍对首张执行操作”。
+- **快捷键:** `Esc` 关闭预览；`←/→` 切换上一张/下一张（仅 `mediaList` > 1 生效）。
+- **图片预览能力:** 点击放大/还原（默认放大倍数 3x）；放大后支持拖动平移；未放大时支持水平滑动切换（Swipe）。
+- **视频预览能力:** 主视频预览使用 Plyr 美化控制栏 UI（暗色风格可主题化），并为移动端添加 `playsinline/webkit-playsinline` 避免 iOS 系统全屏接管。倍速/慢放（`playbackRate`）默认档位 0.1/0.25/0.5/1/1.5/2/5，持久化到 localStorage（`media_preview_playback_rate`）。
+- **暂停抓帧:** 点击“抓帧”会先暂停视频，再基于 Canvas 抓取当前帧生成 PNG，并同时执行“直接下载 + 上传到图片库”；未选择身份则降级为仅下载；跨域视频可能因 CORS 限制无法抓帧，会提示并引导使用“抽帧任务/先上传到本地库”等替代路径。
+- **详情面板:** 仅当媒体对象携带任一元信息字段（如 `md5/fileSize/pHash/similarity` 等）时显示入口；如列表阶段无法拿到真实文件名（仅有 `md5`），可传入 `resolveOriginalFilename` 回调，在用户打开面板前按需解析并补齐 `originalFilename`（仅展示 basename，避免泄露目录结构）。
+- **下载策略:** 下载 `/api/*` 资源时使用带 Authorization 的 blob 下载，并解析 `Content-Disposition` 的 `filename*`（RFC 5987）与 `filename`；当 `filename` 为 URL 编码时会在保存前解码，避免中文文件名被编码。
+- **大列表优化:** 当 `mediaList` 过大（>200）时，底部缩略图栏自动切换为虚拟滚动（`vue-virtual-scroller` 的 `RecycleScroller`）。
+- **加载重试:** 图片/视频在短时间内可能 404（刚上传到上游）；预览对加载失败做轻量重试（最多 2 次，通过追加 cache buster 重新加载）。
 
 ### 需求: 抽帧任务临时视频（落盘隔离 + 退出清理）
 **模块:** Media / Video Extract
@@ -152,6 +155,7 @@
 
 ## 变更历史
 - [202601201117_video_pause_capture_frame](../../history/2026-01/202601201117_video_pause_capture_frame/) - 视频预览支持倍速/慢放与暂停抓帧（下载 + 上传到图片库）
+- [202601210322_media_preview_plyr](../../history/2026-01/202601210322_media_preview_plyr/) - 媒体预览主视频播放器升级为 Plyr（控制栏美化，功能保持一致）
 - [202601191522_media_gallery_expand](../../history/2026-01/202601191522_media_gallery_expand/) - 放宽“全站图片库/mtPhoto 相册”弹窗与图片列表展示区域，减少留白
 - [202601181549_mtphoto_preview_gallery](../../history/2026-01/202601181549_mtphoto_preview_gallery/) - 媒体预览画廊切换时对外同步当前媒体（用于 mtPhoto/全站图片库等场景）
 - [202601190109_mtphoto_preview_detail](../../history/2026-01/202601190109_mtphoto_preview_detail/) - 媒体预览支持按元信息显示“查看详情”入口并展示详情面板
