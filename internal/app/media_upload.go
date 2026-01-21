@@ -11,6 +11,9 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -39,6 +42,7 @@ type MediaUploadHistory struct {
 
 type MediaFileDTO struct {
 	URL              string `json:"url"`
+	ThumbURL         string `json:"thumbUrl,omitempty"`
 	Type             string `json:"type"`
 	LocalFilename    string `json:"localFilename,omitempty"`
 	OriginalFilename string `json:"originalFilename,omitempty"`
@@ -55,6 +59,7 @@ type MediaUploadService struct {
 	fileStore  *FileStorageService
 	imageSrv   *ImageServerService
 	httpClient *http.Client
+	ffmpegPath string
 }
 
 func NewMediaUploadService(db *sql.DB, serverPort int, fileStore *FileStorageService, imageSrv *ImageServerService, httpClient *http.Client) *MediaUploadService {
@@ -64,6 +69,7 @@ func NewMediaUploadService(db *sql.DB, serverPort int, fileStore *FileStorageSer
 		fileStore:  fileStore,
 		imageSrv:   imageSrv,
 		httpClient: httpClient,
+		ffmpegPath: "ffmpeg",
 	}
 }
 
@@ -74,6 +80,7 @@ type UploadRecord struct {
 	RemoteFilename   string
 	RemoteURL        string
 	LocalPath        string
+	ThumbLocalPath   string
 	FileSize         int64
 	FileType         string
 	FileExtension    string
@@ -88,8 +95,17 @@ func (s *MediaUploadService) SaveUploadRecord(ctx context.Context, record Upload
 		}
 		if existing != nil {
 			now := time.Now()
-			if _, err := s.db.ExecContext(ctx, "UPDATE media_file SET update_time = ? WHERE id = ?", now, existing.ID); err != nil {
-				return nil, err
+			if strings.TrimSpace(record.ThumbLocalPath) != "" {
+				if _, err := s.db.ExecContext(ctx, `UPDATE media_file
+SET update_time = ?,
+    thumb_local_path = CASE WHEN thumb_local_path IS NULL OR thumb_local_path = '' THEN ? ELSE thumb_local_path END
+WHERE id = ?`, now, record.ThumbLocalPath, existing.ID); err != nil {
+					return nil, err
+				}
+			} else {
+				if _, err := s.db.ExecContext(ctx, "UPDATE media_file SET update_time = ? WHERE id = ?", now, existing.ID); err != nil {
+					return nil, err
+				}
 			}
 			existing.UpdateTime = now.Format("2006-01-02 15:04:05")
 			return existing, nil
@@ -98,14 +114,15 @@ func (s *MediaUploadService) SaveUploadRecord(ctx context.Context, record Upload
 
 	now := time.Now()
 	res, err := s.db.ExecContext(ctx, `INSERT INTO media_file
-		(user_id, original_filename, local_filename, remote_filename, remote_url, local_path, file_size, file_type, file_extension, file_md5, upload_time, update_time, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		(user_id, original_filename, local_filename, remote_filename, remote_url, local_path, thumb_local_path, file_size, file_type, file_extension, file_md5, upload_time, update_time, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		record.UserID,
 		record.OriginalFilename,
 		record.LocalFilename,
 		record.RemoteFilename,
 		record.RemoteURL,
 		record.LocalPath,
+		nullStringIfEmpty(record.ThumbLocalPath),
 		record.FileSize,
 		record.FileType,
 		record.FileExtension,
@@ -134,6 +151,97 @@ func (s *MediaUploadService) SaveUploadRecord(ctx context.Context, record Upload
 		UploadTime:       now.Format("2006-01-02 15:04:05"),
 		UpdateTime:       now.Format("2006-01-02 15:04:05"),
 	}, nil
+}
+
+func (s *MediaUploadService) GenerateVideoThumbnail(ctx context.Context, videoLocalPath string) (string, error) {
+	if s == nil || s.fileStore == nil {
+		return "", fmt.Errorf("文件服务未初始化")
+	}
+
+	videoLocalPath = normalizeUploadLocalPathInput(videoLocalPath)
+	if videoLocalPath == "" {
+		return "", fmt.Errorf("localPath 为空")
+	}
+
+	ffmpegPath := strings.TrimSpace(s.ffmpegPath)
+	if ffmpegPath == "" {
+		ffmpegPath = "ffmpeg"
+	}
+	if _, err := exec.LookPath(ffmpegPath); err != nil {
+		// best-effort：缺少 ffmpeg 不视为错误
+		return "", nil
+	}
+
+	// 生成缩略图 localPath：同目录 + basename + _thumb.jpg
+	base := path.Base(videoLocalPath)
+	ext := path.Ext(base)
+	name := strings.TrimSuffix(base, ext)
+	if name == "" {
+		return "", fmt.Errorf("localPath 非法")
+	}
+	thumbFilename := name + "_thumb.jpg"
+	thumbLocalPath := path.Join(path.Dir(videoLocalPath), thumbFilename)
+	if !strings.HasPrefix(thumbLocalPath, "/") {
+		thumbLocalPath = "/" + thumbLocalPath
+	}
+
+	// 解析 input/output 绝对路径（防止路径越界）
+	resolveAbs := func(localPath string) (string, error) {
+		clean := filepath.Clean(filepath.FromSlash(strings.TrimPrefix(localPath, "/")))
+		if clean == "." || clean == string(filepath.Separator) {
+			return "", fmt.Errorf("localPath 非法")
+		}
+		full := filepath.Join(s.fileStore.baseUploadAbs, clean)
+		rel, err := filepath.Rel(s.fileStore.baseUploadAbs, full)
+		if err != nil {
+			return "", fmt.Errorf("路径解析失败: %w", err)
+		}
+		if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return "", fmt.Errorf("检测到路径越界")
+		}
+		return full, nil
+	}
+
+	inputAbs, err := resolveAbs(videoLocalPath)
+	if err != nil {
+		return "", err
+	}
+	if fi, err := os.Stat(inputAbs); err != nil || fi.IsDir() {
+		return "", fmt.Errorf("视频文件不存在")
+	}
+
+	outputAbs, err := resolveAbs(thumbLocalPath)
+	if err != nil {
+		return "", err
+	}
+	if fi, err := os.Stat(outputAbs); err == nil && !fi.IsDir() && fi.Size() > 0 {
+		return thumbLocalPath, nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(outputAbs), 0o755); err != nil {
+		return "", fmt.Errorf("创建缩略图目录失败: %w", err)
+	}
+
+	// best-effort：先尝试 1s，再尝试 0s（避免短视频 seek 失败）
+	tryArgs := [][]string{
+		{"-y", "-ss", "00:00:01.000", "-i", inputAbs, "-frames:v", "1", "-vf", "scale=320:-2", "-q:v", "6", outputAbs},
+		{"-y", "-ss", "00:00:00.000", "-i", inputAbs, "-frames:v", "1", "-vf", "scale=320:-2", "-q:v", "6", outputAbs},
+	}
+
+	var lastErr error
+	for _, args := range tryArgs {
+		cmd := exec.CommandContext(ctx, ffmpegPath, args...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			lastErr = fmt.Errorf("ffmpeg 执行失败: %w: %s", err, strings.TrimSpace(string(out)))
+			continue
+		}
+		if fi, err := os.Stat(outputAbs); err == nil && !fi.IsDir() && fi.Size() > 0 {
+			return thumbLocalPath, nil
+		}
+		lastErr = fmt.Errorf("缩略图生成失败: 输出文件不存在或为空")
+	}
+
+	return "", lastErr
 }
 
 func (s *MediaUploadService) RecordImageSend(ctx context.Context, remoteURL, fromUserID, toUserID, localFilename string) (*MediaUploadHistory, error) {
@@ -426,7 +534,7 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetails(ctx context.Context, 
 	}
 	offset := (page - 1) * pageSize
 
-	rows, err := s.db.QueryContext(ctx, `SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time
+	rows, err := s.db.QueryContext(ctx, `SELECT local_filename, original_filename, local_path, thumb_local_path, file_size, file_type, file_extension, upload_time, update_time
 		FROM media_file
 		ORDER BY update_time DESC
 		LIMIT ? OFFSET ?`, pageSize, offset)
@@ -438,10 +546,11 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetails(ctx context.Context, 
 	var out []MediaFileDTO
 	for rows.Next() {
 		var localFilename, originalFilename, localPath, fileType, fileExtension string
+		var thumbLocalPath sql.NullString
 		var fileSize int64
 		var uploadTime time.Time
 		var updateTime sql.NullTime
-		if err := rows.Scan(&localFilename, &originalFilename, &localPath, &fileSize, &fileType, &fileExtension, &uploadTime, &updateTime); err != nil {
+		if err := rows.Scan(&localFilename, &originalFilename, &localPath, &thumbLocalPath, &fileSize, &fileType, &fileExtension, &uploadTime, &updateTime); err != nil {
 			return nil, err
 		}
 
@@ -458,6 +567,9 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetails(ctx context.Context, 
 		}
 		if updateTime.Valid {
 			dto.UpdateTime = updateTime.Time.Format("2006-01-02T15:04:05")
+		}
+		if thumbLocalPath.Valid && strings.TrimSpace(thumbLocalPath.String) != "" {
+			dto.ThumbURL = s.convertToLocalURL(thumbLocalPath.String, hostHeader)
 		}
 		out = append(out, dto)
 	}

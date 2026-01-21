@@ -57,6 +57,7 @@
 | remote_filename | TEXT/VARCHAR | NOT NULL | 上游返回文件名（相对路径） |
 | remote_url | VARCHAR(500) | NOT NULL | 上游可访问 URL |
 | local_path | VARCHAR(500) | NOT NULL | 本地相对路径（以 `/images/...` 或 `/videos/...` 开头） |
+| thumb_local_path | VARCHAR(500) | 可空 | 视频缩略图本地路径（以 `/videos/..._thumb.jpg` 开头） |
 | file_size | BIGINT | NOT NULL | 字节大小 |
 | file_type | VARCHAR(50) | NOT NULL | MIME |
 | file_extension | VARCHAR(10) | NOT NULL | 扩展名（不含点） |

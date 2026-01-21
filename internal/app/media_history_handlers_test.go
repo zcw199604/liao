@@ -35,11 +35,12 @@ func TestHandleGetAllUploadImages_Success(t *testing.T) {
 
 	uploadTime := time.Date(2026, 1, 10, 10, 0, 0, 0, time.Local)
 	rows := sqlmock.NewRows([]string{
-		"local_filename", "original_filename", "local_path", "file_size", "file_type", "file_extension", "upload_time", "update_time",
+		"local_filename", "original_filename", "local_path", "thumb_local_path", "file_size", "file_type", "file_extension", "upload_time", "update_time",
 	}).AddRow(
 		"x.png",
 		"orig.png",
 		"/images/2026/01/10/x.png",
+		sql.NullString{Valid: false},
 		int64(4),
 		"image/png",
 		"png",
@@ -47,7 +48,7 @@ func TestHandleGetAllUploadImages_Success(t *testing.T) {
 		sql.NullTime{Valid: false},
 	)
 
-	mock.ExpectQuery(`(?s)SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time\s+FROM media_file\s+ORDER BY update_time DESC\s+LIMIT \? OFFSET \?`).
+	mock.ExpectQuery(`(?s)SELECT local_filename, original_filename, local_path, thumb_local_path, file_size, file_type, file_extension, upload_time, update_time\s+FROM media_file\s+ORDER BY update_time DESC\s+LIMIT \? OFFSET \?`).
 		WithArgs(20, 0).
 		WillReturnRows(rows)
 

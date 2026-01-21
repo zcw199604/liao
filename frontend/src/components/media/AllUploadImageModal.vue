@@ -114,11 +114,36 @@
                   :img-class="layoutMode === 'grid' ? 'w-full h-full object-cover' : 'w-full h-auto block'"
                 />
                 
-                <div v-else class="w-full bg-[#27272a] relative" :class="layoutMode === 'grid' ? 'h-full' : 'aspect-video'">
-                    <video :src="media.url" class="w-full h-full object-cover"></video>
-                    <div class="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <i class="fas fa-play-circle text-white text-4xl drop-shadow-lg"></i>
-                    </div>
+                <div
+                  v-else-if="media.type === 'video'"
+                  class="w-full bg-[#27272a] relative"
+                  :class="layoutMode === 'grid' ? 'h-full' : 'aspect-video'"
+                >
+                  <LazyImage
+                    v-if="media.thumbUrl"
+                    :src="media.thumbUrl"
+                    :container-class="'w-full h-full bg-[#27272a]'"
+                    :img-class="'w-full h-full object-cover'"
+                  />
+                  <video
+                    v-else
+                    :src="media.url"
+                    class="w-full h-full object-cover"
+                    preload="metadata"
+                    muted
+                    playsinline
+                  ></video>
+                  <div class="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <i class="fas fa-play-circle text-white text-4xl drop-shadow-lg"></i>
+                  </div>
+                </div>
+
+                <div
+                  v-else
+                  class="w-full bg-[#27272a] relative flex items-center justify-center text-gray-400"
+                  :class="layoutMode === 'grid' ? 'h-full' : 'aspect-video'"
+                >
+                  <i class="fas fa-file text-3xl"></i>
                 </div>
               </div>
             </div>

@@ -75,6 +75,7 @@
 | 202601210327 | tiktokdownloader_web_api_kb | 文档 | ✅已完成 | [链接](2026-01/202601210327_tiktokdownloader_web_api_kb/) |
 | 202601210339 | tiktokdownloader_web_api_sdk_guide | 文档 | ✅已完成 | [链接](2026-01/202601210339_tiktokdownloader_web_api_sdk_guide/) |
 | 202601210359 | redis_chat_history_cache | 功能 | ✅已完成 | [链接](2026-01/202601210359_redis_chat_history_cache/) |
+| 202601210431 | video_thumbnail | 功能 | ✅已完成 | [链接](2026-01/202601210431_video_thumbnail/) |
 
 ---
 
@@ -149,3 +150,4 @@
 - [202601210327_tiktokdownloader_web_api_kb](2026-01/202601210327_tiktokdownloader_web_api_kb/) - 整理 TikTokDownloader Web API（FastAPI）接口清单并沉淀到知识库
 - [202601210339_tiktokdownloader_web_api_sdk_guide](2026-01/202601210339_tiktokdownloader_web_api_sdk_guide/) - 补充 TikTokDownloader Web API 调用指南、错误处理约定与 SDK 草稿
 - [202601210359_redis_chat_history_cache](2026-01/202601210359_redis_chat_history_cache/) - Redis 缓存聊天记录（默认 30 天可配），历史接口并发合并上游 + Redis 返回
+- [202601210431_video_thumbnail](2026-01/202601210431_video_thumbnail/) - 上传视频自动生成缩略图，并在全站图片库列表展示

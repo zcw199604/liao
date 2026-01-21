@@ -78,6 +78,7 @@ export const useMediaStore = defineStore('media', () => {
         // 后端现在返回MediaFileDTO对象数组，直接使用
         const newItems: UploadedMedia[] = res.data.map((item: any) => ({
           url: item.url,
+          thumbUrl: item.thumbUrl,
           type: item.type,
           localFilename: item.localFilename,
           originalFilename: item.originalFilename,

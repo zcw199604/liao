@@ -577,6 +577,18 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 		localPath = saved
 	}
 
+	thumbLocalPath := ""
+	if strings.HasPrefix(strings.ToLower(contentType), "video/") && a.mediaUpload != nil {
+		thumbCtx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		defer cancel()
+		p, err := a.mediaUpload.GenerateVideoThumbnail(thumbCtx, localPath)
+		if err != nil {
+			slog.Warn("生成视频缩略图失败", "localPath", localPath, "error", err)
+		} else {
+			thumbLocalPath = p
+		}
+	}
+
 	imgServerHost := a.imageServer.GetImgServerHost()
 	uploadURL := fmt.Sprintf("http://%s/asmx/upload.asmx/ProcessRequest?act=uploadImgRandom&userid=%s", imgServerHost, userID)
 	slog.Info("上传请求 Headers", "host", strings.Split(imgServerHost, ":")[0], "origin", "http://v1.chat2019.cn")
@@ -614,6 +626,7 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 					RemoteFilename:   msg,
 					RemoteURL:        imageURL,
 					LocalPath:        localPath,
+					ThumbLocalPath:   thumbLocalPath,
 					FileSize:         fileHeader.Size,
 					FileType:         contentType,
 					FileExtension:    a.fileStorage.FileExtension(fileHeader.Filename),

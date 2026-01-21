@@ -1,5 +1,7 @@
 export interface UploadedMedia {
   url: string
+  // 视频缩略图（用于列表展示，点击后仍使用 url 播放）
+  thumbUrl?: string
   type: 'image' | 'video' | 'file'
   // 用于下载（与展示 URL 解耦，例如 mtPhoto 预览展示缩略图，但下载原图）
   downloadUrl?: string

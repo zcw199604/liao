@@ -37,6 +37,7 @@ func ensureSchema(db *sql.DB) error {
 			remote_filename TEXT NOT NULL,
 			remote_url VARCHAR(500) NOT NULL,
 			local_path VARCHAR(500) NOT NULL,
+			thumb_local_path VARCHAR(500) NULL COMMENT '视频缩略图本地路径（/videos/..._thumb.jpg）',
 			file_size BIGINT NOT NULL,
 			file_type VARCHAR(50) NOT NULL,
 			file_extension VARCHAR(10) NOT NULL,
@@ -163,6 +164,33 @@ func ensureSchema(db *sql.DB) error {
 		if _, err := db.Exec(stmt); err != nil {
 			return fmt.Errorf("初始化数据表失败: %w", err)
 		}
+	}
+
+	// 增量迁移：历史数据库可能缺少新增字段
+	if err := ensureColumnExists(db, "media_file", "thumb_local_path",
+		"ALTER TABLE media_file ADD COLUMN thumb_local_path VARCHAR(500) NULL COMMENT '视频缩略图本地路径（/videos/..._thumb.jpg）'"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func ensureColumnExists(db *sql.DB, tableName, columnName, alterSQL string) error {
+	if db == nil {
+		return nil
+	}
+	var cnt int
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+		tableName,
+		columnName,
+	).Scan(&cnt); err != nil {
+		return fmt.Errorf("检查字段存在失败(%s.%s): %w", tableName, columnName, err)
+	}
+	if cnt > 0 {
+		return nil
+	}
+	if _, err := db.Exec(alterSQL); err != nil {
+		return fmt.Errorf("执行字段迁移失败(%s.%s): %w", tableName, columnName, err)
 	}
 	return nil
 }

@@ -781,7 +781,8 @@
 **处理逻辑**
 - `data`：`mediaUploadService.getAllUploadImagesWithDetails(page,pageSize,hostHeader)`
   - **现状说明**：该实现按 `media_file.update_time DESC` 查询全表，不按 userId 过滤（userId 参数仅为兼容旧调用）
-  - 每条返回为 `MediaFileDTO`：`url/type/localFilename/originalFilename/fileSize/fileType/fileExtension/uploadTime/updateTime`
+  - 每条返回为 `MediaFileDTO`：`url/thumbUrl/type/localFilename/originalFilename/fileSize/fileType/fileExtension/uploadTime/updateTime`
+    - `thumbUrl`：视频缩略图本地 URL（可空；为空时前端回退到视频首帧/占位逻辑）
 - `total`：`mediaUploadService.getAllUploadImagesCount()`（全表 count）
 - `port`：通过 `detectAvailablePort(imageServerService.getImgServerHost())` 探测可用端口
 
