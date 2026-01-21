@@ -68,7 +68,7 @@
 - **画廊与同步:** 支持左右按钮/左右键/滑动切换；内部切换当前项会触发 `media-change`。父组件如提供“上传/重传/导入”等动作，应监听该事件同步目标，避免“切换后仍对首张执行操作”。
 - **快捷键:** `Esc` 关闭预览；`←/→` 切换上一张/下一张（仅 `mediaList` > 1 生效）。
 - **图片预览能力:** 点击放大/还原（默认放大倍数 3x）；放大后支持拖动平移；未放大时支持水平滑动切换（Swipe）。
-- **视频预览能力:** 主视频预览使用 Plyr 美化控制栏 UI（暗色风格可主题化），并为移动端添加 `playsinline/webkit-playsinline` 避免 iOS 系统全屏接管；支持单击画面切换播放/暂停并浮现“倒退/播放暂停/快进”三按钮（快进/快退步长 1 秒，1 秒自动隐藏）；支持双击/双击触控进入/退出全屏（全屏右侧提供“抓帧/抽帧”快捷按钮）；支持手势左右滑动快进/倒退（seek 灵敏度按画面宽度比例映射到视频时长以减少误触跳跃）、上下滑动调音量（iOS/Safari 移动端可能限制网页调音量，会降级提示使用实体按键）。倍速/慢放（`playbackRate`）默认档位 0.1/0.25/0.5/1/1.5/2/5，持久化到 localStorage（`media_preview_playback_rate`），且倍速按钮支持长按临时 2x 播放，松开恢复原倍速。
+- **视频预览能力:** 主视频预览使用 Plyr 美化控制栏 UI（暗色风格可主题化），并为移动端添加 `playsinline/webkit-playsinline` 避免 iOS 系统全屏接管；支持单击画面切换播放/暂停并浮现“倒退/播放暂停/快进”三按钮（快进/快退步长 1 秒，1 秒自动隐藏）；支持双击/双击触控进入/退出全屏（全屏右侧提供“抓帧/抽帧”快捷按钮，倍速按钮在全屏时移至左上避免重叠）；支持手势左右滑动快进/倒退（按 1 秒步进，约每 40~80px 触发 1 秒，降低误触）、上下滑动调音量（iOS/Safari 移动端可能限制网页调音量，会降级提示使用实体按键）。倍速/慢放（`playbackRate`）默认档位 0.1/0.25/0.5/1/1.5/2/5，持久化到 localStorage（`media_preview_playback_rate`），且倍速按钮支持长按临时 2x 播放，松开恢复原倍速。
 - **暂停抓帧:** 点击“抓帧”会先暂停视频，再基于 Canvas 抓取当前帧生成 PNG，并同时执行“直接下载 + 上传到图片库”；未选择身份则降级为仅下载；跨域视频可能因 CORS 限制无法抓帧，会提示并引导使用“抽帧任务/先上传到本地库”等替代路径。
 - **详情面板:** 仅当媒体对象携带任一元信息字段（如 `md5/fileSize/pHash/similarity` 等）时显示入口；如列表阶段无法拿到真实文件名（仅有 `md5`），可传入 `resolveOriginalFilename` 回调，在用户打开面板前按需解析并补齐 `originalFilename`（仅展示 basename，避免泄露目录结构）。
 - **下载策略:** 下载 `/api/*` 资源时使用带 Authorization 的 blob 下载，并解析 `Content-Disposition` 的 `filename*`（RFC 5987）与 `filename`；当 `filename` 为 URL 编码时会在保存前解码，避免中文文件名被编码。
@@ -158,6 +158,7 @@
 - [202601210322_media_preview_plyr](../../history/2026-01/202601210322_media_preview_plyr/) - 媒体预览主视频播放器升级为 Plyr（控制栏美化，功能保持一致）
 - [202601210422_media_preview_video_click_hold_x2](../../history/2026-01/202601210422_media_preview_video_click_hold_x2/) - MediaPreview 视频交互增强（单击浮现三按钮/滑动快进&音量/长按临时 2x/抓帧抽帧按钮美化）
 - [202601210515_media_preview_video_gesture_tune](../../history/2026-01/202601210515_media_preview_video_gesture_tune/) - MediaPreview 视频交互微调（滑动减敏/浮层±1秒/双击全屏/全屏右侧抓帧抽帧）
+- [202601210551_media_preview_video_gesture_step_seek_fullscreen_ui](../../history/2026-01/202601210551_media_preview_video_gesture_step_seek_fullscreen_ui/) - MediaPreview 视频交互再微调（左右滑动 1 秒步进/方向锁定更保守/全屏倍速布局避让）
 - [202601191522_media_gallery_expand](../../history/2026-01/202601191522_media_gallery_expand/) - 放宽“全站图片库/mtPhoto 相册”弹窗与图片列表展示区域，减少留白
 - [202601181549_mtphoto_preview_gallery](../../history/2026-01/202601181549_mtphoto_preview_gallery/) - 媒体预览画廊切换时对外同步当前媒体（用于 mtPhoto/全站图片库等场景）
 - [202601190109_mtphoto_preview_detail](../../history/2026-01/202601190109_mtphoto_preview_detail/) - 媒体预览支持按元信息显示“查看详情”入口并展示详情面板

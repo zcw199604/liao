@@ -77,6 +77,7 @@
 | 202601210359 | redis_chat_history_cache | 功能 | ✅已完成 | [链接](2026-01/202601210359_redis_chat_history_cache/) |
 | 202601210422 | media_preview_video_click_hold_x2 | 功能 | ✅已完成 | [链接](2026-01/202601210422_media_preview_video_click_hold_x2/) |
 | 202601210515 | media_preview_video_gesture_tune | 功能 | ✅已完成 | [链接](2026-01/202601210515_media_preview_video_gesture_tune/) |
+| 202601210551 | media_preview_video_gesture_step_seek_fullscreen_ui | 优化 | ✅已完成 | [链接](2026-01/202601210551_media_preview_video_gesture_step_seek_fullscreen_ui/) |
 
 ---
 
@@ -153,3 +154,4 @@
 - [202601210359_redis_chat_history_cache](2026-01/202601210359_redis_chat_history_cache/) - Redis 缓存聊天记录（默认 30 天可配），历史接口并发合并上游 + Redis 返回
 - [202601210422_media_preview_video_click_hold_x2](2026-01/202601210422_media_preview_video_click_hold_x2/) - MediaPreview 视频交互增强（单击浮现三按钮/滑动快进&音量/长按临时 2x/抓帧抽帧按钮美化）
 - [202601210515_media_preview_video_gesture_tune](2026-01/202601210515_media_preview_video_gesture_tune/) - MediaPreview 视频交互微调（滑动减敏/浮层±1秒/双击全屏/全屏右侧抓帧抽帧）
+- [202601210551_media_preview_video_gesture_step_seek_fullscreen_ui](2026-01/202601210551_media_preview_video_gesture_step_seek_fullscreen_ui/) - MediaPreview 视频交互再微调（左右滑动 1 秒步进/方向锁定更保守/全屏倍速左上避让右侧抓帧抽帧）
