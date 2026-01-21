@@ -55,6 +55,15 @@ type Config struct {
 	MtPhotoLoginPassword string
 	MtPhotoLoginOTP      string
 
+	// TikTokDownloaderBaseURL 为 TikTokDownloader Web API（FastAPI）地址（可选；未配置时抖音相关 API 将返回错误）。
+	// 参考知识库：helloagents/wiki/external/tiktokdownloader-web-api.md
+	TikTokDownloaderBaseURL string
+	// TikTokDownloaderToken 为上游 Web API 的 token Header（默认上游不校验，可为空；如你自行启用校验则配置）。
+	TikTokDownloaderToken string
+	// DouyinDefaultCookie/DouyinDefaultProxy 为抖音抓取的默认 Cookie/代理（可选；页面传入优先）。
+	DouyinDefaultCookie string
+	DouyinDefaultProxy  string
+
 	// 视频抽帧（ffmpeg/ffprobe）配置。
 	FFmpegPath              string
 	FFprobePath             string
@@ -104,6 +113,11 @@ func Load() (Config, error) {
 		MtPhotoLoginUsername: getEnv("MTPHOTO_LOGIN_USERNAME", ""),
 		MtPhotoLoginPassword: getEnv("MTPHOTO_LOGIN_PASSWORD", ""),
 		MtPhotoLoginOTP:      getEnv("MTPHOTO_LOGIN_OTP", ""),
+
+		TikTokDownloaderBaseURL: getEnvOptional2("TIKTOKDOWNLOADER_BASE_URL", "TIKTOK_DOWNLOADER_BASE_URL"),
+		TikTokDownloaderToken:   getEnvOptional2("TIKTOKDOWNLOADER_TOKEN", "TIKTOK_DOWNLOADER_TOKEN"),
+		DouyinDefaultCookie:     getEnvOptional2("DOUYIN_COOKIE", "TIKTOKDOWNLOADER_DOUYIN_COOKIE"),
+		DouyinDefaultProxy:      getEnvOptional2("DOUYIN_PROXY", "TIKTOKDOWNLOADER_DOUYIN_PROXY"),
 
 		FFmpegPath:              getEnv("FFMPEG_PATH", "ffmpeg"),
 		FFprobePath:             getEnv("FFPROBE_PATH", "ffprobe"),
@@ -160,6 +174,13 @@ func Load() (Config, error) {
 	}
 	if cfg.VideoExtractFramePageSz <= 0 {
 		cfg.VideoExtractFramePageSz = 120
+	}
+
+	if v := strings.TrimSpace(cfg.TikTokDownloaderBaseURL); v != "" {
+		// 轻量校验，避免误配导致运行时难以排查
+		if !(strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://")) {
+			return Config{}, fmt.Errorf("TIKTOKDOWNLOADER_BASE_URL 非法: %s（需以 http(s):// 开头）", v)
+		}
 	}
 
 	return cfg, nil

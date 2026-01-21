@@ -34,6 +34,7 @@ type App struct {
 	imageCache       *ImageCacheService
 	imageHash        *ImageHashService
 	mediaUpload      *MediaUploadService
+	douyinDownloader *DouyinDownloaderService
 	mtPhoto          *MtPhotoService
 	videoExtract     *VideoExtractService
 	userInfoCache    UserInfoCacheService
@@ -125,6 +126,7 @@ func New(cfg config.Config) (*App, error) {
 	_ = application.systemConfig.EnsureDefaults(context.Background())
 	application.wsManager = NewUpstreamWebSocketManager(application.httpClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache, application.chatHistoryCache)
 	application.mediaUpload = NewMediaUploadService(db, cfg.ServerPort, application.fileStorage, application.imageServer, application.httpClient)
+	application.douyinDownloader = NewDouyinDownloaderService(cfg.TikTokDownloaderBaseURL, cfg.TikTokDownloaderToken, cfg.DouyinDefaultCookie, cfg.DouyinDefaultProxy)
 	application.mtPhoto = NewMtPhotoService(cfg.MtPhotoBaseURL, cfg.MtPhotoLoginUsername, cfg.MtPhotoLoginPassword, cfg.MtPhotoLoginOTP, cfg.LspRoot, application.httpClient)
 	application.videoExtract = NewVideoExtractService(db, cfg, application.fileStorage, application.mtPhoto)
 

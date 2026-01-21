@@ -172,6 +172,10 @@ docker run -d -p 8080:8080 \
 - `SERVER_PORT` - 服务端口（默认8080）
 - `TOKEN_EXPIRE_HOURS` - Token过期时间（默认24小时）
 - `WEBSOCKET_UPSTREAM_URL` - 上游 WebSocket 地址降级值（默认 `ws://localhost:9999`；正常情况会动态获取）
+- `TIKTOKDOWNLOADER_BASE_URL` - TikTokDownloader Web API 地址（启用抖音下载功能；未配置则该功能返回“未启用”错误）
+- `TIKTOKDOWNLOADER_TOKEN` - TikTokDownloader Web API 的 `token` Header（默认上游不校验，可不配）
+- `DOUYIN_COOKIE` - 抖音抓取默认 Cookie（可选；页面填写优先；敏感信息建议仅在运行环境中配置）
+- `DOUYIN_PROXY` - 抖音抓取默认代理（可选；页面填写优先）
 - `CACHE_TYPE` - `memory` 或 `redis`（默认 `memory`）
 - `REDIS_URL` / `UPSTASH_REDIS_URL` - Redis 连接串（支持 `redis://` / `rediss://`，优先级高于传统四元组；适合 Upstash）
 - `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB` - Redis 连接参数（当未设置 `REDIS_URL` 时生效；`CACHE_TYPE=redis`）

@@ -1,0 +1,84 @@
+# Douyin Downloader（抖音抓取与下载）
+
+## 目的
+在应用内对接外部 TikTokDownloader Web API（FastAPI），实现抖音作品的：
+- 分享链接解析（短链/分享文本/URL/作品ID）
+- 作品详情抓取（视频/图集）
+- 下载到本地（以作品标题命名）
+- 可选导入上传到系统媒体库（并加入“已上传的文件”，用于发送）
+
+## 模块概述
+该模块由后端统一调用 TikTokDownloader Web API：
+- `/douyin/share`：将短链/分享文本解析为重定向后的完整链接
+- `/douyin/detail`：获取结构化作品详情（包含 `desc/type/downloads` 等字段）
+
+前端通过弹窗交互完成输入与配置，并复用现有 `MediaPreview` 完成预览、下载与导入上传。
+
+## 入口与交互
+- 入口：聊天页上传菜单（UploadMenu）新增“抖音下载”按钮
+- 交互：
+  1) 粘贴分享文本/短链/URL/作品ID
+  2)（可选）填写 `proxy` 与 `cookie`（仅本地保存）
+  3) 点击“解析”获取作品资源列表（支持“多选模式”批量下载/导入，并展示逐项状态）
+  4) 点击资源进入预览（预览中可一键导入上传，导入成功后不强制关闭弹窗）：
+     - “下载”：走 `/api/douyin/download` 获取下载流并以作品标题命名
+     - “上传”：走 `/api/douyin/import` 由后端下载并导入上传（MD5 去重）
+
+**本地配置（localStorage）**
+- `douyin_proxy`：代理（可选）
+- `douyin_cookie`：Cookie（可选；支持一键清除）
+- `douyin_auto_clipboard`：打开弹窗自动读取剪贴板（默认开启；写入 `1/0`）
+- `douyin_auto_resolve_clipboard`：读取剪贴板后自动解析（默认关闭；写入 `1/0`）
+
+## 核心流程
+### 1) 解析与详情抓取
+`POST /api/douyin/detail`：
+- 输入优先本地解析 `detail_id`（支持 `/video/<id>`、`/note/<id>`、`modal_id=<id>`、纯数字）
+- 不能解析时调用 `/douyin/share` 获取重定向 URL 后再提取 `detail_id`
+- 调用 `/douyin/detail` 获取结构化 `data` 并抽取：
+  - `desc` → 标题（用于命名）
+  - `type` → `视频/图集/实况`
+  - `downloads` → 可下载资源（视频为单条 URL；图集为 URL 列表）
+- 服务端生成短期缓存 `key`（TTL），供下载/导入使用
+
+### 2) 下载到本地
+`GET /api/douyin/download?key=...&index=...`：
+- 仅允许使用服务端缓存的 `key + index` 取出下载直链（不接受任意 URL），降低 SSRF 风险
+- 透传下载流并设置 `Content-Disposition`：
+  - 视频：`标题.mp4`
+  - 图集：`标题_01.jpg`（按序号追加）
+
+`HEAD /api/douyin/download?key=...&index=...`：
+- 用于前端“最佳努力”探测 `Content-Length` 展示文件大小徽标（CDN 不支持 `HEAD` 时后端会回退 `Range: bytes=0-0`）。
+
+### 3) 导入上传（加入媒体库）
+`POST /api/douyin/import`：
+- 后端下载媒体 → 保存到 `./upload` → 计算 MD5
+- 若当前用户已存在同 MD5 的媒体记录，则直接复用（避免重复写文件/重复上传；响应 `dedup=true`）
+- 否则按既有上传链路上传到上游图片服务器并写入 `media_file`，最后加入“已上传的文件”缓存
+
+## 安全与约束
+- **不落库敏感信息**：抖音 `cookie/proxy` 不写入服务端存储；前端仅保存在 localStorage 并在请求中透传（页面填写优先）。
+- **SSRF 风险控制**：download/import 不接受任意 URL，只接受 `key+index` 并从服务端缓存读取下载直链。
+- **大文件处理**：下载与导入均采用流式转发与落盘，避免一次性读入内存。
+
+## API接口
+详见 `helloagents/wiki/api.md` 的 “4.9 抖音下载（TikTokDownloader Web API）”。
+
+## 配置（环境变量）
+- `TIKTOKDOWNLOADER_BASE_URL`：TikTokDownloader Web API 地址（必配才能启用）
+- `TIKTOKDOWNLOADER_TOKEN`：可选，上游 token Header（默认上游不校验）
+- `DOUYIN_COOKIE`：可选，默认抖音 Cookie（页面填写优先）
+- `DOUYIN_PROXY`：可选，默认代理（页面填写优先）
+
+## 依赖
+- 外部服务：TikTokDownloader Web API（FastAPI）
+- 前端：`MediaPreview`（预览/下载/导入上传复用现有交互）
+
+## 测试
+- Go：`go test ./...`（包含 douyin handler 单测）
+- 前端：`npm run build`（作为编译验证）
+
+## 变更历史
+- [202601211132_douyin_downloader](../../history/2026-01/202601211132_douyin_downloader/) - 抖音抓取/下载/导入上传对接
+- [202601211234_douyin_downloader_ux](../../history/2026-01/202601211234_douyin_downloader_ux/) - 抖音下载弹窗交互增强（批量/剪贴板预填/文件大小探测/导入状态与去重提示）

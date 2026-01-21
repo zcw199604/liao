@@ -353,11 +353,13 @@
 
           <button
             v-if="canUpload"
+            :disabled="uploadDisabled || uploadLoading"
             @click="$emit('upload')"
-            class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-medium transition shadow-lg shadow-indigo-600/30 flex items-center gap-2"
+            class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-medium transition shadow-lg shadow-indigo-600/30 flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-indigo-600"
           >
-            <i class="fas fa-cloud-upload-alt"></i>
-            <span>上传此{{ currentMedia.type === 'image' ? '图片' : (currentMedia.type === 'video' ? '视频' : '文件') }}</span>
+            <span v-if="uploadLoading" class="w-4 h-4 border-2 border-white/90 border-t-transparent rounded-full animate-spin"></span>
+            <i v-else class="fas fa-cloud-upload-alt"></i>
+            <span>{{ uploadText || ('上传此' + (currentMedia.type === 'image' ? '图片' : (currentMedia.type === 'video' ? '视频' : '文件'))) }}</span>
           </button>
         </div>
       </div>
@@ -386,12 +388,18 @@ interface Props {
   url: string
   type: 'image' | 'video' | 'file'
   canUpload?: boolean
+  uploadDisabled?: boolean
+  uploadLoading?: boolean
+  uploadText?: string
   mediaList?: UploadedMedia[]
   resolveOriginalFilename?: (media: UploadedMedia) => Promise<string | undefined | null>
 }
 
 const props = withDefaults(defineProps<Props>(), {
   canUpload: false,
+  uploadDisabled: false,
+  uploadLoading: false,
+  uploadText: '',
   mediaList: () => []
 })
 

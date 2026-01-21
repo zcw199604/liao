@@ -992,6 +992,74 @@
 **备注**
 - 本地路径映射依赖：`LSP_ROOT`（默认 `/lsp`），并对 `/lsp/*` 做了路径遍历防护。
 
+---
+
+### 4.9 抖音下载（TikTokDownloader Web API）
+
+> 说明：本模块用于对接外部 TikTokDownloader Web API（FastAPI），实现“分享链接解析 → 详情抓取 → 下载流/导入上传”。  
+> 下载与导入均使用服务端缓存 `key + index` 方式，避免前端传入任意 URL。
+
+#### [POST] /api/douyin/detail
+**描述**：解析分享文本/短链/URL/作品ID，抓取作品详情并返回可预览/下载的资源列表。
+
+**请求（application/json）**
+```json
+{"input":"https://v.douyin.com/xxxxxx/","proxy":"","cookie":""}
+```
+
+**响应（HTTP 200）**
+```json
+{"key":"xxxx","detailId":"0123456789","type":"视频","title":"作品标题","coverUrl":"...","items":[{"index":0,"type":"video","url":"https://...","downloadUrl":"/api/douyin/download?key=xxxx&index=0","originalFilename":"作品标题.mp4"}]}
+```
+
+**备注**
+- 依赖环境变量：`TIKTOKDOWNLOADER_BASE_URL`（未配置时返回“未启用”错误）。
+- 可选默认值：`DOUYIN_COOKIE`、`DOUYIN_PROXY`（页面传入优先；服务端不落库）。
+
+#### [GET] /api/douyin/download
+**描述**：根据 `key + index` 返回媒体下载流，并设置 `Content-Disposition` 为“作品标题”文件名。
+
+**请求（query）**
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| key | 是 | `/api/douyin/detail` 返回的缓存 key |
+| index | 是 | 资源序号（图集为 0..N-1；视频通常为 0） |
+
+**响应**：二进制流（透传 `Content-Type`），并返回 `Content-Disposition: attachment` 以便浏览器保存。
+
+#### [HEAD] /api/douyin/download
+**描述**：用于前端“预估文件大小”的探测请求（最佳努力）。返回与 `GET` 相同的 `Content-Type/Content-Disposition`，并尽量补齐 `Content-Length`。
+
+**备注**
+- 部分 CDN 不支持 `HEAD`：服务端会回退到 `GET Range: bytes=0-0` 尝试解析 `Content-Range` 的总大小。
+- 若上游未提供可用大小，`Content-Length` 可能缺失，前端会自动降级不展示大小。
+
+#### [POST] /api/douyin/import
+**描述**：将抖音媒体导入到本地 `./upload` 并上传到上游（成功后加入“已上传的文件”缓存）。按 MD5 去重复用已存在媒体记录。
+
+**请求（application/x-www-form-urlencoded）**
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| userid | 是 | 当前身份 ID |
+| key | 是 | `/api/douyin/detail` 返回的缓存 key |
+| index | 是 | 资源序号 |
+| cookieData | 否 | 上游上传所需 cookie（前端 `generateCookie` 生成） |
+| referer | 否 | 上游上传所需 referer |
+| userAgent | 否 | 上游上传所需 UA |
+
+**响应（HTTP 200）**
+```json
+{"state":"OK","msg":"remotePath","port":"9006","localFilename":"xxx.mp4","dedup":false}
+```
+
+**失败响应（HTTP 500）**
+```json
+{"error":"...","localPath":"/videos/2026/01/21/xxx.mp4"}
+```
+
+**备注**
+- `dedup=true` 表示命中“当前用户 + MD5”去重：复用已存在媒体记录并删除临时落盘文件，不会重复上传到上游。
+
 ## 5. 静态资源与 SPA 回退
 
 - Go（现行实现）：

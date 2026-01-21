@@ -157,3 +157,5 @@
 - [202601210515_media_preview_video_gesture_tune](2026-01/202601210515_media_preview_video_gesture_tune/) - MediaPreview 视频交互微调（滑动减敏/浮层±1秒/双击全屏/全屏右侧抓帧抽帧）
 - [202601210551_media_preview_video_gesture_step_seek_fullscreen_ui](2026-01/202601210551_media_preview_video_gesture_step_seek_fullscreen_ui/) - MediaPreview 视频交互再微调（左右滑动 1 秒步进/方向锁定更保守/全屏倍速左上避让右侧抓帧抽帧）
 - [202601210823_media_preview_video_fullscreen_layout_fix](2026-01/202601210823_media_preview_video_fullscreen_layout_fix/) - 修复 MediaPreview 视频真全屏布局偏移（居中/黑边）
+- [202601211132_douyin_downloader](2026-01/202601211132_douyin_downloader/) - 对接 TikTokDownloader Web API：抖音作品解析/下载/导入上传（支持视频/图集，导入按 MD5 去重）
+- [202601211234_douyin_downloader_ux](2026-01/202601211234_douyin_downloader_ux/) - 抖音下载弹窗交互增强（批量操作/剪贴板预填/文件大小探测/导入状态与去重提示）

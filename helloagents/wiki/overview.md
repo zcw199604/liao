@@ -29,6 +29,7 @@ Liao 是一个基于 WebSocket 的匿名匹配聊天应用/代理服务：前端
 | Identity | 本地身份池管理（CRUD/最近使用） | ✅稳定 | [链接](modules/identity.md) |
 | Media | 媒体上传/媒体库/删除/重传/修复 | ✅稳定 | [链接](modules/media.md) |
 | mtPhoto | mtPhoto 相册接入与导入上传 | ✅稳定 | [链接](modules/mtphoto.md) |
+| Douyin Downloader | 抖音作品抓取/下载/导入上传（对接 TikTokDownloader Web API） | ✅稳定 | [链接](modules/douyin-downloader.md) |
 | User History | 历史/收藏用户列表与缓存增强规范 | ✅稳定 | [链接](modules/user-history.md) |
 | WebSocket Proxy | `/ws` 下游/上游连接池与转发、forceout 防重连 | ✅稳定 | [链接](modules/websocket-proxy.md) |
 

@@ -63,6 +63,14 @@
         <i class="fas fa-photo-video"></i>
         <span>mtPhoto 相册</span>
       </button>
+
+      <button
+        @click="$emit('openDouyin')"
+        class="w-full py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 flex items-center justify-center gap-2 transition"
+      >
+        <i class="fas fa-cloud-download-alt"></i>
+        <span>抖音下载</span>
+      </button>
     </div>
   </div>
 </template>
@@ -86,5 +94,6 @@ defineEmits<{
   'openChatHistory': []
   'openAllUploads': []
   'openMtPhoto': []
+  'openDouyin': []
 }>()
 </script>

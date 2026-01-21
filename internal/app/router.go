@@ -84,6 +84,14 @@ func (a *App) buildRouter() http.Handler {
 		api.Post("/continueVideoExtractTask", a.handleContinueVideoExtractTask)
 		api.Post("/deleteVideoExtractTask", a.handleDeleteVideoExtractTask)
 
+		// 抖音下载（TikTokDownloader Web API）
+		api.Route("/douyin", func(dr chi.Router) {
+			dr.Post("/detail", a.handleDouyinDetail)
+			dr.Get("/download", a.handleDouyinDownload)
+			dr.Head("/download", a.handleDouyinDownload)
+			dr.Post("/import", a.handleDouyinImport)
+		})
+
 		// mtPhoto 相册
 		api.Get("/getMtPhotoAlbums", a.handleGetMtPhotoAlbums)
 		api.Get("/getMtPhotoAlbumFiles", a.handleGetMtPhotoAlbumFiles)
