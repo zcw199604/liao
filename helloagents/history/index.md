@@ -75,6 +75,7 @@
 | 202601210327 | tiktokdownloader_web_api_kb | 文档 | ✅已完成 | [链接](2026-01/202601210327_tiktokdownloader_web_api_kb/) |
 | 202601210339 | tiktokdownloader_web_api_sdk_guide | 文档 | ✅已完成 | [链接](2026-01/202601210339_tiktokdownloader_web_api_sdk_guide/) |
 | 202601210359 | redis_chat_history_cache | 功能 | ✅已完成 | [链接](2026-01/202601210359_redis_chat_history_cache/) |
+| 202601210422 | media_preview_video_click_hold_x2 | 功能 | ✅已完成 | [链接](2026-01/202601210422_media_preview_video_click_hold_x2/) |
 
 ---
 
@@ -149,3 +150,4 @@
 - [202601210327_tiktokdownloader_web_api_kb](2026-01/202601210327_tiktokdownloader_web_api_kb/) - 整理 TikTokDownloader Web API（FastAPI）接口清单并沉淀到知识库
 - [202601210339_tiktokdownloader_web_api_sdk_guide](2026-01/202601210339_tiktokdownloader_web_api_sdk_guide/) - 补充 TikTokDownloader Web API 调用指南、错误处理约定与 SDK 草稿
 - [202601210359_redis_chat_history_cache](2026-01/202601210359_redis_chat_history_cache/) - Redis 缓存聊天记录（默认 30 天可配），历史接口并发合并上游 + Redis 返回
+- [202601210422_media_preview_video_click_hold_x2](2026-01/202601210422_media_preview_video_click_hold_x2/) - MediaPreview 视频交互增强（单击浮现三按钮/滑动快进&音量/长按临时 2x/抓帧抽帧按钮美化）

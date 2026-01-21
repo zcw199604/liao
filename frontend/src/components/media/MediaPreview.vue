@@ -30,17 +30,41 @@
               </button>
 
               <!-- 倍速/慢放（仅视频） -->
-              <div
-                v-if="currentMedia.type === 'video'"
-                class="h-10 px-3 rounded-full bg-white/10 hover:bg-white/20 flex items-center gap-2 text-white transition backdrop-blur-sm"
-                title="播放倍速"
-              >
-                <i class="fas fa-tachometer-alt text-xs text-white/80"></i>
-                <select v-model.number="playbackRate" class="bg-transparent text-xs text-white outline-none cursor-pointer">
-                  <option v-for="r in playbackRateOptions" :key="r" :value="r">
-                    x{{ r }}
-                  </option>
-                </select>
+              <div v-if="currentMedia.type === 'video'" ref="speedMenuRef" class="relative">
+                <button
+                  class="h-10 px-3 rounded-full bg-white/10 hover:bg-white/20 flex items-center gap-2 text-white transition backdrop-blur-sm select-none"
+                  :title="isTempSpeedBoosting ? '临时 2x 播放中，松开恢复' : '播放倍速（长按临时 x2）'"
+                  @click.stop="handleToggleSpeedMenu"
+                  @pointerdown="handleSpeedPressStart"
+                  @pointerup="handleSpeedPressEnd"
+                  @pointercancel="handleSpeedPressCancel"
+                  @pointerleave="handleSpeedPressCancel"
+                  @contextmenu.prevent
+                >
+                  <i class="fas fa-tachometer-alt text-xs text-white/80"></i>
+                  <span class="text-xs font-medium">x{{ playbackRate }}</span>
+                  <i class="fas fa-chevron-down text-[10px] text-white/70"></i>
+                  <span
+                    v-if="isTempSpeedBoosting"
+                    class="ml-0.5 px-1.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 text-[10px] font-semibold"
+                  >2X</span>
+                </button>
+
+                <div
+                  v-if="showSpeedMenu"
+                  class="absolute right-0 top-12 min-w-[120px] bg-[#111113]/95 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50"
+                  @click.stop
+                >
+                  <button
+                    v-for="r in playbackRateOptions"
+                    :key="r"
+                    class="w-full px-4 py-2 text-left text-sm text-white/90 hover:bg-white/10 transition flex items-center justify-between"
+                    @click.stop="selectPlaybackRate(r)"
+                  >
+                    <span>x{{ r }}</span>
+                    <i v-if="playbackRate === r" class="fas fa-check text-indigo-400 text-xs"></i>
+                  </button>
+                </div>
               </div>
 
               <!-- 下载按钮 -->
@@ -104,6 +128,14 @@
 
 	       <!-- 视频预览 -->
 	        <div v-else-if="currentMedia.type === 'video'" class="relative w-full h-full flex items-center justify-center pb-20">
+	          <div
+	            class="relative inline-flex touch-none"
+	            @pointerdown="handleVideoPointerDown"
+	            @pointermove="handleVideoPointerMove"
+	            @pointerup="handleVideoPointerUp"
+	            @pointercancel="handleVideoPointerCancel"
+	            @contextmenu.prevent
+	          >
 	             <video
 	              :key="currentMedia.url + '-video'"
 	              ref="videoRef"
@@ -116,6 +148,41 @@
 	              @loadedmetadata="handleVideoLoadedMetadata"
 	              @error="handleMediaError"
 	            ></video>
+
+	            <!-- 点击浮现三按钮（倒退/播放暂停/快进），1秒后自动隐藏 -->
+	            <div
+	              v-show="showVideoOverlayControls"
+	              class="absolute inset-0 z-40 flex items-center justify-center pointer-events-none"
+	            >
+	              <div class="pointer-events-auto flex items-center gap-6 sm:gap-8">
+	                <button
+	                  class="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-black/35 hover:bg-black/45 text-white border border-white/15 backdrop-blur-md shadow-xl transition active:scale-95 flex items-center justify-center"
+	                  title="倒退 10 秒"
+	                  @click.stop="handleOverlaySeek(-10)"
+	                  @pointerdown.stop
+	                >
+	                  <i class="fas fa-backward text-lg"></i>
+	                </button>
+	                <button
+	                  class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/15 hover:bg-white/25 text-white border border-white/20 backdrop-blur-md shadow-2xl transition active:scale-95 flex items-center justify-center"
+	                  :title="isVideoPlaying ? '暂停' : '播放'"
+	                  @click.stop="handleOverlayTogglePlay"
+	                  @pointerdown.stop
+	                >
+	                  <i v-if="isVideoPlaying" class="fas fa-pause text-2xl"></i>
+	                  <i v-else class="fas fa-play text-2xl ml-1"></i>
+	                </button>
+	                <button
+	                  class="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-black/35 hover:bg-black/45 text-white border border-white/15 backdrop-blur-md shadow-xl transition active:scale-95 flex items-center justify-center"
+	                  title="快进 10 秒"
+	                  @click.stop="handleOverlaySeek(10)"
+	                  @pointerdown.stop
+	                >
+	                  <i class="fas fa-forward text-lg"></i>
+	                </button>
+	              </div>
+	            </div>
+	          </div>
 	        </div>
 
         <!-- 文件预览 -->
@@ -186,24 +253,24 @@
 
         <!-- 上传按钮（如果允许上传） -->
         <div class="absolute bottom-28 left-1/2 transform -translate-x-1/2 flex items-center gap-3 z-50">
-          <button
-            v-if="currentMedia.type === 'video'"
-            class="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-full font-medium transition shadow-lg shadow-sky-600/30 flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-            title="暂停并抓取当前帧（下载+上传）"
-            :disabled="captureFrameLoading"
-            @click.stop="handleCaptureFrame"
-          >
+	          <button
+	            v-if="currentMedia.type === 'video'"
+	            class="h-11 px-4 bg-white/10 hover:bg-white/20 text-white rounded-full font-medium transition shadow-lg shadow-black/30 backdrop-blur-sm border border-white/10 flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+	            title="暂停并抓取当前帧（下载+上传）"
+	            :disabled="captureFrameLoading"
+	            @click.stop="handleCaptureFrame"
+	          >
             <span v-if="captureFrameLoading" class="w-4 h-4 border-2 border-white/90 border-t-transparent rounded-full animate-spin"></span>
             <i v-else class="fas fa-camera"></i>
             <span>抓帧</span>
           </button>
 
-          <button
-            v-if="canExtractFrames"
-            @click.stop="handleExtractFrames"
-            class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full font-medium transition shadow-lg shadow-emerald-600/30 flex items-center gap-2"
-            title="从该视频抽取图片"
-          >
+	          <button
+	            v-if="canExtractFrames"
+	            @click.stop="handleExtractFrames"
+	            class="h-11 px-4 bg-white/10 hover:bg-white/20 text-white rounded-full font-medium transition shadow-lg shadow-black/30 backdrop-blur-sm border border-white/10 flex items-center gap-2"
+	            title="从该视频抽取图片"
+	          >
             <i class="fas fa-film"></i>
             <span>抽帧</span>
           </button>
@@ -226,6 +293,7 @@
 </template>
 
 <script setup lang="ts">
+// 媒体预览弹窗：支持图片/视频/文件的全屏预览与画廊切换，并增强视频播放交互体验。
 import { ref, watch, computed, onUnmounted, nextTick } from 'vue'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import type { UploadedMedia } from '@/types'
@@ -277,7 +345,40 @@ const showDetails = ref(false)
 const videoRef = ref<HTMLVideoElement | null>(null)
 let plyrInstance: Plyr | null = null
 
+const speedMenuRef = ref<HTMLElement | null>(null)
+const showSpeedMenu = ref(false)
+const isTempSpeedBoosting = ref(false)
+let speedLongPressTimer: ReturnType<typeof setTimeout> | null = null
+let suppressSpeedClick = false
+let speedBoostWasPaused = false
+
+const showVideoOverlayControls = ref(false)
+const isVideoPlaying = ref(false)
+let overlayHideTimer: ReturnType<typeof setTimeout> | null = null
+
+type VideoGestureDirection = 'H' | 'V'
+type VideoGestureState = {
+  pointerId: number
+  startX: number
+  startY: number
+  startAtMs: number
+  direction: VideoGestureDirection | null
+  started: boolean
+  startTimeSec: number
+  startVolume: number
+  rafId: number | null
+  latestDx: number
+  latestDy: number
+}
+let videoGesture: VideoGestureState | null = null
+let volumeGestureSupported: boolean | null = null
+let cleanupVideoStateListeners: (() => void) | null = null
+
 const destroyPlyr = () => {
+  if (cleanupVideoStateListeners) {
+    cleanupVideoStateListeners()
+    cleanupVideoStateListeners = null
+  }
   if (!plyrInstance) return
   try {
     plyrInstance.destroy()
@@ -303,13 +404,375 @@ const applyVideoPlaybackRate = () => {
   if (!video) return
   const r = Number(playbackRate.value || 1)
   if (!Number.isFinite(r) || r <= 0) return
+  if (isTempSpeedBoosting.value) return
+
   // 同时设置 defaultPlaybackRate，避免部分浏览器在重新加载后回退到 1
-  video.playbackRate = r
+  if (plyrInstance) {
+    try {
+      plyrInstance.speed = r
+    } catch {
+      // ignore
+    }
+  } else {
+    video.playbackRate = r
+  }
   video.defaultPlaybackRate = r
 }
 
 const handleVideoLoadedMetadata = () => {
   applyVideoPlaybackRate()
+  syncVideoPlayState()
+}
+
+const handleDocumentPointerDown = (e: PointerEvent) => {
+  if (!showSpeedMenu.value) return
+  const root = speedMenuRef.value
+  if (!root) {
+    showSpeedMenu.value = false
+    return
+  }
+  const t = e.target
+  if (t instanceof Node && root.contains(t)) return
+  showSpeedMenu.value = false
+}
+
+const closeSpeedMenu = () => {
+  showSpeedMenu.value = false
+}
+
+const handleToggleSpeedMenu = () => {
+  if (suppressSpeedClick) {
+    suppressSpeedClick = false
+    return
+  }
+  showSpeedMenu.value = !showSpeedMenu.value
+}
+
+const selectPlaybackRate = (r: number) => {
+  playbackRate.value = r
+  closeSpeedMenu()
+}
+
+const syncVideoPlayState = () => {
+  const video = videoRef.value
+  isVideoPlaying.value = !!video && !video.paused && !video.ended
+}
+
+const attachVideoStateListeners = () => {
+  if (cleanupVideoStateListeners) {
+    cleanupVideoStateListeners()
+    cleanupVideoStateListeners = null
+  }
+
+  const video = videoRef.value
+  if (!video) return
+  const onPlay = () => syncVideoPlayState()
+  const onPause = () => syncVideoPlayState()
+  const onEnded = () => syncVideoPlayState()
+  video.addEventListener('play', onPlay)
+  video.addEventListener('pause', onPause)
+  video.addEventListener('ended', onEnded)
+  syncVideoPlayState()
+
+  cleanupVideoStateListeners = () => {
+    video.removeEventListener('play', onPlay)
+    video.removeEventListener('pause', onPause)
+    video.removeEventListener('ended', onEnded)
+  }
+}
+
+const setVideoSpeed = (r: number, opts?: { setDefault?: boolean }) => {
+  const video = videoRef.value
+  if (!video) return
+  const rate = Number(r || 1)
+  if (!Number.isFinite(rate) || rate <= 0) return
+
+  if (plyrInstance) {
+    try {
+      plyrInstance.speed = rate
+    } catch {
+      // ignore
+    }
+  } else {
+    video.playbackRate = rate
+  }
+
+  if (opts?.setDefault) {
+    video.defaultPlaybackRate = rate
+  }
+}
+
+const setVideoCurrentTime = (t: number) => {
+  const video = videoRef.value
+  if (!video) return
+  const current = Number(video.currentTime || 0)
+  const duration = Number(video.duration)
+  const hasDuration = Number.isFinite(duration) && duration > 0
+  const next = Number.isFinite(t) ? t : current
+  const clamped = Math.max(0, hasDuration ? Math.min(duration, next) : next)
+
+  if (plyrInstance) {
+    try {
+      plyrInstance.currentTime = clamped
+      return
+    } catch {
+      // ignore
+    }
+  }
+  video.currentTime = clamped
+}
+
+const setVideoVolume = (v: number) => {
+  const video = videoRef.value
+  if (!video) return
+  const next = Math.max(0, Math.min(1, Number.isFinite(v) ? v : video.volume))
+
+  if (plyrInstance) {
+    try {
+      plyrInstance.volume = next
+    } catch {
+      video.volume = next
+    }
+  } else {
+    video.volume = next
+  }
+
+  if (volumeGestureSupported === null) {
+    // iOS Safari（移动端）通常禁止网页脚本调节音量，这里做一次性能力探测。
+    const after = video.volume
+    volumeGestureSupported = Math.abs(after - next) < 0.001
+    if (volumeGestureSupported === false) {
+      show('当前浏览器限制网页调节音量，请使用实体音量键')
+    }
+  }
+}
+
+const clearOverlayHideTimer = () => {
+  if (!overlayHideTimer) return
+  clearTimeout(overlayHideTimer)
+  overlayHideTimer = null
+}
+
+const showOverlayWithAutoHide = () => {
+  showVideoOverlayControls.value = true
+  clearOverlayHideTimer()
+  overlayHideTimer = setTimeout(() => {
+    showVideoOverlayControls.value = false
+    overlayHideTimer = null
+  }, 1000)
+}
+
+const showOverlayDuringGesture = () => {
+  showVideoOverlayControls.value = true
+  clearOverlayHideTimer()
+}
+
+const toggleVideoPlay = async () => {
+  const video = videoRef.value
+  if (!video) return
+
+  try {
+    if (video.paused || video.ended) {
+      if (plyrInstance) await (plyrInstance.play() as any)
+      else await video.play()
+    } else {
+      if (plyrInstance) plyrInstance.pause()
+      else video.pause()
+    }
+  } catch (e) {
+    console.warn('toggleVideoPlay failed:', e)
+    show('播放失败，请点击控制栏播放')
+  } finally {
+    syncVideoPlayState()
+  }
+}
+
+const handleOverlayTogglePlay = () => {
+  showOverlayWithAutoHide()
+  void toggleVideoPlay()
+}
+
+const handleOverlaySeek = (deltaSec: number) => {
+  showOverlayWithAutoHide()
+  const video = videoRef.value
+  if (!video) return
+  const cur = Number.isFinite(video.currentTime) ? video.currentTime : 0
+  setVideoCurrentTime(cur + deltaSec)
+}
+
+const clearSpeedLongPressTimer = () => {
+  if (!speedLongPressTimer) return
+  clearTimeout(speedLongPressTimer)
+  speedLongPressTimer = null
+}
+
+const stopTempSpeedBoost = () => {
+  if (!isTempSpeedBoosting.value) return
+  isTempSpeedBoosting.value = false
+  setVideoSpeed(playbackRate.value, { setDefault: false })
+  if (speedBoostWasPaused) {
+    try {
+      plyrInstance?.pause()
+      videoRef.value?.pause()
+    } catch {
+      // ignore
+    }
+  }
+  speedBoostWasPaused = false
+}
+
+const handleSpeedPressStart = (e: PointerEvent) => {
+  if (e.button !== undefined && e.button !== 0) return
+  suppressSpeedClick = false
+  clearSpeedLongPressTimer()
+
+  speedLongPressTimer = setTimeout(() => {
+    const video = videoRef.value
+    if (!video) return
+    suppressSpeedClick = true
+    closeSpeedMenu()
+    speedBoostWasPaused = video.paused || video.ended
+    isTempSpeedBoosting.value = true
+    setVideoSpeed(2, { setDefault: false })
+    if (speedBoostWasPaused) void toggleVideoPlay()
+  }, 320)
+}
+
+const handleSpeedPressEnd = () => {
+  const wasBoosting = isTempSpeedBoosting.value
+  clearSpeedLongPressTimer()
+  if (wasBoosting) {
+    suppressSpeedClick = true
+    stopTempSpeedBoost()
+  }
+}
+
+const handleSpeedPressCancel = () => {
+  const wasBoosting = isTempSpeedBoosting.value
+  clearSpeedLongPressTimer()
+  if (wasBoosting) stopTempSpeedBoost()
+}
+
+const isTargetInPlyrControls = (target: EventTarget | null): boolean => {
+  const el = target instanceof Element ? target : null
+  if (!el) return false
+  return !!el.closest('.plyr__controls, .plyr__control, .plyr__progress, .plyr__volume')
+}
+
+const cancelVideoGestureRaf = () => {
+  if (!videoGesture?.rafId) return
+  cancelAnimationFrame(videoGesture.rafId)
+  videoGesture.rafId = null
+}
+
+const applyVideoGestureFrame = () => {
+  if (!videoGesture || !videoGesture.started || !videoGesture.direction) return
+  const video = videoRef.value
+  if (!video) return
+
+  if (videoGesture.direction === 'H') {
+    const secPerPx = 0.1
+    const target = videoGesture.startTimeSec + videoGesture.latestDx * secPerPx
+    setVideoCurrentTime(target)
+  } else {
+    if (volumeGestureSupported === false) return
+    const volPerPx = 1 / 150
+    const target = videoGesture.startVolume - videoGesture.latestDy * volPerPx
+    setVideoVolume(target)
+  }
+}
+
+const scheduleVideoGestureApply = () => {
+  if (!videoGesture) return
+  if (videoGesture.rafId !== null) return
+  videoGesture.rafId = requestAnimationFrame(() => {
+    if (!videoGesture) return
+    videoGesture.rafId = null
+    applyVideoGestureFrame()
+  })
+}
+
+const handleVideoPointerDown = (e: PointerEvent) => {
+  if (currentMedia.value.type !== 'video') return
+  if (isTargetInPlyrControls(e.target)) return
+  if (e.button !== undefined && e.button !== 0) return
+  if (videoGesture) return
+  const video = videoRef.value
+  if (!video) return
+
+  syncVideoPlayState()
+  closeSpeedMenu()
+
+  const startTimeSec = Number.isFinite(video.currentTime) ? video.currentTime : 0
+  const startVolume = typeof video.volume === 'number' ? video.volume : 1
+  videoGesture = {
+    pointerId: e.pointerId,
+    startX: e.clientX,
+    startY: e.clientY,
+    startAtMs: Date.now(),
+    direction: null,
+    started: false,
+    startTimeSec,
+    startVolume,
+    rafId: null,
+    latestDx: 0,
+    latestDy: 0
+  }
+
+  try {
+    ;(e.currentTarget as HTMLElement | null)?.setPointerCapture?.(e.pointerId)
+  } catch {
+    // ignore
+  }
+}
+
+const handleVideoPointerMove = (e: PointerEvent) => {
+  if (!videoGesture || videoGesture.pointerId !== e.pointerId) return
+  const dx = e.clientX - videoGesture.startX
+  const dy = e.clientY - videoGesture.startY
+  videoGesture.latestDx = dx
+  videoGesture.latestDy = dy
+
+  const threshold = 10
+  if (!videoGesture.started) {
+    if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return
+    videoGesture.started = true
+    videoGesture.direction = Math.abs(dx) >= Math.abs(dy) ? 'H' : 'V'
+    showOverlayDuringGesture()
+  }
+
+  if (videoGesture.started && e.cancelable) e.preventDefault()
+  scheduleVideoGestureApply()
+}
+
+const finishVideoGesture = (asTap: boolean) => {
+  cancelVideoGestureRaf()
+  if (!videoGesture) return
+  const wasStarted = videoGesture.started
+  videoGesture = null
+
+  if (asTap && !wasStarted) {
+    void toggleVideoPlay()
+    showOverlayWithAutoHide()
+    return
+  }
+
+  if (wasStarted) {
+    showOverlayWithAutoHide()
+  }
+}
+
+const handleVideoPointerUp = (e: PointerEvent) => {
+  if (!videoGesture || videoGesture.pointerId !== e.pointerId) return
+  const elapsed = Date.now() - videoGesture.startAtMs
+  const moved = Math.max(Math.abs(videoGesture.latestDx), Math.abs(videoGesture.latestDy))
+  const asTap = elapsed < 500 && moved < 10
+  finishVideoGesture(asTap)
+}
+
+const handleVideoPointerCancel = (e: PointerEvent) => {
+  if (!videoGesture || videoGesture.pointerId !== e.pointerId) return
+  finishVideoGesture(false)
 }
 
 const initPlyr = () => {
@@ -322,6 +785,7 @@ const initPlyr = () => {
   // 同一元素不重复初始化
   if (plyrInstance && (plyrInstance as any).media === video) {
     applyVideoPlaybackRate()
+    attachVideoStateListeners()
     return
   }
 
@@ -331,6 +795,8 @@ const initPlyr = () => {
     plyrInstance = new Plyr(video, {
       // 去掉中央大按钮（play-large），避免遮挡暂停画面；其余能力与原生 controls 等价。
       controls: ['play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
+      // 由组件自己处理“点击播放/暂停”，避免与自定义手势/浮层冲突
+      clickToPlay: false,
       // 避免与 MediaPreview 的全局快捷键（←/→/Esc）冲突
       keyboard: { focused: false, global: false }
     })
@@ -341,6 +807,7 @@ const initPlyr = () => {
   }
 
   applyVideoPlaybackRate()
+  attachVideoStateListeners()
 }
 
 watch(playbackRate, () => {
@@ -789,6 +1256,12 @@ watch(currentIndex, (newIndex) => {
 watch(
   () => currentMedia.value.url,
   () => {
+    clearOverlayHideTimer()
+    showVideoOverlayControls.value = false
+    cancelVideoGestureRaf()
+    videoGesture = null
+    closeSpeedMenu()
+    handleSpeedPressCancel()
     resetMediaLoadState()
     destroyPlyr()
     nextTick(() => {
@@ -812,6 +1285,12 @@ const imageStyle = computed(() => {
 })
 
 const handleClose = () => {
+  clearOverlayHideTimer()
+  showVideoOverlayControls.value = false
+  cancelVideoGestureRaf()
+  videoGesture = null
+  closeSpeedMenu()
+  handleSpeedPressCancel()
   resetZoom()
   showDetails.value = false
   emit('update:visible', false)
@@ -925,6 +1404,7 @@ watch(() => props.visible, (val) => {
     resetMediaLoadState()
     showDetails.value = false
     window.addEventListener('keydown', handleKeydown)
+    window.addEventListener('pointerdown', handleDocumentPointerDown, true)
     
     // 初始化 currentIndex
     // 如果有传入 mediaList，尝试找到 url 对应的 index
@@ -943,14 +1423,23 @@ watch(() => props.visible, (val) => {
     nextTick(() => initPlyr())
   } else {
     showDetails.value = false
+    clearOverlayHideTimer()
+    showVideoOverlayControls.value = false
+    cancelVideoGestureRaf()
+    videoGesture = null
+    closeSpeedMenu()
+    handleSpeedPressCancel()
     destroyPlyr()
     window.removeEventListener('keydown', handleKeydown)
+    window.removeEventListener('pointerdown', handleDocumentPointerDown, true)
   }
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('pointerdown', handleDocumentPointerDown, true)
   destroyPlyr()
+  clearOverlayHideTimer()
   resetMediaLoadState()
 })
 </script>
