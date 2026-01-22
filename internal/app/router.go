@@ -88,6 +88,8 @@ func (a *App) buildRouter() http.Handler {
 		api.Route("/douyin", func(dr chi.Router) {
 			dr.Post("/account", a.handleDouyinAccount)
 			dr.Post("/detail", a.handleDouyinDetail)
+			dr.Get("/cover", a.handleDouyinCover)
+			dr.Head("/cover", a.handleDouyinCover)
 			dr.Get("/download", a.handleDouyinDownload)
 			dr.Head("/download", a.handleDouyinDownload)
 			dr.Post("/import", a.handleDouyinImport)

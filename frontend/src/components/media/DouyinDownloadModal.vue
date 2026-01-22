@@ -193,13 +193,13 @@
                     v-for="item in accountItems"
                     :key="`douyin-account-${item.detailId}`"
                     class="rounded-xl overflow-hidden border border-gray-700 hover:border-emerald-500 transition bg-black/20 text-left"
-                    @click="openAccountItem(item.detailId)"
+                    @click="openAccountItem(item)"
                     :title="item.desc || item.detailId"
                   >
                     <div class="aspect-video bg-[#111113] overflow-hidden">
                       <img
-                        v-if="item.coverUrl"
-                        :src="item.coverUrl"
+                        v-if="item.coverDownloadUrl || item.coverUrl"
+                        :src="item.coverDownloadUrl || item.coverUrl"
                         class="w-full h-full object-cover"
                         loading="lazy"
                         referrerpolicy="no-referrer"
@@ -461,6 +461,9 @@ interface DouyinAccountItem {
   type?: 'image' | 'video'
   desc?: string
   coverUrl?: string
+  coverDownloadUrl?: string
+  key?: string
+  items?: DouyinDetailItem[]
 }
 
 interface DouyinAccountResponse {
@@ -509,6 +512,8 @@ const previewUrl = ref('')
 const previewType = ref<'image' | 'video' | 'file'>('image')
 const previewMediaList = ref<UploadedMedia[]>([])
 const previewIndex = ref(0)
+const previewContextKey = ref('')
+const previewContextItems = ref<DouyinDetailItem[]>([])
 
 const canUpload = computed(() => !!userStore.currentUser)
 
@@ -618,6 +623,8 @@ const pasteFromClipboard = async () => {
 const resetDetailStates = () => {
   Object.keys(itemStateByIndex).forEach((k) => delete itemStateByIndex[Number(k)])
   Object.keys(itemMetaByIndex).forEach((k) => delete itemMetaByIndex[Number(k)])
+  previewContextKey.value = ''
+  previewContextItems.value = []
   selectionMode.value = false
   selectedIndices.value = new Set()
   batchImport.running = false
@@ -815,9 +822,29 @@ const handleFetchMoreAccount = async () => {
   await handleFetchAccount({ append: true })
 }
 
-const openAccountItem = async (detailId: string) => {
-  const id = String(detailId || '').trim()
+const openAccountItem = async (item: DouyinAccountItem) => {
+  const id = String(item?.detailId || '').trim()
   if (!id) return
+
+  const key = String(item?.key || '').trim()
+  const items = Array.isArray(item?.items) ? item.items : []
+  if (key && items.length > 0) {
+    // 直接预览：避免再走 /api/douyin/detail（若后端 best-effort 未返回 items，则回退到解析）
+    resetDetailStates()
+    previewContextKey.value = key
+    previewContextItems.value = items
+
+    const first = items.slice().sort((a, b) => Number(a.index) - Number(b.index))[0]
+    if (!first) return
+
+    previewIndex.value = Number(first.index) || 0
+    previewType.value = first.type
+    previewUrl.value = String(first.downloadUrl || first.url || '').trim()
+    previewMediaList.value = buildPreviewMediaList(items)
+    showPreview.value = true
+    return
+  }
+
   activeMode.value = 'detail'
   inputText.value = id
   await handleResolve()
@@ -987,6 +1014,9 @@ const openPreview = (idx: number) => {
   previewType.value = item.type
   previewUrl.value = item.downloadUrl
 
+  previewContextKey.value = detail.value.key
+  previewContextItems.value = detail.value.items || []
+
   if (item.type === 'image') {
     const images = detail.value.items.filter((i) => i.type === 'image')
     previewMediaList.value = buildPreviewMediaList(images)
@@ -998,10 +1028,9 @@ const openPreview = (idx: number) => {
 }
 
 const handlePreviewMediaChange = (media: UploadedMedia) => {
-  if (!detail.value) return
   const url = String(media?.url || '').trim()
   if (!url) return
-  const item = detail.value.items.find((i) => i.downloadUrl === url || i.url === url)
+  const item = (previewContextItems.value || []).find((i) => i.downloadUrl === url || i.url === url)
   if (item) {
     previewIndex.value = Number(item.index) || previewIndex.value
   }
@@ -1036,7 +1065,8 @@ const importIndex = async (idx: number) => {
     show('请先选择身份后再导入上传')
     return { ok: false, dedup: false, error: '未选择身份' }
   }
-  if (!detail.value?.key) return { ok: false, dedup: false, error: '解析信息缺失' }
+  const key = String(previewContextKey.value || detail.value?.key || '').trim()
+  if (!key) return { ok: false, dedup: false, error: '解析信息缺失' }
   if (!await ensureImgServer()) return { ok: false, dedup: false, error: '图片服务器地址未获取' }
 
   const current = itemStateByIndex[idx]?.status
@@ -1056,7 +1086,7 @@ const importIndex = async (idx: number) => {
   try {
     const res = await douyinApi.importDouyinMedia({
       userid: userStore.currentUser.id,
-      key: detail.value.key,
+      key,
       index: idx,
       cookieData,
       referer,
@@ -1066,11 +1096,15 @@ const importIndex = async (idx: number) => {
     if (res?.state === 'OK' && res.msg) {
       const port = String(res.port || await systemConfigStore.resolveImagePort(res.msg, mediaStore.imgServer))
       const remoteUrl = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
+      const inferredType =
+        (previewContextItems.value || []).find((i) => Number(i.index) === Number(idx))?.type ||
+        detail.value?.items?.find((i) => Number(i.index) === Number(idx))?.type ||
+        previewType.value
 
       if (!mediaStore.uploadedMedia.some((m) => m.url === remoteUrl)) {
         mediaStore.addUploadedMedia({
           url: remoteUrl,
-          type: previewType.value,
+          type: inferredType,
           localFilename: res.localFilename
         })
       }

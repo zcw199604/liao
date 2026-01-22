@@ -30,7 +30,7 @@
   - 模式B：用户作品
     1) 粘贴用户主页链接/分享文本/sec_uid
     2) 点击“获取作品”拉取该用户发布作品列表（支持分页加载）
-    3) 点击某个作品 → 自动切换到“作品解析”并抓取该作品资源列表
+    3) 点击某个作品 → 直接预览（best-effort 使用 `/api/douyin/account` 返回的 `key/items`，避免再请求 `/api/douyin/detail`；若缺失则回退到“作品解析”抓取资源列表）
 
 **本地配置（localStorage）**
 - `douyin_cookie`：Cookie（可选；支持一键清除）
@@ -53,7 +53,7 @@
 - 输入优先本地解析 `sec_user_id`（支持 `/user/<sec_uid>`、`sec_uid=<sec_uid>`、直接粘贴 `sec_uid`）
 - 不能解析时调用 `/douyin/share` 获取重定向 URL 后再提取 `sec_user_id`
 - 调用 `/douyin/account` 拉取发布作品列表（`aweme_list`），并返回 `cursor/hasMore/items`
-- 前端点击 `items[].detailId` 后，再走 `POST /api/douyin/detail` 解析该作品资源列表
+- best-effort：服务端会尝试从 `aweme_list` 直接抽取可预览资源（视频 `play_addr` / 图集 `images[].url_list`），并为每个作品生成缓存 `key` 与 `items[].downloadUrl`；前端可直接预览/下载/导入，无需再请求 `/api/douyin/detail`
 
 ### 2) 下载到本地
 `GET /api/douyin/download?key=...&index=...`：

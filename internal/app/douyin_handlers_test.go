@@ -196,6 +196,52 @@ func TestHandleDouyinDownload_ExpiredKey(t *testing.T) {
 	}
 }
 
+func TestHandleDouyinCover_Get(t *testing.T) {
+	coverBytes := []byte("cover-bytes")
+
+	var upstream *httptest.Server
+	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/cover.jpg" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.Header().Set("Content-Length", strconv.Itoa(len(coverBytes)))
+		if r.Method != http.MethodHead {
+			_, _ = w.Write(coverBytes)
+		}
+	}))
+	defer upstream.Close()
+
+	a := &App{
+		douyinDownloader: NewDouyinDownloaderService(upstream.URL, "", "", "", 60*time.Second),
+	}
+	key := a.douyinDownloader.CacheDetail(&douyinCachedDetail{
+		DetailID:  "123456",
+		Title:     "测试标题",
+		Type:      "视频",
+		CoverURL:  upstream.URL + "/cover.jpg",
+		Downloads: []string{upstream.URL + "/media.mp4"},
+	})
+	if key == "" {
+		t.Fatalf("missing key")
+	}
+
+	coverReq := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/cover?key="+key, nil)
+	coverRR := httptest.NewRecorder()
+	a.handleDouyinCover(coverRR, coverReq)
+
+	if coverRR.Code != http.StatusOK {
+		t.Fatalf("cover status=%d, body=%s", coverRR.Code, coverRR.Body.String())
+	}
+	if got := strings.TrimSpace(coverRR.Header().Get("Content-Type")); got != "image/jpeg" {
+		t.Fatalf("content-type=%q, want %q", got, "image/jpeg")
+	}
+	if !bytes.Equal(coverRR.Body.Bytes(), coverBytes) {
+		t.Fatalf("cover body mismatch: got=%q", coverRR.Body.Bytes())
+	}
+}
+
 func TestHandleDouyinAccount_Posts(t *testing.T) {
 	var upstream *httptest.Server
 	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -218,6 +264,9 @@ func TestHandleDouyinAccount_Posts(t *testing.T) {
 								"cover": map[string]any{
 									"url_list": []any{upstream.URL + "/cover1.jpg"},
 								},
+								"play_addr": map[string]any{
+									"url_list": []any{upstream.URL + "/media1.mp4"},
+								},
 							},
 						},
 						map[string]any{
@@ -226,6 +275,9 @@ func TestHandleDouyinAccount_Posts(t *testing.T) {
 							"images": []any{
 								map[string]any{
 									"url_list": []any{upstream.URL + "/cover2.jpg"},
+								},
+								map[string]any{
+									"url_list": []any{upstream.URL + "/img2.jpg"},
 								},
 							},
 						},
@@ -278,11 +330,29 @@ func TestHandleDouyinAccount_Posts(t *testing.T) {
 	if resp.Items[0].Type != "video" {
 		t.Fatalf("items[0].type=%q, want %q", resp.Items[0].Type, "video")
 	}
+	if strings.TrimSpace(resp.Items[0].Key) == "" {
+		t.Fatalf("items[0].key should not be empty")
+	}
+	if !strings.Contains(resp.Items[0].CoverDownloadURL, "/api/douyin/cover?key=") {
+		t.Fatalf("items[0].coverDownloadUrl=%q", resp.Items[0].CoverDownloadURL)
+	}
+	if len(resp.Items[0].Items) != 1 {
+		t.Fatalf("items[0].items len=%d, want 1", len(resp.Items[0].Items))
+	}
+	if !strings.Contains(resp.Items[0].Items[0].DownloadURL, "/api/douyin/download?key=") {
+		t.Fatalf("items[0].items[0].downloadUrl=%q", resp.Items[0].Items[0].DownloadURL)
+	}
 	if resp.Items[1].DetailID != "222" {
 		t.Fatalf("items[1].detailId=%q, want %q", resp.Items[1].DetailID, "222")
 	}
 	if resp.Items[1].Type != "image" {
 		t.Fatalf("items[1].type=%q, want %q", resp.Items[1].Type, "image")
+	}
+	if strings.TrimSpace(resp.Items[1].Key) == "" {
+		t.Fatalf("items[1].key should not be empty")
+	}
+	if len(resp.Items[1].Items) != 2 {
+		t.Fatalf("items[1].items len=%d, want 2", len(resp.Items[1].Items))
 	}
 }
 

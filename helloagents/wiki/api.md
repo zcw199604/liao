@@ -1068,12 +1068,23 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 
 **响应（HTTP 200）**
 ```json
-{"secUserId":"MS4wLjABAAAA...","tab":"post","cursor":123,"hasMore":true,"items":[{"detailId":"0123456789","type":"video","desc":"作品描述","coverUrl":"..."}]}
+{"secUserId":"MS4wLjABAAAA...","tab":"post","cursor":123,"hasMore":true,"items":[{"detailId":"0123456789","type":"video","desc":"作品描述","coverUrl":"...","coverDownloadUrl":"/api/douyin/cover?key=xxxx","key":"xxxx","items":[{"index":0,"type":"video","url":"https://...","downloadUrl":"/api/douyin/download?key=xxxx&index=0","originalFilename":"作品描述.mp4"}]}]}
 ```
 
 **备注**
 - `cursor/hasMore` 用于“加载更多”。
 - `items[].detailId` 可直接作为 `/api/douyin/detail` 的 `input` 继续解析资源列表。
+- `items[].items/key/coverDownloadUrl` 为 best-effort：用于在“用户作品列表”直接预览/下载/导入；为空时前端可回退到 `/api/douyin/detail` 获取完整资源列表。
+
+#### [GET] /api/douyin/cover
+**描述**：根据 `key` 返回作品封面图片（代理抖音 CDN，用于缩略图/预览封面）。
+
+**请求（query）**
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| key | 是 | `/api/douyin/detail` 或 `/api/douyin/account` 返回的缓存 key |
+
+**响应**：二进制流（透传 `Content-Type`）。
 
 #### [GET] /api/douyin/download
 **描述**：根据 `key + index` 返回媒体下载流，并设置 `Content-Disposition` 为“作品标题”文件名。
@@ -1088,7 +1099,7 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 
 **备注**
 - 支持 `Range` 请求透传（可能返回 HTTP 206 + `Content-Range`），以便 `<video>` 正常播放与拖动进度条。
-- 为支持 `<img>/<video>` 直连预览，该接口在 JWT 中间件中放行（不要求 `Authorization`）；安全性依赖随机 `key` + TTL，且 `key` 只能通过已鉴权的 `/api/douyin/detail` 获取。
+- 为支持 `<img>/<video>` 直连预览，`/api/douyin/download` 与 `/api/douyin/cover` 在 JWT 中间件中放行（不要求 `Authorization`）；安全性依赖随机 `key` + TTL，且 `key` 只能通过已鉴权的 `/api/douyin/detail` 或 `/api/douyin/account` 获取。
 
 #### [HEAD] /api/douyin/download
 **描述**：用于前端“预估文件大小”的探测请求（最佳努力）。返回与 `GET` 相同的 `Content-Type/Content-Disposition`，并尽量补齐 `Content-Length`。

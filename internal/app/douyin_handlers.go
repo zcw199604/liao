@@ -28,10 +28,13 @@ type douyinAccountRequest struct {
 }
 
 type douyinAccountItem struct {
-	DetailID string `json:"detailId"`
-	Type     string `json:"type,omitempty"` // image|video（best-effort）
-	Desc     string `json:"desc,omitempty"`
-	CoverURL string `json:"coverUrl,omitempty"`
+	DetailID         string            `json:"detailId"`
+	Type             string            `json:"type,omitempty"` // image|video（best-effort）
+	Desc             string            `json:"desc,omitempty"`
+	CoverURL         string            `json:"coverUrl,omitempty"`
+	CoverDownloadURL string            `json:"coverDownloadUrl,omitempty"`
+	Key              string            `json:"key,omitempty"`
+	Items            []douyinMediaItem `json:"items,omitempty"` // 预览/下载列表（best-effort；为空时前端可回退到 /api/douyin/detail）
 }
 
 type douyinAccountResponse struct {
@@ -121,7 +124,92 @@ func extractDouyinAccountCoverURL(item map[string]any) string {
 	return ""
 }
 
-func extractDouyinAccountItems(data map[string]any) []douyinAccountItem {
+func firstStringFromURLList(v any) string {
+	list := extractStringSlice(v)
+	if len(list) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(list[0])
+}
+
+func extractDouyinAccountVideoPlayURL(item map[string]any) string {
+	v, ok := item["video"].(map[string]any)
+	if !ok || v == nil {
+		return ""
+	}
+
+	addrKeys := []string{
+		"play_addr",
+		"playAddr",
+		"play_addr_h264",
+		"playAddrH264",
+		"play_addr_bytevc1",
+		"playAddrBytevc1",
+		"play_addr_lowbr",
+		"playAddrLowbr",
+		"download_addr",
+		"downloadAddr",
+	}
+
+	for _, k := range addrKeys {
+		raw := v[k]
+		if raw == nil {
+			continue
+		}
+		if m, ok := raw.(map[string]any); ok && m != nil {
+			if u := strings.TrimSpace(firstStringFromURLList(m["url_list"])); u != "" {
+				return u
+			}
+			if u := strings.TrimSpace(firstStringFromURLList(m["urlList"])); u != "" {
+				return u
+			}
+			if u := strings.TrimSpace(asString(m["url"])); u != "" {
+				return u
+			}
+		}
+		if u := strings.TrimSpace(asString(raw)); u != "" {
+			return u
+		}
+	}
+
+	return ""
+}
+
+func extractDouyinAccountImageURLs(item map[string]any) []string {
+	imgsAny, ok := item["images"].([]any)
+	if !ok || len(imgsAny) == 0 {
+		return nil
+	}
+
+	out := make([]string, 0, len(imgsAny))
+	for _, it := range imgsAny {
+		m, ok := it.(map[string]any)
+		if !ok || m == nil {
+			continue
+		}
+
+		if u := strings.TrimSpace(firstStringFromURLList(m["url_list"])); u != "" {
+			out = append(out, u)
+			continue
+		}
+		if u := strings.TrimSpace(firstStringFromURLList(m["urlList"])); u != "" {
+			out = append(out, u)
+			continue
+		}
+		if u := strings.TrimSpace(firstStringFromURLList(m["download_url_list"])); u != "" {
+			out = append(out, u)
+			continue
+		}
+		if u := strings.TrimSpace(firstStringFromURLList(m["downloadUrlList"])); u != "" {
+			out = append(out, u)
+			continue
+		}
+	}
+
+	return out
+}
+
+func extractDouyinAccountItems(s *DouyinDownloaderService, data map[string]any) []douyinAccountItem {
 	if data == nil {
 		return nil
 	}
@@ -158,11 +246,74 @@ func extractDouyinAccountItems(data map[string]any) []douyinAccountItem {
 			itemType = "image"
 		}
 
+		desc := strings.TrimSpace(asString(m["desc"]))
+		cover := extractDouyinAccountCoverURL(m)
+
+		// best-effort：直接从 account 返回中抽取可预览资源，避免点击后再 /detail N 次。
+		downloads := []string(nil)
+		if itemType == "image" {
+			downloads = extractDouyinAccountImageURLs(m)
+		} else {
+			if u := extractDouyinAccountVideoPlayURL(m); u != "" {
+				downloads = []string{u}
+			}
+		}
+		if strings.TrimSpace(cover) == "" && len(downloads) > 0 && itemType == "image" {
+			cover = downloads[0]
+		}
+
+		key := ""
+		var previewItems []douyinMediaItem
+		coverDownloadURL := ""
+		if s != nil && len(downloads) > 0 {
+			cached := &douyinCachedDetail{
+				DetailID:  id,
+				Title:     desc,
+				Type:      map[string]string{"video": "视频", "image": "图集"}[itemType],
+				CoverURL:  cover,
+				Downloads: downloads,
+			}
+			key = s.CacheDetail(cached)
+			if key != "" {
+				if strings.TrimSpace(cover) != "" {
+					coverDownloadURL = fmt.Sprintf("/api/douyin/cover?key=%s", url.QueryEscape(key))
+				}
+
+				previewItems = make([]douyinMediaItem, 0, len(downloads))
+				for i, u := range downloads {
+					u = strings.TrimSpace(u)
+					if u == "" {
+						continue
+					}
+
+					ext := guessExtFromURL(u)
+					if ext == "" {
+						if itemType == "video" {
+							ext = ".mp4"
+						} else {
+							ext = ".jpg"
+						}
+					}
+
+					previewItems = append(previewItems, douyinMediaItem{
+						Index:            i,
+						Type:             itemType,
+						URL:              u,
+						DownloadURL:      fmt.Sprintf("/api/douyin/download?key=%s&index=%d", url.QueryEscape(key), i),
+						OriginalFilename: buildDouyinOriginalFilename(desc, id, i, len(downloads), ext),
+					})
+				}
+			}
+		}
+
 		items = append(items, douyinAccountItem{
-			DetailID: id,
-			Type:     itemType,
-			Desc:     strings.TrimSpace(asString(m["desc"])),
-			CoverURL: extractDouyinAccountCoverURL(m),
+			DetailID:         id,
+			Type:             itemType,
+			Desc:             desc,
+			CoverURL:         cover,
+			Key:              key,
+			Items:            previewItems,
+			CoverDownloadURL: coverDownloadURL,
 		})
 	}
 	return items
@@ -231,7 +382,7 @@ func (a *App) handleDouyinAccount(w http.ResponseWriter, r *http.Request) {
 		hasMore = asBool(data["hasMore"])
 	}
 
-	items := extractDouyinAccountItems(data)
+	items := extractDouyinAccountItems(a.douyinDownloader, data)
 	if items == nil {
 		items = []douyinAccountItem{}
 	}
@@ -423,6 +574,73 @@ func (a *App) handleDouyinDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
+}
+
+func (a *App) handleDouyinCover(w http.ResponseWriter, r *http.Request) {
+	if a == nil || a.douyinDownloader == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "服务未初始化"})
+		return
+	}
+	if !a.douyinDownloader.configured() {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "抖音下载未启用（请配置 TIKTOKDOWNLOADER_BASE_URL）"})
+		return
+	}
+
+	key := strings.TrimSpace(r.URL.Query().Get("key"))
+	if key == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "key 非法"})
+		return
+	}
+
+	cached, ok := a.douyinDownloader.GetCachedDetail(key)
+	if !ok || cached == nil {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "解析已过期，请重新解析"})
+		return
+	}
+	remoteURL := strings.TrimSpace(cached.CoverURL)
+	if remoteURL == "" {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "封面不存在"})
+		return
+	}
+
+	method := r.Method
+	if method != http.MethodGet && method != http.MethodHead {
+		method = http.MethodGet
+	}
+	req, err := http.NewRequestWithContext(r.Context(), method, remoteURL, nil)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "封面链接非法"})
+		return
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	req.Header.Set("Referer", "https://www.douyin.com/")
+
+	resp, err := a.douyinDownloader.api.httpClient.Do(req)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "获取封面失败: " + err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("获取封面失败: %s %s", resp.Status, strings.TrimSpace(string(body)))})
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-store")
+	if ct := strings.TrimSpace(resp.Header.Get("Content-Type")); ct != "" {
+		w.Header().Set("Content-Type", ct)
+	}
+	if cl := strings.TrimSpace(resp.Header.Get("Content-Length")); cl != "" {
+		w.Header().Set("Content-Length", cl)
+	}
+
+	w.WriteHeader(resp.StatusCode)
+	if method == http.MethodHead {
+		return
+	}
 	_, _ = io.Copy(w, resp.Body)
 }
 

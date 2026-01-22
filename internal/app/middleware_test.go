@@ -120,6 +120,26 @@ func TestJWTMiddleware_AllowsWhitelistPath_DouyinDownload(t *testing.T) {
 	}
 }
 
+func TestJWTMiddleware_AllowsWhitelistPath_DouyinCover(t *testing.T) {
+	a := &App{jwt: NewJWTService("secret", 24)}
+	nextCalled := false
+	h := a.jwtMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "http://api.local/api/douyin/cover?key=abc", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d, want 200", rec.Code)
+	}
+	if !nextCalled {
+		t.Fatalf("expected next called")
+	}
+}
+
 func TestJWTMiddleware_AllowsValidBearer(t *testing.T) {
 	jwtSvc := NewJWTService("secret", 24)
 	token, err := jwtSvc.GenerateToken()
