@@ -202,6 +202,7 @@
                         :src="item.coverUrl"
                         class="w-full h-full object-cover"
                         loading="lazy"
+                        referrerpolicy="no-referrer"
                       />
                       <div v-else class="w-full h-full flex items-center justify-center text-gray-600 text-xs">
                         无封面
@@ -374,13 +375,13 @@
 
                   <img
                     v-if="item.type === 'image'"
-                    :src="item.url"
+                    :src="item.downloadUrl"
                     class="w-full h-full object-cover"
                     loading="lazy"
                   />
                   <video
                     v-else
-                    :src="item.url"
+                    :src="item.downloadUrl"
                     class="w-full h-full object-cover"
                     muted
                     playsinline
@@ -970,7 +971,7 @@ const buildPreviewMediaList = (items: DouyinDetailItem[]): UploadedMedia[] => {
     .slice()
     .sort((a, b) => Number(a.index) - Number(b.index))
     .map((it) => ({
-      url: it.url,
+      url: it.downloadUrl,
       type: it.type,
       downloadUrl: it.downloadUrl,
       originalFilename: it.originalFilename
@@ -984,7 +985,7 @@ const openPreview = (idx: number) => {
 
   previewIndex.value = Number(item.index) || 0
   previewType.value = item.type
-  previewUrl.value = item.url
+  previewUrl.value = item.downloadUrl
 
   if (item.type === 'image') {
     const images = detail.value.items.filter((i) => i.type === 'image')
@@ -1000,7 +1001,7 @@ const handlePreviewMediaChange = (media: UploadedMedia) => {
   if (!detail.value) return
   const url = String(media?.url || '').trim()
   if (!url) return
-  const item = detail.value.items.find((i) => i.url === url)
+  const item = detail.value.items.find((i) => i.downloadUrl === url || i.url === url)
   if (item) {
     previewIndex.value = Number(item.index) || previewIndex.value
   }

@@ -375,6 +375,9 @@ func (a *App) handleDouyinDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 	req.Header.Set("Referer", "https://www.douyin.com/")
+	if rangeValue := strings.TrimSpace(r.Header.Get("Range")); rangeValue != "" {
+		req.Header.Set("Range", rangeValue)
+	}
 
 	resp, err := a.douyinDownloader.api.httpClient.Do(req)
 	if err != nil {
@@ -409,7 +412,17 @@ func (a *App) handleDouyinDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Disposition", buildAttachmentContentDisposition(fallback, originalFilename))
 
-	w.WriteHeader(http.StatusOK)
+	if ar := strings.TrimSpace(resp.Header.Get("Accept-Ranges")); ar != "" {
+		w.Header().Set("Accept-Ranges", ar)
+	}
+	if cr := strings.TrimSpace(resp.Header.Get("Content-Range")); cr != "" {
+		w.Header().Set("Content-Range", cr)
+	}
+	if cl := strings.TrimSpace(resp.Header.Get("Content-Length")); cl != "" {
+		w.Header().Set("Content-Length", cl)
+	}
+
+	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
 }
 

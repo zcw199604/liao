@@ -11,16 +11,15 @@
 - 下载与导入均使用 `key + index` 从服务端缓存中取出下载地址，避免前端传入任意 URL
 - 下载以“流”形式返回给前端（`Content-Disposition` 设定作品标题文件名）
 - 导入上传由后端拉取媒体、计算 MD5 并按用户维度去重；成功后复用现有“上传到上游 + media_file 记录 + 已上传文件缓存”链路
-- 前端新增“抖音下载”弹窗：支持输入、proxy/cookie 配置、解析结果预览（直链展示）、下载（走本服务下载流）、一键导入上传（走本服务导入 API）
+- 前端新增“抖音下载”弹窗：支持输入、proxy/cookie 配置、解析结果预览（优先走 `/api/douyin/download` 代理展示，避免抖音防盗链导致 `<img>/<video>` 无法加载；仍保留原始直链用于新标签打开/调试）、下载（走本服务下载流）、一键导入上传（走本服务导入 API）
 
 ## 架构设计
 ```mermaid
 flowchart TD
     FE[Vue 前端: 抖音下载弹窗] -->|POST /api/douyin/detail| BE[Go 后端]
     BE -->|POST /douyin/share + /douyin/detail| TD[外部 TikTokDownloader API]
-    FE -->|预览直链| CDN[抖音 CDN]
-    FE -->|GET /api/douyin/download| BE
-    BE -->|GET 下载直链| CDN
+    FE -->|GET /api/douyin/download（预览/下载/缩略图）| BE
+    BE -->|GET 直链（Referer/User-Agent）| CDN
     FE -->|POST /api/douyin/import| BE
     BE -->|上传 uploadImgRandom| UP[上游图片服务器]
 ```
@@ -41,13 +40,13 @@ flowchart TD
   - `items[]`：每个可下载媒体项：
     - `index`
     - `type`：`image`/`video`
-    - `url`：用于预览展示（直链）
-    - `downloadUrl`：`/api/douyin/download?key=...&index=...`
+    - `url`：抖音原始直链（可能因防盗链无法直接用于 `<img>/<video>` 预览；可用于新标签打开/调试）
+    - `downloadUrl`：`/api/douyin/download?key=...&index=...`（建议用于预览/下载；支持 `Range` 透传以改善视频播放/拖动）
     - `originalFilename`：建议文件名（用于兜底）
 
 ### GET /api/douyin/download
 - **请求:** `key` + `index`
-- **响应:** 二进制流（透传抖音 CDN），设置 `Content-Disposition` 为作品标题文件名
+- **响应:** 二进制流（透传抖音 CDN），设置 `Content-Disposition` 为作品标题文件名；支持 `Range` 透传以便 `<video>` 播放/拖动
 
 ### POST /api/douyin/import
 - **请求（x-www-form-urlencoded）:**

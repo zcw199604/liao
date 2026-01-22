@@ -116,6 +116,73 @@ func TestHandleDouyinDetailAndDownload_Video(t *testing.T) {
 	}
 }
 
+func TestHandleDouyinDownload_PassthroughRange(t *testing.T) {
+	var upstream *httptest.Server
+	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/media.mp4" {
+			http.NotFound(w, r)
+			return
+		}
+
+		// 简化：只验证 Range 被透传 + 下游返回 206/Content-Range
+		if strings.TrimSpace(r.Header.Get("Range")) == "bytes=0-3" {
+			w.Header().Set("Content-Type", "video/mp4")
+			w.Header().Set("Accept-Ranges", "bytes")
+			w.Header().Set("Content-Range", "bytes 0-3/10")
+			w.Header().Set("Content-Length", "4")
+			w.WriteHeader(http.StatusPartialContent)
+			if r.Method != http.MethodHead {
+				_, _ = w.Write([]byte("abcd"))
+			}
+			return
+		}
+
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.Header().Set("Content-Length", "10")
+		w.WriteHeader(http.StatusOK)
+		if r.Method != http.MethodHead {
+			_, _ = w.Write([]byte("0123456789"))
+		}
+	}))
+	defer upstream.Close()
+
+	a := &App{
+		douyinDownloader: NewDouyinDownloaderService(upstream.URL, "", "", "", 60*time.Second),
+	}
+
+	key := a.douyinDownloader.CacheDetail(&douyinCachedDetail{
+		DetailID:  "123456",
+		Title:     "测试标题",
+		Type:      "视频",
+		Downloads: []string{upstream.URL + "/media.mp4"},
+	})
+	if key == "" {
+		t.Fatalf("missing key")
+	}
+
+	downloadReq := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/download?key="+key+"&index=0", nil)
+	downloadReq.Header.Set("Range", "bytes=0-3")
+	downloadRR := httptest.NewRecorder()
+	a.handleDouyinDownload(downloadRR, downloadReq)
+
+	if downloadRR.Code != http.StatusPartialContent {
+		t.Fatalf("download status=%d, want %d", downloadRR.Code, http.StatusPartialContent)
+	}
+	if got := strings.TrimSpace(downloadRR.Header().Get("Content-Range")); got != "bytes 0-3/10" {
+		t.Fatalf("content-range=%q, want %q", got, "bytes 0-3/10")
+	}
+	if got := strings.TrimSpace(downloadRR.Header().Get("Accept-Ranges")); got != "bytes" {
+		t.Fatalf("accept-ranges=%q, want %q", got, "bytes")
+	}
+	if got := strings.TrimSpace(downloadRR.Header().Get("Content-Length")); got != "4" {
+		t.Fatalf("content-length=%q, want %q", got, "4")
+	}
+	if got := downloadRR.Body.String(); got != "abcd" {
+		t.Fatalf("body=%q, want %q", got, "abcd")
+	}
+}
+
 func TestHandleDouyinDownload_ExpiredKey(t *testing.T) {
 	a := &App{
 		douyinDownloader: NewDouyinDownloaderService("http://127.0.0.1:5555", "", "", "", 60*time.Second),

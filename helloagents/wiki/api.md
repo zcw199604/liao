@@ -1056,6 +1056,7 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 **备注**
 - 依赖环境变量：`TIKTOKDOWNLOADER_BASE_URL`（未配置时返回“未启用”错误）。
 - 可选默认值：`DOUYIN_COOKIE`、`DOUYIN_PROXY`（服务端不落库；前端仅透传 `cookie`）。
+- `items[].url` 为抖音原始直链，可能因抖音 CDN 防盗链/跨站媒体子资源限制无法直接用于 `<img>/<video>` 预览；前端应优先使用 `items[].downloadUrl`。
 
 #### [POST] /api/douyin/account
 **描述**：解析用户主页链接/分享文本/sec_uid，拉取该账号发布作品列表（可分页）。
@@ -1084,6 +1085,10 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 | index | 是 | 资源序号（图集为 0..N-1；视频通常为 0） |
 
 **响应**：二进制流（透传 `Content-Type`），并返回 `Content-Disposition: attachment` 以便浏览器保存。
+
+**备注**
+- 支持 `Range` 请求透传（可能返回 HTTP 206 + `Content-Range`），以便 `<video>` 正常播放与拖动进度条。
+- 为支持 `<img>/<video>` 直连预览，该接口在 JWT 中间件中放行（不要求 `Authorization`）；安全性依赖随机 `key` + TTL，且 `key` 只能通过已鉴权的 `/api/douyin/detail` 获取。
 
 #### [HEAD] /api/douyin/download
 **描述**：用于前端“预估文件大小”的探测请求（最佳努力）。返回与 `GET` 相同的 `Content-Type/Content-Disposition`，并尽量补齐 `Content-Length`。
