@@ -30,6 +30,7 @@ type RedisChatHistoryCacheService struct {
 	client    *redis.Client
 	keyPrefix string
 	expire    time.Duration
+	timeout   time.Duration
 
 	flushInterval time.Duration
 	pendingMu     sync.Mutex
@@ -48,6 +49,7 @@ func NewRedisChatHistoryCacheService(
 	keyPrefix string,
 	expireDays int,
 	flushIntervalSeconds int,
+	timeoutSeconds int,
 ) (*RedisChatHistoryCacheService, error) {
 	if strings.TrimSpace(keyPrefix) == "" {
 		keyPrefix = "user:chathistory:"
@@ -56,13 +58,18 @@ func NewRedisChatHistoryCacheService(
 		expireDays = 30
 	}
 
-	opts, err := buildRedisOptions(redisURL, host, port, password, db)
+	timeout := time.Duration(timeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
+
+	opts, err := buildRedisOptions(redisURL, host, port, password, db, timeout)
 	if err != nil {
 		return nil, err
 	}
 	client := redis.NewClient(opts)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
 		_ = client.Close()
@@ -73,6 +80,7 @@ func NewRedisChatHistoryCacheService(
 		client:        client,
 		keyPrefix:     keyPrefix,
 		expire:        time.Duration(expireDays) * 24 * time.Hour,
+		timeout:       timeout,
 		flushInterval: time.Duration(flushIntervalSeconds) * time.Second,
 	}
 
@@ -125,7 +133,11 @@ func (s *RedisChatHistoryCacheService) flushOnce() {
 	if s == nil || s.client == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	timeout := s.timeout
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	_ = s.flushPending(ctx)
 }

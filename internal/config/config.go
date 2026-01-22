@@ -17,6 +17,14 @@ type Config struct {
 	DBUsername string
 	DBPassword string
 
+	// UpstreamHTTPTimeoutSeconds 表示调用上游 HTTP 接口的超时时间（秒）。
+	// 默认 60 秒；可通过环境变量 UPSTREAM_HTTP_TIMEOUT_SECONDS 覆盖。
+	UpstreamHTTPTimeoutSeconds int
+
+	// TikTokDownloaderTimeoutSeconds 表示调用 TikTokDownloader Web API（抖音抓取/下载上游）的超时时间（秒）。
+	// 默认与 UpstreamHTTPTimeoutSeconds 一致（两者默认均为 60 秒）；可通过环境变量 TIKTOKDOWNLOADER_TIMEOUT_SECONDS 单独覆盖。
+	TikTokDownloaderTimeoutSeconds int
+
 	// RedisURL 支持通过完整连接串配置（例如 Upstash 的 rediss://...）。
 	// 优先级高于 REDIS_HOST/REDIS_PORT/REDIS_PASSWORD/REDIS_DB。
 	RedisURL string
@@ -25,6 +33,10 @@ type Config struct {
 	RedisPort     int
 	RedisPassword string
 	RedisDB       int
+
+	// RedisTimeoutSeconds 表示 Redis 连接/读写超时（秒）。
+	// 默认 15 秒；可通过环境变量 REDIS_TIMEOUT_SECONDS 覆盖。
+	RedisTimeoutSeconds int
 
 	AuthAccessCode    string
 	JWTSecret         string
@@ -44,10 +56,6 @@ type Config struct {
 	ImageServerHost        string
 	ImageServerPort        string
 	ImageServerUpstreamURL string
-
-	// UpstreamHTTPTimeoutSeconds 表示调用上游 HTTP 接口的超时时间（秒）。
-	// 默认 60 秒；可通过环境变量 UPSTREAM_HTTP_TIMEOUT_SECONDS 覆盖。
-	UpstreamHTTPTimeoutSeconds int
 
 	// LspRoot 表示 /lsp/* 静态文件映射的本地根目录。
 	// 默认 /lsp（与现网 mtPhoto 返回的 filePath 前缀保持一致），便于在容器/本地开发时重定向到其他目录。
@@ -84,12 +92,19 @@ func Load() (Config, error) {
 		DBUsername: getEnv("DB_USERNAME", "root"),
 		DBPassword: getEnv("DB_PASSWORD", "123456"),
 
+		UpstreamHTTPTimeoutSeconds: getEnvInt("UPSTREAM_HTTP_TIMEOUT_SECONDS", 60),
+		TikTokDownloaderTimeoutSeconds: getEnvInt(
+			"TIKTOKDOWNLOADER_TIMEOUT_SECONDS",
+			0, // 默认后置处理：跟随 UpstreamHTTPTimeoutSeconds
+		),
+
 		RedisURL: getEnvOptional2("UPSTASH_REDIS_URL", "REDIS_URL"),
 
-		RedisHost:     getEnv("REDIS_HOST", "localhost"),
-		RedisPort:     getEnvInt("REDIS_PORT", 6379),
-		RedisPassword: getEnv("REDIS_PASSWORD", ""),
-		RedisDB:       getEnvInt("REDIS_DB", 0),
+		RedisHost:           getEnv("REDIS_HOST", "localhost"),
+		RedisPort:           getEnvInt("REDIS_PORT", 6379),
+		RedisPassword:       getEnv("REDIS_PASSWORD", ""),
+		RedisDB:             getEnvInt("REDIS_DB", 0),
+		RedisTimeoutSeconds: getEnvInt("REDIS_TIMEOUT_SECONDS", 15),
 
 		AuthAccessCode:   getEnv("AUTH_ACCESS_CODE", "Aa305512775."),
 		JWTSecret:        getEnv("JWT_SECRET", "your-jwt-secret-key-at-least-256-bits-long-please-change-this-to-random-string"),
@@ -110,8 +125,6 @@ func Load() (Config, error) {
 		ImageServerHost:        getEnv("IMG_SERVER_HOST", "149.88.79.98"),
 		ImageServerPort:        getEnv("IMG_SERVER_PORT", "9003"),
 		ImageServerUpstreamURL: getEnv("IMG_SERVER_UPSTREAM_URL", "http://v1.chat2019.cn/asmx/method.asmx/getImgServer"),
-
-		UpstreamHTTPTimeoutSeconds: getEnvInt("UPSTREAM_HTTP_TIMEOUT_SECONDS", 60),
 
 		LspRoot: getEnv("LSP_ROOT", "/lsp"),
 
@@ -168,6 +181,14 @@ func Load() (Config, error) {
 
 	if cfg.UpstreamHTTPTimeoutSeconds <= 0 {
 		cfg.UpstreamHTTPTimeoutSeconds = 60
+	}
+
+	if cfg.TikTokDownloaderTimeoutSeconds <= 0 {
+		cfg.TikTokDownloaderTimeoutSeconds = cfg.UpstreamHTTPTimeoutSeconds
+	}
+
+	if cfg.RedisTimeoutSeconds <= 0 {
+		cfg.RedisTimeoutSeconds = 15
 	}
 
 	if strings.TrimSpace(cfg.FFmpegPath) == "" {

@@ -149,6 +149,9 @@ docker run -d -p 8080:8080 \
   -e DB_PASSWORD=yourpassword \
   -e AUTH_ACCESS_CODE=your-access-code \
   -e JWT_SECRET=your-jwt-secret-at-least-256-bits \
+  -e UPSTREAM_HTTP_TIMEOUT_SECONDS=60 \
+  -e TIKTOKDOWNLOADER_TIMEOUT_SECONDS=60 \
+  -e REDIS_TIMEOUT_SECONDS=15 \
   liao:latest
 ```
 
@@ -168,11 +171,13 @@ docker run -d -p 8080:8080 \
 - `WEBSOCKET_UPSTREAM_URL` - 上游 WebSocket 地址降级值（默认 `ws://localhost:9999`；正常情况会动态获取）
 - `TIKTOKDOWNLOADER_BASE_URL` - TikTokDownloader Web API 地址（启用抖音下载功能；未配置则该功能返回“未启用”错误）
 - `TIKTOKDOWNLOADER_TOKEN` - TikTokDownloader Web API 的 `token` Header（默认上游不校验，可不配）
+- `TIKTOKDOWNLOADER_TIMEOUT_SECONDS` - 调用 TikTokDownloader Web API 超时（秒，默认跟随 `UPSTREAM_HTTP_TIMEOUT_SECONDS`）
 - `DOUYIN_COOKIE` - 抖音抓取默认 Cookie（可选；页面填写优先；敏感信息建议仅在运行环境中配置）
 - `DOUYIN_PROXY` - 抖音抓取默认代理（可选；前端不提供输入）
 - `CACHE_TYPE` - `memory` 或 `redis`（默认 `memory`）
 - `REDIS_URL` / `UPSTASH_REDIS_URL` - Redis 连接串（支持 `redis://` / `rediss://`，优先级高于传统四元组；适合 Upstash）
 - `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB` - Redis 连接参数（当未设置 `REDIS_URL` 时生效；`CACHE_TYPE=redis`）
+- `REDIS_TIMEOUT_SECONDS` - Redis 连接/读写超时（秒，默认15；`CACHE_TYPE=redis`）
 - `CACHE_REDIS_EXPIRE_DAYS` - 用户信息/最后消息缓存 TTL（天，默认7；`CACHE_TYPE=redis`）
 - `CACHE_REDIS_CHAT_HISTORY_PREFIX` - 聊天记录缓存 key 前缀（默认 `user:chathistory:`；`CACHE_TYPE=redis`）
 - `CACHE_REDIS_CHAT_HISTORY_EXPIRE_DAYS` - 聊天记录缓存 TTL（天，默认30；`CACHE_TYPE=redis`）

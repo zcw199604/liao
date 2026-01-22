@@ -79,6 +79,7 @@
 ## 配置（环境变量）
 - `TIKTOKDOWNLOADER_BASE_URL`：TikTokDownloader Web API 地址（必配才能启用）
 - `TIKTOKDOWNLOADER_TOKEN`：可选，上游 token Header（默认上游不校验）
+- `TIKTOKDOWNLOADER_TIMEOUT_SECONDS`：可选，调用 TikTokDownloader Web API 超时（秒，默认跟随 `UPSTREAM_HTTP_TIMEOUT_SECONDS`）
 - `DOUYIN_COOKIE`：可选，默认抖音 Cookie（页面填写优先）
 - `DOUYIN_PROXY`：可选，服务端默认代理（前端不提供输入）
 - `UPSTREAM_HTTP_TIMEOUT_SECONDS`：可选，调用上游 HTTP 接口超时（秒，默认 60）

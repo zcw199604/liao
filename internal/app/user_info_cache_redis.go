@@ -13,7 +13,8 @@ import (
 
 // RedisUserInfoCacheService 对齐 Java 的 RedisUserInfoCacheService（L1 本地缓存 + L2 Redis）。
 type RedisUserInfoCacheService struct {
-	client *redis.Client
+	client  *redis.Client
+	timeout time.Duration
 
 	keyPrefix         string
 	lastMessagePrefix string
@@ -40,6 +41,7 @@ func NewRedisUserInfoCacheService(
 	expireDays int,
 	flushIntervalSeconds int,
 	localTTLSeconds int,
+	timeoutSeconds int,
 ) (*RedisUserInfoCacheService, error) {
 	if strings.TrimSpace(keyPrefix) == "" {
 		keyPrefix = "user:info:"
@@ -57,13 +59,18 @@ func NewRedisUserInfoCacheService(
 		localTTL = time.Hour
 	}
 
-	opts, err := buildRedisOptions(redisURL, host, port, password, db)
+	timeout := time.Duration(timeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
+
+	opts, err := buildRedisOptions(redisURL, host, port, password, db, timeout)
 	if err != nil {
 		return nil, err
 	}
 	client := redis.NewClient(opts)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
 		_ = client.Close()
@@ -72,6 +79,7 @@ func NewRedisUserInfoCacheService(
 
 	svc := &RedisUserInfoCacheService{
 		client:            client,
+		timeout:           timeout,
 		keyPrefix:         keyPrefix,
 		lastMessagePrefix: lastMessagePrefix,
 		expire:            time.Duration(expireDays) * 24 * time.Hour,
@@ -89,7 +97,7 @@ func NewRedisUserInfoCacheService(
 	return svc, nil
 }
 
-func buildRedisOptions(redisURL string, host string, port int, password string, db int) (*redis.Options, error) {
+func buildRedisOptions(redisURL string, host string, port int, password string, db int, timeout time.Duration) (*redis.Options, error) {
 	candidate := strings.TrimSpace(redisURL)
 	if candidate == "" {
 		// 兼容：允许把 REDIS_HOST 直接设置为 redis:// 或 rediss:// 连接串。
@@ -120,9 +128,12 @@ func buildRedisOptions(redisURL string, host string, port int, password string, 
 	}
 
 	// 统一连接参数，避免不同来源（URL/host）导致行为不一致。
-	opts.DialTimeout = 5 * time.Second
-	opts.ReadTimeout = 5 * time.Second
-	opts.WriteTimeout = 5 * time.Second
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
+	opts.DialTimeout = timeout
+	opts.ReadTimeout = timeout
+	opts.WriteTimeout = timeout
 	opts.PoolSize = 8
 	return opts, nil
 }
@@ -167,7 +178,11 @@ func (s *RedisUserInfoCacheService) flushOnce() {
 	if s == nil || s.client == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	timeout := s.timeout
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	_ = s.flushPending(ctx)
 }

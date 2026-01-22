@@ -19,6 +19,7 @@ func TestRedisChatHistoryCacheService_SaveAndQuery(t *testing.T) {
 		"test:ch:",
 		1,
 		0, // 立即写入，方便测试
+		15,
 	)
 	if err != nil {
 		t.Fatalf("NewRedisChatHistoryCacheService failed: %v", err)
@@ -73,6 +74,7 @@ func TestRedisChatHistoryCacheService_DedupByTid(t *testing.T) {
 		"test:ch:",
 		1,
 		0,
+		15,
 	)
 	if err != nil {
 		t.Fatalf("NewRedisChatHistoryCacheService failed: %v", err)

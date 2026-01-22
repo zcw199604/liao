@@ -78,6 +78,7 @@ func New(cfg config.Config) (*App, error) {
 			cfg.CacheRedisExpireDays,
 			cfg.CacheRedisFlushIntervalSec,
 			cfg.CacheRedisLocalTTLSeconds,
+			cfg.RedisTimeoutSeconds,
 		)
 		if err != nil {
 			_ = db.Close()
@@ -93,6 +94,7 @@ func New(cfg config.Config) (*App, error) {
 			cfg.CacheRedisChatHistoryPrefix,
 			cfg.CacheRedisChatHistoryExpireDays,
 			cfg.CacheRedisFlushIntervalSec,
+			cfg.RedisTimeoutSeconds,
 		)
 		if err != nil {
 			if closer, ok := userInfoCache.(interface{ Close() error }); ok {
@@ -126,7 +128,7 @@ func New(cfg config.Config) (*App, error) {
 	_ = application.systemConfig.EnsureDefaults(context.Background())
 	application.wsManager = NewUpstreamWebSocketManager(application.httpClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache, application.chatHistoryCache)
 	application.mediaUpload = NewMediaUploadService(db, cfg.ServerPort, application.fileStorage, application.imageServer, application.httpClient)
-	application.douyinDownloader = NewDouyinDownloaderService(cfg.TikTokDownloaderBaseURL, cfg.TikTokDownloaderToken, cfg.DouyinDefaultCookie, cfg.DouyinDefaultProxy, time.Duration(cfg.UpstreamHTTPTimeoutSeconds)*time.Second)
+	application.douyinDownloader = NewDouyinDownloaderService(cfg.TikTokDownloaderBaseURL, cfg.TikTokDownloaderToken, cfg.DouyinDefaultCookie, cfg.DouyinDefaultProxy, time.Duration(cfg.TikTokDownloaderTimeoutSeconds)*time.Second)
 	application.mtPhoto = NewMtPhotoService(cfg.MtPhotoBaseURL, cfg.MtPhotoLoginUsername, cfg.MtPhotoLoginPassword, cfg.MtPhotoLoginOTP, cfg.LspRoot, application.httpClient)
 	application.videoExtract = NewVideoExtractService(db, cfg, application.fileStorage, application.mtPhoto)
 
