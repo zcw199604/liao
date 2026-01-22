@@ -219,6 +219,49 @@ func TestHandleDouyinAccount_Posts(t *testing.T) {
 	}
 }
 
+func TestHandleDouyinAccount_NoPosts_DataArray(t *testing.T) {
+	var upstream *httptest.Server
+	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/douyin/share":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"message":"请求链接成功！","url":"https://www.douyin.com/user/MS4wLjABAAAA_test_secuid","params":{},"time":"2026-01-01"}`))
+		case "/douyin/account":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"message":"暂无作品","data":[],"params":{},"time":"2026-01-01"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	a := &App{
+		douyinDownloader: NewDouyinDownloaderService(upstream.URL, "", "", "", 60*time.Second),
+	}
+
+	body := bytes.NewBufferString(`{"input":"https://v.douyin.com/xxxxxx/","cookie":"","tab":"post","cursor":0,"count":18}`)
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/douyin/account", body)
+	rr := httptest.NewRecorder()
+	a.handleDouyinAccount(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("account status=%d, body=%s", rr.Code, rr.Body.String())
+	}
+
+	var resp douyinAccountResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal account response failed: %v", err)
+	}
+	if resp.Items == nil {
+		t.Fatalf("items should be [], got null (raw=%s)", rr.Body.String())
+	}
+	if len(resp.Items) != 0 {
+		t.Fatalf("items len=%d, want 0", len(resp.Items))
+	}
+	if resp.HasMore {
+		t.Fatalf("hasMore=true, want false")
+	}
+}
+
 func TestParseContentRangeTotal(t *testing.T) {
 	cases := []struct {
 		name string

@@ -64,6 +64,7 @@
 
 ### 修复
 - 前端：将“抖音下载”入口移动到“图片管理”，并从聊天页上传菜单移除（从图片管理打开会自动关闭抽屉）。
+- 后端：修复 TikTokDownloader 上游在“暂无作品”场景返回 `data=[]` 导致解析失败；`POST /api/douyin/account` 将返回空 `items` 数组（`[]`）而非报错/`null`。
 - 后端：`POST /api/favorite/removeById` 当 `id` 为空/解析失败/`<=0` 时返回 HTTP 400（不再静默按 `0` 删除）；选择身份时刷新 `last_used_at` 失败仍保持忽略（方案包：`helloagents/archive/2026-01/202601220110_fix-favorite-removebyid-invalid-id/`）。
 - 后端/CI：升级 Go 模块版本至 1.25.6（`go 1.25` + `toolchain go1.25.6`）；GitHub Actions（Release 工作流）改为从 `go.mod` 读取 Go 版本；Docker 构建镜像固定为 `golang:1.25.6-alpine`。
 - CI：企业微信通知改为“文本消息”并补充提交信息/链接与镜像 tags（逗号分隔），避免 markdown 样式在企业微信内显示不一致。

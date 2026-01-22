@@ -23,10 +23,10 @@ type tikTokDownloaderURLResponse struct {
 }
 
 type tikTokDownloaderDataResponse struct {
-	Message string         `json:"message"`
-	Data    map[string]any `json:"data"`
-	Params  any            `json:"params,omitempty"`
-	Time    string         `json:"time,omitempty"`
+	Message string `json:"message"`
+	Data    any    `json:"data"`
+	Params  any    `json:"params,omitempty"`
+	Time    string `json:"time,omitempty"`
 }
 
 type TikTokDownloaderClient struct {
@@ -116,7 +116,11 @@ func (c *TikTokDownloaderClient) DouyinDetail(ctx context.Context, detailID, coo
 	if resp.Data == nil {
 		return nil, fmt.Errorf("TikTokDownloader 获取数据失败: %s", strings.TrimSpace(resp.Message))
 	}
-	return resp.Data, nil
+	data, ok := resp.Data.(map[string]any)
+	if !ok || data == nil {
+		return nil, fmt.Errorf("TikTokDownloader 获取数据失败: %s", strings.TrimSpace(resp.Message))
+	}
+	return data, nil
 }
 
 func (c *TikTokDownloaderClient) DouyinAccount(ctx context.Context, secUserID, tab string, cursor, count int, cookie, proxy string) (map[string]any, error) {
@@ -137,7 +141,22 @@ func (c *TikTokDownloaderClient) DouyinAccount(ctx context.Context, secUserID, t
 	if resp.Data == nil {
 		return nil, fmt.Errorf("TikTokDownloader 获取数据失败: %s", strings.TrimSpace(resp.Message))
 	}
-	return resp.Data, nil
+	switch data := resp.Data.(type) {
+	case map[string]any:
+		if data == nil {
+			return nil, fmt.Errorf("TikTokDownloader 获取数据失败: %s", strings.TrimSpace(resp.Message))
+		}
+		return data, nil
+	case []any:
+		// 上游在“暂无作品”等场景可能返回 data=[]；这里兼容成标准对象结构，避免整体失败。
+		return map[string]any{
+			"aweme_list": data,
+			"cursor":     cursor,
+			"has_more":   0,
+		}, nil
+	default:
+		return nil, fmt.Errorf("TikTokDownloader 获取数据失败: %s", strings.TrimSpace(resp.Message))
+	}
 }
 
 type DouyinDownloaderService struct {

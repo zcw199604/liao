@@ -231,12 +231,17 @@ func (a *App) handleDouyinAccount(w http.ResponseWriter, r *http.Request) {
 		hasMore = asBool(data["hasMore"])
 	}
 
+	items := extractDouyinAccountItems(data)
+	if items == nil {
+		items = []douyinAccountItem{}
+	}
+
 	writeJSON(w, http.StatusOK, douyinAccountResponse{
 		SecUserID: secUserID,
 		Tab:       tab,
 		Cursor:    nextCursor,
 		HasMore:   hasMore,
-		Items:     extractDouyinAccountItems(data),
+		Items:     items,
 	})
 }
 
