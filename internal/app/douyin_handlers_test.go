@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestHandleDouyinDetailAndDownload_Video(t *testing.T) {
@@ -47,7 +48,7 @@ func TestHandleDouyinDetailAndDownload_Video(t *testing.T) {
 	defer upstream.Close()
 
 	a := &App{
-		douyinDownloader: NewDouyinDownloaderService(upstream.URL, "", "", ""),
+		douyinDownloader: NewDouyinDownloaderService(upstream.URL, "", "", "", 60*time.Second),
 	}
 
 	// 1) detail（走 share -> detail）
@@ -117,7 +118,7 @@ func TestHandleDouyinDetailAndDownload_Video(t *testing.T) {
 
 func TestHandleDouyinDownload_ExpiredKey(t *testing.T) {
 	a := &App{
-		douyinDownloader: NewDouyinDownloaderService("http://127.0.0.1:5555", "", "", ""),
+		douyinDownloader: NewDouyinDownloaderService("http://127.0.0.1:5555", "", "", "", 60*time.Second),
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/download?key=missing&index=0", nil)
@@ -174,7 +175,7 @@ func TestHandleDouyinAccount_Posts(t *testing.T) {
 	defer upstream.Close()
 
 	a := &App{
-		douyinDownloader: NewDouyinDownloaderService(upstream.URL, "", "", ""),
+		douyinDownloader: NewDouyinDownloaderService(upstream.URL, "", "", "", 60*time.Second),
 	}
 
 	body := bytes.NewBufferString(`{"input":"https://v.douyin.com/xxxxxx/","cookie":"","tab":"post","cursor":0,"count":18}`)

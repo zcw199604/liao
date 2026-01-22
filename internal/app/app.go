@@ -108,7 +108,7 @@ func New(cfg config.Config) (*App, error) {
 	application := &App{
 		cfg:              cfg,
 		db:               db,
-		httpClient:       &http.Client{Timeout: 15 * time.Second},
+		httpClient:       &http.Client{Timeout: time.Duration(cfg.UpstreamHTTPTimeoutSeconds) * time.Second},
 		jwt:              NewJWTService(cfg.JWTSecret, cfg.TokenExpireHours),
 		identityService:  NewIdentityService(db),
 		favoriteService:  NewFavoriteService(db),
@@ -126,7 +126,7 @@ func New(cfg config.Config) (*App, error) {
 	_ = application.systemConfig.EnsureDefaults(context.Background())
 	application.wsManager = NewUpstreamWebSocketManager(application.httpClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache, application.chatHistoryCache)
 	application.mediaUpload = NewMediaUploadService(db, cfg.ServerPort, application.fileStorage, application.imageServer, application.httpClient)
-	application.douyinDownloader = NewDouyinDownloaderService(cfg.TikTokDownloaderBaseURL, cfg.TikTokDownloaderToken, cfg.DouyinDefaultCookie, cfg.DouyinDefaultProxy)
+	application.douyinDownloader = NewDouyinDownloaderService(cfg.TikTokDownloaderBaseURL, cfg.TikTokDownloaderToken, cfg.DouyinDefaultCookie, cfg.DouyinDefaultProxy, time.Duration(cfg.UpstreamHTTPTimeoutSeconds)*time.Second)
 	application.mtPhoto = NewMtPhotoService(cfg.MtPhotoBaseURL, cfg.MtPhotoLoginUsername, cfg.MtPhotoLoginPassword, cfg.MtPhotoLoginOTP, cfg.LspRoot, application.httpClient)
 	application.videoExtract = NewVideoExtractService(db, cfg, application.fileStorage, application.mtPhoto)
 

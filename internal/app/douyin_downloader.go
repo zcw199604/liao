@@ -145,6 +145,8 @@ type DouyinDownloaderService struct {
 
 	cache *lruCache
 
+	upstreamTimeout time.Duration
+
 	defaultCookie string
 	defaultProxy  string
 }
@@ -157,18 +159,29 @@ type douyinCachedDetail struct {
 	Downloads []string
 }
 
-func NewDouyinDownloaderService(baseURL, token, defaultCookie, defaultProxy string) *DouyinDownloaderService {
-	httpClient := &http.Client{}
+func NewDouyinDownloaderService(baseURL, token, defaultCookie, defaultProxy string, upstreamTimeout time.Duration) *DouyinDownloaderService {
+	if upstreamTimeout <= 0 {
+		upstreamTimeout = 60 * time.Second
+	}
+	httpClient := &http.Client{Timeout: upstreamTimeout}
 	return &DouyinDownloaderService{
-		api:           NewTikTokDownloaderClient(baseURL, token, httpClient),
-		cache:         newLRUCache(2000, 15*time.Minute),
-		defaultCookie: strings.TrimSpace(defaultCookie),
-		defaultProxy:  strings.TrimSpace(defaultProxy),
+		api:             NewTikTokDownloaderClient(baseURL, token, httpClient),
+		cache:           newLRUCache(2000, 15*time.Minute),
+		upstreamTimeout: upstreamTimeout,
+		defaultCookie:   strings.TrimSpace(defaultCookie),
+		defaultProxy:    strings.TrimSpace(defaultProxy),
 	}
 }
 
 func (s *DouyinDownloaderService) configured() bool {
 	return s != nil && s.api != nil && s.api.configured()
+}
+
+func (s *DouyinDownloaderService) effectiveUpstreamTimeout() time.Duration {
+	if s == nil || s.upstreamTimeout <= 0 {
+		return 60 * time.Second
+	}
+	return s.upstreamTimeout
 }
 
 var (
@@ -290,7 +303,7 @@ func (s *DouyinDownloaderService) ResolveDetailID(ctx context.Context, input, pr
 	}
 
 	// 短链/分享文本：调用 /douyin/share 获取重定向后的完整链接，再提取 detail_id
-	ctx2, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx2, cancel := context.WithTimeout(ctx, s.effectiveUpstreamTimeout())
 	defer cancel()
 
 	urlValue, err := s.api.DouyinShare(ctx2, raw, s.effectiveProxy(proxy))
@@ -322,7 +335,7 @@ func (s *DouyinDownloaderService) ResolveSecUserID(ctx context.Context, input, p
 	}
 
 	// 短链/分享文本：调用 /douyin/share 获取重定向后的完整链接，再提取 sec_user_id
-	ctx2, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx2, cancel := context.WithTimeout(ctx, s.effectiveUpstreamTimeout())
 	defer cancel()
 
 	urlValue, err := s.api.DouyinShare(ctx2, raw, s.effectiveProxy(proxy))
@@ -348,7 +361,7 @@ func (s *DouyinDownloaderService) FetchDetail(ctx context.Context, detailID, coo
 		return nil, fmt.Errorf("detail_id 不能为空")
 	}
 
-	ctx2, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx2, cancel := context.WithTimeout(ctx, s.effectiveUpstreamTimeout())
 	defer cancel()
 
 	data, err := s.api.DouyinDetail(ctx2, detailID, s.effectiveCookie(cookie), s.effectiveProxy(proxy))
@@ -404,7 +417,7 @@ func (s *DouyinDownloaderService) FetchAccount(ctx context.Context, secUserID, t
 		cursor = 0
 	}
 
-	ctx2, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx2, cancel := context.WithTimeout(ctx, s.effectiveUpstreamTimeout())
 	defer cancel()
 
 	data, err := s.api.DouyinAccount(ctx2, secUserID, tab, cursor, count, s.effectiveCookie(cookie), s.effectiveProxy(proxy))

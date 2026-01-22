@@ -45,6 +45,10 @@ type Config struct {
 	ImageServerPort        string
 	ImageServerUpstreamURL string
 
+	// UpstreamHTTPTimeoutSeconds 表示调用上游 HTTP 接口的超时时间（秒）。
+	// 默认 60 秒；可通过环境变量 UPSTREAM_HTTP_TIMEOUT_SECONDS 覆盖。
+	UpstreamHTTPTimeoutSeconds int
+
 	// LspRoot 表示 /lsp/* 静态文件映射的本地根目录。
 	// 默认 /lsp（与现网 mtPhoto 返回的 filePath 前缀保持一致），便于在容器/本地开发时重定向到其他目录。
 	LspRoot string
@@ -107,6 +111,8 @@ func Load() (Config, error) {
 		ImageServerPort:        getEnv("IMG_SERVER_PORT", "9003"),
 		ImageServerUpstreamURL: getEnv("IMG_SERVER_UPSTREAM_URL", "http://v1.chat2019.cn/asmx/method.asmx/getImgServer"),
 
+		UpstreamHTTPTimeoutSeconds: getEnvInt("UPSTREAM_HTTP_TIMEOUT_SECONDS", 60),
+
 		LspRoot: getEnv("LSP_ROOT", "/lsp"),
 
 		MtPhotoBaseURL:       getEnv("MTPHOTO_BASE_URL", ""),
@@ -158,6 +164,10 @@ func Load() (Config, error) {
 
 	if cfg.CacheRedisChatHistoryExpireDays <= 0 {
 		cfg.CacheRedisChatHistoryExpireDays = 30
+	}
+
+	if cfg.UpstreamHTTPTimeoutSeconds <= 0 {
+		cfg.UpstreamHTTPTimeoutSeconds = 60
 	}
 
 	if strings.TrimSpace(cfg.FFmpegPath) == "" {
