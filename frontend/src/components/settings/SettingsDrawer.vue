@@ -169,6 +169,22 @@
              </div>
 
              <div
+               @click="openDouyinDownloader"
+               class="group relative overflow-hidden rounded-xl bg-gradient-to-br from-emerald-900/40 to-teal-900/40 border border-white/5 cursor-pointer hover:border-emerald-500/50 transition-all mt-4"
+             >
+                <div class="p-4 flex items-center justify-between z-10 relative">
+                   <div>
+                      <div class="text-base font-bold text-white mb-1">抖音下载</div>
+                      <div class="text-xs text-gray-400 group-hover:text-emerald-300 transition-colors">解析→预览→下载→导入上传</div>
+                   </div>
+                   <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                      <i class="fas fa-chevron-right"></i>
+                   </div>
+                </div>
+                <i class="fas fa-cloud-download-alt absolute -bottom-4 -right-2 text-6xl text-white/5 group-hover:text-white/10 transition-colors rotate-12"></i>
+             </div>
+
+             <div
                @click="openDuplicateCheck"
                class="group relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-900/40 to-cyan-900/40 border border-white/5 cursor-pointer hover:border-blue-500/50 transition-all mt-4"
              >
@@ -235,6 +251,7 @@ import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
 import { useMediaStore } from '@/stores/media'
 import { useMtPhotoStore } from '@/stores/mtphoto'
+import { useDouyinStore } from '@/stores/douyin'
 import { useVideoExtractStore } from '@/stores/videoExtract'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useSettings } from '@/composables/useSettings'
@@ -263,6 +280,7 @@ const chatStore = useChatStore()
 const messageStore = useMessageStore()
 const mediaStore = useMediaStore()
 const mtPhotoStore = useMtPhotoStore()
+const douyinStore = useDouyinStore()
 const videoExtractStore = useVideoExtractStore()
 const { disconnect, connect, send } = useWebSocket()
 const { show } = useToast()
@@ -431,6 +449,11 @@ const openMediaManagement = async () => {
 
 const openMtPhotoAlbums = async () => {
   await mtPhotoStore.open()
+}
+
+const openDouyinDownloader = () => {
+  close()
+  douyinStore.open()
 }
 
 const openDuplicateCheck = () => {

@@ -72,7 +72,6 @@
         @open-chat-history="handleOpenChatHistory"
         @open-all-uploads="handleOpenAllUploads"
         @open-mt-photo="handleOpenMtPhoto"
-        @open-douyin="handleOpenDouyin"
       />
 
       <!-- 表情面板 -->
@@ -199,7 +198,6 @@ import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
 import { useMediaStore } from '@/stores/media'
 import { useMtPhotoStore } from '@/stores/mtphoto'
-import { useDouyinStore } from '@/stores/douyin'
 import { useUserStore } from '@/stores/user'
 import { useMessage } from '@/composables/useMessage'
 import { useUpload } from '@/composables/useUpload'
@@ -236,7 +234,6 @@ const chatStore = useChatStore()
 	const messageStore = useMessageStore()
 	const mediaStore = useMediaStore()
 const mtPhotoStore = useMtPhotoStore()
-const douyinStore = useDouyinStore()
 	const systemConfigStore = useSystemConfigStore()
 	const userStore = useUserStore()
 const { sendText, sendImage, sendVideo, retryMessage, sendTypingStatus } = useMessage()
@@ -795,38 +792,6 @@ const handleOpenAllUploads = async () => {
 const handleOpenMtPhoto = async () => {
   if (!userStore.currentUser) return
   await mtPhotoStore.open()
-}
-
-const handleOpenDouyin = async () => {
-  if (!userStore.currentUser) return
-
-  const autoClipboard = localStorage.getItem('douyin_auto_clipboard')
-  if (autoClipboard === '0') {
-    douyinStore.open()
-    return
-  }
-
-  const isLikelyDouyinText = (value: string) => {
-    const v = String(value || '').trim()
-    if (!v) return false
-    if (v.includes('v.douyin.com') || v.includes('www.douyin.com') || v.includes('douyin.com')) return true
-    if (v.includes('modal_id=') || v.includes('aweme_id=')) return true
-    if (/^\\d{6,}$/.test(v)) return true
-    return false
-  }
-
-  let prefill = ''
-  try {
-    const clip = await navigator.clipboard?.readText?.()
-    if (clip && isLikelyDouyinText(clip)) {
-      prefill = clip
-      show('已从剪贴板读取抖音内容')
-    }
-  } catch {
-    // ignore clipboard failures
-  }
-
-  douyinStore.open(prefill)
 }
 
 const handleStartMatch = () => {

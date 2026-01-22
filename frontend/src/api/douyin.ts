@@ -1,7 +1,17 @@
 import request, { createFormData } from './request'
 
-export const getDouyinDetail = (data: { input: string; cookie?: string; proxy?: string }) => {
+export const getDouyinDetail = (data: { input: string; cookie?: string }) => {
   return request.post<any, any>('/douyin/detail', data)
+}
+
+export const getDouyinAccount = (data: {
+  input: string
+  cookie?: string
+  tab?: 'post' | 'favorite'
+  cursor?: number
+  count?: number
+}) => {
+  return request.post<any, any>('/douyin/account', data)
 }
 
 export const importDouyinMedia = (data: {
@@ -17,4 +27,3 @@ export const importDouyinMedia = (data: {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
   })
 }
-

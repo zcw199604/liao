@@ -15,17 +15,21 @@
 前端通过弹窗交互完成输入与配置，并复用现有 `MediaPreview` 完成预览、下载与导入上传。
 
 ## 入口与交互
-- 入口：聊天页上传菜单（UploadMenu）新增“抖音下载”按钮
+- 入口：侧边栏顶部菜单 → “图片管理” → “抖音下载”（打开弹窗）
 - 交互：
-  1) 粘贴分享文本/短链/URL/作品ID
-  2)（可选）填写 `proxy` 与 `cookie`（仅本地保存）
-  3) 点击“解析”获取作品资源列表（支持“多选模式”批量下载/导入，并展示逐项状态）
-  4) 点击资源进入预览（预览中可一键导入上传，导入成功后不强制关闭弹窗）：
-     - “下载”：走 `/api/douyin/download` 获取下载流并以作品标题命名
-     - “上传”：走 `/api/douyin/import` 由后端下载并导入上传（MD5 去重）
+  - 模式A：作品解析
+    1) 粘贴分享文本/短链/URL/作品ID
+    2)（可选）填写 `cookie`（仅本地保存）
+    3) 点击“解析”获取作品资源列表（支持“多选模式”批量下载/导入，并展示逐项状态）
+    4) 点击资源进入预览（预览中可一键导入上传，导入成功后不强制关闭弹窗）：
+       - “下载”：走 `/api/douyin/download` 获取下载流并以作品标题命名
+       - “上传”：走 `/api/douyin/import` 由后端下载并导入上传（MD5 去重）
+  - 模式B：用户作品
+    1) 粘贴用户主页链接/分享文本/sec_uid
+    2) 点击“获取作品”拉取该用户发布作品列表（支持分页加载）
+    3) 点击某个作品 → 自动切换到“作品解析”并抓取该作品资源列表
 
 **本地配置（localStorage）**
-- `douyin_proxy`：代理（可选）
 - `douyin_cookie`：Cookie（可选；支持一键清除）
 - `douyin_auto_clipboard`：打开弹窗自动读取剪贴板（默认开启；写入 `1/0`）
 - `douyin_auto_resolve_clipboard`：读取剪贴板后自动解析（默认关闭；写入 `1/0`）
@@ -40,6 +44,13 @@
   - `type` → `视频/图集/实况`
   - `downloads` → 可下载资源（视频为单条 URL；图集为 URL 列表）
 - 服务端生成短期缓存 `key`（TTL），供下载/导入使用
+
+### 1.5) 用户作品列表
+`POST /api/douyin/account`：
+- 输入优先本地解析 `sec_user_id`（支持 `/user/<sec_uid>`、`sec_uid=<sec_uid>`、直接粘贴 `sec_uid`）
+- 不能解析时调用 `/douyin/share` 获取重定向 URL 后再提取 `sec_user_id`
+- 调用 `/douyin/account` 拉取发布作品列表（`aweme_list`），并返回 `cursor/hasMore/items`
+- 前端点击 `items[].detailId` 后，再走 `POST /api/douyin/detail` 解析该作品资源列表
 
 ### 2) 下载到本地
 `GET /api/douyin/download?key=...&index=...`：
@@ -58,7 +69,7 @@
 - 否则按既有上传链路上传到上游图片服务器并写入 `media_file`，最后加入“已上传的文件”缓存
 
 ## 安全与约束
-- **不落库敏感信息**：抖音 `cookie/proxy` 不写入服务端存储；前端仅保存在 localStorage 并在请求中透传（页面填写优先）。
+- **不落库敏感信息**：抖音 `cookie` 不写入服务端存储；前端仅保存在 localStorage 并在请求中透传（页面填写优先）。
 - **SSRF 风险控制**：download/import 不接受任意 URL，只接受 `key+index` 并从服务端缓存读取下载直链。
 - **大文件处理**：下载与导入均采用流式转发与落盘，避免一次性读入内存。
 
@@ -69,7 +80,7 @@
 - `TIKTOKDOWNLOADER_BASE_URL`：TikTokDownloader Web API 地址（必配才能启用）
 - `TIKTOKDOWNLOADER_TOKEN`：可选，上游 token Header（默认上游不校验）
 - `DOUYIN_COOKIE`：可选，默认抖音 Cookie（页面填写优先）
-- `DOUYIN_PROXY`：可选，默认代理（页面填写优先）
+- `DOUYIN_PROXY`：可选，服务端默认代理（前端不提供输入）
 
 ## 依赖
 - 外部服务：TikTokDownloader Web API（FastAPI）

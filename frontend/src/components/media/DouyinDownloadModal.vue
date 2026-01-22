@@ -26,25 +26,66 @@
 
         <div class="flex-1 overflow-y-auto p-6 no-scrollbar">
           <div class="space-y-3">
-            <div class="text-xs text-gray-500">
-              支持直接粘贴整段分享文本/短链/URL/作品ID；无需手动提取链接。
+            <div class="flex items-center gap-2">
+              <button
+                class="px-4 py-2 rounded-xl border transition text-sm"
+                :class="activeMode === 'detail' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                :disabled="uiDisabled"
+                @click="switchMode('detail')"
+              >
+                作品解析
+              </button>
+              <button
+                class="px-4 py-2 rounded-xl border transition text-sm"
+                :class="activeMode === 'account' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                :disabled="uiDisabled"
+                @click="switchMode('account')"
+              >
+                用户作品
+              </button>
             </div>
 
-            <textarea
-              v-model="inputText"
-              class="w-full min-h-[110px] bg-[#111113] border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
-              placeholder="粘贴抖音分享文本/短链/完整URL/作品ID"
-            ></textarea>
+            <div class="text-xs text-gray-500">
+              <template v-if="activeMode === 'detail'">
+                支持直接粘贴整段分享文本/短链/URL/作品ID；无需手动提取链接。
+              </template>
+              <template v-else>
+                支持粘贴用户主页链接/分享文本/sec_uid，拉取该用户发布作品列表（可分页加载）。
+              </template>
+            </div>
+
+            <div v-if="activeMode === 'detail'" class="relative">
+              <textarea
+                v-model="inputText"
+                class="w-full min-h-[110px] bg-[#111113] border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
+                placeholder="粘贴抖音分享文本/短链/完整URL/作品ID"
+              ></textarea>
+              <button
+                v-if="inputText"
+                class="absolute top-2 right-2 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+                @click="handleClear"
+                title="清空输入"
+              >
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div v-else class="relative">
+              <textarea
+                v-model="accountInput"
+                class="w-full min-h-[110px] bg-[#111113] border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
+                placeholder="粘贴抖音用户主页链接/分享文本/sec_uid"
+              ></textarea>
+              <button
+                v-if="accountInput"
+                class="absolute top-2 right-2 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+                @click="handleClear"
+                title="清空输入"
+              >
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
 
             <div class="flex flex-col sm:flex-row gap-2">
-              <input
-                v-model="proxy"
-                :class="[
-                  'flex-1 bg-[#111113] border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500',
-                  highlightConfig ? 'border-red-500' : 'border-gray-700'
-                ]"
-                placeholder="proxy（可选，例如 http://127.0.0.1:7890）"
-              />
               <button
                 class="px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition"
                 @click="showAdvanced = !showAdvanced"
@@ -57,7 +98,7 @@
                 @click="clearCookie"
                 title="清除本地保存的 Cookie"
               >
-                清除
+                清除 Cookie
               </button>
             </div>
 
@@ -78,21 +119,26 @@
             <div class="flex gap-2">
               <button
                 class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
-                :disabled="loading || batchImport.running || batchDownload.running"
-                @click="handleResolve"
+                :disabled="uiDisabled"
+                @click="handlePrimaryAction"
               >
-                {{ loading ? '解析中…' : '解析' }}
+                <template v-if="activeMode === 'detail'">
+                  {{ loading ? '解析中…' : '解析' }}
+                </template>
+                <template v-else>
+                  {{ accountLoading ? '获取中…' : '获取作品' }}
+                </template>
               </button>
               <button
                 class="px-5 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition"
-                :disabled="loading || batchImport.running || batchDownload.running"
+                :disabled="uiDisabled"
                 @click="pasteFromClipboard"
               >
                 粘贴
               </button>
               <button
                 class="px-5 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition"
-                :disabled="loading || batchImport.running || batchDownload.running"
+                :disabled="uiDisabled"
                 @click="handleClear"
               >
                 清空
@@ -106,7 +152,7 @@
               </label>
               <label class="flex items-center gap-2 cursor-pointer select-none">
                 <input type="checkbox" v-model="autoResolveClipboard" class="accent-emerald-500" />
-                <span>读取后自动解析</span>
+                <span>{{ activeMode === 'detail' ? '读取后自动解析' : '读取后自动获取' }}</span>
               </label>
             </div>
 
@@ -114,11 +160,77 @@
               {{ cookieHint }}
             </div>
 
-            <div v-if="error" class="text-sm text-red-400">
+            <div v-if="activeMode === 'detail' && error" class="text-sm text-red-400">
               {{ error }}
             </div>
 
-            <div v-if="detail" class="pt-2">
+            <div v-if="activeMode === 'account' && accountError" class="text-sm text-red-400">
+              {{ accountError }}
+            </div>
+
+            <div v-if="activeMode === 'account'" class="pt-2">
+              <div v-if="accountSecUserId" class="text-xs text-gray-500">
+                sec_user_id: <span class="font-mono text-gray-300">{{ accountSecUserId }}</span>
+              </div>
+
+              <div v-if="accountItems.length > 0" class="mt-3 space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="text-xs text-gray-400">
+                    已加载 {{ accountItems.length }} 个作品
+                  </div>
+                  <button
+                    v-if="accountHasMore"
+                    class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs"
+                    :disabled="accountLoading"
+                    @click="handleFetchMoreAccount"
+                  >
+                    {{ accountLoading ? '加载中…' : '加载更多' }}
+                  </button>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <button
+                    v-for="item in accountItems"
+                    :key="`douyin-account-${item.detailId}`"
+                    class="rounded-xl overflow-hidden border border-gray-700 hover:border-emerald-500 transition bg-black/20 text-left"
+                    @click="openAccountItem(item.detailId)"
+                    :title="item.desc || item.detailId"
+                  >
+                    <div class="aspect-video bg-[#111113] overflow-hidden">
+                      <img
+                        v-if="item.coverUrl"
+                        :src="item.coverUrl"
+                        class="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                      <div v-else class="w-full h-full flex items-center justify-center text-gray-600 text-xs">
+                        无封面
+                      </div>
+                    </div>
+                    <div class="p-3 space-y-1">
+                      <div class="text-sm text-white line-clamp-2">
+                        {{ item.desc || '（无描述）' }}
+                      </div>
+                      <div class="text-xs text-gray-500 font-mono truncate">
+                        {{ item.detailId }}
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div v-else-if="accountLoading" class="mt-4 text-sm text-gray-500">
+                获取中…
+              </div>
+              <div v-else-if="accountQueried" class="mt-4 text-sm text-gray-500">
+                暂无作品
+              </div>
+              <div v-else class="mt-4 text-sm text-gray-500">
+                粘贴用户主页链接后点击“获取作品”
+              </div>
+            </div>
+
+            <div v-if="activeMode === 'detail' && detail" class="pt-2">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <div class="text-white font-medium text-sm truncate">
@@ -343,14 +455,31 @@ interface DouyinDetailResponse {
   items: DouyinDetailItem[]
 }
 
+interface DouyinAccountItem {
+  detailId: string
+  type?: 'image' | 'video'
+  desc?: string
+  coverUrl?: string
+}
+
+interface DouyinAccountResponse {
+  secUserId: string
+  tab: string
+  cursor: number
+  hasMore: boolean
+  items: DouyinAccountItem[]
+}
+
 const douyinStore = useDouyinStore()
 const userStore = useUserStore()
 const mediaStore = useMediaStore()
 const systemConfigStore = useSystemConfigStore()
 const { show } = useToast()
 
+const activeMode = ref<'detail' | 'account'>('detail')
+
 const inputText = ref('')
-const proxy = ref('')
+const accountInput = ref('')
 const cookie = ref('')
 const showAdvanced = ref(false)
 const cookieHint = ref('')
@@ -365,6 +494,14 @@ const selectedIndices = ref<Set<number>>(new Set())
 const loading = ref(false)
 const error = ref('')
 const detail = ref<DouyinDetailResponse | null>(null)
+
+const accountLoading = ref(false)
+const accountError = ref('')
+const accountItems = ref<DouyinAccountItem[]>([])
+const accountCursor = ref(0)
+const accountHasMore = ref(false)
+const accountSecUserId = ref('')
+const accountQueried = ref(false)
 
 const showPreview = ref(false)
 const previewUrl = ref('')
@@ -387,7 +524,6 @@ const batchImportPercent = computed(() => (batchImport.total > 0 ? Math.round((b
 const batchDownloadPercent = computed(() => (batchDownload.total > 0 ? Math.round((batchDownload.done / batchDownload.total) * 100) : 0))
 
 const restoreLocalConfig = () => {
-  proxy.value = localStorage.getItem('douyin_proxy') || ''
   cookie.value = localStorage.getItem('douyin_cookie') || ''
 
   autoClipboard.value = localStorage.getItem('douyin_auto_clipboard') !== '0'
@@ -395,8 +531,8 @@ const restoreLocalConfig = () => {
 }
 
 const persistLocalConfig = () => {
-  localStorage.setItem('douyin_proxy', proxy.value || '')
   localStorage.setItem('douyin_cookie', cookie.value || '')
+  localStorage.removeItem('douyin_proxy')
   localStorage.setItem('douyin_auto_clipboard', autoClipboard.value ? '1' : '0')
   localStorage.setItem('douyin_auto_resolve_clipboard', autoResolveClipboard.value ? '1' : '0')
 }
@@ -405,9 +541,53 @@ const isLikelyDouyinText = (value: string) => {
   const v = String(value || '').trim()
   if (!v) return false
   if (v.includes('v.douyin.com') || v.includes('www.douyin.com') || v.includes('douyin.com')) return true
+  if (v.includes('/user/') || v.includes('sec_uid') || v.includes('sec_user_id')) return true
+  if (v.includes('modal_id=') || v.includes('aweme_id=')) return true
+  if (/^\\d{6,}$/.test(v)) return true
+  if (!v.includes(' ') && v.startsWith('MS4wLjAB')) return true
+  return false
+}
+
+const isLikelyDouyinDetailInput = (value: string) => {
+  const v = String(value || '').trim()
+  if (!v) return false
+  if (v.includes('/video/') || v.includes('/note/')) return true
   if (v.includes('modal_id=') || v.includes('aweme_id=')) return true
   if (/^\\d{6,}$/.test(v)) return true
   return false
+}
+
+const isLikelyDouyinUserInput = (value: string) => {
+  const v = String(value || '').trim()
+  if (!v) return false
+  if (v.includes('/user/') || v.includes('sec_uid') || v.includes('sec_user_id')) return true
+  if (!v.includes(' ') && v.startsWith('MS4wLjAB')) return true
+  return false
+}
+
+const applyInputText = (txt: string) => {
+  const v = String(txt || '').trim()
+  if (!v) return
+
+  const looksDetail = isLikelyDouyinDetailInput(v)
+  const looksUser = isLikelyDouyinUserInput(v)
+
+  if (looksUser && !looksDetail) {
+    activeMode.value = 'account'
+    accountInput.value = v
+    return
+  }
+  if (looksDetail && !looksUser) {
+    activeMode.value = 'detail'
+    inputText.value = v
+    return
+  }
+
+  if (activeMode.value === 'account') {
+    accountInput.value = v
+  } else {
+    inputText.value = v
+  }
 }
 
 const clearCookie = () => {
@@ -423,10 +603,10 @@ const pasteFromClipboard = async () => {
       show('剪贴板未识别到抖音内容')
       return
     }
-    inputText.value = txt
+    applyInputText(txt)
     show('已从剪贴板填充')
     if (autoResolveClipboard.value) {
-      await handleResolve()
+      await handlePrimaryAction()
     }
   } catch (e) {
     console.warn('read clipboard failed:', e)
@@ -451,6 +631,16 @@ const resetDetailStates = () => {
   batchDownload.fail = 0
 }
 
+const resetAccountStates = () => {
+  accountLoading.value = false
+  accountError.value = ''
+  accountItems.value = []
+  accountCursor.value = 0
+  accountHasMore.value = false
+  accountSecUserId.value = ''
+  accountQueried.value = false
+}
+
 watch(
   () => douyinStore.showModal,
   async (v) => {
@@ -458,6 +648,8 @@ watch(
       restoreLocalConfig()
       error.value = ''
       detail.value = null
+      accountError.value = ''
+      resetAccountStates()
       cookieHint.value = ''
       highlightConfig.value = false
       resetDetailStates()
@@ -467,13 +659,14 @@ watch(
       previewIndex.value = 0
 
       // 优先使用调用方传入的预填内容；否则按设置尝试读取剪贴板
-      if (!inputText.value && douyinStore.draftInput && isLikelyDouyinText(douyinStore.draftInput)) {
-        inputText.value = douyinStore.draftInput
-      } else if (!inputText.value && autoClipboard.value) {
+      const hasInput = () => !!String(inputText.value || '').trim() || !!String(accountInput.value || '').trim()
+      if (!hasInput() && douyinStore.draftInput && isLikelyDouyinText(douyinStore.draftInput)) {
+        applyInputText(douyinStore.draftInput)
+      } else if (!hasInput() && autoClipboard.value) {
         try {
           const txt = await navigator.clipboard?.readText?.()
           if (txt && isLikelyDouyinText(txt)) {
-            inputText.value = txt
+            applyInputText(txt)
             show('已从剪贴板读取抖音内容')
           }
         } catch {
@@ -481,8 +674,8 @@ watch(
         }
       }
 
-      if (autoResolveClipboard.value && inputText.value) {
-        await handleResolve()
+      if (autoResolveClipboard.value && hasInput()) {
+        await handlePrimaryAction()
       }
     }
   }
@@ -495,20 +688,146 @@ const close = () => {
   previewUrl.value = ''
   previewMediaList.value = []
   previewIndex.value = 0
+  activeMode.value = 'detail'
   error.value = ''
+  accountError.value = ''
   cookieHint.value = ''
   highlightConfig.value = false
   detail.value = null
   resetDetailStates()
+  resetAccountStates()
 }
 
 const handleClear = () => {
-  inputText.value = ''
-  error.value = ''
   cookieHint.value = ''
   highlightConfig.value = false
-  detail.value = null
-  resetDetailStates()
+
+  if (activeMode.value === 'detail') {
+    inputText.value = ''
+    error.value = ''
+    detail.value = null
+    resetDetailStates()
+    return
+  }
+
+  accountInput.value = ''
+  accountError.value = ''
+  resetAccountStates()
+}
+
+const uiDisabled = computed(() => loading.value || accountLoading.value || batchImport.running || batchDownload.running)
+
+const switchMode = (mode: 'detail' | 'account') => {
+  if (uiDisabled.value) return
+  activeMode.value = mode
+  cookieHint.value = ''
+  highlightConfig.value = false
+
+  // 从“作品解析”切到“用户作品”时，避免预览悬浮造成干扰
+  if (mode !== 'detail') {
+    showPreview.value = false
+    previewUrl.value = ''
+    previewMediaList.value = []
+    previewIndex.value = 0
+  }
+}
+
+const handleFetchAccount = async (opts: { append?: boolean } = {}) => {
+  const input = String(accountInput.value || '').trim()
+  if (!input) {
+    show('请输入抖音用户主页链接/分享文本/sec_uid')
+    return
+  }
+  if (isLikelyDouyinDetailInput(input) && !isLikelyDouyinUserInput(input)) {
+    show('识别到作品链接，请切换到“作品解析”')
+    activeMode.value = 'detail'
+    inputText.value = input
+    return
+  }
+  if (opts.append && !accountHasMore.value) return
+
+  const append = !!opts.append
+
+  accountQueried.value = true
+  accountLoading.value = true
+  accountError.value = ''
+  cookieHint.value = ''
+  highlightConfig.value = false
+  persistLocalConfig()
+
+  if (!append) {
+    accountItems.value = []
+    accountCursor.value = 0
+    accountHasMore.value = false
+    accountSecUserId.value = ''
+  }
+
+  try {
+    const res = await douyinApi.getDouyinAccount({
+      input,
+      cookie: String(cookie.value || '').trim(),
+      tab: 'post',
+      cursor: append ? accountCursor.value : 0,
+      count: 18
+    })
+
+    if (!res || !Array.isArray(res?.items)) {
+      accountError.value = res?.error || '获取失败'
+      return
+    }
+
+    accountSecUserId.value = String(res?.secUserId || accountSecUserId.value || '').trim()
+    accountCursor.value = Number(res?.cursor || 0)
+    accountHasMore.value = !!res?.hasMore
+
+    const incoming = (res.items || []) as DouyinAccountItem[]
+    const existing = new Set(accountItems.value.map((i) => String(i.detailId || '').trim()).filter(Boolean))
+    for (const it of incoming) {
+      const id = String(it?.detailId || '').trim()
+      if (!id || existing.has(id)) continue
+      existing.add(id)
+      accountItems.value.push({
+        detailId: id,
+        type: it?.type,
+        desc: String(it?.desc || '').trim(),
+        coverUrl: String(it?.coverUrl || '').trim()
+      })
+    }
+  } catch (e: any) {
+    console.error('获取抖音账号作品失败:', e)
+    const msg = e?.response?.data?.error || e?.message || '获取失败'
+    accountError.value = msg
+
+    if (String(msg).includes('获取数据失败') || String(msg).toLowerCase().includes('cookie') || String(msg).includes('风控')) {
+      showAdvanced.value = true
+      highlightConfig.value = true
+      cookieHint.value = '提示：可能需要更新 Cookie 后重试。'
+    }
+  } finally {
+    accountLoading.value = false
+  }
+}
+
+const handleFetchMoreAccount = async () => {
+  if (accountLoading.value) return
+  if (!accountHasMore.value) return
+  await handleFetchAccount({ append: true })
+}
+
+const openAccountItem = async (detailId: string) => {
+  const id = String(detailId || '').trim()
+  if (!id) return
+  activeMode.value = 'detail'
+  inputText.value = id
+  await handleResolve()
+}
+
+const handlePrimaryAction = async () => {
+  if (activeMode.value === 'detail') {
+    await handleResolve()
+    return
+  }
+  await handleFetchAccount()
 }
 
 const openUploadMenu = () => {
@@ -600,6 +919,12 @@ const handleResolve = async () => {
     show('请输入抖音分享文本/链接/作品ID')
     return
   }
+  if (isLikelyDouyinUserInput(input) && !isLikelyDouyinDetailInput(input)) {
+    show('识别到用户主页链接，请切换到“用户作品”')
+    activeMode.value = 'account'
+    accountInput.value = input
+    return
+  }
 
   loading.value = true
   error.value = ''
@@ -612,7 +937,6 @@ const handleResolve = async () => {
   try {
     const res = await douyinApi.getDouyinDetail({
       input,
-      proxy: String(proxy.value || '').trim(),
       cookie: String(cookie.value || '').trim()
     })
 
@@ -630,11 +954,11 @@ const handleResolve = async () => {
     const msg = e?.response?.data?.error || e?.message || '解析失败'
     error.value = msg
 
-    // 经验判断：Cookie/代理问题更常见，解析失败时引导用户填写
+    // 经验判断：Cookie 问题更常见，解析失败时引导用户填写
     if (String(msg).includes('获取数据失败') || String(msg).toLowerCase().includes('cookie') || String(msg).includes('风控')) {
       showAdvanced.value = true
       highlightConfig.value = true
-      cookieHint.value = '提示：可能需要更新 Cookie 或设置代理（proxy）后重试。'
+      cookieHint.value = '提示：可能需要更新 Cookie 后重试。'
     }
   } finally {
     loading.value = false

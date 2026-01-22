@@ -1045,7 +1045,7 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 
 **请求（application/json）**
 ```json
-{"input":"https://v.douyin.com/xxxxxx/","proxy":"","cookie":""}
+{"input":"https://v.douyin.com/xxxxxx/","cookie":""}
 ```
 
 **响应（HTTP 200）**
@@ -1055,7 +1055,24 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 
 **备注**
 - 依赖环境变量：`TIKTOKDOWNLOADER_BASE_URL`（未配置时返回“未启用”错误）。
-- 可选默认值：`DOUYIN_COOKIE`、`DOUYIN_PROXY`（页面传入优先；服务端不落库）。
+- 可选默认值：`DOUYIN_COOKIE`、`DOUYIN_PROXY`（服务端不落库；前端仅透传 `cookie`）。
+
+#### [POST] /api/douyin/account
+**描述**：解析用户主页链接/分享文本/sec_uid，拉取该账号发布作品列表（可分页）。
+
+**请求（application/json）**
+```json
+{"input":"https://www.douyin.com/user/MS4wLjABAAAA...","cookie":"","tab":"post","cursor":0,"count":18}
+```
+
+**响应（HTTP 200）**
+```json
+{"secUserId":"MS4wLjABAAAA...","tab":"post","cursor":123,"hasMore":true,"items":[{"detailId":"0123456789","type":"video","desc":"作品描述","coverUrl":"..."}]}
+```
+
+**备注**
+- `cursor/hasMore` 用于“加载更多”。
+- `items[].detailId` 可直接作为 `/api/douyin/detail` 的 `input` 继续解析资源列表。
 
 #### [GET] /api/douyin/download
 **描述**：根据 `key + index` 返回媒体下载流，并设置 `Content-Disposition` 为“作品标题”文件名。

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -118,6 +119,27 @@ func (c *TikTokDownloaderClient) DouyinDetail(ctx context.Context, detailID, coo
 	return resp.Data, nil
 }
 
+func (c *TikTokDownloaderClient) DouyinAccount(ctx context.Context, secUserID, tab string, cursor, count int, cookie, proxy string) (map[string]any, error) {
+	var resp tikTokDownloaderDataResponse
+	payload := map[string]any{
+		"sec_user_id": secUserID,
+		"tab":         tab,
+		"cursor":      cursor,
+		"count":       count,
+		"cookie":      cookie,
+		"proxy":       proxy,
+		"source":      false,
+		"pages":       1, // 每次只请求一页，方便前端按 cursor 分页加载
+	}
+	if err := c.postJSON(ctx, "/douyin/account", payload, &resp); err != nil {
+		return nil, err
+	}
+	if resp.Data == nil {
+		return nil, fmt.Errorf("TikTokDownloader 获取数据失败: %s", strings.TrimSpace(resp.Message))
+	}
+	return resp.Data, nil
+}
+
 type DouyinDownloaderService struct {
 	api *TikTokDownloaderClient
 
@@ -156,6 +178,8 @@ var (
 	reDouyinModalID  = regexp.MustCompile(`(?i)[?&]modal_id=([0-9]+)`)
 	reDouyinAwemeID  = regexp.MustCompile(`(?i)[?&]aweme_id=([0-9]+)`)
 	reDouyinShareURL = regexp.MustCompile(`https?://[^\s]+`)
+	reDouyinUserPath = regexp.MustCompile(`/user/([^/?\s]+)`)
+	reDouyinSecUID   = regexp.MustCompile(`(?i)[?&](sec_uid|sec_user_id)=([^&]+)`)
 )
 
 func extractDouyinDetailID(text string) string {
@@ -193,6 +217,44 @@ func extractDouyinDetailID(text string) string {
 		}
 		if m2 := reDouyinAwemeID.FindStringSubmatch(u); len(m2) == 2 {
 			return m2[1]
+		}
+	}
+
+	return ""
+}
+
+func extractDouyinSecUserID(text string) string {
+	raw := strings.TrimSpace(text)
+	if raw == "" {
+		return ""
+	}
+
+	// 直接粘贴 sec_user_id（常见前缀 MS4wLjAB...），避免误判：要求“无空白 + 长度足够”
+	if !strings.ContainsAny(raw, " \n\t") && len(raw) >= 16 && strings.HasPrefix(raw, "MS4wLjAB") {
+		return raw
+	}
+
+	if m := reDouyinUserPath.FindStringSubmatch(raw); len(m) == 2 {
+		return strings.TrimSpace(m[1])
+	}
+	if m := reDouyinSecUID.FindStringSubmatch(raw); len(m) == 3 {
+		if decoded, err := url.QueryUnescape(m[2]); err == nil && strings.TrimSpace(decoded) != "" {
+			return strings.TrimSpace(decoded)
+		}
+		return strings.TrimSpace(m[2])
+	}
+
+	// 兼容分享文本：先从文本中抽取 URL 再尝试匹配
+	if m := reDouyinShareURL.FindStringSubmatch(raw); len(m) >= 1 {
+		u := m[0]
+		if m2 := reDouyinUserPath.FindStringSubmatch(u); len(m2) == 2 {
+			return strings.TrimSpace(m2[1])
+		}
+		if m2 := reDouyinSecUID.FindStringSubmatch(u); len(m2) == 3 {
+			if decoded, err := url.QueryUnescape(m2[2]); err == nil && strings.TrimSpace(decoded) != "" {
+				return strings.TrimSpace(decoded)
+			}
+			return strings.TrimSpace(m2[2])
 		}
 	}
 
@@ -245,6 +307,38 @@ func (s *DouyinDownloaderService) ResolveDetailID(ctx context.Context, input, pr
 	return "", urlValue, fmt.Errorf("无法从链接提取作品ID: %s", urlValue)
 }
 
+func (s *DouyinDownloaderService) ResolveSecUserID(ctx context.Context, input, proxy string) (secUserID string, resolvedURL string, err error) {
+	if !s.configured() {
+		return "", "", fmt.Errorf("抖音下载未启用（请配置 TIKTOKDOWNLOADER_BASE_URL）")
+	}
+
+	raw := strings.TrimSpace(input)
+	if raw == "" {
+		return "", "", fmt.Errorf("input 不能为空")
+	}
+
+	if id := extractDouyinSecUserID(raw); id != "" {
+		return id, "", nil
+	}
+
+	// 短链/分享文本：调用 /douyin/share 获取重定向后的完整链接，再提取 sec_user_id
+	ctx2, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	urlValue, err := s.api.DouyinShare(ctx2, raw, s.effectiveProxy(proxy))
+	if err != nil {
+		return "", "", err
+	}
+	if strings.TrimSpace(urlValue) == "" {
+		return "", "", fmt.Errorf("无法解析分享链接：share 返回为空")
+	}
+	if id := extractDouyinSecUserID(urlValue); id != "" {
+		return id, urlValue, nil
+	}
+
+	return "", urlValue, fmt.Errorf("无法从链接提取 sec_user_id: %s", urlValue)
+}
+
 func (s *DouyinDownloaderService) FetchDetail(ctx context.Context, detailID, cookie, proxy string) (*douyinCachedDetail, error) {
 	if !s.configured() {
 		return nil, fmt.Errorf("抖音下载未启用（请配置 TIKTOKDOWNLOADER_BASE_URL）")
@@ -290,6 +384,34 @@ func (s *DouyinDownloaderService) FetchDetail(ctx context.Context, detailID, coo
 		CoverURL:  cover,
 		Downloads: downloads,
 	}, nil
+}
+
+func (s *DouyinDownloaderService) FetchAccount(ctx context.Context, secUserID, tab, cookie, proxy string, cursor, count int) (map[string]any, error) {
+	if !s.configured() {
+		return nil, fmt.Errorf("抖音下载未启用（请配置 TIKTOKDOWNLOADER_BASE_URL）")
+	}
+	secUserID = strings.TrimSpace(secUserID)
+	if secUserID == "" {
+		return nil, fmt.Errorf("sec_user_id 不能为空")
+	}
+	if strings.TrimSpace(tab) == "" {
+		tab = "post"
+	}
+	if count <= 0 {
+		count = 18
+	}
+	if cursor < 0 {
+		cursor = 0
+	}
+
+	ctx2, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	data, err := s.api.DouyinAccount(ctx2, secUserID, tab, cursor, count, s.effectiveCookie(cookie), s.effectiveProxy(proxy))
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 func (s *DouyinDownloaderService) CacheDetail(detail *douyinCachedDetail) string {
@@ -366,4 +488,3 @@ func extractStringSlice(v any) []string {
 		return nil
 	}
 }
-

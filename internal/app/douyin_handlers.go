@@ -18,6 +18,30 @@ type douyinDetailRequest struct {
 	Proxy  string `json:"proxy,omitempty"`
 }
 
+type douyinAccountRequest struct {
+	Input  string `json:"input"`
+	Cookie string `json:"cookie,omitempty"`
+	Tab    string `json:"tab,omitempty"`    // post|favorite
+	Cursor int    `json:"cursor,omitempty"` // 游标
+	Count  int    `json:"count,omitempty"`  // 每页数量（>0）
+	Proxy  string `json:"proxy,omitempty"`  // 可选（前端不暴露）
+}
+
+type douyinAccountItem struct {
+	DetailID string `json:"detailId"`
+	Type     string `json:"type,omitempty"` // image|video（best-effort）
+	Desc     string `json:"desc,omitempty"`
+	CoverURL string `json:"coverUrl,omitempty"`
+}
+
+type douyinAccountResponse struct {
+	SecUserID string              `json:"secUserId"`
+	Tab       string              `json:"tab"`
+	Cursor    int                 `json:"cursor"`
+	HasMore   bool                `json:"hasMore"`
+	Items     []douyinAccountItem `json:"items"`
+}
+
 type douyinDetailResponse struct {
 	Key      string            `json:"key"`
 	DetailID string            `json:"detailId"`
@@ -33,6 +57,187 @@ type douyinMediaItem struct {
 	URL              string `json:"url"`
 	DownloadURL      string `json:"downloadUrl"`
 	OriginalFilename string `json:"originalFilename,omitempty"`
+}
+
+func asBool(v any) bool {
+	switch t := v.(type) {
+	case bool:
+		return t
+	case float64:
+		return t != 0
+	case int:
+		return t != 0
+	case int64:
+		return t != 0
+	case string:
+		s := strings.TrimSpace(strings.ToLower(t))
+		return s == "1" || s == "true" || s == "yes"
+	default:
+		return false
+	}
+}
+
+func asInt(v any) int {
+	switch t := v.(type) {
+	case float64:
+		return int(t)
+	case int:
+		return t
+	case int64:
+		return int(t)
+	case string:
+		i, _ := strconv.Atoi(strings.TrimSpace(t))
+		return i
+	default:
+		return 0
+	}
+}
+
+func extractDouyinAccountCoverURL(item map[string]any) string {
+	// 1) video.cover.url_list[0]
+	if v, ok := item["video"].(map[string]any); ok {
+		if cover, ok := v["cover"].(map[string]any); ok {
+			if list, ok := cover["url_list"].([]any); ok {
+				if len(list) > 0 {
+					if u := strings.TrimSpace(asString(list[0])); u != "" {
+						return u
+					}
+				}
+			}
+		}
+	}
+
+	// 2) images[0].url_list[0]
+	if imgs, ok := item["images"].([]any); ok && len(imgs) > 0 {
+		if img0, ok := imgs[0].(map[string]any); ok {
+			if list, ok := img0["url_list"].([]any); ok && len(list) > 0 {
+				if u := strings.TrimSpace(asString(list[0])); u != "" {
+					return u
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
+func extractDouyinAccountItems(data map[string]any) []douyinAccountItem {
+	if data == nil {
+		return nil
+	}
+
+	listAny := data["aweme_list"]
+	if listAny == nil {
+		listAny = data["awemeList"]
+	}
+	list, ok := listAny.([]any)
+	if !ok || len(list) == 0 {
+		return nil
+	}
+
+	items := make([]douyinAccountItem, 0, len(list))
+	for _, it := range list {
+		m, ok := it.(map[string]any)
+		if !ok || m == nil {
+			continue
+		}
+
+		id := strings.TrimSpace(asString(m["aweme_id"]))
+		if id == "" {
+			id = strings.TrimSpace(asString(m["awemeId"]))
+		}
+		if id == "" {
+			id = strings.TrimSpace(asString(m["id"]))
+		}
+		if id == "" {
+			continue
+		}
+
+		itemType := "video"
+		if imgs, ok := m["images"].([]any); ok && len(imgs) > 0 {
+			itemType = "image"
+		}
+
+		items = append(items, douyinAccountItem{
+			DetailID: id,
+			Type:     itemType,
+			Desc:     strings.TrimSpace(asString(m["desc"])),
+			CoverURL: extractDouyinAccountCoverURL(m),
+		})
+	}
+	return items
+}
+
+func (a *App) handleDouyinAccount(w http.ResponseWriter, r *http.Request) {
+	if a == nil || a.douyinDownloader == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "服务未初始化"})
+		return
+	}
+	if !a.douyinDownloader.configured() {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "抖音下载未启用（请配置 TIKTOKDOWNLOADER_BASE_URL）"})
+		return
+	}
+
+	var req douyinAccountRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "请求解析失败"})
+		return
+	}
+
+	input := strings.TrimSpace(req.Input)
+	if input == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "input 不能为空"})
+		return
+	}
+
+	tab := strings.TrimSpace(req.Tab)
+	if tab == "" {
+		tab = "post"
+	}
+	cursor := req.Cursor
+	if cursor < 0 {
+		cursor = 0
+	}
+	count := req.Count
+	if count <= 0 {
+		count = 18
+	}
+
+	secUserID, resolvedURL, err := a.douyinDownloader.ResolveSecUserID(r.Context(), input, req.Proxy)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+
+	data, err := a.douyinDownloader.FetchAccount(r.Context(), secUserID, tab, req.Cookie, req.Proxy, cursor, count)
+	if err != nil {
+		msg := err.Error()
+		if resolvedURL != "" {
+			msg = msg + "（resolved=" + resolvedURL + "）"
+		}
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": msg})
+		return
+	}
+
+	nextCursor := asInt(data["cursor"])
+	if nextCursor == 0 {
+		if v := asInt(data["max_cursor"]); v > 0 {
+			nextCursor = v
+		}
+	}
+
+	hasMore := asBool(data["has_more"])
+	if !hasMore {
+		hasMore = asBool(data["hasMore"])
+	}
+
+	writeJSON(w, http.StatusOK, douyinAccountResponse{
+		SecUserID: secUserID,
+		Tab:       tab,
+		Cursor:    nextCursor,
+		HasMore:   hasMore,
+		Items:     extractDouyinAccountItems(data),
+	})
 }
 
 func (a *App) handleDouyinDetail(w http.ResponseWriter, r *http.Request) {

@@ -128,6 +128,96 @@ func TestHandleDouyinDownload_ExpiredKey(t *testing.T) {
 	}
 }
 
+func TestHandleDouyinAccount_Posts(t *testing.T) {
+	var upstream *httptest.Server
+	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/douyin/share":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"message":"请求链接成功！","url":"https://www.douyin.com/user/MS4wLjABAAAA_test_secuid","params":{},"time":"2026-01-01"}`))
+		case "/douyin/account":
+			w.Header().Set("Content-Type", "application/json")
+			payload := map[string]any{
+				"message": "获取数据成功！",
+				"data": map[string]any{
+					"cursor":   123,
+					"has_more": 1,
+					"aweme_list": []any{
+						map[string]any{
+							"aweme_id": "111",
+							"desc":     "作品1",
+							"video": map[string]any{
+								"cover": map[string]any{
+									"url_list": []any{upstream.URL + "/cover1.jpg"},
+								},
+							},
+						},
+						map[string]any{
+							"aweme_id": "222",
+							"desc":     "作品2",
+							"images": []any{
+								map[string]any{
+									"url_list": []any{upstream.URL + "/cover2.jpg"},
+								},
+							},
+						},
+					},
+				},
+				"params": map[string]any{},
+				"time":   "2026-01-01",
+			}
+			_ = json.NewEncoder(w).Encode(payload)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	a := &App{
+		douyinDownloader: NewDouyinDownloaderService(upstream.URL, "", "", ""),
+	}
+
+	body := bytes.NewBufferString(`{"input":"https://v.douyin.com/xxxxxx/","cookie":"","tab":"post","cursor":0,"count":18}`)
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/douyin/account", body)
+	rr := httptest.NewRecorder()
+	a.handleDouyinAccount(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("account status=%d, body=%s", rr.Code, rr.Body.String())
+	}
+
+	var resp douyinAccountResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal account response failed: %v", err)
+	}
+	if resp.SecUserID != "MS4wLjABAAAA_test_secuid" {
+		t.Fatalf("secUserId=%q, want %q", resp.SecUserID, "MS4wLjABAAAA_test_secuid")
+	}
+	if resp.Tab != "post" {
+		t.Fatalf("tab=%q, want %q", resp.Tab, "post")
+	}
+	if resp.Cursor != 123 {
+		t.Fatalf("cursor=%d, want %d", resp.Cursor, 123)
+	}
+	if !resp.HasMore {
+		t.Fatalf("hasMore=false, want true")
+	}
+	if len(resp.Items) != 2 {
+		t.Fatalf("items len=%d, want 2", len(resp.Items))
+	}
+	if resp.Items[0].DetailID != "111" {
+		t.Fatalf("items[0].detailId=%q, want %q", resp.Items[0].DetailID, "111")
+	}
+	if resp.Items[0].Type != "video" {
+		t.Fatalf("items[0].type=%q, want %q", resp.Items[0].Type, "video")
+	}
+	if resp.Items[1].DetailID != "222" {
+		t.Fatalf("items[1].detailId=%q, want %q", resp.Items[1].DetailID, "222")
+	}
+	if resp.Items[1].Type != "image" {
+		t.Fatalf("items[1].type=%q, want %q", resp.Items[1].Type, "image")
+	}
+}
+
 func TestParseContentRangeTotal(t *testing.T) {
 	cases := []struct {
 		name string

@@ -86,6 +86,7 @@ func (a *App) buildRouter() http.Handler {
 
 		// 抖音下载（TikTokDownloader Web API）
 		api.Route("/douyin", func(dr chi.Router) {
+			dr.Post("/account", a.handleDouyinAccount)
 			dr.Post("/detail", a.handleDouyinDetail)
 			dr.Get("/download", a.handleDouyinDownload)
 			dr.Head("/download", a.handleDouyinDownload)
