@@ -712,4 +712,91 @@ describe('composables/useWebSocket', () => {
     socket.send({ a: 1 })
     expect(toastShow).toHaveBeenCalledWith('连接已断开，请刷新页面重试')
   })
+
+  it('shows toast on code=12 tip message', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me', sex: '男', ip: '', area: '' } as any
+    localStorage.setItem('authToken', 't-1')
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+
+    await FakeWebSocket.instances[0]!.triggerMessage({ code: 12, content: '连接成功' })
+    expect(toastShow).toHaveBeenCalledWith('连接成功')
+  })
+
+  it('silently ignores system messages (code=13/14/16/19/18)', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me', sex: '男', ip: '', area: '' } as any
+    localStorage.setItem('authToken', 't-1')
+
+    const messageStore = useMessageStore()
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+
+    await FakeWebSocket.instances[0]!.triggerMessage({ code: 13, content: 'x' })
+    await FakeWebSocket.instances[0]!.triggerMessage({ code: 14, content: 'x' })
+    await FakeWebSocket.instances[0]!.triggerMessage({ code: 16, content: 'x' })
+    await FakeWebSocket.instances[0]!.triggerMessage({ code: 19, content: 'x' })
+    await FakeWebSocket.instances[0]!.triggerMessage({ code: 18, content: 'x' })
+
+    expect(toastShow).not.toHaveBeenCalled()
+    expect(messageStore.getMessages('me') || []).toHaveLength(0)
+  })
+
+  it('dispatches check-online-result event on code=30', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me', sex: '男', ip: '', area: '' } as any
+    localStorage.setItem('authToken', 't-1')
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const onResult = vi.fn()
+    window.addEventListener('check-online-result', onResult as any)
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+
+    await FakeWebSocket.instances[0]!.triggerMessage({ code: 30, userId: 'u2', online: true })
+    expect(onResult).toHaveBeenCalledOnce()
+    expect((onResult.mock.calls[0]?.[0] as CustomEvent).detail.code).toBe(30)
+
+    window.removeEventListener('check-online-result', onResult as any)
+  })
+
+  it('marks forceoutFlag on code=-4 reject message', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me', sex: '男', ip: '', area: '' } as any
+    localStorage.setItem('authToken', 't-1')
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await FakeWebSocket.instances[0]!.triggerMessage({ code: -4, forceout: true, content: 'x' })
+    } finally {
+      errorSpy.mockRestore()
+    }
+
+    expect(socket.forceoutFlag.value).toBe(true)
+  })
 })

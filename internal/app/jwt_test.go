@@ -1,0 +1,66 @@
+package app
+
+import (
+	"testing"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+)
+
+func TestJWTService_GenerateToken_EmptySecret(t *testing.T) {
+	svc := NewJWTService("", 24)
+	if _, err := svc.GenerateToken(); err == nil {
+		t.Fatalf("expected error")
+	}
+}
+
+func TestJWTService_ValidateToken_Expired(t *testing.T) {
+	svc := NewJWTService("secret", 24)
+
+	claims := jwt.RegisteredClaims{
+		Subject:   "user",
+		IssuedAt:  jwt.NewNumericDate(time.Now().Add(-2 * time.Hour)),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(-1 * time.Hour)),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString([]byte("secret"))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+
+	if svc.ValidateToken(signed) {
+		t.Fatalf("expected invalid token")
+	}
+}
+
+func TestJWTService_ValidateToken_AlgorithmMismatch(t *testing.T) {
+	svc := NewJWTService("secret", 24)
+
+	claims := jwt.RegisteredClaims{
+		Subject:   "user",
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
+	signed, err := token.SignedString([]byte("secret"))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+
+	if svc.ValidateToken(signed) {
+		t.Fatalf("expected invalid token")
+	}
+}
+
+func TestJWTService_GenerateAndValidate_Success(t *testing.T) {
+	svc := NewJWTService("secret", 24)
+	signed, err := svc.GenerateToken()
+	if err != nil {
+		t.Fatalf("GenerateToken: %v", err)
+	}
+	if !svc.ValidateToken(signed) {
+		t.Fatalf("expected token valid")
+	}
+}

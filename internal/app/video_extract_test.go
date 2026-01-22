@@ -1,9 +1,12 @@
 package app
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/DATA-DOG/go-sqlmock"
 
 	"liao/internal/config"
 )
@@ -79,5 +82,153 @@ func TestResolveUploadAbsPath(t *testing.T) {
 	}
 	if gotTemp != tempTarget {
 		t.Fatalf("got=%q, want %q", gotTemp, tempTarget)
+	}
+}
+
+func TestVideoExtractService_CreateTask_ValidatesRequest(t *testing.T) {
+	db, _, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	fileStore := &FileStorageService{baseUploadAbs: t.TempDir(), baseTempAbs: filepath.Join(t.TempDir(), "temp")}
+	svc := &VideoExtractService{db: db, fileStore: fileStore, cfg: config.Config{FFprobePath: "ffprobe"}}
+
+	if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{
+		SourceType: VideoExtractSourceUpload,
+		LocalPath:  "/x.mp4",
+		Mode:       VideoExtractModeAll,
+		MaxFrames:  0,
+	}); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{
+		SourceType: VideoExtractSourceType("bad"),
+		Mode:       VideoExtractModeAll,
+		MaxFrames:  1,
+	}); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{
+		SourceType: VideoExtractSourceUpload,
+		Mode:       VideoExtractMode("bad"),
+		MaxFrames:  1,
+	}); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{
+		SourceType: VideoExtractSourceUpload,
+		Mode:       VideoExtractModeFPS,
+		MaxFrames:  1,
+	}); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	start := -1.0
+	if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{
+		SourceType: VideoExtractSourceUpload,
+		Mode:       VideoExtractModeAll,
+		StartSec:   &start,
+		MaxFrames:  1,
+	}); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	end := 1.0
+	start = 2.0
+	if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{
+		SourceType: VideoExtractSourceUpload,
+		Mode:       VideoExtractModeAll,
+		StartSec:   &start,
+		EndSec:     &end,
+		MaxFrames:  1,
+	}); err == nil {
+		t.Fatalf("expected error")
+	}
+}
+
+func TestVideoExtractService_CreateTask_Success_WithFakeFFprobe(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	uploadRoot := t.TempDir()
+	inputAbs := filepath.Join(uploadRoot, "in.mp4")
+	if err := os.WriteFile(inputAbs, []byte("x"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	ffprobePath := filepath.Join(t.TempDir(), "ffprobe")
+	script := `#!/bin/sh
+echo '{"streams":[{"width":1920,"height":1080,"avg_frame_rate":"30/1"}],"format":{"duration":"10.0"}}'
+`
+	if err := os.WriteFile(ffprobePath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write ffprobe: %v", err)
+	}
+
+	fileStore := &FileStorageService{baseUploadAbs: uploadRoot, baseTempAbs: filepath.Join(t.TempDir(), "temp")}
+	closing := make(chan struct{})
+	close(closing)
+
+	svc := &VideoExtractService{
+		db:        db,
+		cfg:       config.Config{FFprobePath: ffprobePath},
+		fileStore: fileStore,
+		queue:     make(chan string, 1),
+		closing:   closing,
+		runtimes:  make(map[string]*videoExtractRuntime),
+	}
+
+	mock.ExpectExec(`(?s)INSERT INTO video_extract_task`).
+		WithArgs(
+			sqlmock.AnyArg(),
+			"u1",
+			"upload",
+			"/in.mp4",
+			inputAbs,
+			sqlmock.AnyArg(),
+			"jpg",
+			nil,
+			"all",
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			5,
+			0,
+			1920,
+			1080,
+			10.0,
+			nil,
+			"PENDING",
+			nil,
+			nil,
+			nil,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+		).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	taskID, probe, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{
+		UserID:     "u1",
+		SourceType: VideoExtractSourceUpload,
+		LocalPath:  "/in.mp4",
+		Mode:       VideoExtractModeAll,
+		MaxFrames:  5,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if taskID == "" {
+		t.Fatalf("expected taskID")
+	}
+	if probe.Width != 1920 || probe.Height != 1080 {
+		t.Fatalf("probe=%+v", probe)
+	}
+
+	framesDir := filepath.Join(uploadRoot, "extract", taskID, "frames")
+	if fi, err := os.Stat(framesDir); err != nil || !fi.IsDir() {
+		t.Fatalf("frames dir not found: %v", err)
 	}
 }

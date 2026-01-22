@@ -41,3 +41,11 @@ Liao 是一个基于 WebSocket 的匿名匹配聊天应用/代理服务：前端
 - [API 手册](api.md)
 - [数据模型](data.md)
 - [变更历史](../history/index.md)
+
+---
+
+## 4. 测试与验证
+
+- 后端（Go）：`go test ./...`
+- 前端（Vue/Vitest）：`cd frontend && npm test`
+- 说明：Vitest 在 `jsdom` 下的浏览器能力由 `frontend/vitest.setup.ts` 提供最小 polyfills；当引入新组件/依赖需要额外 Web API 时，优先在该文件补齐以保证用例可重复执行。

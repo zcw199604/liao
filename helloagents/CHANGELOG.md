@@ -51,6 +51,8 @@
 - 后端：补齐 Go 服务认证/WebSocket 管理器与 WebSocket 代理（`/ws`）测试，覆盖登录/验签、握手鉴权、sign 代理、连接池/延迟关闭/淘汰、forceout、缓存写入与僵尸下游清理等关键路径。
 - 后端：补齐 Go 服务 `favorite`（本地收藏CRUD）与 `user_history`（历史/收藏列表代理）测试用例，覆盖成功/失败与缓存增强分支。
 - 前端：补充 `useWebSocket` 断线自动重连、forceout 禁止重连与手动断开不重连的测试用例。
+- 前端：Vitest 增加 `jsdom` 全局测试环境补丁（`matchMedia`/Observer/媒体 API 等），修复依赖浏览器能力的组件在测试环境初始化失败；并补充 `useWebSocket` 系统消息/在线状态等分支用例。
+- 后端：新增 JWT/JWT 中间件/Identity/Forceout/System handlers/VideoExtract（假 ffprobe）等关键边界测试，提升回归覆盖与可重复执行性。
 - 前端：聊天发送支持乐观 UI（sending/failed 可重试），并在收到 WebSocket 回显时合并更新避免重复渲染。
 - 前端：聊天消息列表新增骨架屏占位（历史加载/侧边栏/收藏列表）并引入虚拟滚动（vue-virtual-scroller）；媒体渲染抽取 `ChatMedia`（加载占位/懒加载/错误兜底）以减少布局抖动。
 - CI：新增 `Release` GitHub Actions 工作流，用于创建 `v*` Tag 并生成 GitHub Release 产物。

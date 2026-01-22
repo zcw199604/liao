@@ -82,6 +82,7 @@
 | 202601211132 | douyin_downloader | 功能 | ✅已完成 | [链接](2026-01/202601211132_douyin_downloader/) |
 | 202601211234 | douyin_downloader_ux | 优化 | ✅已完成 | [链接](2026-01/202601211234_douyin_downloader_ux/) |
 | 202601211358 | sync_docs_remove_java | 文档 | ✅已完成 | [链接](2026-01/202601211358_sync_docs_remove_java/) |
+| 202601211451 | test_cases_hardening | 测试 | ✅已完成 | [链接](2026-01/202601211451_test_cases_hardening/) |
 
 ---
 
@@ -163,3 +164,4 @@
 - [202601211132_douyin_downloader](2026-01/202601211132_douyin_downloader/) - 对接 TikTokDownloader Web API：抖音作品解析/下载/导入上传（支持视频/图集，导入按 MD5 去重）
 - [202601211234_douyin_downloader_ux](2026-01/202601211234_douyin_downloader_ux/) - 抖音下载弹窗交互增强（批量操作/剪贴板预填/文件大小探测/导入状态与去重提示）
 - [202601211358_sync_docs_remove_java](2026-01/202601211358_sync_docs_remove_java/) - 同步清理文档/知识库中的 Java 路径与旧构建指令（Java 源码已移除）
+- [202601211451_test_cases_hardening](2026-01/202601211451_test_cases_hardening/) - 测试体系加固：前端 Vitest 环境补丁 + 后端关键边界测试补齐
