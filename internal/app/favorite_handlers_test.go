@@ -159,3 +159,78 @@ func TestHandleFavoriteCheck_NotFavorite(t *testing.T) {
 	}
 }
 
+func TestHandleFavoriteRemove_IgnoresDBError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectExec(`DELETE FROM chat_favorites WHERE identity_id = \? AND target_user_id = \?`).
+		WithArgs("i1", "u1").
+		WillReturnError(sql.ErrConnDone)
+
+	app := &App{favoriteService: NewFavoriteService(db)}
+
+	form := url.Values{}
+	form.Set("identityId", "i1")
+	form.Set("targetUserId", "u1")
+	req := newURLEncodedRequest(t, http.MethodPost, "http://example.com/api/favorite/remove", form)
+	rr := httptest.NewRecorder()
+
+	app.handleFavoriteRemove(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if got, _ := resp["code"].(float64); got != 0 {
+		t.Fatalf("code=%v, want 0", resp["code"])
+	}
+}
+
+func TestHandleFavoriteRemoveByID_InvalidID_ReturnsBadRequest(t *testing.T) {
+	app := &App{}
+
+	form := url.Values{}
+	form.Set("id", "not-int")
+	req := newURLEncodedRequest(t, http.MethodPost, "http://example.com/api/favorite/removeById", form)
+	rr := httptest.NewRecorder()
+
+	app.handleFavoriteRemoveByID(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusBadRequest)
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if got, _ := resp["msg"].(string); got != "id无效" {
+		t.Fatalf("msg=%q, want %q", got, "id无效")
+	}
+}
+
+func TestHandleFavoriteRemoveByID_EmptyID_ReturnsBadRequest(t *testing.T) {
+	app := &App{}
+
+	form := url.Values{}
+	req := newURLEncodedRequest(t, http.MethodPost, "http://example.com/api/favorite/removeById", form)
+	rr := httptest.NewRecorder()
+
+	app.handleFavoriteRemoveByID(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusBadRequest)
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if got, _ := resp["msg"].(string); got != "id不能为空" {
+		t.Fatalf("msg=%q, want %q", got, "id不能为空")
+	}
+}

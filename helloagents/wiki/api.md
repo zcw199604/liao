@@ -234,10 +234,51 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 ```
 
 #### [POST] /api/favorite/remove
+**请求参数（application/x-www-form-urlencoded）**
+| 参数 | 必填 |
+|---|---|
+| identityId | 是 |
+| targetUserId | 是 |
+
+**响应**
+- HTTP 200：`{"code":0,"msg":"success"}`
+
+> 备注：当前实现会忽略删除失败（DB 错误不会影响接口返回）。
+
 #### [POST] /api/favorite/removeById
+**请求参数（application/x-www-form-urlencoded）**
+| 参数 | 必填 |
+|---|---|
+| id | 是 |
+
+**错误**
+- id 为空：HTTP 400，`{"code":-1,"msg":"id不能为空"}`
+- id 解析失败或 `<=0`：HTTP 400，`{"code":-1,"msg":"id无效"}`
+
+**响应**
+- HTTP 200：`{"code":0,"msg":"success"}`
+
+> 备注：当前实现会忽略删除失败（DB 错误不会影响接口返回）。
+
 #### [GET] /api/favorite/listAll
+**描述**：获取全部收藏列表（按创建时间倒序）。
+
+**响应**
+```json
+{"code":0,"msg":"success","data":[{"id":1,"identityId":"...","targetUserId":"...","targetUserName":"...","createTime":"..."}]}
+```
+
 #### [GET] /api/favorite/check
-**说明**：接口响应统一为 `{code,msg[,data]}`；`check` 的 `data` 为 `{isFavorite:boolean}`。
+**请求参数（query）**
+| 参数 | 必填 |
+|---|---|
+| identityId | 是 |
+| targetUserId | 是 |
+
+**响应**
+```json
+{"code":0,"msg":"success","data":{"isFavorite":true}}
+```
 
 ---
 

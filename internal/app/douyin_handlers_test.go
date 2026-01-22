@@ -24,9 +24,9 @@ func TestHandleDouyinDetailAndDownload_Video(t *testing.T) {
 			payload := map[string]any{
 				"message": "获取数据成功！",
 				"data": map[string]any{
-					"id":          "123456",
-					"desc":        "测试标题",
-					"type":        "视频",
+					"id":           "123456",
+					"desc":         "测试标题",
+					"type":         "视频",
 					"downloads":    upstream.URL + "/media.mp4",
 					"static_cover": upstream.URL + "/cover.jpg",
 				},
@@ -125,5 +125,32 @@ func TestHandleDouyinDownload_ExpiredKey(t *testing.T) {
 	a.handleDouyinDownload(rr, req)
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("status=%d, want %d", rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestParseContentRangeTotal(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want int64
+	}{
+		{name: "empty", in: "", want: 0},
+		{name: "spaces", in: "   ", want: 0},
+		{name: "noSlash", in: "bytes 0-1", want: 0},
+		{name: "wildcardTotal", in: "bytes 0-1/*", want: 0},
+		{name: "wildcardRange", in: "bytes */1048576", want: 1048576},
+		{name: "valid", in: "bytes 0-1/10", want: 10},
+		{name: "nonNumber", in: "bytes 0-1/abc", want: 0},
+		{name: "zero", in: "bytes 0-1/0", want: 0},
+		{name: "negative", in: "bytes 0-1/-1", want: 0},
+		{name: "overflow", in: "bytes 0-1/9223372036854775808", want: 0},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := parseContentRangeTotal(tc.in); got != tc.want {
+				t.Fatalf("parseContentRangeTotal(%q)=%d, want %d", tc.in, got, tc.want)
+			}
+		})
 	}
 }

@@ -41,7 +41,15 @@ func (a *App) handleFavoriteRemove(w http.ResponseWriter, r *http.Request) {
 func (a *App) handleFavoriteRemoveByID(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	raw := strings.TrimSpace(r.FormValue("id"))
-	id, _ := strconv.ParseInt(raw, 10, 64)
+	if raw == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"code": -1, "msg": "id不能为空"})
+		return
+	}
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || id <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"code": -1, "msg": "id无效"})
+		return
+	}
 
 	_ = a.favoriteService.RemoveByID(r.Context(), id)
 
@@ -81,4 +89,3 @@ func (a *App) handleFavoriteCheck(w http.ResponseWriter, r *http.Request) {
 		"data": map[string]any{"isFavorite": isFav},
 	})
 }
-

@@ -9,6 +9,7 @@
 ### 新增
 - 知识库：新增外部参考文档《TikTokDownloader Web API（FastAPI）整理》（`helloagents/wiki/external/tiktokdownloader-web-api.md`）。
 - 知识库：补充《TikTokDownloader Web API 调用指南与 SDK 草稿》（`helloagents/wiki/external/tiktokdownloader-web-api-sdk.md`）。
+- 测试：补齐后端 Identity/Favorite/Douyin/MediaUpload 关键边界用例，并扩展前端 `messageSegments` 异常输入与预览兜底测试（方案包：`helloagents/archive/2026-01/202601220044_tests-boundary-cases/`）。
 - 前端/后端：对接 TikTokDownloader Web API，新增抖音作品“解析→预览→下载→导入上传”能力（UploadMenu 新入口；支持视频/图集；下载文件名按作品标题；导入上传按 MD5 去重；弹窗交互增强：剪贴板预填/自动解析开关、多选批量下载/导入、文件大小探测（`HEAD /api/douyin/download`）、导入状态提示与一键打开上传菜单）。
 - 增强聊天交互：会话列表左右滑切换“消息/收藏”、聊天页边缘右滑返回、侧边栏左滑关闭、长按菜单点击外关闭
 - 后端/前端：新增视频抽帧任务（关键帧/固定FPS/逐帧），支持时间区间与最大帧数上限；提供任务中心可实时预览帧图并支持终止/继续（网格视图使用虚拟滚动）；Docker 镜像新增 `ffmpeg/ffprobe` 运行依赖。
@@ -60,6 +61,7 @@
 - 文档：历史 Java(Spring Boot) 源码已移除；同步清理仓库文档/知识库中对旧 Java 路径与 Maven 构建指令的引用。
 
 ### 修复
+- 后端：`POST /api/favorite/removeById` 当 `id` 为空/解析失败/`<=0` 时返回 HTTP 400（不再静默按 `0` 删除）；选择身份时刷新 `last_used_at` 失败仍保持忽略（方案包：`helloagents/archive/2026-01/202601220110_fix-favorite-removebyid-invalid-id/`）。
 - 后端/CI：升级 Go 模块版本至 1.25.6（`go 1.25` + `toolchain go1.25.6`）；GitHub Actions（Release 工作流）改为从 `go.mod` 读取 Go 版本；Docker 构建镜像固定为 `golang:1.25.6-alpine`。
 - CI：企业微信通知改为“文本消息”并补充提交信息/链接与镜像 tags（逗号分隔），避免 markdown 样式在企业微信内显示不一致。
 - 修复聊天侧边栏匹配按钮点击后误自动进入聊天的问题（恢复 `startContinuousMatch(1)` 行为）。

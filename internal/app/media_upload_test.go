@@ -137,3 +137,45 @@ func TestMediaUploadService_DeleteMediaByPath_Forbidden(t *testing.T) {
 		t.Fatalf("expected ErrDeleteForbidden, got %v", err)
 	}
 }
+
+func TestExtractFilenameFromURL(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "empty", in: "", want: ""},
+		{name: "noSlash", in: "a.png", want: ""},
+		{name: "trailingSlash", in: "http://example.com/a/", want: ""},
+		{name: "simple", in: "http://example.com/a/b.png", want: "b.png"},
+		{name: "withQuery", in: "http://example.com/a/b.png?x=1", want: "b.png?x=1"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := extractFilenameFromURL(tc.in); got != tc.want {
+				t.Fatalf("extractFilenameFromURL(%q)=%q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestExtractRemoteFilenameFromURL(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "noMarker", in: "http://example.com/upload/a.png", want: ""},
+		{name: "markerAtEnd", in: "http://example.com/img/Upload/", want: ""},
+		{name: "simple", in: "http://example.com/img/Upload/2026/01/a.png", want: "2026/01/a.png"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := extractRemoteFilenameFromURL(tc.in); got != tc.want {
+				t.Fatalf("extractRemoteFilenameFromURL(%q)=%q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
