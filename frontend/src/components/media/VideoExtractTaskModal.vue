@@ -335,16 +335,17 @@
                       :emit-update="true"
                       @update="handleFramesScrollerUpdate"
                     >
-                      <template #default="{ item }">
-                        <div class="w-full h-full p-1">
-                          <div
-                            class="w-full h-full rounded-xl overflow-hidden cursor-pointer border border-gray-700 hover:border-purple-500 transition bg-gray-800"
-                            @click="openPreview(item)"
-                          >
-                            <img :src="item.url" class="w-full h-full object-cover block" loading="lazy" />
-                          </div>
-                        </div>
-                      </template>
+	                      <template #default="{ item }">
+	                        <div class="w-full h-full p-1">
+	                          <MediaTile
+	                            :src="item.url"
+	                            type="image"
+	                            class="w-full h-full rounded-xl overflow-hidden cursor-pointer border border-gray-700 hover:border-purple-500 transition bg-gray-800"
+	                            :show-skeleton="false"
+	                            @click="openPreview(item)"
+	                          />
+	                        </div>
+	                      </template>
 
                       <template #empty>
                         <div class="flex items-center justify-center text-gray-500 text-sm h-full">
@@ -375,11 +376,15 @@
                       :item-key="(item) => item.seq"
                       @load-more="videoExtractStore.loadMoreFrames"
                     >
-                      <template #default="{ item }">
-                        <div class="w-full h-full rounded-xl overflow-hidden cursor-pointer border border-gray-700 hover:border-purple-500 transition bg-gray-800" @click="openPreview(item)">
-                          <img :src="item.url" class="w-full h-full object-cover block" loading="lazy" />
-                        </div>
-                      </template>
+	                      <template #default="{ item }">
+	                        <MediaTile
+	                          :src="item.url"
+	                          type="image"
+	                          class="w-full h-full rounded-xl overflow-hidden cursor-pointer border border-gray-700 hover:border-purple-500 transition bg-gray-800"
+	                          :show-skeleton="false"
+	                          @click="openPreview(item)"
+	                        />
+	                      </template>
 
                       <template #empty>
                         <div class="flex items-center justify-center text-gray-500 text-sm h-full">
@@ -454,6 +459,7 @@ import { useToast } from '@/composables/useToast'
 import { useUserStore } from '@/stores/user'
 import { useVideoExtractStore } from '@/stores/videoExtract'
 import InfiniteMediaGrid from '@/components/common/InfiniteMediaGrid.vue'
+import MediaTile from '@/components/common/MediaTile.vue'
 import Dialog from '@/components/common/Dialog.vue'
 import MediaPreview from '@/components/media/MediaPreview.vue'
 import * as videoExtractApi from '@/api/videoExtract'

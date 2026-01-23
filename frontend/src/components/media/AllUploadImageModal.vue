@@ -73,54 +73,45 @@
           <template #default="{ item: media }">
             <div class="h-full cursor-pointer" @click="handleMediaClick(media)">
               <!-- 容器：处理缩放和圆角 -->
-              <div 
-                class="rounded-xl overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative bg-[#27272a]"
-                :class="[
+	              <MediaTile
+	                :src="media.url"
+	                :type="media.type"
+	                :reveal-top-right="true"
+	                :fill="layoutMode === 'grid' || media.type === 'video'"
+	                :media-class="layoutMode === 'grid' ? '' : (media.type === 'image' ? 'w-full h-auto' : '')"
+	                class="rounded-xl overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] bg-[#27272a]"
+	                :class="[
                   mediaStore.selectedImages.includes(media.url) ? 'transform scale-95 ring-2 ring-purple-500' : '',
                   deletingUrls.has(media.url) ? 'opacity-50' : 'hover:brightness-110',
-                  layoutMode === 'grid' ? 'w-full h-full' : ''
+                  layoutMode === 'grid' ? 'w-full h-full' : (media.type === 'video' ? 'aspect-video' : 'w-full')
                 ]"
-              >
-                 <!-- 多选复选框 -->
-                <div
-                  v-if="mediaStore.managementMode && mediaStore.selectionMode"
-                  class="absolute top-2 left-2 z-20 transition-transform duration-300"
-                  :class="mediaStore.selectedImages.includes(media.url) ? 'scale-100' : 'scale-90 opacity-80'"
-                  @click.stop="toggleSelection(media.url)"
-                >
-                  <div class="w-6 h-6 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center shadow-lg">
-                    <i
-                      v-if="mediaStore.selectedImages.includes(media.url)"
-                      class="fas fa-check-circle text-purple-400 text-lg drop-shadow-md transform transition-transform duration-300 scale-110"
-                    ></i>
-                    <i v-else class="far fa-circle text-white/80 text-lg hover:text-white"></i>
-                  </div>
-                </div>
+                :show-skeleton="false"
+                :muted="true"
+                :indicator-size="'lg'"
+	              >
+	                <template #top-left>
+	                  <MediaTileSelectMark
+	                    v-if="mediaStore.managementMode && mediaStore.selectionMode"
+	                    :checked="mediaStore.selectedImages.includes(media.url)"
+	                    :interactive="true"
+	                    tone="purple"
+	                    size="md"
+	                    @click="toggleSelection(media.url)"
+	                  />
+	                </template>
 
-                <!-- 删除按钮 -->
-                <button
-                  v-if="mediaStore.managementMode && !mediaStore.selectionMode"
-                  class="absolute top-2 right-2 z-20 w-8 h-8 rounded-full bg-black/60 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-black/80"
-                  @click.stop="confirmDelete([media.url])"
-                >
-                  <i class="fas fa-trash text-sm"></i>
-                </button>
-                
-                <!-- 媒体内容 -->
-                <LazyImage
-                  v-if="media.type === 'image'"
-                  :src="media.url"
-                  :container-class="layoutMode === 'grid' ? 'w-full h-full bg-[#27272a]' : 'w-full bg-[#27272a]'"
-                  :img-class="layoutMode === 'grid' ? 'w-full h-full object-cover' : 'w-full h-auto block'"
-                />
-                
-                <div v-else class="w-full bg-[#27272a] relative" :class="layoutMode === 'grid' ? 'h-full' : 'aspect-video'">
-                    <video :src="media.url" class="w-full h-full object-cover"></video>
-                    <div class="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <i class="fas fa-play-circle text-white text-4xl drop-shadow-lg"></i>
-                    </div>
-                </div>
-              </div>
+	                <template #top-right>
+	                  <MediaTileActionButton
+	                    v-if="mediaStore.managementMode && !mediaStore.selectionMode"
+	                    tone="danger"
+	                    size="md"
+	                    title="删除"
+	                    @click="confirmDelete([media.url])"
+	                  >
+	                    <i class="fas fa-trash text-sm"></i>
+	                  </MediaTileActionButton>
+	                </template>
+	              </MediaTile>
             </div>
           </template>
 
@@ -161,7 +152,7 @@
         </div>
 
         <div v-else class="px-6 py-4 border-t border-gray-800 text-center text-xs text-gray-500">
-          {{ mediaStore.managementMode ? '提示：点击图片预览，悬停显示删除按钮' : '点击图片预览，在预览中可上传/重新上传，再在上方\"已上传的文件\"中点击发送' }}
+          {{ mediaStore.managementMode ? '提示：点击图片预览，右上角可删除（桌面端悬停显示）' : '点击图片预览，在预览中可上传/重新上传，再在上方\"已上传的文件\"中点击发送' }}
         </div>
       </div>
 
@@ -198,7 +189,9 @@ import { useSystemConfigStore } from '@/stores/systemConfig'
 import * as mediaApi from '@/api/media'
 import Dialog from '@/components/common/Dialog.vue'
 import MediaPreview from '@/components/media/MediaPreview.vue'
-import LazyImage from '@/components/common/LazyImage.vue'
+import MediaTile from '@/components/common/MediaTile.vue'
+import MediaTileActionButton from '@/components/common/MediaTileActionButton.vue'
+import MediaTileSelectMark from '@/components/common/MediaTileSelectMark.vue'
 import InfiniteMediaGrid from '@/components/common/InfiniteMediaGrid.vue'
 import type { UploadedMedia } from '@/types'
 

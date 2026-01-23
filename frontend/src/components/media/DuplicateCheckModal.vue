@@ -38,7 +38,15 @@
                 @drop.prevent="handleDrop"
                 @dragover.prevent
               >
-                <img v-if="previewUrl" :src="previewUrl" class="w-full h-full object-contain" />
+                <MediaTile
+                  v-if="previewUrl"
+                  :src="previewUrl"
+                  type="image"
+                  fit="contain"
+                  class="w-full h-full"
+                  :show-skeleton="false"
+                  :lazy="false"
+                />
                 <div v-else-if="selectedFile" class="text-center p-4">
                   <i class="fas fa-file-alt text-4xl text-gray-600 group-hover:text-blue-500 mb-3 transition-colors"></i>
                   <p class="text-sm text-gray-300 font-medium truncate max-w-[200px]">{{ selectedFile.name }}</p>
@@ -165,16 +173,19 @@
                     class="w-24 h-24 shrink-0 bg-black rounded-lg overflow-hidden relative cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
                     @click="openPreview(item)"
                     title="点击预览大图"
-                  >
-                    <img
-                      :src="getImgUrl(item.filePath)"
-                      class="w-full h-full object-contain"
-                      loading="lazy"
-                      @error="handleImgError"
-                    />
-                    <div class="absolute bottom-0 left-0 right-0 bg-black/60 text-[10px] text-white text-center py-0.5 backdrop-blur-sm">
-                      ID: {{ item.id }}
-                    </div>
+	                  >
+	                    <MediaTile
+	                      :src="getImgUrl(item.filePath)"
+	                      type="image"
+	                      fit="contain"
+	                      class="w-full h-full"
+	                      :show-skeleton="false"
+	                      :lazy="false"
+	                      @error="handleImgError"
+	                    />
+	                    <div class="absolute bottom-0 left-0 right-0 bg-black/60 text-[10px] text-white text-center py-0.5 backdrop-blur-sm">
+	                      ID: {{ item.id }}
+	                    </div>
                     <!-- 预览提示 -->
                     <div class="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity">
                       <i class="fas fa-search-plus text-white text-lg"></i>
@@ -254,11 +265,12 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
 import { useToast } from '@/composables/useToast'
-import { checkDuplicateMedia } from '@/api/media'
-import type { CheckDuplicateData, DuplicateCheckItem, UploadedMedia } from '@/types'
-import { useMediaStore } from '@/stores/media'
-import MediaDetailPanel from './MediaDetailPanel.vue'
-import MediaPreview from './MediaPreview.vue'
+	import { checkDuplicateMedia } from '@/api/media'
+	import type { CheckDuplicateData, DuplicateCheckItem, UploadedMedia } from '@/types'
+	import { useMediaStore } from '@/stores/media'
+	import MediaTile from '@/components/common/MediaTile.vue'
+	import MediaDetailPanel from './MediaDetailPanel.vue'
+	import MediaPreview from './MediaPreview.vue'
 
 const props = defineProps<{
   visible: boolean

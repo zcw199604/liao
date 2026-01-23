@@ -195,19 +195,20 @@
                     class="rounded-xl overflow-hidden border border-gray-700 hover:border-emerald-500 transition bg-black/20 text-left"
                     @click="openAccountItem(item)"
                     :title="item.desc || item.detailId"
-                  >
-                    <div class="aspect-video bg-[#111113] overflow-hidden">
-                      <img
-                        v-if="item.coverDownloadUrl || item.coverUrl"
-                        :src="item.coverDownloadUrl || item.coverUrl"
-                        class="w-full h-full object-cover"
-                        loading="lazy"
-                        referrerpolicy="no-referrer"
-                      />
-                      <div v-else class="w-full h-full flex items-center justify-center text-gray-600 text-xs">
-                        无封面
-                      </div>
-                    </div>
+	                  >
+	                    <div class="aspect-video bg-[#111113] overflow-hidden">
+		                      <MediaTile
+		                        v-if="item.coverDownloadUrl || item.coverUrl"
+		                        :src="(item.coverDownloadUrl || item.coverUrl)!"
+		                        type="image"
+		                        class="w-full h-full"
+		                        :show-skeleton="false"
+		                        img-referrer-policy="no-referrer"
+		                      />
+	                      <div v-else class="w-full h-full flex items-center justify-center text-gray-600 text-xs">
+	                        无封面
+	                      </div>
+	                    </div>
                     <div class="p-3 space-y-1">
                       <div class="text-sm text-white line-clamp-2">
                         {{ item.desc || '（无描述）' }}
@@ -335,69 +336,64 @@
                   ]"
                   @click="handleItemClick(item.index)"
                   :title="item.originalFilename || ''"
-                >
-                  <!-- 多选勾选 -->
-                  <div
-                    v-if="selectionMode"
-                    class="absolute top-2 left-2 z-10 w-6 h-6 rounded-full border border-white/30 bg-black/40 backdrop-blur-md flex items-center justify-center"
-                  >
-                    <i v-if="isSelected(item.index)" class="fas fa-check text-emerald-300 text-xs"></i>
-                  </div>
+	                  >
+	                  <MediaTile
+	                    :src="item.downloadUrl"
+	                    :type="item.type"
+	                    class="w-full h-full"
+	                    :show-skeleton="false"
+	                    :muted="true"
+	                    :indicator-size="'lg'"
+	                  >
+	                    <template #top-left>
+	                      <MediaTileSelectMark
+	                        v-if="selectionMode"
+	                        :checked="isSelected(item.index)"
+	                        tone="emerald"
+	                        size="sm"
+	                      />
+	                    </template>
 
-                  <!-- 状态 -->
-                  <div v-if="itemStateByIndex[item.index]?.status && itemStateByIndex[item.index]?.status !== 'idle'" class="absolute top-2 right-2 z-10">
-                    <span
-                      v-if="itemStateByIndex[item.index]?.status === 'importing'"
-                      class="px-2 py-1 rounded-full text-[10px] bg-emerald-600/80 text-white border border-emerald-400/30"
-                    >
-                      导入中…
-                    </span>
-                    <span
-                      v-else-if="itemStateByIndex[item.index]?.status === 'imported'"
-                      class="px-2 py-1 rounded-full text-[10px] bg-emerald-600/80 text-white border border-emerald-400/30"
-                    >
-                      已导入
-                    </span>
-                    <span
-                      v-else-if="itemStateByIndex[item.index]?.status === 'exists'"
-                      class="px-2 py-1 rounded-full text-[10px] bg-indigo-600/80 text-white border border-indigo-400/30"
-                    >
-                      已存在
-                    </span>
-                    <span
-                      v-else-if="itemStateByIndex[item.index]?.status === 'error'"
-                      class="px-2 py-1 rounded-full text-[10px] bg-red-600/80 text-white border border-red-400/30"
-                      :title="itemStateByIndex[item.index]?.message || ''"
-                    >
-                      失败
-                    </span>
-                  </div>
+	                    <template #top-right>
+	                      <div v-if="itemStateByIndex[item.index]?.status && itemStateByIndex[item.index]?.status !== 'idle'">
+	                        <MediaTileBadge
+	                          v-if="itemStateByIndex[item.index]?.status === 'importing'"
+	                          variant="success"
+	                        >
+	                          导入中…
+	                        </MediaTileBadge>
+	                        <MediaTileBadge
+	                          v-else-if="itemStateByIndex[item.index]?.status === 'imported'"
+	                          variant="success"
+	                        >
+	                          已导入
+	                        </MediaTileBadge>
+	                        <MediaTileBadge
+	                          v-else-if="itemStateByIndex[item.index]?.status === 'exists'"
+	                          variant="info"
+	                        >
+	                          已存在
+	                        </MediaTileBadge>
+	                        <MediaTileBadge
+	                          v-else-if="itemStateByIndex[item.index]?.status === 'error'"
+	                          variant="danger"
+	                          :title="itemStateByIndex[item.index]?.message || ''"
+	                        >
+	                          失败
+	                        </MediaTileBadge>
+	                      </div>
+	                    </template>
 
-                  <img
-                    v-if="item.type === 'image'"
-                    :src="item.downloadUrl"
-                    class="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                  <video
-                    v-else
-                    :src="item.downloadUrl"
-                    class="w-full h-full object-cover"
-                    muted
-                    playsinline
-                    preload="metadata"
-                  ></video>
-                  <div v-if="item.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/30">
-                    <i class="fas fa-play-circle text-white text-3xl"></i>
-                  </div>
-
-                  <!-- 文件大小（最佳努力） -->
-	                  <div v-if="itemMetaByIndex[item.index]?.size" class="absolute bottom-2 left-2 z-10">
-	                    <span class="px-2 py-1 rounded-full text-[10px] bg-black/50 text-white border border-white/10 backdrop-blur-md">
-	                      {{ formatBytes(itemMetaByIndex[item.index]?.size || 0) }}
-	                    </span>
-	                  </div>
-                </button>
+	                    <template #bottom-left>
+	                      <MediaTileBadge
+	                        v-if="itemMetaByIndex[item.index]?.size"
+	                        variant="neutral"
+	                      >
+	                        {{ formatBytes(itemMetaByIndex[item.index]?.size || 0) }}
+	                      </MediaTileBadge>
+	                    </template>
+	                  </MediaTile>
+		                </button>
               </div>
 
               <div v-else class="mt-4 text-sm text-gray-500">
@@ -428,13 +424,16 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useDouyinStore } from '@/stores/douyin'
 import { useUserStore } from '@/stores/user'
-import { useMediaStore } from '@/stores/media'
-import { useSystemConfigStore } from '@/stores/systemConfig'
-import { useToast } from '@/composables/useToast'
-import { generateCookie } from '@/utils/cookie'
-import * as douyinApi from '@/api/douyin'
-import MediaPreview from '@/components/media/MediaPreview.vue'
-import type { UploadedMedia } from '@/types'
+	import { useMediaStore } from '@/stores/media'
+	import { useSystemConfigStore } from '@/stores/systemConfig'
+	import { useToast } from '@/composables/useToast'
+	import MediaTile from '@/components/common/MediaTile.vue'
+	import MediaTileBadge from '@/components/common/MediaTileBadge.vue'
+	import MediaTileSelectMark from '@/components/common/MediaTileSelectMark.vue'
+	import { generateCookie } from '@/utils/cookie'
+	import * as douyinApi from '@/api/douyin'
+	import MediaPreview from '@/components/media/MediaPreview.vue'
+	import type { UploadedMedia } from '@/types'
 
 interface DouyinDetailItem {
   index: number

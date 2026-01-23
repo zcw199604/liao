@@ -44,7 +44,7 @@
 - 支持瀑布流（masonry）与网格（grid）布局切换；为保证按时间排序时的视觉顺序，瀑布流采用“按行从左到右”的布局策略（行优先），并将用户选择持久化到 localStorage（`media_layout_mode`）
 - 支持弹窗“全屏/退出全屏”最大化浏览区域，并将全屏偏好持久化到 localStorage（`media_modal_fullscreen`）；快捷键 `F` 切换全屏，`Esc` 优先退出全屏，否则关闭弹窗（预览打开时由 `MediaPreview` 优先处理）
 - 支持无限滚动加载更多，复用 `InfiniteMediaGrid` 组件统一滚动/加载/空态/结束态逻辑
-- 缩略图使用 `LazyImage` 进行懒加载与错误兜底，并提供选中态动效；预览背景采用毛玻璃（`backdrop-blur`）提升沉浸感
+- 缩略图使用 `MediaTile` 统一渲染图片/视频（懒加载 + 错误兜底 + 统一的 overlay slot 布局），角落按钮/徽标统一使用 `MediaTileActionButton` / `MediaTileSelectMark` / `MediaTileBadge`；桌面端可按需设置“hover 才显示”，触屏设备默认可见可点；预览背景采用毛玻璃（`backdrop-blur`）提升沉浸感
 - 弹窗展示区域针对大屏做放宽：弹窗宽度上限提升（`max-w-[1600px]`），高度提升至 `90vh`（支持 `90dvh`），列表容器内边距下调至 `p-2`，并在网格模式下将间距调整为 `gap-2` 以减少留白
 
 ### 需求: 删除兼容性（localPath 归一化）
@@ -138,7 +138,10 @@
   - `frontend/src/components/media/MediaPreview.vue`
   - `frontend/src/components/media/VideoExtractTaskModal.vue`
   - `frontend/src/components/common/InfiniteMediaGrid.vue`
-  - `frontend/src/components/common/LazyImage.vue`
+  - `frontend/src/components/common/MediaTile.vue`
+  - `frontend/src/components/common/MediaTileActionButton.vue`
+  - `frontend/src/components/common/MediaTileSelectMark.vue`
+  - `frontend/src/components/common/MediaTileBadge.vue`
 
 ## 测试
 - 运行：`go test ./...`

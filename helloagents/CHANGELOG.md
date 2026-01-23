@@ -28,6 +28,7 @@
 - 前端：全站图片库/mtPhoto 相册弹窗新增全屏模式（按钮 + `F/Esc` 快捷键 + localStorage：`media_modal_fullscreen`），最大化浏览区域便于查看大量图片。
 - 前端：优化“已上传图片”展示与预览体验：缩略图懒加载淡入（`LazyImage`）、选中态动效、预览背景毛玻璃（`backdrop-blur`）。
 - 前端：抽取 `InfiniteMediaGrid` 通用组件，封装无限滚动与 grid/masonry 布局逻辑，复用于全站图片库与 mtPhoto 相册。
+- 前端：抽取 `MediaTile` 通用组件，统一图片/视频渲染与 overlay 操作位布局（top-left/top-right/bottom-left/bottom-right/center）；补齐 `MediaTileActionButton/MediaTileSelectMark/MediaTileBadge` 角落按钮/徽标规范，并优先保证移动端可见可点（桌面端可按需 hover 才显示）；并替换多处重复实现（聊天、全站图片库、mtPhoto 相册、抖音下载、查重、预览缩略图等）。
 - 前端/后端：接入 mtPhoto 相册系统：上传菜单/图片管理新增“mtPhoto 相册”入口，按相册展示图片/视频并支持一键导入上传到上游（导入失败会先落盘到本地，可在“全站图片库”中重试）。
 - 前端：新增“图片管理”菜单，将“所有上传图片 / mtPhoto 相册 / 图片查重”入口从“系统设置”中移出并集中管理。
 - 前端：身份选择页（登录后、选择身份前）新增“图片管理”入口，可提前使用“所有上传图片 / mtPhoto 相册 / 图片查重”。

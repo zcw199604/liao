@@ -73,25 +73,26 @@
             加载中...
           </div>
 
-          <div v-else-if="mtPhotoStore.albums.length > 0" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            <button
-              v-for="album in mtPhotoStore.albums"
-              :key="album.id"
-              class="text-left rounded-xl overflow-hidden border border-gray-700 hover:border-pink-500 transition bg-[#111113]"
-              @click="mtPhotoStore.openAlbum(album)"
-            >
-              <div class="aspect-square bg-black/30 overflow-hidden">
-                <img
-                  v-if="album.cover"
-                  :src="getThumbUrl('s260', album.cover)"
-                  class="w-full h-full object-cover"
-                  loading="lazy"
-                />
-                <div v-else class="w-full h-full flex items-center justify-center text-gray-500">
-                  <i class="fas fa-images text-3xl opacity-40"></i>
-                </div>
-              </div>
-              <div class="p-3">
+	          <div v-else-if="mtPhotoStore.albums.length > 0" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+	            <button
+	              v-for="album in mtPhotoStore.albums"
+	              :key="album.id"
+	              class="text-left rounded-xl overflow-hidden border border-gray-700 hover:border-pink-500 transition bg-[#111113]"
+	              @click="mtPhotoStore.openAlbum(album)"
+	            >
+	              <div class="aspect-square bg-black/30 overflow-hidden">
+	                <MediaTile
+	                  v-if="album.cover"
+	                  :src="getThumbUrl('s260', album.cover)"
+	                  type="image"
+	                  class="w-full h-full"
+	                  :show-skeleton="false"
+	                />
+	                <div v-else class="w-full h-full flex items-center justify-center text-gray-500">
+	                  <i class="fas fa-images text-3xl opacity-40"></i>
+	                </div>
+	              </div>
+	              <div class="p-3">
                 <div class="text-white font-medium text-sm truncate">{{ album.name }}</div>
                 <div class="text-xs text-gray-500 mt-1">{{ album.count ?? 0 }} 个</div>
               </div>
@@ -114,24 +115,24 @@
 	          :item-key="(item, idx) => item.md5 + '-' + idx"
 	          @load-more="mtPhotoStore.loadMore"
 	        >
-	          <template #default="{ item }">
-	            <div
-	              class="w-full rounded-xl overflow-hidden cursor-pointer border border-gray-700 hover:border-pink-500 transition relative group bg-gray-800"
-	              :class="layoutMode === 'grid' ? 'h-full' : ''"
-	              :style="layoutMode === 'masonry' && item.width && item.height ? { aspectRatio: `${item.width}/${item.height}`, contain: 'paint' } : {}"
-	              @click="handleMediaClick(item)"
-	            >
-	              <img
-	                :src="getThumbUrl('h220', item.md5)"
-	                class="w-full h-full object-cover block"
-	                loading="lazy"
-	              />
-
-              <div v-if="item.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/30">
-                <i class="fas fa-play-circle text-white text-3xl"></i>
-              </div>
-            </div>
-          </template>
+		          <template #default="{ item }">
+		            <MediaTile
+		              :src="getThumbUrl('h220', item.md5)"
+		              type="image"
+		              class="w-full rounded-xl overflow-hidden cursor-pointer border border-gray-700 hover:border-pink-500 transition bg-gray-800"
+		              :class="layoutMode === 'grid' ? 'h-full' : ''"
+		              :aspect-ratio="layoutMode === 'masonry' && item.width && item.height ? (Number(item.width) / Number(item.height)) : undefined"
+		              :style="layoutMode === 'masonry' ? { contain: 'paint' } : {}"
+		              :show-skeleton="false"
+		              @click="handleMediaClick(item)"
+		            >
+		              <template v-if="item.type === 'video'" #center>
+		                <div class="absolute inset-0 flex items-center justify-center bg-black/30">
+		                  <i class="fas fa-play-circle text-white text-3xl"></i>
+		                </div>
+		              </template>
+		            </MediaTile>
+	          </template>
 
           <template #empty>
             <div class="flex items-center justify-center text-gray-500 text-sm h-full">
@@ -169,9 +170,10 @@ import { useToast } from '@/composables/useToast'
 import { useModalFullscreen } from '@/composables/useModalFullscreen'
 import { generateCookie } from '@/utils/cookie'
 import * as mtphotoApi from '@/api/mtphoto'
-import MediaPreview from '@/components/media/MediaPreview.vue'
-import InfiniteMediaGrid from '@/components/common/InfiniteMediaGrid.vue'
-import type { UploadedMedia } from '@/types'
+	import MediaPreview from '@/components/media/MediaPreview.vue'
+	import InfiniteMediaGrid from '@/components/common/InfiniteMediaGrid.vue'
+	import MediaTile from '@/components/common/MediaTile.vue'
+	import type { UploadedMedia } from '@/types'
 
 const mtPhotoStore = useMtPhotoStore()
 const userStore = useUserStore()

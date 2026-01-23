@@ -137,7 +137,7 @@ lastMsg 预览（与后端缓存增强对齐）：
 - **用户触发贴底（点击“回到底部/新消息”按钮）：** 可使用 `behavior: 'smooth'`（仅交互路径允许平滑）
 - **合并滚动请求：** 同一帧内多次贴底请求需合并为一次（`requestAnimationFrame` + `nextTick`），避免短时间重复滚动
 - **仅在用户位于底部时自动贴底：** 通过 `MessageList.getIsAtBottom()` 判定；用户阅读历史消息时不自动打断
-- **媒体占位：** `ChatMedia` 支持 `aspectRatio` 预占位减少 CLS；未知尺寸时使用默认占位比例（image=4/3, video=16/9），并在 `load/error/loadeddata` 触发 `layout` 事件供列表触发一次贴底
+- **媒体占位：** `ChatMedia`（底层统一使用 `MediaTile`）支持 `aspectRatio` 预占位减少 CLS；未知尺寸时使用默认占位比例（image=4/3, video=16/9），并在媒体 `load/error/loadeddata` 触发 `layout` 事件供列表触发一次贴底
 - **滚动锚定：** 消息列表滚动容器显式启用 `overflow-anchor: auto`，减少内容尺寸变化导致的可视区域跳动
 
 ### 移动端键盘: 避免遮挡最新消息
@@ -195,6 +195,7 @@ lastMsg 预览（与后端缓存增强对齐）：
 - `frontend/src/components/chat/MessageList.vue`
 - `frontend/src/components/chat/ChatMedia.vue`
 - `frontend/src/components/common/Skeleton.vue`
+- `frontend/src/components/common/MediaTile.vue`
 - `frontend/src/composables/useMessage.ts`
 - `frontend/src/composables/useWebSocket.ts`
 - `frontend/src/views/ChatRoomView.vue`

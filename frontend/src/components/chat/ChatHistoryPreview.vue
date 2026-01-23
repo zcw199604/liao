@@ -58,16 +58,26 @@
 	                            <span class="text-xs">图片加载失败</span>
 	                          </div>
 	                          <div v-else class="mt-1">
-	                            <img 
-                                  :src="getMediaUrl(seg.url)" 
-                                  class="rounded-lg max-w-full max-h-[300px] min-h-[100px] min-w-[100px] object-cover bg-gray-900/50 block" 
-                                  @error="handleImageError(msg, idx)"
-                                />
+	                            <MediaTile
+	                              :src="getMediaUrl(seg.url)"
+	                              type="image"
+	                              :fill="false"
+	                              class="inline-block rounded-lg max-w-full max-h-[300px] min-h-[100px] min-w-[100px] bg-gray-900/50"
+	                              :show-skeleton="false"
+	                              @error="handleImageError(msg, idx)"
+	                            />
 	                          </div>
 	                        </template>
 
 	                        <div v-else-if="seg.kind === 'video'" class="mt-1">
-	                          <video :src="getMediaUrl(seg.url)" controls class="rounded-lg max-w-full max-h-[300px] bg-black block"></video>
+	                          <MediaTile
+	                            :src="getMediaUrl(seg.url)"
+	                            type="video"
+	                            :controls="true"
+	                            :fill="false"
+	                            class="inline-block rounded-lg max-w-full max-h-[300px] bg-black"
+	                            :show-skeleton="false"
+	                          />
 	                        </div>
 
 	                        <div v-else-if="seg.kind === 'file'" class="mt-1">
@@ -93,17 +103,27 @@
 	                        <span class="text-xs">图片加载失败</span>
 	                      </div>
 	                      <div v-else class="mt-1">
-	                        <img 
-                              :src="getMediaUrl(msg.imageUrl || msg.content || '')" 
-                              class="rounded-lg max-w-full max-h-[300px] min-h-[100px] min-w-[100px] object-cover bg-gray-900/50 block" 
-                              @error="handleImageError(msg, -1)"
-                            />
+	                        <MediaTile
+	                          :src="getMediaUrl(msg.imageUrl || msg.content || '')"
+	                          type="image"
+	                          :fill="false"
+	                          class="inline-block rounded-lg max-w-full max-h-[300px] min-h-[100px] min-w-[100px] bg-gray-900/50"
+	                          :show-skeleton="false"
+	                          @error="handleImageError(msg, -1)"
+	                        />
 	                      </div>
 	                    </template>
 
 	                    <!-- 视频 -->
 	                    <div v-else-if="msg.isVideo" class="mt-1">
-	                      <video :src="getMediaUrl(msg.videoUrl || msg.content || '')" controls class="rounded-lg max-w-full max-h-[300px] bg-black block"></video>
+	                      <MediaTile
+	                        :src="getMediaUrl(msg.videoUrl || msg.content || '')"
+	                        type="video"
+	                        :controls="true"
+	                        :fill="false"
+	                        class="inline-block rounded-lg max-w-full max-h-[300px] bg-black"
+	                        :show-skeleton="false"
+	                      />
 	                    </div>
 
 	                    <!-- 文件 -->
@@ -151,6 +171,7 @@
 	import { emojiMap } from '@/constants/emoji'
 	import { useUpload } from '@/composables/useUpload'
 	import { getSegmentsMeta, parseMessageSegments } from '@/utils/messageSegments'
+	import MediaTile from '@/components/common/MediaTile.vue'
 
 const props = defineProps<{
   visible: boolean

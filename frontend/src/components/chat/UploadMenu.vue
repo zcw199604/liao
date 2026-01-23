@@ -12,14 +12,18 @@
           @click="$emit('send', media)"
           class="w-16 h-16 rounded-lg overflow-hidden cursor-pointer border border-gray-700 hover:border-indigo-500 transition relative"
         >
-          <img v-if="media.type === 'image'" :src="media.url" class="w-full h-full object-cover" />
-          <video v-if="media.type === 'video'" :src="media.url" class="w-full h-full object-cover"></video>
-          <div v-if="media.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/30">
-            <i class="fas fa-play-circle text-white text-2xl"></i>
-          </div>
-          <div v-if="media.type === 'file'" class="w-full h-full flex items-center justify-center bg-gray-800 text-gray-400">
-            <i class="fas fa-file text-2xl"></i>
-          </div>
+          <MediaTile
+            :src="media.url"
+            :type="media.type"
+            class="w-full h-full"
+            :show-skeleton="false"
+            :indicator-size="'sm'"
+            :muted="true"
+          >
+            <template #file>
+              <i class="fas fa-file text-2xl"></i>
+            </template>
+          </MediaTile>
         </div>
       </div>
     </div>
@@ -69,6 +73,7 @@
 
 <script setup lang="ts">
 import type { UploadedMedia } from '@/types'
+import MediaTile from '@/components/common/MediaTile.vue'
 
 interface Props {
   visible: boolean

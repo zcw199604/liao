@@ -157,21 +157,21 @@
 
           <div v-else-if="historyMedia && historyMedia.length > 0" class="flex-1 overflow-y-auto p-6 no-scrollbar">
             <div class="grid grid-cols-3 sm:grid-cols-4 gap-4">
-              <div
+              <MediaTile
                 v-for="(media, idx) in historyMedia"
                 :key="'history-media-' + idx"
-                class="aspect-square rounded-xl overflow-hidden cursor-pointer border-2 border-gray-700 hover:border-green-500 hover:scale-105 transition-all relative"
+                :src="media.url"
+                :type="media.type"
+                class="aspect-square rounded-xl overflow-hidden cursor-pointer border-2 border-gray-700 hover:border-green-500 hover:scale-105 transition-all"
+                :show-skeleton="false"
+                :indicator-size="'md'"
+                :muted="true"
                 @click="openPreviewUpload(media)"
               >
-                <img v-if="media.type === 'image'" :src="media.url" class="w-full h-full object-cover" />
-                <video v-else-if="media.type === 'video'" :src="media.url" class="w-full h-full object-cover"></video>
-                <div v-else class="w-full h-full flex items-center justify-center bg-gray-800 text-gray-400">
+                <template #file>
                   <i class="fas fa-file text-3xl"></i>
-                </div>
-                <div v-if="media.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/30">
-                  <i class="fas fa-play-circle text-white text-3xl"></i>
-                </div>
-              </div>
+                </template>
+              </MediaTile>
             </div>
           </div>
 
@@ -225,6 +225,7 @@ import ChatInput from '@/components/chat/ChatInput.vue'
 import UploadMenu from '@/components/chat/UploadMenu.vue'
 import EmojiPanel from '@/components/chat/EmojiPanel.vue'
 import MediaPreview from '@/components/media/MediaPreview.vue'
+import MediaTile from '@/components/common/MediaTile.vue'
 import Toast from '@/components/common/Toast.vue'
 import Dialog from '@/components/common/Dialog.vue'
 import type { ChatMessage, UploadedMedia, User } from '@/types'

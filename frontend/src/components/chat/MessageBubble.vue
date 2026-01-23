@@ -14,38 +14,52 @@
 
             <div
               v-else-if="seg.kind === 'image'"
-              class="cursor-pointer group relative"
-              @click="previewMedia(getMediaUrl(seg.url), 'image')"
+              class="cursor-pointer"
             >
-              <img
+              <MediaTile
                 :src="getMediaUrl(seg.url)"
-                alt="图片"
-                class="rounded-lg object-cover bg-gray-900/50"
-                :class="[
+                type="image"
+                :fill="false"
+                class="inline-block rounded-lg bg-gray-900/50"
+                :media-class="[
                   'max-w-full sm:max-w-sm',
                   'max-h-[40vh] min-h-[100px] min-w-[100px]'
-                ]"
+                ].join(' ')"
+                :show-skeleton="false"
+                @click="previewMedia(getMediaUrl(seg.url), 'image')"
                 @error="handleImageError"
-              />
-              <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-lg">
-                <i class="fas fa-search-plus text-white/80 drop-shadow-md"></i>
-              </div>
+              >
+                <template #center>
+                  <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-lg">
+                    <i class="fas fa-search-plus text-white/80 drop-shadow-md"></i>
+                  </div>
+                </template>
+              </MediaTile>
             </div>
 
             <div
               v-else-if="seg.kind === 'video'"
-              class="cursor-pointer relative group"
-              @click="previewMedia(getMediaUrl(seg.url), 'video')"
+              class="cursor-pointer"
             >
-              <video
+              <MediaTile
                 :src="getMediaUrl(seg.url)"
-                class="rounded-lg bg-black max-w-full sm:max-w-sm max-h-[40vh]"
-              ></video>
-              <div class="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition rounded-lg">
-                <div class="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white border border-white/20 shadow-lg group-hover:scale-110 transition">
-                  <i class="fas fa-play text-xs ml-0.5"></i>
-                </div>
-              </div>
+                type="video"
+                :fill="false"
+                class="inline-block rounded-lg bg-black"
+                media-class="max-w-full sm:max-w-sm max-h-[40vh]"
+                :show-skeleton="false"
+                :muted="true"
+                :show-video-indicator="false"
+                @click="previewMedia(getMediaUrl(seg.url), 'video')"
+              >
+                <template #center>
+                  <div class="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition rounded-lg">
+                    <div class="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white border border-white/20 shadow-lg group-hover:scale-110 transition">
+                      <i class="fas fa-play text-xs ml-0.5"></i>
+                    </div>
+                  </div>
+                </template>
+              </MediaTile>
             </div>
 
             <div
@@ -75,35 +89,47 @@
         <div v-if="!message.isImage && !message.isVideo && !message.isFile" v-html="parsedContent"></div>
 
         <!-- 图片消息 -->
-        <div v-else-if="message.isImage" class="cursor-pointer group relative" @click="previewImage">
-          <img
+        <div v-else-if="message.isImage" class="cursor-pointer" @click="previewImage">
+          <MediaTile
             :src="imageUrl"
-            alt="图片"
-            class="rounded-lg object-cover bg-gray-900/50"
-            :class="[
+            type="image"
+            :fill="false"
+            class="inline-block rounded-lg bg-gray-900/50"
+            :media-class="[
                'max-w-full sm:max-w-sm',
                'max-h-[40vh] min-h-[100px] min-w-[100px]'
-            ]"
+            ].join(' ')"
+            :show-skeleton="false"
             @error="handleImageError"
-          />
-          <!-- 放大图标提示 -->
-          <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-lg">
-            <i class="fas fa-search-plus text-white/80 drop-shadow-md"></i>
-          </div>
+          >
+            <template #center>
+              <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-lg">
+                <i class="fas fa-search-plus text-white/80 drop-shadow-md"></i>
+              </div>
+            </template>
+          </MediaTile>
         </div>
 
         <!-- 视频消息 -->
-        <div v-else-if="message.isVideo" class="cursor-pointer relative group" @click="previewVideo">
-          <video
+        <div v-else-if="message.isVideo" class="cursor-pointer" @click="previewVideo">
+          <MediaTile
             :src="videoUrl"
-            class="rounded-lg bg-black max-w-full sm:max-w-sm max-h-[40vh]"
-          ></video>
-          <!-- 播放覆盖层，点击预览 -->
-          <div class="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition rounded-lg">
-            <div class="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white border border-white/20 shadow-lg group-hover:scale-110 transition">
-              <i class="fas fa-play text-xs ml-0.5"></i>
-            </div>
-          </div>
+            type="video"
+            :fill="false"
+            class="inline-block rounded-lg bg-black"
+            media-class="max-w-full sm:max-w-sm max-h-[40vh]"
+            :show-skeleton="false"
+            :muted="true"
+            :show-video-indicator="false"
+          >
+            <template #center>
+              <div class="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition rounded-lg">
+                <div class="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white border border-white/20 shadow-lg group-hover:scale-110 transition">
+                  <i class="fas fa-play text-xs ml-0.5"></i>
+                </div>
+              </div>
+            </template>
+          </MediaTile>
         </div>
 
         <!-- 文件消息 -->
@@ -139,6 +165,7 @@ import { formatTime } from '@/utils/time'
 import { parseEmoji } from '@/utils/string'
 import { emojiMap } from '@/constants/emoji'
 import { useUpload } from '@/composables/useUpload'
+import MediaTile from '@/components/common/MediaTile.vue'
 
 interface Props {
   message: ChatMessage

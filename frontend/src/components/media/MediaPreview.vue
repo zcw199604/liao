@@ -283,49 +283,49 @@
             direction="horizontal"
             key-field="url"
           >
-            <template #default="{ item, index }">
-              <div class="w-[60px] h-full flex items-center justify-center">
-                <div
-                  class="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden cursor-pointer border-2 transition-all duration-200 shadow-lg"
-                  :class="index === currentIndex ? 'border-indigo-500 scale-110 opacity-100 ring-2 ring-indigo-500/30' : 'border-transparent opacity-40 hover:opacity-80 hover:scale-105'"
-                  @click="jumpTo(index)"
-                >
-                  <img v-if="item.type === 'image'" :src="item.url" class="w-full h-full object-cover" loading="lazy" />
-                  <video v-else-if="item.type === 'video'" :src="item.url" class="w-full h-full object-cover"></video>
-                  <div v-else class="w-full h-full flex items-center justify-center bg-gray-800 text-gray-400">
-                    <i class="fas fa-file text-sm"></i>
-                  </div>
-                  <div v-if="item.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/40">
-                    <i class="fas fa-play text-[8px] text-white/90"></i>
-                  </div>
-                </div>
-              </div>
-            </template>
-          </RecycleScroller>
+	            <template #default="{ item, index }">
+	              <div class="w-[60px] h-full flex items-center justify-center">
+	                <MediaTile
+	                  :src="item.url"
+	                  :type="item.type"
+	                  class="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden cursor-pointer border-2 transition-all duration-200 shadow-lg"
+	                  :class="index === currentIndex ? 'border-indigo-500 scale-110 opacity-100 ring-2 ring-indigo-500/30' : 'border-transparent opacity-40 hover:opacity-80 hover:scale-105'"
+	                  :show-skeleton="false"
+	                  :indicator-size="'sm'"
+	                  :muted="true"
+	                  @click="jumpTo(index)"
+	                >
+	                  <template #file>
+	                    <i class="fas fa-file text-sm"></i>
+	                  </template>
+	                </MediaTile>
+	              </div>
+	            </template>
+	          </RecycleScroller>
 
           <div
             v-else
             ref="thumbnailContainer"
             class="flex gap-3 px-4 overflow-x-auto no-scrollbar max-w-full items-center h-16 w-full sm:w-auto sm:max-w-[80vw]"
           >
-            <div
-              v-for="(item, idx) in realMediaList"
-              :key="'thumb-' + idx"
-              class="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden cursor-pointer border-2 transition-all duration-200 shadow-lg"
-              :class="idx === currentIndex ? 'border-indigo-500 scale-110 opacity-100 ring-2 ring-indigo-500/30' : 'border-transparent opacity-40 hover:opacity-80 hover:scale-105'"
-              @click="jumpTo(idx)"
-            >
-              <img v-if="item.type === 'image'" :src="item.url" class="w-full h-full object-cover" loading="lazy" />
-              <video v-else-if="item.type === 'video'" :src="item.url" class="w-full h-full object-cover"></video>
-              <div v-else class="w-full h-full flex items-center justify-center bg-gray-800 text-gray-400">
-                <i class="fas fa-file text-sm"></i>
-              </div>
-              <div v-if="item.type === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/40">
-                <i class="fas fa-play text-[8px] text-white/90"></i>
-              </div>
-            </div>
-          </div>
-        </div>
+	            <MediaTile
+	              v-for="(item, idx) in realMediaList"
+	              :key="'thumb-' + idx"
+	              :src="item.url"
+	              :type="item.type"
+	              class="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden cursor-pointer border-2 transition-all duration-200 shadow-lg"
+	              :class="idx === currentIndex ? 'border-indigo-500 scale-110 opacity-100 ring-2 ring-indigo-500/30' : 'border-transparent opacity-40 hover:opacity-80 hover:scale-105'"
+	              :show-skeleton="false"
+	              :indicator-size="'sm'"
+	              :muted="true"
+	              @click="jumpTo(idx)"
+	            >
+	              <template #file>
+	                <i class="fas fa-file text-sm"></i>
+	              </template>
+	            </MediaTile>
+	          </div>
+	        </div>
 
 	        <!-- 上传按钮（如果允许上传） -->
 	        <div class="absolute bottom-28 left-1/2 transform -translate-x-1/2 flex items-center gap-3 z-50">
@@ -374,10 +374,11 @@
 // 媒体预览弹窗：支持图片/视频/文件的全屏预览与画廊切换，并增强视频播放交互体验。
 import { ref, watch, computed, onUnmounted, nextTick } from 'vue'
 import { RecycleScroller } from 'vue-virtual-scroller'
-import type { UploadedMedia } from '@/types'
-import { useToast } from '@/composables/useToast'
-import { useUpload } from '@/composables/useUpload'
-import { useUserStore } from '@/stores/user'
+	import type { UploadedMedia } from '@/types'
+	import { useToast } from '@/composables/useToast'
+	import { useUpload } from '@/composables/useUpload'
+	import { useUserStore } from '@/stores/user'
+	import MediaTile from '@/components/common/MediaTile.vue'
 import { useVideoExtractStore } from '@/stores/videoExtract'
 import Plyr from 'plyr'
 import 'plyr/dist/plyr.css'
