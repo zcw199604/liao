@@ -145,7 +145,7 @@
 	              webkit-playsinline
 	              controls
 	              autoplay
-	              class="media-preview-video max-w-[95%] max-h-[95%] shadow-2xl rounded-lg bg-black"
+	              class="media-preview-video shadow-2xl rounded-lg bg-black"
 	              @loadedmetadata="handleVideoLoadedMetadata"
 	              @error="handleMediaError"
 		            ></video>
@@ -1719,6 +1719,20 @@ onUnmounted(() => {
   overflow: hidden;
   background: #000;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.55);
+}
+
+/* 非全屏：Plyr 初始化前的 video 约束（避免视频过大）；Plyr 接管后交给容器约束 */
+.media-preview-video {
+  max-width: 95%;
+  max-height: 95%;
+}
+
+:deep(.plyr) .media-preview-video {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 /* 全屏模式：让全屏容器占满视口并居中内容 */

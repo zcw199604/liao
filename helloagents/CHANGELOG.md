@@ -72,6 +72,7 @@
 - CI：企业微信通知改为“文本消息”并补充提交信息/链接与镜像 tags（逗号分隔），避免 markdown 样式在企业微信内显示不一致。
 - 修复聊天侧边栏匹配按钮点击后误自动进入聊天的问题（恢复 `startContinuousMatch(1)` 行为）。
 - 前端：修复 `MediaPreview` 视频真全屏后布局偏移导致不居中/黑边的问题（`:fullscreen/:-webkit-full-screen` 居中与尺寸约束覆盖）。
+- 前端：修复 `MediaPreview` 非全屏播放时画面偏左、右侧留黑的问题（统一 Plyr 容器与 `<video>` 尺寸约束，确保居中与 `object-fit: contain`）。
 - 前端/后端：修复 mtPhoto 相册图片预览“下载”实际下载缩略图的问题；现在点击下载将通过 mtPhoto `fileDownload` 获取原图。
 - 前端：mtPhoto 相册图片预览支持左右切换浏览，并确保切换后“上传/导入”作用于当前预览图片。
 - 前端：mtPhoto 相册预览支持查看详情（信息按钮 + 详情面板）。
