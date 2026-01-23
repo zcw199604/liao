@@ -1713,6 +1713,7 @@ onUnmounted(() => {
   --plyr-menu-background: rgba(17, 17, 19, 0.95);
   --plyr-menu-color: rgba(255, 255, 255, 0.92);
 
+  margin: auto;
   max-width: 95%;
   max-height: 95%;
   border-radius: 0.5rem;
@@ -1723,6 +1724,8 @@ onUnmounted(() => {
 
 /* 非全屏：Plyr 初始化前的 video 约束（避免视频过大）；Plyr 接管后交给容器约束 */
 .media-preview-video {
+  display: block;
+  margin: 0 auto;
   max-width: 95%;
   max-height: 95%;
 }
