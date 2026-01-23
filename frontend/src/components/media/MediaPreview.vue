@@ -9,14 +9,21 @@
         <!-- 顶部工具栏 -->
         <div class="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-20 bg-gradient-to-b from-black/50 to-transparent pointer-events-none">
            <!-- 缩放提示/状态/计数 -->
-           <div class="flex items-center gap-3 px-2 pointer-events-auto">
-              <span v-if="realMediaList.length > 1" class="text-white/90 font-medium text-sm drop-shadow-md">
-                {{ currentIndex + 1 }} / {{ realMediaList.length }}
-              </span>
-              <span v-if="currentMedia.type === 'image'" class="text-white/50 text-xs shadow-black/50 drop-shadow-md">
-                {{ scale > 1 ? '拖动查看 · 点击还原' : '点击放大' }}
-              </span>
-           </div>
+	           <div class="flex items-center gap-3 px-2 pointer-events-auto min-w-0">
+	              <span v-if="realMediaList.length > 1" class="text-white/90 font-medium text-sm drop-shadow-md">
+	                {{ currentIndex + 1 }} / {{ realMediaList.length }}
+	              </span>
+	              <span
+	                v-if="currentMedia.title"
+	                class="text-white/90 font-medium text-sm drop-shadow-md truncate max-w-[56vw] sm:max-w-[68vw]"
+	                :title="currentMedia.title"
+	              >
+	                {{ currentMedia.title }}
+	              </span>
+	              <span v-if="currentMedia.type === 'image'" class="text-white/50 text-xs shadow-black/50 drop-shadow-md">
+	                {{ scale > 1 ? '拖动查看 · 点击还原' : '点击放大' }}
+	              </span>
+	           </div>
 
            <div class="flex items-center gap-4 pointer-events-auto">
               <!-- 信息按钮 -->

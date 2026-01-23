@@ -4,6 +4,12 @@ export interface UploadedMedia {
   // 用于下载（与展示 URL 解耦，例如 mtPhoto 预览展示缩略图，但下载原图）
   downloadUrl?: string
   localFilename?: string
+  title?: string
+  context?: {
+    provider?: string
+    key?: string
+    index?: number
+  }
   // 新增字段 - 用于显示详细信息
   originalFilename?: string
   fileSize?: number           // 字节数

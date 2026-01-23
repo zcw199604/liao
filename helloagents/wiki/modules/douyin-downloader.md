@@ -30,7 +30,7 @@
   - 模式B：用户作品
     1) 粘贴用户主页链接/分享文本/sec_uid
     2) 点击“获取作品”拉取该用户发布作品列表（支持分页加载）
-    3) 点击某个作品 → 直接预览（best-effort 使用 `/api/douyin/account` 返回的 `key/items`，避免再请求 `/api/douyin/detail`；若缺失则回退到“作品解析”抓取资源列表）
+    3) 点击某个作品 → 进入预览：支持左右滑动在“当前已加载作品”之间切换，并在预览顶部显示当前作品名称（best-effort 使用 `/api/douyin/account` 返回的 `key/items`，避免再请求 `/api/douyin/detail`；若缺失则回退到“作品解析”抓取资源列表）
 
 **本地配置（localStorage）**
 - `douyin_cookie`：Cookie（可选；支持一键清除）

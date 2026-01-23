@@ -334,13 +334,13 @@
                   v-for="item in detail.items"
                   :key="`douyin-item-${item.index}`"
                   class="aspect-square rounded-xl overflow-hidden border border-gray-700 transition relative bg-black/20"
-                  :class="[
-                    selectionMode && isSelected(item.index) ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'hover:border-emerald-500',
-                    itemStateByIndex[item.index]?.status === 'error' ? 'border-red-500' : ''
-                  ]"
-                  @click="handleItemClick(item.index)"
-                  :title="item.originalFilename || ''"
-	                  >
+	                  :class="[
+	                    selectionMode && isSelected(item.index) ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'hover:border-emerald-500',
+	                    getItemState(detail.key, item.index)?.status === 'error' ? 'border-red-500' : ''
+	                  ]"
+	                  @click="handleItemClick(item.index)"
+	                  :title="item.originalFilename || ''"
+		                  >
 	                  <MediaTile
 	                    :src="item.downloadUrl"
 	                    :type="item.type"
@@ -358,45 +358,45 @@
 	                      />
 	                    </template>
 
-	                    <template #top-right>
-	                      <div v-if="itemStateByIndex[item.index]?.status && itemStateByIndex[item.index]?.status !== 'idle'">
-	                        <MediaTileBadge
-	                          v-if="itemStateByIndex[item.index]?.status === 'importing'"
-	                          variant="success"
-	                        >
-	                          导入中…
-	                        </MediaTileBadge>
-	                        <MediaTileBadge
-	                          v-else-if="itemStateByIndex[item.index]?.status === 'imported'"
-	                          variant="success"
-	                        >
-	                          已导入
-	                        </MediaTileBadge>
-	                        <MediaTileBadge
-	                          v-else-if="itemStateByIndex[item.index]?.status === 'exists'"
-	                          variant="info"
-	                        >
-	                          已存在
-	                        </MediaTileBadge>
-	                        <MediaTileBadge
-	                          v-else-if="itemStateByIndex[item.index]?.status === 'error'"
-	                          variant="danger"
-	                          :title="itemStateByIndex[item.index]?.message || ''"
-	                        >
-	                          失败
-	                        </MediaTileBadge>
-	                      </div>
-	                    </template>
+		                    <template #top-right>
+		                      <div v-if="getItemState(detail.key, item.index)?.status && getItemState(detail.key, item.index)?.status !== 'idle'">
+		                        <MediaTileBadge
+		                          v-if="getItemState(detail.key, item.index)?.status === 'importing'"
+		                          variant="success"
+		                        >
+		                          导入中…
+		                        </MediaTileBadge>
+		                        <MediaTileBadge
+		                          v-else-if="getItemState(detail.key, item.index)?.status === 'imported'"
+		                          variant="success"
+		                        >
+		                          已导入
+		                        </MediaTileBadge>
+		                        <MediaTileBadge
+		                          v-else-if="getItemState(detail.key, item.index)?.status === 'exists'"
+		                          variant="info"
+		                        >
+		                          已存在
+		                        </MediaTileBadge>
+		                        <MediaTileBadge
+		                          v-else-if="getItemState(detail.key, item.index)?.status === 'error'"
+		                          variant="danger"
+		                          :title="getItemState(detail.key, item.index)?.message || ''"
+		                        >
+		                          失败
+		                        </MediaTileBadge>
+		                      </div>
+		                    </template>
 
-	                    <template #bottom-left>
-	                      <MediaTileBadge
-	                        v-if="itemMetaByIndex[item.index]?.size"
-	                        variant="neutral"
-	                      >
-	                        {{ formatBytes(itemMetaByIndex[item.index]?.size || 0) }}
-	                      </MediaTileBadge>
-	                    </template>
-	                  </MediaTile>
+		                    <template #bottom-left>
+		                      <MediaTileBadge
+		                        v-if="getItemMeta(detail.key, item.index)?.size"
+		                        variant="neutral"
+		                      >
+		                        {{ formatBytes(getItemMeta(detail.key, item.index)?.size || 0) }}
+		                      </MediaTileBadge>
+		                    </template>
+		                  </MediaTile>
 		                </button>
               </div>
 
@@ -521,11 +521,14 @@ const previewContextItems = ref<DouyinDetailItem[]>([])
 
 const canUpload = computed(() => !!userStore.currentUser)
 
-type ItemStatus = 'idle' | 'importing' | 'imported' | 'exists' | 'error'
-type ItemState = { status: ItemStatus; message?: string }
+	type ItemStatus = 'idle' | 'importing' | 'imported' | 'exists' | 'error'
+	type ItemState = { status: ItemStatus; message?: string }
 
-const itemStateByIndex = reactive<Record<number, ItemState>>({})
-const itemMetaByIndex = reactive<Record<number, { size?: number; mime?: string }>>({})
+	const buildItemId = (key: string, idx: number) => `${String(key || '').trim()}:${Number(idx)}`
+	const itemStateById = reactive<Record<string, ItemState>>({})
+	const itemMetaById = reactive<Record<string, { size?: number; mime?: string }>>({})
+	const getItemState = (key: string, idx: number) => itemStateById[buildItemId(key, idx)]
+	const getItemMeta = (key: string, idx: number) => itemMetaById[buildItemId(key, idx)]
 
 const batchImport = reactive({ running: false, total: 0, done: 0, success: 0, fail: 0 })
 const batchDownload = reactive({ running: false, total: 0, done: 0, success: 0, fail: 0 })
@@ -625,8 +628,8 @@ const pasteFromClipboard = async () => {
 }
 
 const resetDetailStates = () => {
-  Object.keys(itemStateByIndex).forEach((k) => delete itemStateByIndex[Number(k)])
-  Object.keys(itemMetaByIndex).forEach((k) => delete itemMetaByIndex[Number(k)])
+  Object.keys(itemStateById).forEach((k) => delete itemStateById[k])
+  Object.keys(itemMetaById).forEach((k) => delete itemMetaById[k])
   previewContextKey.value = ''
   previewContextItems.value = []
   selectionMode.value = false
@@ -829,6 +832,23 @@ const handleFetchMoreAccount = async () => {
   await handleFetchAccount({ append: true })
 }
 
+const getAccountItemTitle = (item: DouyinAccountItem) => {
+  const t = String(item?.desc || '').trim()
+  if (t) return t
+  return String(item?.detailId || '').trim()
+}
+
+const buildAccountPreviewMediaList = (items: DouyinAccountItem[]): UploadedMedia[] => {
+  const list: UploadedMedia[] = []
+  for (const it of items || []) {
+    const key = String(it?.key || '').trim()
+    const medias = Array.isArray(it?.items) ? it.items : []
+    if (!key || medias.length === 0) continue
+    list.push(...buildPreviewMediaList(medias, { key, title: getAccountItemTitle(it) }))
+  }
+  return list
+}
+
 const openPreviewFromAccount = (item: DouyinAccountItem) => {
   resetDetailStates()
   previewContextKey.value = String(item.key || '')
@@ -840,7 +860,8 @@ const openPreviewFromAccount = (item: DouyinAccountItem) => {
   previewIndex.value = Number(first.index) || 0
   previewType.value = first.type
   previewUrl.value = String(first.downloadUrl || first.url || '').trim()
-  previewMediaList.value = buildPreviewMediaList(item.items || [])
+  const fullList = buildAccountPreviewMediaList(accountItems.value)
+  previewMediaList.value = fullList.length > 0 ? fullList : buildPreviewMediaList(item.items || [], { key: String(item.key || '').trim(), title: getAccountItemTitle(item) })
   showPreview.value = true
 }
 
@@ -948,7 +969,7 @@ const formatBytes = (bytes: number) => {
 
 const getAuthToken = () => String(localStorage.getItem('authToken') || '').trim()
 
-const prefetchMetas = async (items: DouyinDetailItem[]) => {
+const prefetchMetas = async (key: string, items: DouyinDetailItem[]) => {
   const token = getAuthToken()
   if (!token) return
 
@@ -968,7 +989,10 @@ const prefetchMetas = async (items: DouyinDetailItem[]) => {
         if (!resp.ok) continue
         const len = Number(resp.headers.get('Content-Length') || 0)
         const mime = String(resp.headers.get('Content-Type') || '').trim()
-        if (len > 0) itemMetaByIndex[idx] = { ...(itemMetaByIndex[idx] || {}), size: len, mime }
+        if (len > 0) {
+          const id = buildItemId(key, idx)
+          itemMetaById[id] = { ...(itemMetaById[id] || {}), size: len, mime }
+        }
       } catch {
         // ignore
       }
@@ -1012,12 +1036,12 @@ const handleResolve = async () => {
 
     detail.value = res as DouyinDetailResponse
 
-    // 预取文件大小（最佳努力）
-    void prefetchMetas(detail.value.items || [])
-  } catch (e: any) {
-    console.error('解析抖音失败:', e)
-    const msg = e?.response?.data?.error || e?.message || '解析失败'
-    error.value = msg
+	    // 预取文件大小（最佳努力）
+	    void prefetchMetas(detail.value.key, detail.value.items || [])
+	  } catch (e: any) {
+	    console.error('解析抖音失败:', e)
+	    const msg = e?.response?.data?.error || e?.message || '解析失败'
+	    error.value = msg
 
     // 经验判断：Cookie 问题更常见，解析失败时引导用户填写
     if (String(msg).includes('获取数据失败') || String(msg).toLowerCase().includes('cookie') || String(msg).includes('风控')) {
@@ -1030,7 +1054,9 @@ const handleResolve = async () => {
   }
 }
 
-const buildPreviewMediaList = (items: DouyinDetailItem[]): UploadedMedia[] => {
+const buildPreviewMediaList = (items: DouyinDetailItem[], opts: { key?: string; title?: string } = {}): UploadedMedia[] => {
+  const key = String(opts.key || '').trim()
+  const title = String(opts.title || '').trim()
   return items
     .slice()
     .sort((a, b) => Number(a.index) - Number(b.index))
@@ -1038,7 +1064,9 @@ const buildPreviewMediaList = (items: DouyinDetailItem[]): UploadedMedia[] => {
       url: it.downloadUrl,
       type: it.type,
       downloadUrl: it.downloadUrl,
-      originalFilename: it.originalFilename
+      originalFilename: it.originalFilename,
+      title: title || undefined,
+      context: key ? { provider: 'douyin', key, index: Number(it.index) } : undefined
     }))
 }
 
@@ -1051,15 +1079,15 @@ const openPreview = (idx: number) => {
   previewType.value = item.type
   previewUrl.value = item.downloadUrl
 
-  previewContextKey.value = detail.value.key
-  previewContextItems.value = detail.value.items || []
+	  previewContextKey.value = detail.value.key
+	  previewContextItems.value = detail.value.items || []
 
-  if (item.type === 'image') {
-    const images = detail.value.items.filter((i) => i.type === 'image')
-    previewMediaList.value = buildPreviewMediaList(images)
-  } else {
-    previewMediaList.value = buildPreviewMediaList([item])
-  }
+	  if (item.type === 'image') {
+	    const images = detail.value.items.filter((i) => i.type === 'image')
+	    previewMediaList.value = buildPreviewMediaList(images, { key: detail.value.key, title: detail.value.title })
+	  } else {
+	    previewMediaList.value = buildPreviewMediaList([item], { key: detail.value.key, title: detail.value.title })
+	  }
 
   showPreview.value = true
 }
@@ -1067,23 +1095,51 @@ const openPreview = (idx: number) => {
 const handlePreviewMediaChange = (media: UploadedMedia) => {
   const url = String(media?.url || '').trim()
   if (!url) return
-  const item = (previewContextItems.value || []).find((i) => i.downloadUrl === url || i.url === url)
-  if (item) {
-    previewIndex.value = Number(item.index) || previewIndex.value
+
+  const ctx = media?.context
+  if (ctx?.provider === 'douyin') {
+    const key = String(ctx.key || '').trim()
+    const idx = Number(ctx.index)
+    if (key) {
+      previewContextKey.value = key
+      if (detail.value?.key && String(detail.value.key) === key) {
+        previewContextItems.value = detail.value.items || []
+      } else {
+        const found = accountItems.value.find((i) => String(i.key || '').trim() === key)
+        previewContextItems.value = (found?.items || []) as DouyinDetailItem[]
+      }
+    }
+    if (Number.isFinite(idx)) {
+      previewIndex.value = idx
+    }
+  } else {
+    const item = (previewContextItems.value || []).find((i) => i.downloadUrl === url || i.url === url)
+    if (item) {
+      previewIndex.value = Number(item.index) || previewIndex.value
+    }
   }
   previewUrl.value = url
   previewType.value = media.type || previewType.value
 }
 
-const previewUploadLoading = computed(() => itemStateByIndex[previewIndex.value]?.status === 'importing')
+const previewItemState = computed(() => {
+  const key = String(previewContextKey.value || detail.value?.key || '').trim()
+  if (!key) return undefined
+  const idx = Number(previewIndex.value) || 0
+  return itemStateById[buildItemId(key, idx)]
+})
+
+const previewUploadLoading = computed(() => previewItemState.value?.status === 'importing')
 const previewUploadDisabled = computed(() => {
   if (!userStore.currentUser) return true
-  const st = itemStateByIndex[previewIndex.value]?.status
+  const key = String(previewContextKey.value || detail.value?.key || '').trim()
+  if (!key) return true
+  const st = previewItemState.value?.status
   return st === 'importing' || st === 'imported' || st === 'exists'
 })
 const previewUploadText = computed(() => {
   if (!userStore.currentUser) return ''
-  const st = itemStateByIndex[previewIndex.value]?.status
+  const st = previewItemState.value?.status
   if (st === 'importing') return '导入中…'
   if (st === 'imported') return '已导入'
   if (st === 'exists') return '已存在（去重）'
@@ -1106,7 +1162,8 @@ const importIndex = async (idx: number) => {
   if (!key) return { ok: false, dedup: false, error: '解析信息缺失' }
   if (!await ensureImgServer()) return { ok: false, dedup: false, error: '图片服务器地址未获取' }
 
-  const current = itemStateByIndex[idx]?.status
+  const itemId = buildItemId(key, idx)
+  const current = itemStateById[itemId]?.status
   if (current === 'imported' || current === 'exists') {
     return { ok: true, dedup: current === 'exists' }
   }
@@ -1114,7 +1171,7 @@ const importIndex = async (idx: number) => {
     return { ok: false, dedup: false, error: '导入进行中' }
   }
 
-  itemStateByIndex[idx] = { status: 'importing' }
+  itemStateById[itemId] = { status: 'importing' }
 
   const cookieData = generateCookie(userStore.currentUser.id, userStore.currentUser.name)
   const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
@@ -1147,17 +1204,17 @@ const importIndex = async (idx: number) => {
       }
 
       const dedup = !!res.dedup
-      itemStateByIndex[idx] = { status: dedup ? 'exists' : 'imported' }
+      itemStateById[itemId] = { status: dedup ? 'exists' : 'imported' }
       show(dedup ? '已存在（去重复用）' : '已导入上传（可在上传菜单发送）')
       return { ok: true, dedup }
     }
 
-    itemStateByIndex[idx] = { status: 'error', message: String(res?.error || res?.msg || '导入失败') }
+    itemStateById[itemId] = { status: 'error', message: String(res?.error || res?.msg || '导入失败') }
     return { ok: false, dedup: false, error: String(res?.error || res?.msg || '导入失败') }
   } catch (e: any) {
     console.error('导入失败:', e)
     const msg = e?.response?.data?.error || e?.message || '导入失败'
-    itemStateByIndex[idx] = { status: 'error', message: String(msg) }
+    itemStateById[itemId] = { status: 'error', message: String(msg) }
     return { ok: false, dedup: false, error: String(msg) }
   }
 }
