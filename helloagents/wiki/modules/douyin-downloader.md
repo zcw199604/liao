@@ -54,6 +54,7 @@
 - 不能解析时调用 `/douyin/share` 获取重定向 URL 后再提取 `sec_user_id`
 - 调用 `/douyin/account` 拉取发布作品列表（`aweme_list`），并返回 `cursor/hasMore/items`
 - best-effort：服务端会尝试从 `aweme_list` 直接抽取可预览资源（视频 `play_addr` / 图集 `images[].url_list`），并为每个作品生成缓存 `key` 与 `items[].downloadUrl`；前端可直接预览/下载/导入，无需再请求 `/api/douyin/detail`
+- 兼容：当上游返回 `data[]` 扁平结构时（如包含 `type/downloads/static_cover/dynamic_cover`），服务端也会为每个作品生成 `key/items/coverDownloadUrl`，避免前端点击后再回退请求详情
 
 ### 2) 下载到本地
 `GET /api/douyin/download?key=...&index=...`：

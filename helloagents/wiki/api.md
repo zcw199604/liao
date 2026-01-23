@@ -1075,6 +1075,7 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 - `cursor/hasMore` 用于“加载更多”。
 - `items[].detailId` 可直接作为 `/api/douyin/detail` 的 `input` 继续解析资源列表。
 - `items[].items/key/coverDownloadUrl` 为 best-effort：用于在“用户作品列表”直接预览/下载/导入；为空时前端可回退到 `/api/douyin/detail` 获取完整资源列表。
+- 兼容：部分上游版本可能返回 `data[]` 扁平字段（如 `type/downloads/static_cover/dynamic_cover`）；服务端会尽量转换为 `items[].items/key/coverDownloadUrl`，减少前端点击作品时回退请求详情。
 
 #### [GET] /api/douyin/cover
 **描述**：根据 `key` 返回作品封面图片（代理抖音 CDN，用于缩略图/预览封面）。

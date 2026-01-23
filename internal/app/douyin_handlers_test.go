@@ -356,6 +356,135 @@ func TestHandleDouyinAccount_Posts(t *testing.T) {
 	}
 }
 
+func TestHandleDouyinAccount_Posts_FlatDataArray(t *testing.T) {
+	var upstream *httptest.Server
+	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/douyin/share":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"message":"请求链接成功！","url":"https://www.douyin.com/user/MS4wLjABAAAA_test_secuid","params":{},"time":"2026-01-01"}`))
+		case "/douyin/account":
+			w.Header().Set("Content-Type", "application/json")
+			payload := map[string]any{
+				"message": "获取数据成功！",
+				"data": []any{
+					map[string]any{
+						"id":           "111",
+						"desc":         "作品1",
+						"type":         "视频",
+						"downloads":    upstream.URL + "/aweme/v1/play/?video_id=v1",
+						"static_cover": upstream.URL + "/cover1.jpg",
+					},
+					map[string]any{
+						"id":        "222",
+						"desc":      "作品2",
+						"type":      "图集",
+						"downloads": []any{upstream.URL + "/img1.jpeg", upstream.URL + "/img2.jpeg"},
+					},
+					map[string]any{
+						"id":        "333",
+						"desc":      "作品3",
+						"type":      "实况",
+						"downloads": []any{upstream.URL + "/live_img.jpeg", upstream.URL + "/aweme/v1/play/?video_id=live1"},
+					},
+				},
+				"params": map[string]any{},
+				"time":   "2026-01-01",
+			}
+			_ = json.NewEncoder(w).Encode(payload)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	a := &App{
+		douyinDownloader: NewDouyinDownloaderService(upstream.URL, "", "", "", 60*time.Second),
+	}
+
+	body := bytes.NewBufferString(`{"input":"https://v.douyin.com/xxxxxx/","cookie":"","tab":"post","cursor":0,"count":18}`)
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/douyin/account", body)
+	rr := httptest.NewRecorder()
+	a.handleDouyinAccount(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("account status=%d, body=%s", rr.Code, rr.Body.String())
+	}
+
+	var resp douyinAccountResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal account response failed: %v", err)
+	}
+	if len(resp.Items) != 3 {
+		t.Fatalf("items len=%d, want 3", len(resp.Items))
+	}
+
+	// video
+	if resp.Items[0].DetailID != "111" {
+		t.Fatalf("items[0].detailId=%q, want %q", resp.Items[0].DetailID, "111")
+	}
+	if resp.Items[0].Type != "video" {
+		t.Fatalf("items[0].type=%q, want %q", resp.Items[0].Type, "video")
+	}
+	if strings.TrimSpace(resp.Items[0].Key) == "" {
+		t.Fatalf("items[0].key should not be empty")
+	}
+	if !strings.Contains(resp.Items[0].CoverDownloadURL, "/api/douyin/cover?key=") {
+		t.Fatalf("items[0].coverDownloadUrl=%q", resp.Items[0].CoverDownloadURL)
+	}
+	if len(resp.Items[0].Items) != 1 {
+		t.Fatalf("items[0].items len=%d, want 1", len(resp.Items[0].Items))
+	}
+	if resp.Items[0].Items[0].Type != "video" {
+		t.Fatalf("items[0].items[0].type=%q, want %q", resp.Items[0].Items[0].Type, "video")
+	}
+	if !strings.Contains(resp.Items[0].Items[0].DownloadURL, "/api/douyin/download?key=") {
+		t.Fatalf("items[0].items[0].downloadUrl=%q", resp.Items[0].Items[0].DownloadURL)
+	}
+
+	// image
+	if resp.Items[1].DetailID != "222" {
+		t.Fatalf("items[1].detailId=%q, want %q", resp.Items[1].DetailID, "222")
+	}
+	if resp.Items[1].Type != "image" {
+		t.Fatalf("items[1].type=%q, want %q", resp.Items[1].Type, "image")
+	}
+	if strings.TrimSpace(resp.Items[1].Key) == "" {
+		t.Fatalf("items[1].key should not be empty")
+	}
+	if !strings.Contains(resp.Items[1].CoverDownloadURL, "/api/douyin/cover?key=") {
+		t.Fatalf("items[1].coverDownloadUrl=%q", resp.Items[1].CoverDownloadURL)
+	}
+	if len(resp.Items[1].Items) != 2 {
+		t.Fatalf("items[1].items len=%d, want 2", len(resp.Items[1].Items))
+	}
+	if resp.Items[1].Items[0].Type != "image" {
+		t.Fatalf("items[1].items[0].type=%q, want %q", resp.Items[1].Items[0].Type, "image")
+	}
+
+	// live photo (mixed)
+	if resp.Items[2].DetailID != "333" {
+		t.Fatalf("items[2].detailId=%q, want %q", resp.Items[2].DetailID, "333")
+	}
+	if resp.Items[2].Type != "video" {
+		t.Fatalf("items[2].type=%q, want %q", resp.Items[2].Type, "video")
+	}
+	if strings.TrimSpace(resp.Items[2].Key) == "" {
+		t.Fatalf("items[2].key should not be empty")
+	}
+	if !strings.Contains(resp.Items[2].CoverDownloadURL, "/api/douyin/cover?key=") {
+		t.Fatalf("items[2].coverDownloadUrl=%q", resp.Items[2].CoverDownloadURL)
+	}
+	if len(resp.Items[2].Items) != 2 {
+		t.Fatalf("items[2].items len=%d, want 2", len(resp.Items[2].Items))
+	}
+	if resp.Items[2].Items[0].Type != "image" {
+		t.Fatalf("items[2].items[0].type=%q, want %q", resp.Items[2].Items[0].Type, "image")
+	}
+	if resp.Items[2].Items[1].Type != "video" {
+		t.Fatalf("items[2].items[1].type=%q, want %q", resp.Items[2].Items[1].Type, "video")
+	}
+}
+
 func TestHandleDouyinAccount_NoPosts_DataArray(t *testing.T) {
 	var upstream *httptest.Server
 	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

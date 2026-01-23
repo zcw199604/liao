@@ -192,16 +192,20 @@
                   <button
                     v-for="item in accountItems"
                     :key="`douyin-account-${item.detailId}`"
-                    class="rounded-xl overflow-hidden border border-gray-700 hover:border-emerald-500 transition bg-black/20 text-left"
+                    class="rounded-xl overflow-hidden border border-gray-700 hover:border-emerald-500 transition bg-black/20 text-left relative group"
                     @click="openAccountItem(item)"
+                    :disabled="accountItemLoading.has(item.detailId)"
                     :title="item.desc || item.detailId"
 	                  >
+                      <div v-if="accountItemLoading.has(item.detailId)" class="absolute inset-0 z-20 bg-black/60 flex items-center justify-center backdrop-blur-sm">
+                        <i class="fas fa-spinner fa-spin text-white text-xl"></i>
+                      </div>
 	                    <div class="aspect-video bg-[#111113] overflow-hidden">
 		                      <MediaTile
 		                        v-if="item.coverDownloadUrl || item.coverUrl"
 		                        :src="(item.coverDownloadUrl || item.coverUrl)!"
 		                        type="image"
-		                        class="w-full h-full"
+		                        class="w-full h-full group-hover:scale-105 transition-transform duration-500"
 		                        :show-skeleton="false"
 		                        img-referrer-policy="no-referrer"
 		                      />
@@ -505,6 +509,7 @@ const accountCursor = ref(0)
 const accountHasMore = ref(false)
 const accountSecUserId = ref('')
 const accountQueried = ref(false)
+const accountItemLoading = reactive<Set<string>>(new Set())
 
 const showPreview = ref(false)
 const previewUrl = ref('')
@@ -824,6 +829,21 @@ const handleFetchMoreAccount = async () => {
   await handleFetchAccount({ append: true })
 }
 
+const openPreviewFromAccount = (item: DouyinAccountItem) => {
+  resetDetailStates()
+  previewContextKey.value = String(item.key || '')
+  previewContextItems.value = item.items || []
+
+  const first = (item.items || []).slice().sort((a, b) => Number(a.index) - Number(b.index))[0]
+  if (!first) return
+
+  previewIndex.value = Number(first.index) || 0
+  previewType.value = first.type
+  previewUrl.value = String(first.downloadUrl || first.url || '').trim()
+  previewMediaList.value = buildPreviewMediaList(item.items || [])
+  showPreview.value = true
+}
+
 const openAccountItem = async (item: DouyinAccountItem) => {
   const id = String(item?.detailId || '').trim()
   if (!id) return
@@ -831,25 +851,40 @@ const openAccountItem = async (item: DouyinAccountItem) => {
   const key = String(item?.key || '').trim()
   const items = Array.isArray(item?.items) ? item.items : []
   if (key && items.length > 0) {
-    // 直接预览：避免再走 /api/douyin/detail（若后端 best-effort 未返回 items，则回退到解析）
-    resetDetailStates()
-    previewContextKey.value = key
-    previewContextItems.value = items
-
-    const first = items.slice().sort((a, b) => Number(a.index) - Number(b.index))[0]
-    if (!first) return
-
-    previewIndex.value = Number(first.index) || 0
-    previewType.value = first.type
-    previewUrl.value = String(first.downloadUrl || first.url || '').trim()
-    previewMediaList.value = buildPreviewMediaList(items)
-    showPreview.value = true
+    openPreviewFromAccount(item)
     return
   }
 
-  activeMode.value = 'detail'
-  inputText.value = id
-  await handleResolve()
+  if (accountItemLoading.has(id)) return
+  accountItemLoading.add(id)
+
+  try {
+    const res = await douyinApi.getDouyinDetail({
+      input: id,
+      cookie: String(cookie.value || '').trim()
+    })
+
+    if (res?.key && Array.isArray(res?.items)) {
+      item.key = res.key
+      item.items = res.items
+
+      // Update in accountItems list if ref mismatch
+      const found = accountItems.value.find((i) => i.detailId === id)
+      if (found) {
+        found.key = res.key
+        found.items = res.items
+      }
+
+      openPreviewFromAccount(item)
+    } else {
+      throw new Error(res?.error || '解析未返回有效数据')
+    }
+  } catch (e: any) {
+    console.error('获取作品详情失败:', e)
+    show(e?.message || e?.response?.data?.error || '获取详情失败')
+  } finally {
+    accountItemLoading.delete(id)
+  }
 }
 
 const handlePrimaryAction = async () => {

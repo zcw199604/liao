@@ -121,6 +121,21 @@ func extractDouyinAccountCoverURL(item map[string]any) string {
 		}
 	}
 
+	// 3) 兼容上游扁平字段（部分版本可能直接返回 static/dynamic cover）
+	flatKeys := []string{
+		"static_cover",
+		"staticCover",
+		"dynamic_cover",
+		"dynamicCover",
+		"cover_url",
+		"coverUrl",
+	}
+	for _, k := range flatKeys {
+		if u := strings.TrimSpace(asString(item[k])); u != "" {
+			return u
+		}
+	}
+
 	return ""
 }
 
@@ -209,6 +224,41 @@ func extractDouyinAccountImageURLs(item map[string]any) []string {
 	return out
 }
 
+func extractDouyinAccountFlatDownloads(item map[string]any) []string {
+	if item == nil {
+		return nil
+	}
+	// 兼容上游扁平字段：downloads 可能是 string 或 []string/[]any
+	candidates := []any{item["downloads"], item["download"], item["download_url"], item["downloadUrl"]}
+	for _, raw := range candidates {
+		list := extractStringSlice(raw)
+		if len(list) > 0 {
+			return list
+		}
+	}
+	return nil
+}
+
+func guessDouyinMediaTypeFromURL(raw string) string {
+	u := strings.ToLower(strings.TrimSpace(raw))
+	if u == "" {
+		return "image"
+	}
+
+	switch strings.ToLower(guessExtFromURL(u)) {
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp":
+		return "image"
+	case ".mp4", ".m3u8", ".mov", ".webm":
+		return "video"
+	}
+
+	// 抖音播放直链常见形态：/aweme/v1/play/?video_id=...
+	if strings.Contains(u, "/aweme/v1/play/") || strings.Contains(u, "video_id=") {
+		return "video"
+	}
+	return "image"
+}
+
 func extractDouyinAccountItems(s *DouyinDownloaderService, data map[string]any) []douyinAccountItem {
 	if data == nil {
 		return nil
@@ -241,8 +291,12 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, data map[string]any) 
 			continue
 		}
 
+		typeLabel := strings.TrimSpace(asString(m["type"])) // 视频/图集/实况（部分上游版本）
+
 		itemType := "video"
 		if imgs, ok := m["images"].([]any); ok && len(imgs) > 0 {
+			itemType = "image"
+		} else if typeLabel != "" && (strings.Contains(typeLabel, "图集") || strings.Contains(typeLabel, "实况")) {
 			itemType = "image"
 		}
 
@@ -258,8 +312,37 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, data map[string]any) 
 				downloads = []string{u}
 			}
 		}
-		if strings.TrimSpace(cover) == "" && len(downloads) > 0 && itemType == "image" {
-			cover = downloads[0]
+		if len(downloads) == 0 {
+			downloads = extractDouyinAccountFlatDownloads(m)
+		}
+		if strings.TrimSpace(cover) == "" && len(downloads) > 0 {
+			for _, u := range downloads {
+				if guessDouyinMediaTypeFromURL(u) == "image" {
+					cover = u
+					break
+				}
+			}
+		}
+
+		// Top-level type best-effort（用于列表元数据；预览项的 type 会按 URL 逐个判断）
+		displayType := itemType
+		if len(downloads) > 0 {
+			hasImage := false
+			hasVideo := false
+			for _, u := range downloads {
+				if guessDouyinMediaTypeFromURL(u) == "video" {
+					hasVideo = true
+				} else {
+					hasImage = true
+				}
+			}
+			if hasImage && !hasVideo {
+				displayType = "image"
+			} else if hasVideo && !hasImage {
+				displayType = "video"
+			} else if hasImage && hasVideo {
+				displayType = "video"
+			}
 		}
 
 		key := ""
@@ -269,7 +352,7 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, data map[string]any) 
 			cached := &douyinCachedDetail{
 				DetailID:  id,
 				Title:     desc,
-				Type:      map[string]string{"video": "视频", "image": "图集"}[itemType],
+				Type:      defaultString(typeLabel, map[string]string{"video": "视频", "image": "图集"}[displayType]),
 				CoverURL:  cover,
 				Downloads: downloads,
 			}
@@ -286,9 +369,10 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, data map[string]any) 
 						continue
 					}
 
+					mediaType := guessDouyinMediaTypeFromURL(u)
 					ext := guessExtFromURL(u)
 					if ext == "" {
-						if itemType == "video" {
+						if mediaType == "video" {
 							ext = ".mp4"
 						} else {
 							ext = ".jpg"
@@ -297,7 +381,7 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, data map[string]any) 
 
 					previewItems = append(previewItems, douyinMediaItem{
 						Index:            i,
-						Type:             itemType,
+						Type:             mediaType,
 						URL:              u,
 						DownloadURL:      fmt.Sprintf("/api/douyin/download?key=%s&index=%d", url.QueryEscape(key), i),
 						OriginalFilename: buildDouyinOriginalFilename(desc, id, i, len(downloads), ext),
@@ -308,7 +392,7 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, data map[string]any) 
 
 		items = append(items, douyinAccountItem{
 			DetailID:         id,
-			Type:             itemType,
+			Type:             displayType,
 			Desc:             desc,
 			CoverURL:         cover,
 			Key:              key,
