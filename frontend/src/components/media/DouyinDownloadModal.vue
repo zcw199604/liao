@@ -797,7 +797,10 @@ const handleFetchAccount = async (opts: { append?: boolean } = {}) => {
         detailId: id,
         type: it?.type,
         desc: String(it?.desc || '').trim(),
-        coverUrl: String(it?.coverUrl || '').trim()
+        coverUrl: String(it?.coverUrl || '').trim(),
+        coverDownloadUrl: String(it?.coverDownloadUrl || '').trim(),
+        key: String(it?.key || '').trim(),
+        items: Array.isArray(it?.items) ? it.items : []
       })
     }
   } catch (e: any) {
