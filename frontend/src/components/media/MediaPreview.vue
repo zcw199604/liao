@@ -128,21 +128,21 @@
 
 	       <!-- 视频预览 -->
 	        <div v-else-if="currentMedia.type === 'video'" class="relative w-full h-full flex items-center justify-center pb-20">
-		          <div
-		            ref="videoWrapperRef"
-		            class="media-preview-video-wrapper relative inline-flex touch-none"
-		            @pointerdown="handleVideoPointerDown"
-		            @pointermove="handleVideoPointerMove"
-		            @pointerup="handleVideoPointerUp"
-		            @pointercancel="handleVideoPointerCancel"
-		            @contextmenu.prevent
-		          >
-	             <video
-	              :key="currentMedia.url + '-video'"
-	              ref="videoRef"
-	              :src="currentMediaDisplayUrl"
-	              playsinline
-	              webkit-playsinline
+			          <div
+			            ref="videoWrapperRef"
+			            :key="currentMedia.url + '-video-wrapper'"
+			            class="media-preview-video-wrapper relative inline-flex touch-none"
+			            @pointerdown="handleVideoPointerDown"
+			            @pointermove="handleVideoPointerMove"
+			            @pointerup="handleVideoPointerUp"
+			            @pointercancel="handleVideoPointerCancel"
+			            @contextmenu.prevent
+			          >
+		             <video
+		              ref="videoRef"
+		              :src="currentMediaDisplayUrl"
+		              playsinline
+		              webkit-playsinline
 	              controls
 	              autoplay
 	              class="media-preview-video shadow-2xl rounded-lg bg-black"
@@ -1504,10 +1504,22 @@ watch(
     closeSpeedMenu()
     handleSpeedPressCancel()
     resetMediaLoadState()
+    try {
+      videoRef.value?.pause()
+    } catch {
+      // ignore
+    }
     destroyPlyr()
     nextTick(() => {
-      applyVideoPlaybackRate()
-      initPlyr()
+      const run = () => {
+        applyVideoPlaybackRate()
+        initPlyr()
+      }
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(() => run())
+      } else {
+        run()
+      }
     })
   }
 )

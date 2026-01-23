@@ -70,6 +70,7 @@
 - **图片预览能力:** 点击放大/还原（默认放大倍数 3x）；放大后支持拖动平移；未放大时支持水平滑动切换（Swipe）。
 - **视频预览能力:** 主视频预览使用 Plyr 美化控制栏 UI（暗色风格可主题化），并为移动端添加 `playsinline/webkit-playsinline` 避免 iOS 系统全屏接管；支持单击画面切换播放/暂停并浮现“倒退/播放暂停/快进”三按钮（快进/快退步长 1 秒，1 秒自动隐藏）；支持双击/双击触控进入/退出全屏（全屏右侧提供“抓帧/抽帧”快捷按钮，倍速按钮在全屏时移至左上避免重叠）；支持手势左右滑动快进/倒退（按 1 秒步进，约每 40~80px 触发 1 秒，降低误触）、上下滑动调音量（iOS/Safari 移动端可能限制网页调音量，会降级提示使用实体按键）。倍速/慢放（`playbackRate`）默认档位 0.1/0.25/0.5/1/1.5/2/5，持久化到 localStorage（`media_preview_playback_rate`），且倍速按钮支持长按临时 2x 播放，松开恢复原倍速。
 - **非全屏布局:** 非全屏下由 `.plyr` 容器控制 `max-width/max-height:95%`，`video` 元素保持 `width/height:100%` 且 `object-fit: contain`，避免出现视频偏左或右侧留黑。
+- **画廊切换稳定性:** Plyr 会在 `<video>` 外包裹 DOM；为避免 Vue 在切换媒体时 patch 结构被改写导致“黑屏仅有声音”，视频播放器容器使用 `:key` 强制整块重建，并在切换时先 `destroy()` 再于 `nextTick` 后初始化 Plyr。
 - **真全屏布局:** 真全屏（Fullscreen API / Plyr fullscreen）目标元素为 `.media-preview-video-wrapper`；需在 `:fullscreen/:-webkit-full-screen` 下强制 flex 居中并覆盖 `.plyr/video` 的 `max-*` 限制、圆角与阴影，避免全屏后出现偏移与不均匀黑边。
 - **暂停抓帧:** 点击“抓帧”会先暂停视频，再基于 Canvas 抓取当前帧生成 PNG，并同时执行“直接下载 + 上传到图片库”；未选择身份则降级为仅下载；跨域视频可能因 CORS 限制无法抓帧，会提示并引导使用“抽帧任务/先上传到本地库”等替代路径。
 - **详情面板:** 仅当媒体对象携带任一元信息字段（如 `md5/fileSize/pHash/similarity` 等）时显示入口；如列表阶段无法拿到真实文件名（仅有 `md5`），可传入 `resolveOriginalFilename` 回调，在用户打开面板前按需解析并补齐 `originalFilename`（仅展示 basename，避免泄露目录结构）。
