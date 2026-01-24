@@ -3044,6 +3044,28 @@ const handleResolve = async () => {
 const buildPreviewMediaList = (items: DouyinDetailItem[], opts: { key?: string; title?: string } = {}): UploadedMedia[] => {
   const key = String(opts.key || '').trim()
   const title = String(opts.title || '').trim()
+
+  const sorted = (items || []).slice().sort((a, b) => Number(a.index) - Number(b.index))
+  const images = sorted.filter((it) => it.type === 'image')
+  const videos = sorted.filter((it) => it.type === 'video')
+  const liveVideoIndexByImageIndex = new Map<number, number>()
+  if (images.length > 0 && videos.length > 0) {
+    if (videos.length === 1) {
+      const onlyVideo = videos[0]
+      if (onlyVideo) {
+      for (const img of images) {
+          liveVideoIndexByImageIndex.set(Number(img.index), Number(onlyVideo.index))
+      }
+      }
+    } else {
+      for (const img of images) {
+        const imgIdx = Number(img.index)
+        const nextVid = videos.find((v) => Number(v.index) > imgIdx)
+        if (nextVid) liveVideoIndexByImageIndex.set(imgIdx, Number(nextVid.index))
+      }
+    }
+  }
+
   return items
     .slice()
     .sort((a, b) => Number(a.index) - Number(b.index))
@@ -3053,7 +3075,14 @@ const buildPreviewMediaList = (items: DouyinDetailItem[], opts: { key?: string; 
       downloadUrl: it.downloadUrl,
       originalFilename: it.originalFilename,
       title: title || undefined,
-      context: key ? { provider: 'douyin', key, index: Number(it.index) } : undefined
+      context: key
+        ? {
+            provider: 'douyin',
+            key,
+            index: Number(it.index),
+            liveVideoIndex: it.type === 'image' ? liveVideoIndexByImageIndex.get(Number(it.index)) : undefined
+          }
+        : undefined
     }))
 }
 

@@ -95,6 +95,7 @@
 - 前端/后端：修复抖音详情“图片/实况”类型识别错误：现在按 URL 逐项推断 `items[].type`（`image/video`），并支持“实况照片”图+视频混合画廊预览。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`
+- 前端/后端：抖音“实况照片”增强：预览静态图支持长按播放实况视频；新增 `GET /api/douyin/livePhoto` 可导出 iOS Live Photo（ZIP：`.jpg` + `.mov`，写入同一 `ContentIdentifier`；依赖 `ffmpeg` + `exiftool`）。
 - 前端：修复“抖音下载 → 用户作品”点击作品卡片仍需跳转到“作品解析”的问题；现在会直接弹窗预览并展示底部缩略图（best-effort 复用 `/api/douyin/account` 返回的 `key/items`，缺失时仍回退到 `/api/douyin/detail`）。
 - 后端：`POST /api/favorite/removeById` 当 `id` 为空/解析失败/`<=0` 时返回 HTTP 400（不再静默按 `0` 删除）；选择身份时刷新 `last_used_at` 失败仍保持忽略（方案包：`helloagents/archive/2026-01/202601220110_fix-favorite-removebyid-invalid-id/`）。
 - 后端/CI：升级 Go 模块版本至 1.25.6（`go 1.25` + `toolchain go1.25.6`）；GitHub Actions（Release 工作流）改为从 `go.mod` 读取 Go 版本；Docker 构建镜像固定为 `golang:1.25.6-alpine`。

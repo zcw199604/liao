@@ -93,6 +93,7 @@ func (a *App) buildRouter() http.Handler {
 			dr.Head("/cover", a.handleDouyinCover)
 			dr.Get("/download", a.handleDouyinDownload)
 			dr.Head("/download", a.handleDouyinDownload)
+			dr.Get("/livePhoto", a.handleDouyinLivePhoto)
 			dr.Post("/import", a.handleDouyinImport)
 
 			// 抖音收藏（全局）

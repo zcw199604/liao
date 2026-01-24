@@ -83,6 +83,16 @@
                 <i class="fas fa-download text-sm"></i>
               </button>
 
+              <!-- 实况下载（Douyin Live Photo） -->
+              <button
+                v-if="canDownloadLivePhoto"
+                class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition backdrop-blur-sm"
+                title="下载实况 (Live Photo)"
+                @click.stop="handleDownloadLivePhoto"
+              >
+                <span class="text-[10px] font-bold tracking-wide">LIVE</span>
+              </button>
+
               <!-- 关闭按钮 -->
               <button
                 @click="handleClose"
@@ -131,6 +141,21 @@
             @click.stop="handleClick"
             @error="handleMediaError"
           />
+
+          <video
+            v-if="livePhotoMotionUrl"
+            ref="livePhotoVideoRef"
+            :src="livePhotoMotionUrl"
+            playsinline
+            webkit-playsinline
+            muted
+            loop
+            preload="auto"
+            class="absolute inset-0 max-w-full max-h-full object-contain select-none pointer-events-none transition-opacity duration-150"
+            :class="livePhotoVisible ? 'opacity-100' : 'opacity-0'"
+            :style="imageStyle"
+            @error="handleMediaError"
+          ></video>
         </div>
 
 	       <!-- 视频预览 -->
@@ -436,6 +461,7 @@ const showDetails = ref(false)
 
 const videoWrapperRef = ref<HTMLElement | null>(null)
 const videoRef = ref<HTMLVideoElement | null>(null)
+const livePhotoVideoRef = ref<HTMLVideoElement | null>(null)
 let plyrInstance: Plyr | null = null
 
 const speedMenuRef = ref<HTMLElement | null>(null)
@@ -1249,6 +1275,41 @@ const currentMedia = computed<UploadedMedia>(() => {
   return realMediaList.value[0] || { url: '', type: 'image' }
 })
 
+const isLivePhotoStill = computed(() => {
+  const media = currentMedia.value
+  if (!media || media.type !== 'image') return false
+  const ctx = media.context
+  if (!ctx || ctx.provider !== 'douyin') return false
+  const key = String(ctx.key || '').trim()
+  const idx = Number(ctx.index)
+  const vidIdx = Number(ctx.liveVideoIndex)
+  if (!key) return false
+  if (!Number.isFinite(idx) || idx < 0) return false
+  if (!Number.isFinite(vidIdx) || vidIdx < 0) return false
+  return true
+})
+
+const livePhotoMotionUrl = computed(() => {
+  if (!isLivePhotoStill.value) return ''
+  const ctx = currentMedia.value.context
+  const key = String(ctx?.key || '').trim()
+  const vidIdx = Number(ctx?.liveVideoIndex)
+  if (!key || !Number.isFinite(vidIdx) || vidIdx < 0) return ''
+
+  const found = realMediaList.value.find((m) => {
+    if (!m || m.type !== 'video') return false
+    const mctx = m.context
+    if (!mctx || mctx.provider !== 'douyin') return false
+    if (String(mctx.key || '').trim() !== key) return false
+    return Number(mctx.index) === vidIdx
+  })
+  if (found?.url) return String(found.url || '').trim()
+
+  return `/api/douyin/download?key=${encodeURIComponent(key)}&index=${encodeURIComponent(String(vidIdx))}`
+})
+
+const canDownloadLivePhoto = computed(() => !!livePhotoMotionUrl.value && isLivePhotoStill.value)
+
 const isSameOriginApiUrl = (href: string) => {
   const trimmed = (href || '').trim()
   if (!trimmed) return false
@@ -1349,6 +1410,49 @@ const triggerDirectDownload = (href: string) => {
   document.body.appendChild(link)
   link.click()
   link.remove()
+}
+
+const handleDownloadLivePhoto = async () => {
+  if (!isLivePhotoStill.value) return
+  const ctx = currentMedia.value.context
+  const key = String(ctx?.key || '').trim()
+  const imageIndex = Number(ctx?.index)
+  const videoIndex = Number(ctx?.liveVideoIndex)
+  if (!key || !Number.isFinite(imageIndex) || !Number.isFinite(videoIndex)) return
+
+  const apiHref = `/api/douyin/livePhoto?key=${encodeURIComponent(key)}&imageIndex=${encodeURIComponent(String(imageIndex))}&videoIndex=${encodeURIComponent(String(videoIndex))}`
+  const token = localStorage.getItem('authToken')
+  if (!token) {
+    show('未登录或Token缺失')
+    return
+  }
+
+  try {
+    const resp = await fetch(apiHref, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (!resp.ok) {
+      let msg = `下载失败: ${resp.status}`
+      try {
+        const data = await resp.json()
+        msg = data?.error || data?.msg || msg
+      } catch {
+        // ignore
+      }
+      show(msg)
+      return
+    }
+
+    const blob = await resp.blob()
+    const cd = resp.headers.get('Content-Disposition') || ''
+    const filenameFromHeader = getFilenameFromContentDisposition(cd)
+    const filename = filenameFromHeader || 'livephoto.zip'
+    triggerBlobDownload(blob, sanitizeFilename(filename) || 'livephoto.zip')
+  } catch (e) {
+    console.error('download live photo failed:', e)
+    show('下载失败')
+  }
 }
 
 const handleDownload = async () => {
@@ -1541,6 +1645,7 @@ watch(
     videoGesture = null
     closeSpeedMenu()
     handleSpeedPressCancel()
+    stopLivePhotoHold()
     resetMediaLoadState()
     try {
       videoRef.value?.pause()
@@ -1568,6 +1673,29 @@ let startY = 0
 let initialTranslateX = 0
 let initialTranslateY = 0
 let hasMoved = false
+let livePhotoHoldTimer: ReturnType<typeof setTimeout> | null = null
+const livePhotoVisible = ref(false)
+let livePhotoSuppressClick = false
+
+const stopLivePhotoHold = () => {
+  if (livePhotoHoldTimer) {
+    clearTimeout(livePhotoHoldTimer)
+    livePhotoHoldTimer = null
+  }
+  if (livePhotoVisible.value) {
+    livePhotoSuppressClick = true
+  }
+  livePhotoVisible.value = false
+  try {
+    const v = livePhotoVideoRef.value
+    if (v) {
+      v.pause()
+      v.currentTime = 0
+    }
+  } catch {
+    // ignore
+  }
+}
 
 const imageStyle = computed(() => {
   return {
@@ -1584,6 +1712,7 @@ const handleClose = () => {
   videoGesture = null
   closeSpeedMenu()
   handleSpeedPressCancel()
+  stopLivePhotoHold()
   resetZoom()
   showDetails.value = false
   emit('update:visible', false)
@@ -1594,9 +1723,14 @@ const resetZoom = () => {
   translateX.value = 0
   translateY.value = 0
   isDragging.value = false
+  stopLivePhotoHold()
 }
 
 const handleClick = () => {
+  if (livePhotoSuppressClick) {
+    livePhotoSuppressClick = false
+    return
+  }
   if (scale.value === 1) {
     scale.value = 3 // 放大倍数
   } else {
@@ -1623,6 +1757,31 @@ const startDrag = (e: MouseEvent | TouchEvent) => {
   initialTranslateX = translateX.value
   initialTranslateY = translateY.value
   
+  stopLivePhotoHold()
+  if (isLivePhotoStill.value && livePhotoMotionUrl.value) {
+    // iOS 可能要求播放必须发生在“用户手势”同步上下文：这里先尝试播放（静音+隐藏），
+    // 再在长按阈值后显示，避免 setTimeout 触发被判定为非手势播放。
+    try {
+      const v = livePhotoVideoRef.value
+      if (v) {
+        v.currentTime = 0
+        const p = v.play()
+        if (p && typeof (p as any).catch === 'function') {
+          ;(p as any).catch(() => {})
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    livePhotoHoldTimer = setTimeout(() => {
+      if (!isDragging.value) return
+      if (hasMoved) return
+      livePhotoVisible.value = true
+      livePhotoSuppressClick = true
+    }, 280)
+  }
+
   window.addEventListener('mousemove', onDrag)
   window.addEventListener('mouseup', stopDrag)
   window.addEventListener('touchmove', onDrag, { passive: false })
@@ -1641,6 +1800,7 @@ const onDrag = (e: MouseEvent | TouchEvent) => {
   // 防抖阈值
   if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
       hasMoved = true
+      stopLivePhotoHold()
       // 移动时阻止默认行为（如滚动）
       if (e.cancelable) e.preventDefault()
   }
@@ -1659,6 +1819,7 @@ const onDrag = (e: MouseEvent | TouchEvent) => {
 
 const stopDrag = () => {
   isDragging.value = false
+  stopLivePhotoHold()
   window.removeEventListener('mousemove', onDrag)
   window.removeEventListener('mouseup', stopDrag)
   window.removeEventListener('touchmove', onDrag)

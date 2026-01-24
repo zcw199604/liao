@@ -9,6 +9,7 @@ export interface UploadedMedia {
     provider?: string
     key?: string
     index?: number
+    liveVideoIndex?: number
   }
   // 新增字段 - 用于显示详细信息
   originalFilename?: string

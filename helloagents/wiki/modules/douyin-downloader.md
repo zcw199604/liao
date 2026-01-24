@@ -25,6 +25,7 @@
        - “下载”：走 `/api/douyin/download` 获取下载流并以作品标题命名
        - “上传”：走 `/api/douyin/import` 由后端下载并导入上传（MD5 去重）
     5) 当作品资源同时包含图片+视频（如“实况照片”），预览画廊会合并全部资源，便于左右切换查看
+       - 在“实况照片”中：静态图支持**长按播放**对应的实况短视频（松开停止），并提供“下载实况 (Live Photo)”按钮生成 iOS 可识别的实况文件对（ZIP：`.jpg` + `.mov`）
 
 > 备注：抖音 CDN 对跨站媒体子资源有防盗链校验，`items[].url` 直链可能无法在站内 `<img>/<video>` 预览；
 > 前端应优先使用 `items[].downloadUrl`（`/api/douyin/download`）进行缩略图与预览加载。
@@ -60,6 +61,12 @@
   - `downloads` → 可下载资源（可能是字符串或 URL 列表；视频通常为单条 URL；图集为 URL 列表；实况可能为“静态图 + 播放直链视频”的混合列表）
 - 服务端生成短期缓存 `key`（TTL），供下载/导入使用
   - 服务端会按每个 URL best-effort 推断 `items[].type`（`image/video`），避免上游 `type` 字段不一致导致图片被误判为视频
+
+### 1.2) iOS 实况下载（Live Photo）
+`GET /api/douyin/livePhoto`：
+- 将同一作品缓存 `key` 下的一张静态图（`imageIndex`）与一段短视频（`videoIndex`）打包为 iOS 实况照片所需文件对
+- 输出 ZIP 包：`{title}.jpg` + `{title}.mov`，并写入相同 `ContentIdentifier`
+- 依赖系统命令：`ffmpeg` + `exiftool`（若服务器缺少依赖会返回错误）
 
 ### 1.5) 用户作品列表
 `POST /api/douyin/account`：
