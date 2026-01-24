@@ -132,7 +132,7 @@ func (c *TikTokDownloaderClient) DouyinAccount(ctx context.Context, secUserID, t
 		"count":       count,
 		"cookie":      cookie,
 		"proxy":       proxy,
-		"source":      false,
+		"source":      true,
 		"pages":       1, // 每次只请求一页，方便前端按 cursor 分页加载
 	}
 	if err := c.postJSON(ctx, "/douyin/account", payload, &resp); err != nil {

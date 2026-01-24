@@ -414,6 +414,11 @@ func TestDouyinDownloaderService_Flows(t *testing.T) {
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"message": "ok", "data": data})
 		case "/douyin/account":
+			if !asBool(payload["source"]) {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte("expected source=true"))
+				return
+			}
 			id := strings.TrimSpace(asString(payload["sec_user_id"]))
 			if id == "nil" {
 				_ = json.NewEncoder(w).Encode(map[string]any{"message": "x", "data": nil})

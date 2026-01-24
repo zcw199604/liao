@@ -176,6 +176,8 @@ curl -s "http://127.0.0.1:5555/douyin/detail" \
 | count | integer | 否 | `18` | 每页数量（>0） |
 | cookie/proxy/source | - | 否 | - | 见通用字段 |
 
+> 提示：如需结果中包含作品 `author`/封面等原始字段（例如用于“收藏作者/预览图”展示），请显式传 `source:true`。
+
 **示例（发布作品）：**
 ```bash
 curl -s "http://127.0.0.1:5555/douyin/account" \

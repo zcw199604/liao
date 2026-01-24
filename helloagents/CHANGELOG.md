@@ -81,6 +81,9 @@
 - 前端：修复“抖音下载”弹窗剪贴板相关单测在 `vue-tsc`/Docker 构建中因 `setImmediate` 类型缺失导致 `npm run build` 失败的问题（改用 `setTimeout`）。
 - 后端：修复 TikTokDownloader 上游在“暂无作品”场景返回 `data=[]` 导致解析失败；`POST /api/douyin/account` 将返回空 `items` 数组（`[]`）而非报错/`null`。
 - 后端：兼容 TikTokDownloader 上游 `POST /douyin/account` 返回 `data[]` 扁平字段（如 `type/downloads/static_cover/dynamic_cover`）；`POST /api/douyin/account` 将尽量为每个作品返回 `key/items/coverDownloadUrl`，减少前端点击作品时回退请求详情（Spinner）。
+- 后端：`POST /api/douyin/account` 拉取账号作品时改为向 TikTokDownloader 上游传 `source=true`，确保返回包含 `author`/封面等原始字段，修复“抖音收藏”作者为空与作品预览图缺失的问题。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
 - 前端/后端：修复抖音作品在站内预览/缩略图加载失败（但新标签可打开）的问题：前端预览/缩略图改用 `/api/douyin/download` 代理地址；后端放行 `/api/douyin/download` + `/api/douyin/cover` 以支持 `<img>/<video>` 直连，并透传 `Range` 与相关响应头以改善视频播放/拖动；同时 `/api/douyin/account` best-effort 返回 `key/items/coverDownloadUrl`，支持“用户作品列表”点击直接预览（缺失时回退到 `/api/douyin/detail`）。
 - 前端：修复“抖音下载 → 用户作品”点击作品卡片仍需跳转到“作品解析”的问题；现在会直接弹窗预览并展示底部缩略图（best-effort 复用 `/api/douyin/account` 返回的 `key/items`，缺失时仍回退到 `/api/douyin/detail`）。
 - 后端：`POST /api/favorite/removeById` 当 `id` 为空/解析失败/`<=0` 时返回 HTTP 400（不再静默按 `0` 删除）；选择身份时刷新 `last_used_at` 失败仍保持忽略（方案包：`helloagents/archive/2026-01/202601220110_fix-favorite-removebyid-invalid-id/`）。
