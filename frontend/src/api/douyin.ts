@@ -48,6 +48,21 @@ export const removeDouyinFavoriteUser = (data: { secUserId: string }) => {
   return douyinRequest.post<any, any>('/douyin/favoriteUser/remove', data)
 }
 
+export const listDouyinFavoriteUserAwemes = (params: { secUserId: string; cursor?: number; count?: number }) => {
+  return douyinRequest.get<any, any>('/douyin/favoriteUser/aweme/list', { params })
+}
+
+export const upsertDouyinFavoriteUserAwemes = (data: {
+  secUserId: string
+  items: { awemeId: string; type?: string; desc?: string; coverUrl?: string; downloads?: string[] }[]
+}) => {
+  return douyinRequest.post<any, any>('/douyin/favoriteUser/aweme/upsert', data)
+}
+
+export const pullLatestDouyinFavoriteUserAwemes = (data: { secUserId: string; cookie?: string; count?: number }) => {
+  return douyinRequest.post<any, any>('/douyin/favoriteUser/aweme/pullLatest', data)
+}
+
 export const listDouyinFavoriteAwemes = () => {
   return douyinRequest.get<any, any>('/douyin/favoriteAweme/list')
 }

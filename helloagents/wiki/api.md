@@ -1188,6 +1188,50 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 {"success":true}
 ```
 
+#### [GET] /api/douyin/favoriteUser/aweme/list
+**描述**：获取该收藏用户的“已入库作品列表”（按入库时间倒序），支持分页。
+
+**请求（query）**
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| secUserId | 是 | 用户 `sec_user_id` |
+| cursor | 否 | 游标（offset，默认 0） |
+| count | 否 | 每页数量（默认 20） |
+
+**响应（HTTP 200）**
+```json
+{"secUserId":"MS4wLjABAAAA...","cursor":20,"hasMore":true,"items":[{"detailId":"0123456789","type":"video","desc":"作品描述","coverUrl":"...","coverDownloadUrl":"/api/douyin/cover?key=xxxx","key":"xxxx","items":[{"index":0,"type":"video","url":"https://...","downloadUrl":"/api/douyin/download?key=xxxx&index=0","originalFilename":"作品描述.mp4"}]}]}
+```
+
+**备注**
+- `key/items/downloadUrl` 为短期缓存（TTL）：用于前端预览/下载/导入；若过期可重新拉取列表或使用“获取最新作品”刷新。
+
+#### [POST] /api/douyin/favoriteUser/aweme/upsert
+**描述**：将“当前已抓取到的作品元信息”批量合并入库（Upsert）。
+
+**请求（application/json）**
+```json
+{"secUserId":"MS4wLjABAAAA...","items":[{"awemeId":"0123456789","type":"video","desc":"作品描述","coverUrl":"...","downloads":["https://..."]}]}
+```
+
+**响应（HTTP 200）**
+```json
+{"success":true,"added":3}
+```
+
+#### [POST] /api/douyin/favoriteUser/aweme/pullLatest
+**描述**：调用上游 `/douyin/account` 拉取该用户最新作品并合并入库，返回本次新增数量（用于前端弹窗提示）。
+
+**请求（application/json）**
+```json
+{"secUserId":"MS4wLjABAAAA...","cookie":"","count":50}
+```
+
+**响应（HTTP 200）**
+```json
+{"success":true,"secUserId":"MS4wLjABAAAA...","fetched":50,"added":2}
+```
+
 #### 抖音收藏标签（用户）
 
 > 说明：标签为“全局共享”；用户收藏标签与作品收藏标签两套体系互不影响。  

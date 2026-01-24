@@ -20,6 +20,9 @@
 - 前端/后端：抖音收藏新增“分类标签”能力：用户收藏与作品收藏分别维护标签（名称、全局共享），支持按标签筛选、单条编辑、批量打标签与独立标签管理页（新建/重命名/删除）；收藏元素新增 `tagIds`；新增接口 `GET/POST /api/douyin/favoriteUser/tag/*`、`GET/POST /api/douyin/favoriteAweme/tag/*`；新增 MySQL 表 `douyin_favorite_user_tag`、`douyin_favorite_user_tag_map`、`douyin_favorite_aweme_tag`、`douyin_favorite_aweme_tag_map`。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`
+- 前端/后端：抖音用户收藏详情新增“作品入库浏览”：收藏用户后将当前已抓取作品元信息入库（新表 `douyin_favorite_user_aweme`），详情抽屉支持作品网格+滚动分页预览与跨作品合并画廊；新增“获取最新作品”按钮调用上游接口拉取最新作品并合并入库，弹窗提示新增作品数；新增接口 `GET /api/douyin/favoriteUser/aweme/list`、`POST /api/douyin/favoriteUser/aweme/upsert`、`POST /api/douyin/favoriteUser/aweme/pullLatest`。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
 - 前端/后端：抖音收藏标签管理支持拖拽调整标签展示顺序并持久化；新增标签 `sort_order` 字段，并新增接口 `POST /api/douyin/favoriteUser/tag/reorder`、`POST /api/douyin/favoriteAweme/tag/reorder`。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`

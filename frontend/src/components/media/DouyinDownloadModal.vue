@@ -1043,7 +1043,11 @@
 	            <div class="w-10 h-1 bg-white/20 rounded-full"></div>
 	          </div>
 
-	          <div v-if="selectedFavoriteUser" class="px-5 pb-5 max-h-[75vh] overflow-y-auto no-scrollbar">
+		          <div
+		            v-if="selectedFavoriteUser"
+		            class="px-5 pb-5 max-h-[75vh] overflow-y-auto no-scrollbar"
+		            @scroll.passive="handleFavoriteUserDetailScroll"
+		          >
 	            <div class="flex items-start justify-between gap-3">
 	              <div class="min-w-0">
 	                <div class="text-white text-base font-semibold whitespace-normal break-words">
@@ -1188,16 +1192,93 @@
 	              >
 	                再次解析作品
 	              </button>
-	              <button
-	                class="flex-1 px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-	                type="button"
-	                :disabled="uiDisabled"
-	                @click="removeFavoriteUser(selectedFavoriteUser.secUserId)"
-	              >
-	                取消收藏
-	              </button>
-	            </div>
-	          </div>
+		              <button
+		                class="flex-1 px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+		                type="button"
+		                :disabled="uiDisabled"
+		                @click="removeFavoriteUser(selectedFavoriteUser.secUserId)"
+		              >
+		                取消收藏
+		              </button>
+		            </div>
+
+		            <div class="mt-6 border-t border-white/10 pt-4">
+		              <div class="flex items-center justify-between gap-3">
+		                <div class="text-xs text-gray-400">
+		                  已加载 {{ favoriteUserWorks.length }} 个作品
+		                </div>
+		                <button
+		                  class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition text-xs flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+		                  type="button"
+		                  :disabled="uiDisabled || favoriteUserWorksPullingLatest"
+		                  @click="pullLatestFavoriteUserWorks"
+		                >
+		                  <i v-if="favoriteUserWorksPullingLatest" class="fas fa-spinner fa-spin"></i>
+		                  <span>{{ favoriteUserWorksPullingLatest ? '获取中…' : '获取最新作品' }}</span>
+		                </button>
+		              </div>
+
+		              <div v-if="favoriteUserWorksError" class="mt-2 text-xs text-red-400">
+		                {{ favoriteUserWorksError }}
+		              </div>
+
+		              <div v-if="favoriteUserWorks.length > 0" class="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+		                <button
+		                  v-for="item in favoriteUserWorks"
+		                  :key="`douyin-favorite-user-aweme-${favoriteUserDetailId}-${item.detailId}`"
+		                  class="rounded-xl overflow-hidden border border-gray-700 hover:border-emerald-500 transition bg-black/20 text-left relative group"
+		                  type="button"
+		                  :disabled="favoriteUserWorkLoading.has(item.detailId)"
+		                  @click="openFavoriteUserWork(item)"
+		                  :title="item.desc || item.detailId"
+		                >
+		                  <div
+		                    v-if="favoriteUserWorkLoading.has(item.detailId)"
+		                    class="absolute inset-0 z-20 bg-black/60 flex items-center justify-center backdrop-blur-sm"
+		                  >
+		                    <i class="fas fa-spinner fa-spin text-white text-xl"></i>
+		                  </div>
+		                  <div class="aspect-video bg-[#111113] overflow-hidden">
+		                    <MediaTile
+		                      v-if="item.coverDownloadUrl || item.coverUrl"
+		                      :src="(item.coverDownloadUrl || item.coverUrl)!"
+		                      type="image"
+		                      class="w-full h-full group-hover:scale-105 transition-transform duration-500"
+		                      :show-skeleton="false"
+		                      img-referrer-policy="no-referrer"
+		                    />
+		                    <div v-else class="w-full h-full flex items-center justify-center text-gray-600 text-xs">
+		                      无封面
+		                    </div>
+		                  </div>
+		                  <div class="p-3 space-y-1">
+		                    <div class="text-sm text-white line-clamp-2">
+		                      {{ item.desc || '（无描述）' }}
+		                    </div>
+		                    <div class="text-xs text-gray-500 font-mono truncate">
+		                      {{ item.detailId }}
+		                    </div>
+		                  </div>
+		                </button>
+		              </div>
+		              <div v-else-if="favoriteUserWorksLoading" class="mt-3 text-sm text-gray-500">
+		                获取中…
+		              </div>
+		              <div v-else class="mt-3 text-sm text-gray-500">
+		                暂无入库作品
+		              </div>
+
+		              <div v-if="favoriteUserWorksLoading && favoriteUserWorks.length > 0" class="mt-3 text-xs text-gray-500">
+		                加载中…
+		              </div>
+		              <div v-else-if="favoriteUserWorksHasMore && favoriteUserWorks.length > 0" class="mt-3 text-xs text-gray-500">
+		                下拉加载更多
+		              </div>
+		              <div v-else-if="!favoriteUserWorksHasMore && favoriteUserWorks.length > 0" class="mt-3 text-xs text-gray-500">
+		                已加载全部
+		              </div>
+		            </div>
+		          </div>
 
 	          <div v-else class="px-5 pb-6 text-sm text-gray-400">
 	            加载中…
@@ -1402,13 +1483,21 @@ const tagSheetSelectedTagIds = reactive<Set<number>>(new Set())
 const tagSheetApplying = ref(false)
 const tagSheetError = ref('')
 
-const favoriteUserDetailOpen = ref(false)
-const favoriteUserDetailId = ref('')
-const favoriteUserDetailLoading = ref(false)
-const favoriteUserAvatarError = reactive<Set<string>>(new Set())
-const selectedFavoriteUser = computed(() =>
-  favoriteUsers.value.find((u) => String(u.secUserId || '').trim() === String(favoriteUserDetailId.value || '').trim()) || null
-)
+	const favoriteUserDetailOpen = ref(false)
+	const favoriteUserDetailId = ref('')
+	const favoriteUserDetailLoading = ref(false)
+	const favoriteUserAvatarError = reactive<Set<string>>(new Set())
+	const selectedFavoriteUser = computed(() =>
+	  favoriteUsers.value.find((u) => String(u.secUserId || '').trim() === String(favoriteUserDetailId.value || '').trim()) || null
+	)
+
+	const favoriteUserWorksLoading = ref(false)
+	const favoriteUserWorksPullingLatest = ref(false)
+	const favoriteUserWorksError = ref('')
+	const favoriteUserWorks = ref<DouyinAccountItem[]>([])
+	const favoriteUserWorksCursor = ref(0)
+	const favoriteUserWorksHasMore = ref(false)
+	const favoriteUserWorkLoading = reactive<Set<string>>(new Set())
 
 const favoriteUserIdSet = computed(() => new Set(favoriteUsers.value.map((u) => String(u.secUserId || '').trim()).filter(Boolean)))
 const favoriteAwemeIdSet = computed(() => new Set(favoriteAwemes.value.map((it) => String(it.awemeId || '').trim()).filter(Boolean)))
@@ -2272,25 +2361,169 @@ const openBatchTagSheet = () => {
   openTagSheet({ kind: 'awemes', mode: 'batch', targetIds: Array.from(selectedFavoriteAwemeIds) })
 }
 
-const openFavoriteUserDetail = (u: DouyinFavoriteUser) => {
-  if (uiDisabled.value) return
-  const id = String(u?.secUserId || '').trim()
-  if (!id) return
-  favoriteUserDetailId.value = id
-  favoriteUserDetailOpen.value = true
-}
+	const openFavoriteUserDetail = (u: DouyinFavoriteUser) => {
+	  if (uiDisabled.value) return
+	  const id = String(u?.secUserId || '').trim()
+	  if (!id) return
+	  favoriteUserDetailId.value = id
+	  favoriteUserDetailOpen.value = true
+	  resetFavoriteUserWorks()
+	  void loadFavoriteUserWorks()
+	}
 
-const closeFavoriteUserDetail = () => {
-  favoriteUserDetailOpen.value = false
-  favoriteUserDetailId.value = ''
-  favoriteUserDetailLoading.value = false
-}
+	const closeFavoriteUserDetail = () => {
+	  favoriteUserDetailOpen.value = false
+	  favoriteUserDetailId.value = ''
+	  favoriteUserDetailLoading.value = false
+	  resetFavoriteUserWorks()
+	}
 
-const markFavoriteUserAvatarError = (secUserId: string) => {
-  const id = String(secUserId || '').trim()
-  if (!id) return
-  favoriteUserAvatarError.add(id)
-}
+	const resetFavoriteUserWorks = (opts: { keepPullingLatest?: boolean } = {}) => {
+	  favoriteUserWorksLoading.value = false
+	  if (!opts.keepPullingLatest) favoriteUserWorksPullingLatest.value = false
+	  favoriteUserWorksError.value = ''
+	  favoriteUserWorks.value = []
+	  favoriteUserWorksCursor.value = 0
+	  favoriteUserWorksHasMore.value = false
+	}
+
+	const loadFavoriteUserWorks = async (opts: { append?: boolean } = {}) => {
+	  if (favoriteUserWorksLoading.value) return
+	  const secUserId = String(favoriteUserDetailId.value || '').trim()
+	  if (!secUserId) return
+
+	  favoriteUserWorksLoading.value = true
+	  favoriteUserWorksError.value = ''
+	  try {
+	    const cursor = opts.append ? Number(favoriteUserWorksCursor.value || 0) : 0
+	    const res = await douyinApi.listDouyinFavoriteUserAwemes({ secUserId, cursor, count: 20 })
+	    if (!res || !Array.isArray(res?.items)) {
+	      throw new Error(res?.error || '获取失败')
+	    }
+
+	    const existing = new Set((opts.append ? favoriteUserWorks.value : []).map((i) => String(i.detailId || '').trim()).filter(Boolean))
+	    const next = opts.append ? favoriteUserWorks.value.slice() : []
+	    for (const it of res.items || []) {
+	      const id = String(it?.detailId || '').trim()
+	      if (!id || existing.has(id)) continue
+	      existing.add(id)
+	      next.push({
+	        detailId: id,
+	        type: it?.type,
+	        desc: String(it?.desc || '').trim(),
+	        coverUrl: String(it?.coverUrl || '').trim(),
+	        coverDownloadUrl: String(it?.coverDownloadUrl || '').trim(),
+	        key: String(it?.key || '').trim(),
+	        items: Array.isArray(it?.items) ? it.items : []
+	      })
+	    }
+	    favoriteUserWorks.value = next
+	    favoriteUserWorksCursor.value = Number(res?.cursor || 0)
+	    favoriteUserWorksHasMore.value = !!res?.hasMore
+	  } catch (e: any) {
+	    console.error('获取收藏用户作品失败:', e)
+	    favoriteUserWorksError.value = e?.response?.data?.error || e?.message || '获取失败'
+	  } finally {
+	    favoriteUserWorksLoading.value = false
+	  }
+	}
+
+	const pullLatestFavoriteUserWorks = async () => {
+	  if (favoriteUserWorksPullingLatest.value) return
+	  const secUserId = String(favoriteUserDetailId.value || '').trim()
+	  if (!secUserId) return
+
+	  favoriteUserWorksPullingLatest.value = true
+	  try {
+	    const res = await douyinApi.pullLatestDouyinFavoriteUserAwemes({
+	      secUserId,
+	      cookie: String(cookie.value || '').trim() || undefined,
+	      count: 50
+	    })
+	    const added = Number(res?.added || 0)
+	    show(`已获取 ${Number.isFinite(added) && added > 0 ? added : 0} 个新作品`)
+	    resetFavoriteUserWorks({ keepPullingLatest: true })
+	    await loadFavoriteUserWorks()
+	  } catch (e: any) {
+	    console.error('拉取最新作品失败:', e)
+	    show(e?.response?.data?.error || e?.message || '拉取失败')
+	  } finally {
+	    favoriteUserWorksPullingLatest.value = false
+	  }
+	}
+
+	const handleFavoriteUserDetailScroll = (e: Event) => {
+	  if (favoriteUserWorksLoading.value) return
+	  if (!favoriteUserWorksHasMore.value) return
+	  const el = e.target as HTMLElement | null
+	  if (!el) return
+	  const remaining = el.scrollHeight - el.scrollTop - el.clientHeight
+	  if (remaining <= 240) {
+	    void loadFavoriteUserWorks({ append: true })
+	  }
+	}
+
+	const openPreviewFromFavoriteUserWork = (item: DouyinAccountItem) => {
+	  resetDetailStates()
+	  previewContextKey.value = String(item.key || '')
+	  previewContextItems.value = item.items || []
+
+	  const first = (item.items || []).slice().sort((a, b) => Number(a.index) - Number(b.index))[0]
+	  if (!first) return
+
+	  previewIndex.value = Number(first.index) || 0
+	  previewType.value = first.type
+	  previewUrl.value = String(first.downloadUrl || first.url || '').trim()
+
+	  const fullList = buildAccountPreviewMediaList(favoriteUserWorks.value)
+	  previewMediaList.value =
+	    fullList.length > 0 ? fullList : buildPreviewMediaList(item.items || [], { key: String(item.key || '').trim(), title: getAccountItemTitle(item) })
+	  showPreview.value = true
+	}
+
+	const openFavoriteUserWork = async (item: DouyinAccountItem) => {
+	  const id = String(item?.detailId || '').trim()
+	  if (!id) return
+
+	  const key = String(item?.key || '').trim()
+	  const medias = Array.isArray(item?.items) ? item.items : []
+	  if (key && medias.length > 0) {
+	    openPreviewFromFavoriteUserWork(item)
+	    return
+	  }
+
+	  if (favoriteUserWorkLoading.has(id)) return
+	  favoriteUserWorkLoading.add(id)
+	  try {
+	    const res = await douyinApi.getDouyinDetail({
+	      input: id,
+	      cookie: String(cookie.value || '').trim()
+	    })
+
+	    if (res?.key && Array.isArray(res?.items)) {
+	      item.key = res.key
+	      item.items = res.items
+	      if (res?.coverUrl) item.coverUrl = String(res.coverUrl || '').trim()
+	      if (res?.key && String(res?.coverUrl || '').trim()) {
+	        item.coverDownloadUrl = `/api/douyin/cover?key=${encodeURIComponent(String(res.key || '').trim())}`
+	      }
+	      openPreviewFromFavoriteUserWork(item)
+	    } else {
+	      throw new Error(res?.error || '解析未返回有效数据')
+	    }
+	  } catch (e: any) {
+	    console.error('获取作品详情失败:', e)
+	    show(e?.message || e?.response?.data?.error || '获取详情失败')
+	  } finally {
+	    favoriteUserWorkLoading.delete(id)
+	  }
+	}
+
+	const markFavoriteUserAvatarError = (secUserId: string) => {
+	  const id = String(secUserId || '').trim()
+	  if (!id) return
+	  favoriteUserAvatarError.add(id)
+	}
 
 const copyText = async (value: string, okMsg = '已复制') => {
   const v = String(value || '').trim()
@@ -2304,11 +2537,11 @@ const copyText = async (value: string, okMsg = '已复制') => {
   }
 }
 
-const refreshSelectedFavoriteUser = async () => {
-  const u = selectedFavoriteUser.value
-  if (!u) return
-  const secUserId = String(u.secUserId || '').trim()
-  if (!secUserId) return
+	const refreshSelectedFavoriteUser = async () => {
+	  const u = selectedFavoriteUser.value
+	  if (!u) return
+	  const secUserId = String(u.secUserId || '').trim()
+	  if (!secUserId) return
 
   favoriteUserDetailLoading.value = true
   try {
@@ -2348,13 +2581,48 @@ const refreshSelectedFavoriteUser = async () => {
     show(e?.response?.data?.error || e?.message || '更新失败')
   } finally {
     favoriteUserDetailLoading.value = false
-  }
-}
+	  }
+	}
 
-const upsertFavoriteUser = async (payload: {
-  secUserId: string
-  sourceInput?: string
-  displayName?: string
+	const syncFavoriteUserWorksFromAccount = async (secUserId: string) => {
+	  const id = String(secUserId || '').trim()
+	  if (!id) return
+
+	  if (String(accountSecUserId.value || '').trim() !== id) return
+
+	  const items = accountItems.value || []
+	  if (items.length === 0) return
+
+	  const upserts = items
+	    .map((it) => {
+	      const awemeId = String(it?.detailId || '').trim()
+	      if (!awemeId) return null
+	      const downloads = Array.isArray(it?.items)
+	        ? it.items.map((m) => String((m as any)?.url || '').trim()).filter(Boolean)
+	        : []
+	      return {
+	        awemeId,
+	        type: String(it?.type || '').trim() || undefined,
+	        desc: String(it?.desc || '').trim() || undefined,
+	        coverUrl: String(it?.coverUrl || '').trim() || undefined,
+	        downloads: downloads.length > 0 ? downloads : undefined
+	      }
+	    })
+	    .filter(Boolean) as { awemeId: string; type?: string; desc?: string; coverUrl?: string; downloads?: string[] }[]
+
+	  if (upserts.length === 0) return
+
+	  try {
+	    await douyinApi.upsertDouyinFavoriteUserAwemes({ secUserId: id, items: upserts })
+	  } catch (e) {
+	    console.warn('同步收藏用户作品入库失败:', e)
+	  }
+	}
+
+	const upsertFavoriteUser = async (payload: {
+	  secUserId: string
+	  sourceInput?: string
+	  displayName?: string
   avatarUrl?: string
   profileUrl?: string
   lastParsedCount?: number
@@ -2365,14 +2633,15 @@ const upsertFavoriteUser = async (payload: {
 
   try {
     const res = await douyinApi.addDouyinFavoriteUser(payload as any)
-    if (res?.secUserId) {
-      const normalized = { ...(res as any), tagIds: Array.isArray((res as any).tagIds) ? (res as any).tagIds : [] } as DouyinFavoriteUser
-      favoriteUsers.value = [normalized, ...favoriteUsers.value.filter((u) => u.secUserId !== normalized.secUserId)]
-      show('已收藏用户')
-    } else {
-      throw new Error(res?.error || '收藏失败')
-    }
-  } catch (e: any) {
+	    if (res?.secUserId) {
+	      const normalized = { ...(res as any), tagIds: Array.isArray((res as any).tagIds) ? (res as any).tagIds : [] } as DouyinFavoriteUser
+	      favoriteUsers.value = [normalized, ...favoriteUsers.value.filter((u) => u.secUserId !== normalized.secUserId)]
+	      show('已收藏用户')
+	      await syncFavoriteUserWorksFromAccount(secUserId)
+	    } else {
+	      throw new Error(res?.error || '收藏失败')
+	    }
+	  } catch (e: any) {
     console.error('收藏抖音用户失败:', e)
     show(e?.response?.data?.error || e?.message || '收藏失败')
   }
@@ -2820,13 +3089,15 @@ const handlePreviewMediaChange = (media: UploadedMedia) => {
     const idx = Number(ctx.index)
     if (key) {
       previewContextKey.value = key
-      if (detail.value?.key && String(detail.value.key) === key) {
-        previewContextItems.value = detail.value.items || []
-      } else {
-        const found = accountItems.value.find((i) => String(i.key || '').trim() === key)
-        previewContextItems.value = (found?.items || []) as DouyinDetailItem[]
-      }
-    }
+	      if (detail.value?.key && String(detail.value.key) === key) {
+	        previewContextItems.value = detail.value.items || []
+	      } else {
+	        const found =
+	          accountItems.value.find((i) => String(i.key || '').trim() === key) ||
+	          favoriteUserWorks.value.find((i) => String(i.key || '').trim() === key)
+	        previewContextItems.value = (found?.items || []) as DouyinDetailItem[]
+	      }
+	    }
     if (Number.isFinite(idx)) {
       previewIndex.value = idx
     }

@@ -182,6 +182,10 @@ func TestHandleDouyinFavoriteUserRemove_IgnoresDBError(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
+	mock.ExpectExec(`DELETE FROM douyin_favorite_user_aweme WHERE sec_user_id = \?`).
+		WithArgs("MS4wLjABAAAA_x").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
 	mock.ExpectExec(`DELETE FROM douyin_favorite_user_tag_map WHERE sec_user_id = \?`).
 		WithArgs("MS4wLjABAAAA_x").
 		WillReturnResult(sqlmock.NewResult(0, 0))

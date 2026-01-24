@@ -54,24 +54,39 @@ func ensureSchema(db *sql.DB) error {
 
 		// douyin_favorite_aweme（抖音作品收藏，全局）
 		`CREATE TABLE IF NOT EXISTS douyin_favorite_aweme (
-			aweme_id VARCHAR(64) PRIMARY KEY COMMENT '作品ID（aweme_id）',
-			sec_user_id VARCHAR(128) NULL COMMENT '作者 sec_user_id（可选）',
-			type VARCHAR(16) NULL COMMENT '作品类型（video/image）',
-			description TEXT NULL COMMENT '作品描述/标题（best-effort）',
-			cover_url VARCHAR(500) NULL COMMENT '封面URL（best-effort）',
-			raw_detail LONGTEXT NULL COMMENT '作品解析原始数据（JSON字符串，可选）',
-			created_at DATETIME NOT NULL COMMENT '创建时间',
-			updated_at DATETIME NOT NULL COMMENT '更新时间',
-			INDEX idx_dfa_sec_user_id (sec_user_id),
-			INDEX idx_dfa_updated_at (updated_at DESC),
-			INDEX idx_dfa_created_at (created_at DESC)
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音作品收藏（全局）'`,
+				aweme_id VARCHAR(64) PRIMARY KEY COMMENT '作品ID（aweme_id）',
+				sec_user_id VARCHAR(128) NULL COMMENT '作者 sec_user_id（可选）',
+				type VARCHAR(16) NULL COMMENT '作品类型（video/image）',
+				description TEXT NULL COMMENT '作品描述/标题（best-effort）',
+				cover_url VARCHAR(500) NULL COMMENT '封面URL（best-effort）',
+				raw_detail LONGTEXT NULL COMMENT '作品解析原始数据（JSON字符串，可选）',
+				created_at DATETIME NOT NULL COMMENT '创建时间',
+				updated_at DATETIME NOT NULL COMMENT '更新时间',
+				INDEX idx_dfa_sec_user_id (sec_user_id),
+				INDEX idx_dfa_updated_at (updated_at DESC),
+				INDEX idx_dfa_created_at (created_at DESC)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音作品收藏（全局）'`,
+
+		// douyin_favorite_user_aweme（抖音用户收藏-作品入库，全局）
+		`CREATE TABLE IF NOT EXISTS douyin_favorite_user_aweme (
+				sec_user_id VARCHAR(128) NOT NULL COMMENT '抖音 sec_user_id（sec_uid）',
+				aweme_id VARCHAR(64) NOT NULL COMMENT '作品ID（aweme_id）',
+				type VARCHAR(16) NULL COMMENT '作品类型（video/image）',
+				description TEXT NULL COMMENT '作品描述/标题（best-effort）',
+				cover_url VARCHAR(500) NULL COMMENT '封面URL（best-effort）',
+				downloads LONGTEXT NULL COMMENT '资源下载链接列表（JSON数组字符串，可选）',
+				created_at DATETIME NOT NULL COMMENT '创建时间',
+				updated_at DATETIME NOT NULL COMMENT '更新时间',
+				PRIMARY KEY (sec_user_id, aweme_id),
+				INDEX idx_dfua_user_created_at (sec_user_id, created_at DESC),
+				INDEX idx_dfua_user_updated_at (sec_user_id, updated_at DESC)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音用户收藏作品（全局）'`,
 
 		// douyin_favorite_user_tag（抖音用户收藏-分类标签，全局）
 		`CREATE TABLE IF NOT EXISTS douyin_favorite_user_tag (
-			id BIGINT AUTO_INCREMENT PRIMARY KEY,
-			name VARCHAR(64) NOT NULL COMMENT '标签名称（全局唯一）',
-			sort_order INT NOT NULL DEFAULT 0 COMMENT '展示顺序（越小越靠前）',
+				id BIGINT AUTO_INCREMENT PRIMARY KEY,
+				name VARCHAR(64) NOT NULL COMMENT '标签名称（全局唯一）',
+				sort_order INT NOT NULL DEFAULT 0 COMMENT '展示顺序（越小越靠前）',
 			created_at DATETIME NOT NULL COMMENT '创建时间',
 			updated_at DATETIME NOT NULL COMMENT '更新时间',
 			UNIQUE KEY uk_dfut_name (name),

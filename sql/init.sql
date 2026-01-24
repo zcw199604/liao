@@ -66,6 +66,21 @@ CREATE TABLE IF NOT EXISTS douyin_favorite_aweme (
     INDEX idx_dfa_created_at (created_at DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音作品收藏（全局）';
 
+-- 抖音用户收藏作品（全局）
+CREATE TABLE IF NOT EXISTS douyin_favorite_user_aweme (
+    sec_user_id VARCHAR(128) NOT NULL COMMENT '抖音 sec_user_id（sec_uid）',
+    aweme_id VARCHAR(64) NOT NULL COMMENT '作品ID（aweme_id）',
+    type VARCHAR(16) NULL COMMENT '作品类型（video/image）',
+    description TEXT NULL COMMENT '作品描述/标题（best-effort）',
+    cover_url VARCHAR(500) NULL COMMENT '封面URL（best-effort）',
+    downloads LONGTEXT NULL COMMENT '资源下载链接列表（JSON数组字符串，可选）',
+    created_at DATETIME NOT NULL COMMENT '创建时间',
+    updated_at DATETIME NOT NULL COMMENT '更新时间',
+    PRIMARY KEY (sec_user_id, aweme_id),
+    INDEX idx_dfua_user_created_at (sec_user_id, created_at DESC),
+    INDEX idx_dfua_user_updated_at (sec_user_id, updated_at DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音用户收藏作品（全局）';
+
 -- 抖音用户收藏标签（全局）
 CREATE TABLE IF NOT EXISTS douyin_favorite_user_tag (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,

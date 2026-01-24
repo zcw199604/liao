@@ -137,6 +137,7 @@ func (s *DouyinFavoriteService) UpsertUser(ctx context.Context, in DouyinFavorit
 }
 
 func (s *DouyinFavoriteService) RemoveUser(ctx context.Context, secUserID string) error {
+	_, _ = s.db.ExecContext(ctx, "DELETE FROM douyin_favorite_user_aweme WHERE sec_user_id = ?", secUserID)
 	_, _ = s.db.ExecContext(ctx, "DELETE FROM douyin_favorite_user_tag_map WHERE sec_user_id = ?", secUserID)
 	_, err := s.db.ExecContext(ctx, "DELETE FROM douyin_favorite_user WHERE sec_user_id = ?", secUserID)
 	return err
