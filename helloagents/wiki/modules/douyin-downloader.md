@@ -24,6 +24,7 @@
     4) 点击资源进入预览（预览中可一键导入上传，导入成功后不强制关闭弹窗）：
        - “下载”：走 `/api/douyin/download` 获取下载流并以作品标题命名
        - “上传”：走 `/api/douyin/import` 由后端下载并导入上传（MD5 去重）
+    5) 当作品资源同时包含图片+视频（如“实况照片”），预览画廊会合并全部资源，便于左右切换查看
 
 > 备注：抖音 CDN 对跨站媒体子资源有防盗链校验，`items[].url` 直链可能无法在站内 `<img>/<video>` 预览；
 > 前端应优先使用 `items[].downloadUrl`（`/api/douyin/download`）进行缩略图与预览加载。
@@ -56,8 +57,9 @@
 - 调用 `/douyin/detail` 获取结构化 `data` 并抽取：
   - `desc` → 标题（用于命名）
   - `type` → `视频/图集/实况`
-  - `downloads` → 可下载资源（视频为单条 URL；图集为 URL 列表）
+  - `downloads` → 可下载资源（可能是字符串或 URL 列表；视频通常为单条 URL；图集为 URL 列表；实况可能为“静态图 + 播放直链视频”的混合列表）
 - 服务端生成短期缓存 `key`（TTL），供下载/导入使用
+  - 服务端会按每个 URL best-effort 推断 `items[].type`（`image/video`），避免上游 `type` 字段不一致导致图片被误判为视频
 
 ### 1.5) 用户作品列表
 `POST /api/douyin/account`：
@@ -74,6 +76,7 @@
 - 透传下载流并设置 `Content-Disposition`：
   - 视频：`标题.mp4`
   - 图集：`标题_01.jpg`（按序号追加）
+  - 实况：按 `items[].type` 分别命名（视频默认 `.mp4`，图片默认 `.jpg`；若 URL 带扩展名则优先使用）
 
 `HEAD /api/douyin/download?key=...&index=...`：
 - 用于前端“最佳努力”探测 `Content-Length` 展示文件大小徽标（CDN 不支持 `HEAD` 时后端会回退 `Range: bytes=0-0`）。

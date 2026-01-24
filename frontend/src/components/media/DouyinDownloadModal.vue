@@ -3069,7 +3069,13 @@ const openPreview = (idx: number) => {
 	  previewContextKey.value = detail.value.key
 	  previewContextItems.value = detail.value.items || []
 
-	  if (item.type === 'image') {
+	  const hasImage = detail.value.items.some((i) => i.type === 'image')
+	  const hasVideo = detail.value.items.some((i) => i.type === 'video')
+	  const mixed = hasImage && hasVideo
+
+	  if (mixed) {
+	    previewMediaList.value = buildPreviewMediaList(detail.value.items, { key: detail.value.key, title: detail.value.title })
+	  } else if (item.type === 'image') {
 	    const images = detail.value.items.filter((i) => i.type === 'image')
 	    previewMediaList.value = buildPreviewMediaList(images, { key: detail.value.key, title: detail.value.title })
 	  } else {

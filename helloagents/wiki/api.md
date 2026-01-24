@@ -1073,6 +1073,7 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 - 依赖环境变量：`TIKTOKDOWNLOADER_BASE_URL`（未配置时返回“未启用”错误）。
 - 可选默认值：`DOUYIN_COOKIE`、`DOUYIN_PROXY`（服务端不落库；前端仅透传 `cookie`）。
 - `items[].url` 为抖音原始直链，可能因抖音 CDN 防盗链/跨站媒体子资源限制无法直接用于 `<img>/<video>` 预览；前端应优先使用 `items[].downloadUrl`。
+- `items[].type` 为服务端按 URL best-effort 推断（`image/video`）；在“实况”场景 `items` 可能同时包含图片与视频（混合列表）。
 
 #### [POST] /api/douyin/account
 **描述**：解析用户主页链接/分享文本/sec_uid，拉取该账号发布作品列表（可分页）。
