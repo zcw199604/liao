@@ -352,4 +352,84 @@ describe('components/media/MediaPreview.vue', () => {
     }
     ;(globalThis as any).fetch = originalFetch
   })
+
+  it('downloads upstream /img/Upload resource via /api/downloadImgUpload proxy', async () => {
+    const originalFetch = (globalThis as any).fetch
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => "attachment; filename*=UTF-8''a.jpg" },
+      blob: async () => new Blob(['x'], { type: 'image/jpeg' })
+    } as any)
+    ;(globalThis as any).fetch = fetchMock
+
+    const originalCreateObjectURL = (URL as any).createObjectURL
+    const originalRevokeObjectURL = (URL as any).revokeObjectURL
+    const needRestoreCreateObjectURL = originalCreateObjectURL === undefined
+    const needRestoreRevokeObjectURL = originalRevokeObjectURL === undefined
+
+    if (!(URL as any).createObjectURL) {
+      Object.defineProperty(URL, 'createObjectURL', {
+        configurable: true,
+        value: vi.fn().mockReturnValue('blob:mock')
+      })
+    }
+    if (!(URL as any).revokeObjectURL) {
+      Object.defineProperty(URL, 'revokeObjectURL', {
+        configurable: true,
+        value: vi.fn()
+      })
+    }
+
+    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock' as any)
+    const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const originalCreateElement = document.createElement.bind(document)
+    let createdAnchor: HTMLAnchorElement | null = null
+    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tagName: any) => {
+      const el = originalCreateElement(tagName)
+      if (String(tagName).toLowerCase() === 'a') {
+        createdAnchor = el as HTMLAnchorElement
+      }
+      return el
+    })
+
+    localStorage.setItem('authToken', 't')
+
+    const wrapper = mount(MediaPreview, {
+      props: {
+        visible: false,
+        url: 'http://img:9006/img/Upload/2026/01/a.jpg',
+        type: 'image',
+        mediaList: [{ url: 'http://img:9006/img/Upload/2026/01/a.jpg', type: 'image' }]
+      },
+      global: { stubs: { teleport: true } }
+    })
+
+    await wrapper.setProps({ visible: true })
+    await nextTick()
+
+    await wrapper.get('button[title=\"下载\"]').trigger('click')
+    await nextTick()
+    await Promise.resolve()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [href, options] = fetchMock.mock.calls[0]!
+    expect(String(href)).toContain('/api/downloadImgUpload?path=2026%2F01%2Fa.jpg')
+    expect(options?.headers?.Authorization).toBe('Bearer t')
+    expect((createdAnchor as any)?.download).toBe('a.jpg')
+
+    localStorage.removeItem('authToken')
+    createElementSpy.mockRestore()
+    clickSpy.mockRestore()
+    createObjectURLSpy.mockRestore()
+    revokeObjectURLSpy.mockRestore()
+    if (needRestoreCreateObjectURL) {
+      ;(URL as any).createObjectURL = originalCreateObjectURL
+    }
+    if (needRestoreRevokeObjectURL) {
+      ;(URL as any).revokeObjectURL = originalRevokeObjectURL
+    }
+    ;(globalThis as any).fetch = originalFetch
+  })
 })

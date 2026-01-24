@@ -1260,6 +1260,27 @@ const isSameOriginApiUrl = (href: string) => {
   }
 }
 
+const extractImgUploadPath = (href: string) => {
+  const raw = String(href || '').trim()
+  if (!raw) return ''
+
+  const marker = '/img/Upload/'
+  try {
+    const u = new URL(raw, window.location.origin)
+    const idx = (u.pathname || '').indexOf(marker)
+    if (idx < 0) return ''
+    const p = (u.pathname || '').slice(idx + marker.length).replace(/^\/+/, '')
+    if (!p || p.includes('..') || p.length > 1024) return ''
+    return p
+  } catch {
+    const idx = raw.indexOf(marker)
+    if (idx < 0) return ''
+    const p = raw.slice(idx + marker.length).split(/[?#]/)[0]?.replace(/^\/+/, '') || ''
+    if (!p || p.includes('..') || p.length > 1024) return ''
+    return p
+  }
+}
+
 const getFilenameFromContentDisposition = (value: string): string => {
   const raw = (value || '').trim()
   if (!raw) return ''
@@ -1334,9 +1355,19 @@ const handleDownload = async () => {
   const href = String(currentMedia.value.downloadUrl || currentMedia.value.url || '').trim()
   if (!href) return
 
+  // 上游 imgServer（/img/Upload/*）属于跨域资源：浏览器会忽略 <a download> 导致新开页预览。
+  // 这里将其转换为同源代理下载，避免跳出当前页面，并确保文件名可用。
+  let apiHref = href
+  if (!isSameOriginApiUrl(apiHref)) {
+    const uploadPath = extractImgUploadPath(apiHref)
+    if (uploadPath) {
+      apiHref = `/api/downloadImgUpload?path=${encodeURIComponent(uploadPath)}`
+    }
+  }
+
   // /api 资源需要带 Authorization；其他 URL 保持直链下载行为。
-  if (!isSameOriginApiUrl(href)) {
-    triggerDirectDownload(href)
+  if (!isSameOriginApiUrl(apiHref)) {
+    triggerDirectDownload(apiHref)
     return
   }
 
@@ -1347,7 +1378,7 @@ const handleDownload = async () => {
   }
 
   try {
-    const resp = await fetch(href, {
+    const resp = await fetch(apiHref, {
       method: 'GET',
       headers: { Authorization: `Bearer ${token}` }
     })

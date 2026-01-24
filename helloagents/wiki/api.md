@@ -385,6 +385,22 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 
 **响应（HTTP 200）**：`{"success":true}`
 
+#### [GET] /api/downloadImgUpload
+**描述**：代理下载上游图片服务器的 `/img/Upload/{path}` 资源，并强制返回 `Content-Disposition: attachment`。用于解决前端预览面板下载跨域图片时浏览器忽略 `<a download>` 导致“新开标签页预览而不直接下载”的问题。
+
+**请求参数（query）**
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| path | 是 | 上游上传相对路径（`/img/Upload/` 后的部分），例如 `2026/01/a.jpg` |
+
+**响应**
+- 成功：HTTP 200，返回二进制流，Header 包含 `Content-Type` 与 `Content-Disposition`。
+- 失败：HTTP 400/502，JSON：`{"error":"..."}`。
+
+**限制**
+- `path` 会做最小清洗：拒绝包含 `..` 的路径片段，并限制最大长度。
+- 目标 host 使用后端当前配置的图片服务器（`ImageServerService`），端口按系统配置策略解析（与 `/api/resolveImagePort` 一致）。
+
 #### [POST] /api/uploadMedia
 **描述**：上传媒体（图片/视频），本地落盘 + 上游上传 + DB 记录 + 缓存写入。
 

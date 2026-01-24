@@ -97,6 +97,9 @@
 - 前端：修复 `MediaPreview` 视频真全屏后布局偏移导致不居中/黑边的问题（`:fullscreen/:-webkit-full-screen` 居中与尺寸约束覆盖）。
 - 前端：修复 `MediaPreview` 非全屏播放时画面偏左、右侧留黑的问题（统一 Plyr 容器与 `<video>` 尺寸约束，确保居中与 `object-fit: contain`）。
 - 前端：修复 `MediaPreview` 画廊连续视频左右切换时偶发“黑屏仅有声音”的问题（对播放器容器使用 `:key` 强制重建，避免 Plyr DOM 包裹与 Vue patch 冲突）。
+- 前端/后端：修复聊天上游图片在 `MediaPreview` 点击“下载”会新开标签页预览的问题：新增同源代理下载接口 `GET /api/downloadImgUpload`，并在预览下载时对 `/img/Upload/*` 自动改走该接口（避免跨域 `<a download>` 失效）。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
 - 前端/后端：修复 mtPhoto 相册图片预览“下载”实际下载缩略图的问题；现在点击下载将通过 mtPhoto `fileDownload` 获取原图。
 - 前端：mtPhoto 相册图片预览支持左右切换浏览，并确保切换后“上传/导入”作用于当前预览图片。
 - 前端：mtPhoto 相册预览支持查看详情（信息按钮 + 详情面板）。

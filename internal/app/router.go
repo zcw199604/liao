@@ -54,6 +54,7 @@ func (a *App) buildRouter() http.Handler {
 		api.Post("/getMessageHistory", a.handleGetMessageHistory)
 		api.Get("/getImgServer", a.handleGetImgServer)
 		api.Post("/updateImgServer", a.handleUpdateImgServer)
+		api.Get("/downloadImgUpload", a.handleDownloadImgUpload)
 		api.Post("/uploadMedia", a.handleUploadMedia)
 		api.Post("/uploadImage", a.handleUploadImage)
 		api.Post("/checkDuplicateMedia", a.handleCheckDuplicateMedia)
