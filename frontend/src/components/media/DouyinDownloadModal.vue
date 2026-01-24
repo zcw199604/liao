@@ -313,46 +313,84 @@
                 <div v-if="favoriteUsers.length === 0" class="mt-4 text-sm text-gray-500">
                   暂无收藏用户
                 </div>
-                <div v-else class="mt-4 space-y-3">
-                  <div
-                    v-for="u in favoriteUsers"
-                    :key="u.secUserId"
-                    class="rounded-xl border border-gray-700 bg-black/20 p-3"
-                  >
-                    <div class="flex items-start justify-between gap-3">
-                      <div class="min-w-0">
-                        <div class="text-white text-sm font-medium truncate">
-                          {{ u.displayName || u.secUserId }}
-                        </div>
-                        <div class="text-xs text-gray-500 font-mono truncate">
-                          {{ u.secUserId }}
-                        </div>
-                        <div v-if="u.lastParsedAt || u.lastParsedCount" class="text-xs text-gray-500 mt-1">
-                          <span v-if="u.lastParsedAt">上次解析: {{ u.lastParsedAt }}</span>
-                          <span v-if="u.lastParsedCount"> · 作品: {{ u.lastParsedCount }}</span>
-                        </div>
-                      </div>
-
-                      <div class="flex flex-col gap-2 flex-shrink-0 sm:flex-row sm:items-center">
-                        <button
-                          class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
-                          :disabled="uiDisabled"
-                          @click="reparseFavoriteUser(u)"
-                        >
-                          再次解析
-                        </button>
-                        <button
-                          class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
-                          :disabled="uiDisabled"
-                          @click="removeFavoriteUser(u.secUserId)"
-                        >
-                          取消
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </template>
+	                <div v-else class="mt-4 space-y-3">
+	                  <div
+	                    v-for="u in favoriteUsers"
+	                    :key="u.secUserId"
+	                    class="rounded-xl border border-gray-700 bg-black/20 p-3 cursor-pointer active:bg-white/5 transition"
+	                    role="button"
+	                    @click="openFavoriteUserDetail(u)"
+	                  >
+	                    <div class="flex items-start gap-3">
+	                      <div class="w-12 h-12 rounded-full overflow-hidden bg-[#111113] border border-gray-700 flex-shrink-0">
+	                        <img
+	                          v-if="u.avatarUrl && !favoriteUserAvatarError.has(u.secUserId)"
+	                          :src="u.avatarUrl"
+	                          class="w-full h-full object-cover"
+	                          referrerpolicy="no-referrer"
+	                          alt=""
+	                          @error="markFavoriteUserAvatarError(u.secUserId)"
+	                        />
+	                        <div v-else class="w-full h-full flex items-center justify-center text-gray-600 text-sm">
+	                          <i class="fas fa-user"></i>
+	                        </div>
+	                      </div>
+	
+	                      <div class="min-w-0 flex-1">
+	                        <div class="flex items-start justify-between gap-2">
+	                          <div class="min-w-0">
+	                            <div class="text-white text-sm font-medium truncate">
+	                              {{ u.displayName || '（未命名用户）' }}
+	                            </div>
+	                            <div class="text-xs text-gray-500 font-mono truncate">
+	                              {{ u.secUserId }}
+	                            </div>
+	                            <div v-if="u.signature" class="text-xs text-gray-400 mt-1 line-clamp-1">
+	                              {{ u.signature }}
+	                            </div>
+	
+	                            <div
+	                              v-if="u.followerCount || u.followingCount || u.awemeCount || u.totalFavorited"
+	                              class="mt-1 flex flex-wrap gap-2 text-[10px] text-gray-400"
+	                            >
+	                              <span v-if="u.followerCount" class="bg-white/5 px-1.5 py-0.5 rounded">粉丝 {{ formatDouyinCount(u.followerCount) }}</span>
+	                              <span v-if="u.followingCount" class="bg-white/5 px-1.5 py-0.5 rounded">关注 {{ formatDouyinCount(u.followingCount) }}</span>
+	                              <span v-if="u.awemeCount" class="bg-white/5 px-1.5 py-0.5 rounded">作品 {{ formatDouyinCount(u.awemeCount) }}</span>
+	                              <span v-if="u.totalFavorited" class="bg-white/5 px-1.5 py-0.5 rounded">获赞 {{ formatDouyinCount(u.totalFavorited) }}</span>
+	                            </div>
+	
+	                            <div v-if="favoriteUserAvatarError.has(u.secUserId)" class="text-[10px] text-amber-300 mt-1">
+	                              头像可能已更换，点开可刷新
+	                            </div>
+	
+	                            <div v-if="u.lastParsedAt || u.lastParsedCount" class="text-xs text-gray-500 mt-1">
+	                              <span v-if="u.lastParsedAt">上次解析: {{ u.lastParsedAt }}</span>
+	                              <span v-if="u.lastParsedCount"> · 作品: {{ u.lastParsedCount }}</span>
+	                            </div>
+	                          </div>
+	
+	                          <div class="flex flex-col gap-2 flex-shrink-0 sm:flex-row sm:items-center">
+	                            <button
+	                              class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+	                              :disabled="uiDisabled"
+	                              @click.stop="reparseFavoriteUser(u)"
+	                            >
+	                              再次解析
+	                            </button>
+	                            <button
+	                              class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+	                              :disabled="uiDisabled"
+	                              @click.stop="removeFavoriteUser(u.secUserId)"
+	                            >
+	                              取消
+	                            </button>
+	                          </div>
+	                        </div>
+	                      </div>
+	                    </div>
+	                  </div>
+	                </div>
+	              </template>
 
               <template v-else>
                 <div v-if="favoriteAwemes.length === 0" class="mt-4 text-sm text-gray-500">
@@ -585,12 +623,153 @@
             </div>
           </div>
         </div>
-      </div>
+	      </div>
 
-      <MediaPreview
-        v-model:visible="showPreview"
-        :url="previewUrl"
-        :type="previewType"
+	      <!-- 收藏用户详情（移动端底部抽屉） -->
+	      <div
+	        v-if="favoriteUserDetailOpen"
+	        class="fixed inset-0 z-[85] bg-black/60 backdrop-blur-sm"
+	        @click.stop="closeFavoriteUserDetail"
+	      >
+	        <div class="fixed bottom-0 left-0 right-0 z-[86] bg-[#18181b] rounded-t-2xl shadow-2xl border-t border-white/10" @click.stop>
+	          <div class="w-full h-6 flex items-center justify-center">
+	            <div class="w-10 h-1 bg-white/20 rounded-full"></div>
+	          </div>
+
+	          <div v-if="selectedFavoriteUser" class="px-5 pb-5 max-h-[75vh] overflow-y-auto no-scrollbar">
+	            <div class="flex items-start justify-between gap-3">
+	              <div class="min-w-0">
+	                <div class="text-white text-base font-semibold truncate">
+	                  {{ selectedFavoriteUser.displayName || '（未命名用户）' }}
+	                </div>
+	                <button
+	                  class="mt-1 text-xs text-gray-400 font-mono truncate flex items-center gap-2"
+	                  type="button"
+	                  @click="copyText(selectedFavoriteUser.secUserId)"
+	                  title="复制 sec_user_id"
+	                >
+	                  <span class="truncate">{{ selectedFavoriteUser.secUserId }}</span>
+	                  <i class="far fa-copy text-gray-500"></i>
+	                </button>
+	              </div>
+
+	              <button
+	                class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a] flex-shrink-0"
+	                type="button"
+	                @click="closeFavoriteUserDetail"
+	                title="关闭"
+	              >
+	                <i class="fas fa-times"></i>
+	              </button>
+	            </div>
+
+	            <div class="mt-4 flex items-start gap-4">
+	              <div class="relative w-20 h-20 rounded-full overflow-hidden bg-[#111113] border border-gray-700 flex-shrink-0">
+	                <img
+	                  v-if="selectedFavoriteUser.avatarUrl && !favoriteUserAvatarError.has(selectedFavoriteUser.secUserId)"
+	                  :src="selectedFavoriteUser.avatarUrl"
+	                  class="w-full h-full object-cover"
+	                  referrerpolicy="no-referrer"
+	                  alt=""
+	                  @error="markFavoriteUserAvatarError(selectedFavoriteUser.secUserId)"
+	                />
+	                <div v-else class="w-full h-full flex items-center justify-center text-gray-600 text-xl">
+	                  <i class="fas fa-user"></i>
+	                </div>
+
+	                <div
+	                  v-if="favoriteUserAvatarError.has(selectedFavoriteUser.secUserId)"
+	                  class="absolute inset-0 bg-black/50 flex items-center justify-center text-[10px] text-white backdrop-blur-[2px]"
+	                >
+	                  头像可能已更换
+	                </div>
+	              </div>
+
+	              <div class="min-w-0 flex-1">
+	                <div v-if="selectedFavoriteUser.signature" class="text-xs text-gray-300 leading-relaxed whitespace-pre-line">
+	                  {{ selectedFavoriteUser.signature }}
+	                </div>
+	                <div v-else class="text-xs text-gray-500">
+	                  （暂无简介）
+	                </div>
+
+	                <a
+	                  v-if="selectedFavoriteUser.profileUrl"
+	                  class="inline-flex items-center gap-2 mt-3 text-xs text-emerald-400 hover:text-emerald-300"
+	                  :href="selectedFavoriteUser.profileUrl"
+	                  target="_blank"
+	                  rel="noopener"
+	                >
+	                  <i class="fas fa-external-link-alt"></i>
+	                  打开主页
+	                </a>
+	              </div>
+	            </div>
+
+	            <button
+	              class="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
+	              type="button"
+	              :disabled="favoriteUserDetailLoading"
+	              @click="refreshSelectedFavoriteUser"
+	            >
+	              <i v-if="favoriteUserDetailLoading" class="fas fa-spinner fa-spin"></i>
+	              <span>{{ favoriteUserDetailLoading ? '更新中…' : '刷新信息' }}</span>
+	            </button>
+
+	            <div class="mt-4 grid grid-cols-2 gap-3">
+	              <div class="flex flex-col items-center p-3 bg-white/5 rounded-xl">
+	                <div class="text-lg font-bold text-gray-100">{{ formatDouyinCount(selectedFavoriteUser.followerCount) }}</div>
+	                <div class="text-[10px] text-gray-500 mt-1">粉丝</div>
+	              </div>
+	              <div class="flex flex-col items-center p-3 bg-white/5 rounded-xl">
+	                <div class="text-lg font-bold text-gray-100">{{ formatDouyinCount(selectedFavoriteUser.followingCount) }}</div>
+	                <div class="text-[10px] text-gray-500 mt-1">关注</div>
+	              </div>
+	              <div class="flex flex-col items-center p-3 bg-white/5 rounded-xl">
+	                <div class="text-lg font-bold text-gray-100">{{ formatDouyinCount(selectedFavoriteUser.awemeCount) }}</div>
+	                <div class="text-[10px] text-gray-500 mt-1">作品</div>
+	              </div>
+	              <div class="flex flex-col items-center p-3 bg-white/5 rounded-xl">
+	                <div class="text-lg font-bold text-gray-100">{{ formatDouyinCount(selectedFavoriteUser.totalFavorited) }}</div>
+	                <div class="text-[10px] text-gray-500 mt-1">获赞</div>
+	              </div>
+	            </div>
+
+	            <div v-if="selectedFavoriteUser.lastParsedAt || selectedFavoriteUser.lastParsedCount" class="mt-4 text-xs text-gray-500">
+	              <span v-if="selectedFavoriteUser.lastParsedAt">上次解析: {{ selectedFavoriteUser.lastParsedAt }}</span>
+	              <span v-if="selectedFavoriteUser.lastParsedCount"> · 作品: {{ selectedFavoriteUser.lastParsedCount }}</span>
+	            </div>
+
+	            <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+	              <button
+	                class="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+	                type="button"
+	                :disabled="uiDisabled"
+	                @click="reparseFavoriteUser(selectedFavoriteUser)"
+	              >
+	                再次解析作品
+	              </button>
+	              <button
+	                class="flex-1 px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+	                type="button"
+	                :disabled="uiDisabled"
+	                @click="removeFavoriteUser(selectedFavoriteUser.secUserId)"
+	              >
+	                取消收藏
+	              </button>
+	            </div>
+	          </div>
+
+	          <div v-else class="px-5 pb-6 text-sm text-gray-400">
+	            加载中…
+	          </div>
+	        </div>
+	      </div>
+
+	      <MediaPreview
+	        v-model:visible="showPreview"
+	        :url="previewUrl"
+	        :type="previewType"
         :can-upload="canUpload"
         :upload-disabled="previewUploadDisabled"
         :upload-loading="previewUploadLoading"
@@ -650,6 +829,14 @@ interface DouyinAccountItem {
 
 interface DouyinAccountResponse {
   secUserId: string
+  displayName?: string
+  signature?: string
+  avatarUrl?: string
+  profileUrl?: string
+  followerCount?: number
+  followingCount?: number
+  awemeCount?: number
+  totalFavorited?: number
   tab: string
   cursor: number
   hasMore: boolean
@@ -660,8 +847,13 @@ interface DouyinFavoriteUser {
   secUserId: string
   sourceInput?: string
   displayName?: string
+  signature?: string
   avatarUrl?: string
   profileUrl?: string
+  followerCount?: number
+  followingCount?: number
+  awemeCount?: number
+  totalFavorited?: number
   lastParsedAt?: string
   lastParsedCount?: number
   createTime: string
@@ -709,6 +901,14 @@ const accountItems = ref<DouyinAccountItem[]>([])
 const accountCursor = ref(0)
 const accountHasMore = ref(false)
 const accountSecUserId = ref('')
+const accountDisplayName = ref('')
+const accountSignature = ref('')
+const accountAvatarUrl = ref('')
+const accountProfileUrl = ref('')
+const accountFollowerCount = ref<number | null>(null)
+const accountFollowingCount = ref<number | null>(null)
+const accountAwemeCount = ref<number | null>(null)
+const accountTotalFavorited = ref<number | null>(null)
 const accountQueried = ref(false)
 const accountItemLoading = reactive<Set<string>>(new Set())
 
@@ -717,6 +917,14 @@ const favoritesLoading = ref(false)
 const favoritesError = ref('')
 const favoriteUsers = ref<DouyinFavoriteUser[]>([])
 const favoriteAwemes = ref<DouyinFavoriteAweme[]>([])
+
+const favoriteUserDetailOpen = ref(false)
+const favoriteUserDetailId = ref('')
+const favoriteUserDetailLoading = ref(false)
+const favoriteUserAvatarError = reactive<Set<string>>(new Set())
+const selectedFavoriteUser = computed(() =>
+  favoriteUsers.value.find((u) => String(u.secUserId || '').trim() === String(favoriteUserDetailId.value || '').trim()) || null
+)
 
 const favoriteUserIdSet = computed(() => new Set(favoriteUsers.value.map((u) => String(u.secUserId || '').trim()).filter(Boolean)))
 const favoriteAwemeIdSet = computed(() => new Set(favoriteAwemes.value.map((it) => String(it.awemeId || '').trim()).filter(Boolean)))
@@ -864,23 +1072,37 @@ const resetAccountStates = () => {
   accountError.value = ''
   accountItems.value = []
   accountCursor.value = 0
-  accountHasMore.value = false
-  accountSecUserId.value = ''
-  accountQueried.value = false
+	accountHasMore.value = false
+	accountSecUserId.value = ''
+	accountDisplayName.value = ''
+	accountSignature.value = ''
+	accountAvatarUrl.value = ''
+	accountProfileUrl.value = ''
+	accountFollowerCount.value = null
+	accountFollowingCount.value = null
+	accountAwemeCount.value = null
+	accountTotalFavorited.value = null
+	accountQueried.value = false
 }
 
 const refreshFavorites = async () => {
   favoritesLoading.value = true
   favoritesError.value = ''
-  try {
-    const [usersRes, awemesRes] = await Promise.all([douyinApi.listDouyinFavoriteUsers(), douyinApi.listDouyinFavoriteAwemes()])
+	try {
+		const [usersRes, awemesRes] = await Promise.all([douyinApi.listDouyinFavoriteUsers(), douyinApi.listDouyinFavoriteAwemes()])
 
-    favoriteUsers.value = Array.isArray(usersRes?.items) ? (usersRes.items as DouyinFavoriteUser[]) : []
-    favoriteAwemes.value = Array.isArray(awemesRes?.items) ? (awemesRes.items as DouyinFavoriteAweme[]) : []
-  } catch (e: any) {
-    console.error('加载抖音收藏失败:', e)
-    favoritesError.value = e?.response?.data?.error || e?.message || '加载失败'
-  } finally {
+		favoriteUsers.value = Array.isArray(usersRes?.items) ? (usersRes.items as DouyinFavoriteUser[]) : []
+		favoriteAwemes.value = Array.isArray(awemesRes?.items) ? (awemesRes.items as DouyinFavoriteAweme[]) : []
+		if (favoriteUserDetailOpen.value && String(favoriteUserDetailId.value || '').trim()) {
+			const id = String(favoriteUserDetailId.value || '').trim()
+			if (!favoriteUsers.value.some((u) => String(u.secUserId || '').trim() === id)) {
+				closeFavoriteUserDetail()
+			}
+		}
+	} catch (e: any) {
+		console.error('加载抖音收藏失败:', e)
+		favoritesError.value = e?.response?.data?.error || e?.message || '加载失败'
+	} finally {
     favoritesLoading.value = false
   }
 }
@@ -898,11 +1120,15 @@ watch(
       highlightConfig.value = false
       resetDetailStates()
       showPreview.value = false
-      previewUrl.value = ''
-      previewMediaList.value = []
-      previewIndex.value = 0
-      favoritesTab.value = 'users'
-      void refreshFavorites()
+	      previewUrl.value = ''
+	      previewMediaList.value = []
+	      previewIndex.value = 0
+	      favoritesTab.value = 'users'
+	      favoriteUserDetailOpen.value = false
+	      favoriteUserDetailId.value = ''
+	      favoriteUserDetailLoading.value = false
+	      favoriteUserAvatarError.clear()
+	      void refreshFavorites()
 
       // 优先使用调用方传入的预填内容；否则按设置尝试读取剪贴板
       const hasInput = () => !!String(inputText.value || '').trim() || !!String(accountInput.value || '').trim()
@@ -938,10 +1164,13 @@ const close = () => {
   error.value = ''
   accountError.value = ''
   cookieHint.value = ''
-  highlightConfig.value = false
-  detail.value = null
-  resetDetailStates()
-  resetAccountStates()
+	highlightConfig.value = false
+	detail.value = null
+	favoriteUserDetailOpen.value = false
+	favoriteUserDetailId.value = ''
+	favoriteUserDetailLoading.value = false
+	resetDetailStates()
+	resetAccountStates()
 }
 
 const handleClear = () => {
@@ -970,6 +1199,9 @@ const uiDisabled = computed(() => loading.value || accountLoading.value || batch
 
 const switchMode = (mode: 'detail' | 'account' | 'favorites') => {
   if (uiDisabled.value) return
+  if (favoriteUserDetailOpen.value) {
+    closeFavoriteUserDetail()
+  }
   activeMode.value = mode
   cookieHint.value = ''
   highlightConfig.value = false
@@ -1012,12 +1244,20 @@ const handleFetchAccount = async (opts: { append?: boolean } = {}) => {
   highlightConfig.value = false
   persistLocalConfig()
 
-  if (!append) {
-    accountItems.value = []
-    accountCursor.value = 0
-    accountHasMore.value = false
-    accountSecUserId.value = ''
-  }
+	if (!append) {
+		accountItems.value = []
+		accountCursor.value = 0
+		accountHasMore.value = false
+		accountSecUserId.value = ''
+		accountDisplayName.value = ''
+		accountSignature.value = ''
+		accountAvatarUrl.value = ''
+		accountProfileUrl.value = ''
+		accountFollowerCount.value = null
+		accountFollowingCount.value = null
+		accountAwemeCount.value = null
+		accountTotalFavorited.value = null
+	}
 
   try {
     const countPerPage = 18
@@ -1054,22 +1294,38 @@ const handleFetchAccount = async (opts: { append?: boolean } = {}) => {
       }
     }
 
-    if (append) {
-      const res = await fetchPage(accountCursor.value)
-      accountSecUserId.value = String(res?.secUserId || accountSecUserId.value || '').trim()
-      accountCursor.value = Number(res?.cursor || 0)
-      accountHasMore.value = !!res?.hasMore
-      appendItems(res.items || [])
-      return
-    }
+	if (append) {
+		const res = await fetchPage(accountCursor.value)
+		accountSecUserId.value = String(res?.secUserId || accountSecUserId.value || '').trim()
+		accountDisplayName.value = String(res?.displayName || accountDisplayName.value || '').trim()
+		accountSignature.value = String(res?.signature || accountSignature.value || '').trim()
+		accountAvatarUrl.value = String(res?.avatarUrl || accountAvatarUrl.value || '').trim()
+		accountProfileUrl.value = String(res?.profileUrl || accountProfileUrl.value || '').trim()
+		if (typeof res?.followerCount === 'number' && res.followerCount > 0) accountFollowerCount.value = res.followerCount
+		if (typeof res?.followingCount === 'number' && res.followingCount > 0) accountFollowingCount.value = res.followingCount
+		if (typeof res?.awemeCount === 'number' && res.awemeCount > 0) accountAwemeCount.value = res.awemeCount
+		if (typeof res?.totalFavorited === 'number' && res.totalFavorited > 0) accountTotalFavorited.value = res.totalFavorited
+		accountCursor.value = Number(res?.cursor || 0)
+		accountHasMore.value = !!res?.hasMore
+		appendItems(res.items || [])
+		return
+	}
 
     let cursor = 0
     let loops = 0
-    while (true) {
-      loops += 1
-      const res = await fetchPage(cursor)
-      accountSecUserId.value = String(res?.secUserId || accountSecUserId.value || '').trim()
-      appendItems(res.items || [])
+	while (true) {
+		loops += 1
+		const res = await fetchPage(cursor)
+		accountSecUserId.value = String(res?.secUserId || accountSecUserId.value || '').trim()
+		accountDisplayName.value = String(res?.displayName || accountDisplayName.value || '').trim()
+		accountSignature.value = String(res?.signature || accountSignature.value || '').trim()
+		accountAvatarUrl.value = String(res?.avatarUrl || accountAvatarUrl.value || '').trim()
+		accountProfileUrl.value = String(res?.profileUrl || accountProfileUrl.value || '').trim()
+		if (typeof res?.followerCount === 'number' && res.followerCount > 0) accountFollowerCount.value = res.followerCount
+		if (typeof res?.followingCount === 'number' && res.followingCount > 0) accountFollowingCount.value = res.followingCount
+		if (typeof res?.awemeCount === 'number' && res.awemeCount > 0) accountAwemeCount.value = res.awemeCount
+		if (typeof res?.totalFavorited === 'number' && res.totalFavorited > 0) accountTotalFavorited.value = res.totalFavorited
+		appendItems(res.items || [])
 
       const nextCursor = Number(res?.cursor || 0)
       const hasMore = !!res?.hasMore
@@ -1091,11 +1347,21 @@ const handleFetchAccount = async (opts: { append?: boolean } = {}) => {
     const secUserId = String(accountSecUserId.value || '').trim()
     if (secUserId && isFavoriteUser(secUserId)) {
       try {
-        const updated = await douyinApi.addDouyinFavoriteUser({
-          secUserId,
-          sourceInput: input,
-          lastParsedCount: accountItems.value.length
-        })
+	        const updated = await douyinApi.addDouyinFavoriteUser({
+	          secUserId,
+	          sourceInput: input,
+	          displayName: accountDisplayName.value || undefined,
+	          avatarUrl: accountAvatarUrl.value || undefined,
+	          profileUrl: accountProfileUrl.value || undefined,
+	          lastParsedCount: accountItems.value.length,
+	          lastParsedRaw: buildFavoriteUserLastParsedRaw({
+	            signature: accountSignature.value,
+	            followerCount: accountFollowerCount.value,
+	            followingCount: accountFollowingCount.value,
+	            awemeCount: accountAwemeCount.value,
+	            totalFavorited: accountTotalFavorited.value
+	          })
+	        })
         if (updated?.secUserId) {
           const next = [updated as DouyinFavoriteUser, ...favoriteUsers.value.filter((u) => u.secUserId !== updated.secUserId)]
           favoriteUsers.value = next
@@ -1123,6 +1389,111 @@ const handleFetchMoreAccount = async () => {
   if (accountLoading.value) return
   if (!accountHasMore.value) return
   await handleFetchAccount({ append: true })
+}
+
+const buildFavoriteUserLastParsedRaw = (meta: {
+  signature?: string
+  followerCount?: number | null
+  followingCount?: number | null
+  awemeCount?: number | null
+  totalFavorited?: number | null
+}) => {
+  const out: Record<string, any> = {}
+  const signature = String(meta?.signature || '').trim()
+  if (signature) out.signature = signature
+
+  if (typeof meta?.followerCount === 'number' && meta.followerCount > 0) out.followerCount = meta.followerCount
+  if (typeof meta?.followingCount === 'number' && meta.followingCount > 0) out.followingCount = meta.followingCount
+  if (typeof meta?.awemeCount === 'number' && meta.awemeCount > 0) out.awemeCount = meta.awemeCount
+  if (typeof meta?.totalFavorited === 'number' && meta.totalFavorited > 0) out.totalFavorited = meta.totalFavorited
+
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
+const formatDouyinCount = (value?: number) => {
+  const n = Number(value || 0)
+  if (!Number.isFinite(n) || n <= 0) return '-'
+  if (n >= 100000000) return `${(n / 100000000).toFixed(1).replace(/\\.0$/, '')}亿`
+  if (n >= 10000) return `${(n / 10000).toFixed(1).replace(/\\.0$/, '')}万`
+  return String(Math.round(n))
+}
+
+const openFavoriteUserDetail = (u: DouyinFavoriteUser) => {
+  if (uiDisabled.value) return
+  const id = String(u?.secUserId || '').trim()
+  if (!id) return
+  favoriteUserDetailId.value = id
+  favoriteUserDetailOpen.value = true
+}
+
+const closeFavoriteUserDetail = () => {
+  favoriteUserDetailOpen.value = false
+  favoriteUserDetailId.value = ''
+  favoriteUserDetailLoading.value = false
+}
+
+const markFavoriteUserAvatarError = (secUserId: string) => {
+  const id = String(secUserId || '').trim()
+  if (!id) return
+  favoriteUserAvatarError.add(id)
+}
+
+const copyText = async (value: string, okMsg = '已复制') => {
+  const v = String(value || '').trim()
+  if (!v) return
+  try {
+    await navigator.clipboard?.writeText?.(v)
+    show(okMsg)
+  } catch (e) {
+    console.warn('copy failed:', e)
+    show('复制失败')
+  }
+}
+
+const refreshSelectedFavoriteUser = async () => {
+  const u = selectedFavoriteUser.value
+  if (!u) return
+  const secUserId = String(u.secUserId || '').trim()
+  if (!secUserId) return
+
+  favoriteUserDetailLoading.value = true
+  try {
+    const res = (await douyinApi.getDouyinAccount({
+      input: secUserId,
+      cookie: String(cookie.value || '').trim(),
+      tab: 'post',
+      cursor: 0,
+      count: 1
+    })) as DouyinAccountResponse
+
+    const updated = await douyinApi.addDouyinFavoriteUser({
+      secUserId,
+      sourceInput: String(u.sourceInput || '').trim() || undefined,
+      displayName: String(res?.displayName || '').trim() || undefined,
+      avatarUrl: String(res?.avatarUrl || '').trim() || undefined,
+      profileUrl: String(res?.profileUrl || '').trim() || undefined,
+      lastParsedRaw: buildFavoriteUserLastParsedRaw({
+        signature: String(res?.signature || '').trim(),
+        followerCount: typeof res?.followerCount === 'number' ? res.followerCount : null,
+        followingCount: typeof res?.followingCount === 'number' ? res.followingCount : null,
+        awemeCount: typeof res?.awemeCount === 'number' ? res.awemeCount : null,
+        totalFavorited: typeof res?.totalFavorited === 'number' ? res.totalFavorited : null
+      })
+    } as any)
+
+    if (updated?.secUserId) {
+      favoriteUsers.value = [updated as DouyinFavoriteUser, ...favoriteUsers.value.filter((it) => it.secUserId !== updated.secUserId)]
+      favoriteUserAvatarError.delete(updated.secUserId)
+      show('已更新用户信息')
+    } else {
+      throw new Error((updated as any)?.error || '更新失败')
+    }
+  } catch (e: any) {
+    console.error('刷新抖音用户信息失败:', e)
+    show(e?.response?.data?.error || e?.message || '更新失败')
+  } finally {
+    favoriteUserDetailLoading.value = false
+  }
 }
 
 const upsertFavoriteUser = async (payload: {
@@ -1155,14 +1526,17 @@ const removeFavoriteUser = async (secUserId: string) => {
   const id = String(secUserId || '').trim()
   if (!id) return
 
-  try {
-    await douyinApi.removeDouyinFavoriteUser({ secUserId: id })
-    favoriteUsers.value = favoriteUsers.value.filter((u) => u.secUserId !== id)
-    show('已取消收藏')
-  } catch (e: any) {
-    console.error('取消抖音用户收藏失败:', e)
-    show(e?.response?.data?.error || e?.message || '取消失败')
-  }
+	try {
+		await douyinApi.removeDouyinFavoriteUser({ secUserId: id })
+		favoriteUsers.value = favoriteUsers.value.filter((u) => u.secUserId !== id)
+		if (favoriteUserDetailOpen.value && String(favoriteUserDetailId.value || '').trim() === id) {
+			closeFavoriteUserDetail()
+		}
+		show('已取消收藏')
+	} catch (e: any) {
+		console.error('取消抖音用户收藏失败:', e)
+		show(e?.response?.data?.error || e?.message || '取消失败')
+	}
 }
 
 const toggleFavoriteCurrentUser = async () => {
@@ -1176,11 +1550,21 @@ const toggleFavoriteCurrentUser = async () => {
     return
   }
 
-  await upsertFavoriteUser({
-    secUserId,
-    sourceInput: String(accountInput.value || '').trim(),
-    lastParsedCount: accountItems.value.length
-  })
+	await upsertFavoriteUser({
+		secUserId,
+		sourceInput: String(accountInput.value || '').trim(),
+		displayName: accountDisplayName.value || undefined,
+		avatarUrl: accountAvatarUrl.value || undefined,
+		profileUrl: accountProfileUrl.value || undefined,
+		lastParsedCount: accountItems.value.length,
+		lastParsedRaw: buildFavoriteUserLastParsedRaw({
+			signature: accountSignature.value,
+			followerCount: accountFollowerCount.value,
+			followingCount: accountFollowingCount.value,
+			awemeCount: accountAwemeCount.value,
+			totalFavorited: accountTotalFavorited.value
+		})
+	})
 }
 
 const upsertFavoriteAweme = async (payload: {
@@ -1266,6 +1650,9 @@ const reparseFavoriteUser = async (u: DouyinFavoriteUser) => {
   const secUserId = String(u?.secUserId || '').trim()
   if (!secUserId) return
 
+  if (favoriteUserDetailOpen.value && String(favoriteUserDetailId.value || '').trim() === secUserId) {
+    closeFavoriteUserDetail()
+  }
   activeMode.value = 'account'
   accountInput.value = secUserId
   await handleFetchAccount()

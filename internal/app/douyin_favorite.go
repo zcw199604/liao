@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -10,8 +12,13 @@ type DouyinFavoriteUser struct {
 	SecUserID       string `json:"secUserId"`
 	SourceInput     string `json:"sourceInput,omitempty"`
 	DisplayName     string `json:"displayName,omitempty"`
+	Signature       string `json:"signature,omitempty"`
 	AvatarURL       string `json:"avatarUrl,omitempty"`
 	ProfileURL      string `json:"profileUrl,omitempty"`
+	FollowerCount   *int64 `json:"followerCount,omitempty"`
+	FollowingCount  *int64 `json:"followingCount,omitempty"`
+	AwemeCount      *int64 `json:"awemeCount,omitempty"`
+	TotalFavorited  *int64 `json:"totalFavorited,omitempty"`
 	LastParsedAt    string `json:"lastParsedAt,omitempty"`
 	LastParsedCount int    `json:"lastParsedCount,omitempty"`
 	CreateTime      string `json:"createTime"`
@@ -34,6 +41,45 @@ type DouyinFavoriteService struct {
 
 func NewDouyinFavoriteService(db *sql.DB) *DouyinFavoriteService {
 	return &DouyinFavoriteService{db: db}
+}
+
+func applyDouyinFavoriteUserMetaFromRaw(u *DouyinFavoriteUser, raw sql.NullString) {
+	if u == nil || !raw.Valid {
+		return
+	}
+
+	text := strings.TrimSpace(raw.String)
+	if text == "" {
+		return
+	}
+
+	var meta map[string]any
+	if err := json.Unmarshal([]byte(text), &meta); err != nil || meta == nil {
+		return
+	}
+
+	if u.Signature == "" {
+		keys := []string{"signature", "bio", "description"}
+		for _, k := range keys {
+			if v := strings.TrimSpace(asString(meta[k])); v != "" {
+				u.Signature = v
+				break
+			}
+		}
+	}
+
+	if u.FollowerCount == nil {
+		u.FollowerCount = pickInt64Ptr(meta, []string{"followerCount", "follower_count", "fansCount", "fans_count"})
+	}
+	if u.FollowingCount == nil {
+		u.FollowingCount = pickInt64Ptr(meta, []string{"followingCount", "following_count", "followingsCount", "followings_count"})
+	}
+	if u.AwemeCount == nil {
+		u.AwemeCount = pickInt64Ptr(meta, []string{"awemeCount", "aweme_count", "workCount", "work_count", "videoCount", "video_count"})
+	}
+	if u.TotalFavorited == nil {
+		u.TotalFavorited = pickInt64Ptr(meta, []string{"totalFavorited", "total_favorited", "likedCount", "liked_count", "favoritedCount", "favorited_count"})
+	}
 }
 
 type DouyinFavoriteUserUpsert struct {
@@ -96,7 +142,7 @@ func (s *DouyinFavoriteService) RemoveUser(ctx context.Context, secUserID string
 func (s *DouyinFavoriteService) ListUsers(ctx context.Context) ([]DouyinFavoriteUser, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT sec_user_id, source_input, display_name, avatar_url, profile_url,
-		       last_parsed_at, last_parsed_count, created_at, updated_at
+		       last_parsed_at, last_parsed_count, last_parsed_raw, created_at, updated_at
 		FROM douyin_favorite_user
 		ORDER BY updated_at DESC
 	`)
@@ -111,6 +157,7 @@ func (s *DouyinFavoriteService) ListUsers(ctx context.Context) ([]DouyinFavorite
 		var sourceInput, displayName, avatarURL, profileURL sql.NullString
 		var lastParsedAt sql.NullTime
 		var lastParsedCount sql.NullInt64
+		var lastParsedRaw sql.NullString
 		var createdAt, updatedAt sql.NullTime
 
 		if err := rows.Scan(
@@ -121,6 +168,7 @@ func (s *DouyinFavoriteService) ListUsers(ctx context.Context) ([]DouyinFavorite
 			&profileURL,
 			&lastParsedAt,
 			&lastParsedCount,
+			&lastParsedRaw,
 			&createdAt,
 			&updatedAt,
 		); err != nil {
@@ -145,6 +193,7 @@ func (s *DouyinFavoriteService) ListUsers(ctx context.Context) ([]DouyinFavorite
 		}
 		u.CreateTime = formatNullLocalDateTimeISO(createdAt)
 		u.UpdateTime = formatNullLocalDateTimeISO(updatedAt)
+		applyDouyinFavoriteUserMetaFromRaw(&u, lastParsedRaw)
 
 		out = append(out, u)
 	}
@@ -157,11 +206,12 @@ func (s *DouyinFavoriteService) findUserBySecUserID(ctx context.Context, secUser
 	var sourceInput, displayName, avatarURL, profileURL sql.NullString
 	var lastParsedAt sql.NullTime
 	var lastParsedCount sql.NullInt64
+	var lastParsedRaw sql.NullString
 	var createdAt, updatedAt sql.NullTime
 
 	err := s.db.QueryRowContext(ctx, `
 		SELECT sec_user_id, source_input, display_name, avatar_url, profile_url,
-		       last_parsed_at, last_parsed_count, created_at, updated_at
+		       last_parsed_at, last_parsed_count, last_parsed_raw, created_at, updated_at
 		FROM douyin_favorite_user
 		WHERE sec_user_id = ?
 		LIMIT 1
@@ -173,6 +223,7 @@ func (s *DouyinFavoriteService) findUserBySecUserID(ctx context.Context, secUser
 		&profileURL,
 		&lastParsedAt,
 		&lastParsedCount,
+		&lastParsedRaw,
 		&createdAt,
 		&updatedAt,
 	)
@@ -201,6 +252,7 @@ func (s *DouyinFavoriteService) findUserBySecUserID(ctx context.Context, secUser
 	}
 	u.CreateTime = formatNullLocalDateTimeISO(createdAt)
 	u.UpdateTime = formatNullLocalDateTimeISO(updatedAt)
+	applyDouyinFavoriteUserMetaFromRaw(&u, lastParsedRaw)
 
 	return &u, nil
 }

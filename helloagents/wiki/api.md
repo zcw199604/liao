@@ -1068,7 +1068,7 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 
 **响应（HTTP 200）**
 ```json
-{"secUserId":"MS4wLjABAAAA...","tab":"post","cursor":123,"hasMore":true,"items":[{"detailId":"0123456789","type":"video","desc":"作品描述","coverUrl":"...","coverDownloadUrl":"/api/douyin/cover?key=xxxx","key":"xxxx","items":[{"index":0,"type":"video","url":"https://...","downloadUrl":"/api/douyin/download?key=xxxx&index=0","originalFilename":"作品描述.mp4"}]}]}
+{"secUserId":"MS4wLjABAAAA...","displayName":"用户昵称","avatarUrl":"https://...","profileUrl":"https://www.douyin.com/user/MS4wLjABAAAA...","tab":"post","cursor":123,"hasMore":true,"items":[{"detailId":"0123456789","type":"video","desc":"作品描述","coverUrl":"...","coverDownloadUrl":"/api/douyin/cover?key=xxxx","key":"xxxx","items":[{"index":0,"type":"video","url":"https://...","downloadUrl":"/api/douyin/download?key=xxxx&index=0","originalFilename":"作品描述.mp4"}]}]}
 ```
 
 **备注**

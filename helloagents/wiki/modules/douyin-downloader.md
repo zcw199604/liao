@@ -34,6 +34,7 @@
   - 模式C：收藏
     1) 查看“用户收藏 / 作品收藏”列表（全局一份，不按本地身份隔离）
     2) 用户收藏：支持“再次解析”一键重新拉取该用户作品列表，并同步更新收藏记录的 `last_parsed_at/last_parsed_count`
+    2.1) 用户收藏：点击用户卡片可打开详情抽屉，展示头像/简介/统计，并支持“刷新信息”更新昵称与头像（头像失效常见于用户更换头像）
     3) 作品收藏：支持“一键解析”重新抓取该作品详情，获取最新可下载资源列表
     4) 在“用户作品/作品解析”模式中支持点星标收藏/取消收藏（用户在用户作品页头部收藏；作品在卡片右上角/详情页头部收藏）
 
@@ -58,6 +59,7 @@
 - 输入优先本地解析 `sec_user_id`（支持 `/user/<sec_uid>`、`sec_uid=<sec_uid>`、直接粘贴 `sec_uid`）
 - 不能解析时调用 `/douyin/share` 获取重定向 URL 后再提取 `sec_user_id`
 - 调用 `/douyin/account` 拉取发布作品列表（`aweme_list`），并返回 `cursor/hasMore/items`
+- best-effort：服务端会尝试从返回数据中提取用户信息（`displayName/avatarUrl/profileUrl`），供前端收藏/展示昵称使用
 - best-effort：服务端会尝试从 `aweme_list` 直接抽取可预览资源（视频 `play_addr` / 图集 `images[].url_list`），并为每个作品生成缓存 `key` 与 `items[].downloadUrl`；前端可直接预览/下载/导入，无需再请求 `/api/douyin/detail`
 - 兼容：当上游返回 `data[]` 扁平结构时（如包含 `type/downloads/static_cover/dynamic_cover`），服务端也会为每个作品生成 `key/items/coverDownloadUrl`，避免前端点击后再回退请求详情
 

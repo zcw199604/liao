@@ -57,6 +57,7 @@ func TestHandleDouyinFavoriteUserAdd_Success(t *testing.T) {
 			"profile_url",
 			"last_parsed_at",
 			"last_parsed_count",
+			"last_parsed_raw",
 			"created_at",
 			"updated_at",
 		}).AddRow(
@@ -67,6 +68,7 @@ func TestHandleDouyinFavoriteUserAdd_Success(t *testing.T) {
 			sql.NullString{},
 			sql.NullTime{Time: updateTime, Valid: true},
 			sql.NullInt64{Int64: 2, Valid: true},
+			sql.NullString{String: `{"items":[1,2]}`, Valid: true},
 			sql.NullTime{Time: createTime, Valid: true},
 			sql.NullTime{Time: updateTime, Valid: true},
 		))
@@ -110,6 +112,7 @@ func TestHandleDouyinFavoriteUserList_Success(t *testing.T) {
 			"profile_url",
 			"last_parsed_at",
 			"last_parsed_count",
+			"last_parsed_raw",
 			"created_at",
 			"updated_at",
 		}).AddRow(
@@ -120,6 +123,7 @@ func TestHandleDouyinFavoriteUserList_Success(t *testing.T) {
 			sql.NullString{},
 			sql.NullTime{Time: createTime, Valid: true},
 			sql.NullInt64{Int64: 18, Valid: true},
+			sql.NullString{String: `{"signature":"hi"}`, Valid: true},
 			sql.NullTime{Time: createTime, Valid: true},
 			sql.NullTime{Time: createTime, Valid: true},
 		))

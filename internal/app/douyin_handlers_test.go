@@ -256,6 +256,9 @@ func TestHandleDouyinAccount_Posts(t *testing.T) {
 				"data": map[string]any{
 					"cursor":   123,
 					"has_more": 1,
+					"user": map[string]any{
+						"nickname": "测试用户",
+					},
 					"aweme_list": []any{
 						map[string]any{
 							"aweme_id": "111",
@@ -311,6 +314,9 @@ func TestHandleDouyinAccount_Posts(t *testing.T) {
 	}
 	if resp.SecUserID != "MS4wLjABAAAA_test_secuid" {
 		t.Fatalf("secUserId=%q, want %q", resp.SecUserID, "MS4wLjABAAAA_test_secuid")
+	}
+	if resp.DisplayName != "测试用户" {
+		t.Fatalf("displayName=%q, want %q", resp.DisplayName, "测试用户")
 	}
 	if resp.Tab != "post" {
 		t.Fatalf("tab=%q, want %q", resp.Tab, "post")

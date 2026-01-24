@@ -38,11 +38,19 @@ type douyinAccountItem struct {
 }
 
 type douyinAccountResponse struct {
-	SecUserID string              `json:"secUserId"`
-	Tab       string              `json:"tab"`
-	Cursor    int                 `json:"cursor"`
-	HasMore   bool                `json:"hasMore"`
-	Items     []douyinAccountItem `json:"items"`
+	SecUserID      string              `json:"secUserId"`
+	DisplayName    string              `json:"displayName,omitempty"`
+	Signature      string              `json:"signature,omitempty"`
+	AvatarURL      string              `json:"avatarUrl,omitempty"`
+	ProfileURL     string              `json:"profileUrl,omitempty"`
+	FollowerCount  *int64              `json:"followerCount,omitempty"`
+	FollowingCount *int64              `json:"followingCount,omitempty"`
+	AwemeCount     *int64              `json:"awemeCount,omitempty"`
+	TotalFavorited *int64              `json:"totalFavorited,omitempty"`
+	Tab            string              `json:"tab"`
+	Cursor         int                 `json:"cursor"`
+	HasMore        bool                `json:"hasMore"`
+	Items          []douyinAccountItem `json:"items"`
 }
 
 type douyinDetailResponse struct {
@@ -94,6 +102,14 @@ func asInt(v any) int {
 	default:
 		return 0
 	}
+}
+
+func asInt64Ptr(v any) *int64 {
+	n := int64(asInt(v))
+	if n <= 0 {
+		return nil
+	}
+	return &n
 }
 
 func extractDouyinAccountCoverURL(item map[string]any) string {
@@ -257,6 +273,219 @@ func guessDouyinMediaTypeFromURL(raw string) string {
 		return "video"
 	}
 	return "image"
+}
+
+func extractDouyinAvatarURL(user map[string]any) string {
+	if user == nil {
+		return ""
+	}
+
+	avatarKeys := []string{
+		"avatar_larger",
+		"avatarLarger",
+		"avatar_thumb",
+		"avatarThumb",
+		"avatar_medium",
+		"avatarMedium",
+		"avatar",
+	}
+
+	for _, k := range avatarKeys {
+		raw := user[k]
+		if raw == nil {
+			continue
+		}
+
+		if m, ok := raw.(map[string]any); ok && m != nil {
+			if u := strings.TrimSpace(firstStringFromURLList(m["url_list"])); u != "" {
+				return u
+			}
+			if u := strings.TrimSpace(firstStringFromURLList(m["urlList"])); u != "" {
+				return u
+			}
+			if u := strings.TrimSpace(asString(m["url"])); u != "" {
+				return u
+			}
+		}
+
+		if u := strings.TrimSpace(asString(raw)); u != "" {
+			return u
+		}
+	}
+
+	flatKeys := []string{"avatar_url", "avatarUrl", "avatarURL"}
+	for _, k := range flatKeys {
+		if u := strings.TrimSpace(asString(user[k])); u != "" {
+			return u
+		}
+	}
+
+	return ""
+}
+
+func extractDouyinDisplayName(user map[string]any) string {
+	if user == nil {
+		return ""
+	}
+
+	candidates := []string{"nickname", "nick_name", "nickName", "name", "user_name", "userName"}
+	for _, k := range candidates {
+		if v := strings.TrimSpace(asString(user[k])); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func extractDouyinSignature(user map[string]any) string {
+	if user == nil {
+		return ""
+	}
+
+	candidates := []string{
+		"signature",
+		"user_signature",
+		"userSignature",
+		"bio",
+		"description",
+	}
+	for _, k := range candidates {
+		if v := strings.TrimSpace(asString(user[k])); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func pickInt64Ptr(m map[string]any, keys []string) *int64 {
+	if m == nil {
+		return nil
+	}
+	for _, k := range keys {
+		if v := asInt64Ptr(m[k]); v != nil {
+			return v
+		}
+	}
+	return nil
+}
+
+func extractDouyinUserStats(user map[string]any) (followerCount, followingCount, awemeCount, totalFavorited *int64) {
+	if user == nil {
+		return nil, nil, nil, nil
+	}
+
+	followerKeys := []string{"follower_count", "followerCount", "fans_count", "fansCount"}
+	followingKeys := []string{"following_count", "followingCount", "followings_count", "followingsCount"}
+	awemeKeys := []string{"aweme_count", "awemeCount", "work_count", "workCount", "video_count", "videoCount"}
+	favorKeys := []string{"total_favorited", "totalFavorited", "total_favorite", "totalFavorite", "liked_count", "likedCount", "favorited_count", "favoritedCount"}
+
+	followerCount = pickInt64Ptr(user, followerKeys)
+	followingCount = pickInt64Ptr(user, followingKeys)
+	awemeCount = pickInt64Ptr(user, awemeKeys)
+	totalFavorited = pickInt64Ptr(user, favorKeys)
+
+	statsKeys := []string{"statistics", "statistic", "stats", "user_statistics", "userStats"}
+	for _, k := range statsKeys {
+		raw := user[k]
+		m, ok := raw.(map[string]any)
+		if !ok || m == nil {
+			continue
+		}
+		if followerCount == nil {
+			followerCount = pickInt64Ptr(m, followerKeys)
+		}
+		if followingCount == nil {
+			followingCount = pickInt64Ptr(m, followingKeys)
+		}
+		if awemeCount == nil {
+			awemeCount = pickInt64Ptr(m, awemeKeys)
+		}
+		if totalFavorited == nil {
+			totalFavorited = pickInt64Ptr(m, favorKeys)
+		}
+	}
+
+	return followerCount, followingCount, awemeCount, totalFavorited
+}
+
+func extractDouyinAccountUserMeta(secUserID string, data map[string]any) (displayName, signature, avatarURL, profileURL string, followerCount, followingCount, awemeCount, totalFavorited *int64) {
+	secUserID = strings.TrimSpace(secUserID)
+	if secUserID != "" {
+		profileURL = "https://www.douyin.com/user/" + url.PathEscape(secUserID)
+	}
+	if data == nil {
+		return "", "", "", profileURL, nil, nil, nil, nil
+	}
+
+	updateFrom := func(m map[string]any) {
+		if m == nil {
+			return
+		}
+		if displayName == "" {
+			displayName = extractDouyinDisplayName(m)
+		}
+		if signature == "" {
+			signature = extractDouyinSignature(m)
+		}
+		if avatarURL == "" {
+			avatarURL = extractDouyinAvatarURL(m)
+		}
+
+		fc, fg, ac, tf := extractDouyinUserStats(m)
+		if followerCount == nil {
+			followerCount = fc
+		}
+		if followingCount == nil {
+			followingCount = fg
+		}
+		if awemeCount == nil {
+			awemeCount = ac
+		}
+		if totalFavorited == nil {
+			totalFavorited = tf
+		}
+	}
+
+	userCandidates := []any{
+		data["user"],
+		data["user_info"],
+		data["userInfo"],
+		data["author"],
+		data["account"],
+		data["profile"],
+	}
+	for _, raw := range userCandidates {
+		m, ok := raw.(map[string]any)
+		if !ok || m == nil {
+			continue
+		}
+		updateFrom(m)
+	}
+
+	// Fallback: 从第一条作品的 author 提取昵称/头像/简介/统计（best-effort）
+	listAny := data["aweme_list"]
+	if listAny == nil {
+		listAny = data["awemeList"]
+	}
+	if list, ok := listAny.([]any); ok && len(list) > 0 {
+		if aweme0, ok := list[0].(map[string]any); ok && aweme0 != nil {
+			authorCandidates := []any{
+				aweme0["author"],
+				aweme0["authorInfo"],
+				aweme0["user"],
+				aweme0["user_info"],
+			}
+			for _, raw := range authorCandidates {
+				m, ok := raw.(map[string]any)
+				if !ok || m == nil {
+					continue
+				}
+				updateFrom(m)
+			}
+		}
+	}
+
+	return displayName, signature, avatarURL, profileURL, followerCount, followingCount, awemeCount, totalFavorited
 }
 
 func extractDouyinAccountItems(s *DouyinDownloaderService, data map[string]any) []douyinAccountItem {
@@ -451,6 +680,8 @@ func (a *App) handleDouyinAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	displayName, signature, avatarURL, profileURL, followerCount, followingCount, awemeCount, totalFavorited := extractDouyinAccountUserMeta(secUserID, data)
+
 	nextCursor := asInt(data["cursor"])
 	if nextCursor == 0 {
 		if v := asInt(data["max_cursor"]); v > 0 {
@@ -469,11 +700,19 @@ func (a *App) handleDouyinAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, douyinAccountResponse{
-		SecUserID: secUserID,
-		Tab:       tab,
-		Cursor:    nextCursor,
-		HasMore:   hasMore,
-		Items:     items,
+		SecUserID:      secUserID,
+		DisplayName:    displayName,
+		Signature:      signature,
+		AvatarURL:      avatarURL,
+		ProfileURL:     profileURL,
+		FollowerCount:  followerCount,
+		FollowingCount: followingCount,
+		AwemeCount:     awemeCount,
+		TotalFavorited: totalFavorited,
+		Tab:            tab,
+		Cursor:         nextCursor,
+		HasMore:        hasMore,
+		Items:          items,
 	})
 }
 
