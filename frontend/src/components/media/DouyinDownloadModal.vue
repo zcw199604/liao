@@ -612,8 +612,8 @@ const clearCookie = () => {
 const pasteFromClipboard = async () => {
   try {
     const txt = await navigator.clipboard?.readText?.()
-    if (!txt || !isLikelyDouyinText(txt)) {
-      show('剪贴板未识别到抖音内容')
+    if (!String(txt || '').trim()) {
+      show('剪贴板为空')
       return
     }
     applyInputText(txt)
@@ -675,14 +675,14 @@ watch(
 
       // 优先使用调用方传入的预填内容；否则按设置尝试读取剪贴板
       const hasInput = () => !!String(inputText.value || '').trim() || !!String(accountInput.value || '').trim()
-      if (!hasInput() && douyinStore.draftInput && isLikelyDouyinText(douyinStore.draftInput)) {
+      if (!hasInput() && douyinStore.draftInput) {
         applyInputText(douyinStore.draftInput)
       } else if (!hasInput() && autoClipboard.value) {
         try {
           const txt = await navigator.clipboard?.readText?.()
-          if (txt && isLikelyDouyinText(txt)) {
+          if (String(txt || '').trim()) {
             applyInputText(txt)
-            show('已从剪贴板读取抖音内容')
+            show('已从剪贴板读取')
           }
         } catch {
           // ignore

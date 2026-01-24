@@ -10,6 +10,7 @@
 - 知识库：新增外部参考文档《TikTokDownloader Web API（FastAPI）整理》（`helloagents/wiki/external/tiktokdownloader-web-api.md`）。
 - 知识库：补充《TikTokDownloader Web API 调用指南与 SDK 草稿》（`helloagents/wiki/external/tiktokdownloader-web-api-sdk.md`）。
 - 测试：补齐后端 Identity/Favorite/Douyin/MediaUpload 关键边界用例，并扩展前端 `messageSegments` 异常输入与预览兜底测试（方案包：`helloagents/archive/2026-01/202601220044_tests-boundary-cases/`）。
+- 测试：新增前端“抖音下载”弹窗剪贴板粘贴/打开时自动读取的单元测试。
 - 前端/后端：对接 TikTokDownloader Web API，新增抖音作品“解析→预览→下载→导入上传”能力（入口：图片管理→抖音下载；支持视频/图集；下载文件名按作品标题；导入上传按 MD5 去重；弹窗交互增强：剪贴板预填/自动解析开关、多选批量下载/导入、文件大小探测（`HEAD /api/douyin/download`）、导入状态提示与一键打开上传菜单）。
 - 前端/后端：抖音下载新增“用户作品”模式：支持通过用户主页链接/分享文本拉取发布作品列表（分页加载），并可一键跳转到“作品解析”；同时移除 proxy 输入并为输入框增加显式清空按钮；新增接口 `POST /api/douyin/account`。
 - 前端：抖音下载“用户作品”预览支持跨作品画廊左右滑动切换，并在预览顶部展示作品名称（方案包：`helloagents/archive/2026-01/202601230536_feat-douyin-account-preview-gallery/`）。
@@ -69,6 +70,7 @@
 - 后端：VideoExtract `runTask` 在 ffmpeg 失败时优先使用 stderr 最后一行作为错误信息（避免仅返回 `exit status`）。
 - 后端：`handleProbeVideo`（mtPhoto）移除不可达的 `item == nil` 分支，统一使用 `ResolveFilePath` 的错误信息返回。
 - 前端：将“抖音下载”入口移动到“图片管理”，并从聊天页上传菜单移除（从图片管理打开会自动关闭抽屉）。
+- 前端：移除“抖音下载”粘贴/自动读取剪贴板的内容识别限制；现在会直接填充剪贴板文本。
 - 后端：修复 TikTokDownloader 上游在“暂无作品”场景返回 `data=[]` 导致解析失败；`POST /api/douyin/account` 将返回空 `items` 数组（`[]`）而非报错/`null`。
 - 后端：兼容 TikTokDownloader 上游 `POST /douyin/account` 返回 `data[]` 扁平字段（如 `type/downloads/static_cover/dynamic_cover`）；`POST /api/douyin/account` 将尽量为每个作品返回 `key/items/coverDownloadUrl`，减少前端点击作品时回退请求详情（Spinner）。
 - 前端/后端：修复抖音作品在站内预览/缩略图加载失败（但新标签可打开）的问题：前端预览/缩略图改用 `/api/douyin/download` 代理地址；后端放行 `/api/douyin/download` + `/api/douyin/cover` 以支持 `<img>/<video>` 直连，并透传 `Range` 与相关响应头以改善视频播放/拖动；同时 `/api/douyin/account` best-effort 返回 `key/items/coverDownloadUrl`，支持“用户作品列表”点击直接预览（缺失时回退到 `/api/douyin/detail`）。
