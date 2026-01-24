@@ -111,12 +111,8 @@ func (s *MtPhotoService) ensureLogin(ctx context.Context, force bool) (token str
 
 	// 限流：短时间内多请求并发 401 时避免瞬间风暴
 	if !force && !s.loginOnce.IsZero() && time.Since(s.loginOnce) < 800*time.Millisecond {
-		// 轻微等待，给先行登录请求完成一点时间
+		// 轻微等待，降低短时间内重复 refresh/login 的冲击
 		time.Sleep(120 * time.Millisecond)
-		if strings.TrimSpace(s.token) != "" && strings.TrimSpace(s.authCode) != "" &&
-			(s.tokenExp.IsZero() || time.Now().Before(s.tokenExp.Add(-60*time.Second))) {
-			return s.token, s.authCode, nil
-		}
 	}
 	s.loginOnce = time.Now()
 
@@ -505,9 +501,6 @@ func calcTotalPages(total, pageSize int) int {
 	pages := total / pageSize
 	if total%pageSize != 0 {
 		pages++
-	}
-	if pages <= 0 {
-		pages = 1
 	}
 	return pages
 }

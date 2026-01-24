@@ -44,3 +44,35 @@ func TestForceoutManager_ClearAndCount(t *testing.T) {
 		t.Fatalf("count=%d, want 0", got)
 	}
 }
+
+func TestForceoutManager_RemainingSeconds_NotFoundAndExpired(t *testing.T) {
+	m := NewForceoutManager()
+	if got := m.RemainingSeconds("missing"); got != 0 {
+		t.Fatalf("got=%d, want 0", got)
+	}
+
+	m.mu.Lock()
+	m.users["u1"] = time.Now().Add(-1 * time.Second)
+	m.mu.Unlock()
+
+	if got := m.RemainingSeconds("u1"); got != 0 {
+		t.Fatalf("got=%d, want 0", got)
+	}
+	if m.IsForbidden("u1") {
+		t.Fatalf("expected cleaned expired user")
+	}
+}
+
+func TestForceoutManager_GetForbiddenUserCount_RemovesExpired(t *testing.T) {
+	m := NewForceoutManager()
+	m.AddForceoutUser("u1")
+	m.AddForceoutUser("u2")
+
+	m.mu.Lock()
+	m.users["u2"] = time.Now().Add(-1 * time.Second)
+	m.mu.Unlock()
+
+	if got := m.GetForbiddenUserCount(); got != 1 {
+		t.Fatalf("count=%d, want 1", got)
+	}
+}

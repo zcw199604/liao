@@ -28,6 +28,24 @@ func TestHandleWebSocket_UnauthorizedWithoutToken(t *testing.T) {
 	}
 }
 
+func TestHandleWebSocket_UpgradeError(t *testing.T) {
+	jwtService := NewJWTService("secret-1", 1)
+	token, err := jwtService.GenerateToken()
+	if err != nil {
+		t.Fatalf("GenerateToken failed: %v", err)
+	}
+	app := &App{jwt: jwtService}
+
+	// Not a websocket handshake request -> upgrader should fail.
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/ws?token="+url.QueryEscape(token), nil)
+	rr := httptest.NewRecorder()
+	app.handleWebSocket(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusBadRequest)
+	}
+}
+
 func TestHandleWebSocket_ProxiesMessagesAfterSign(t *testing.T) {
 	received := make(chan string, 10)
 	tracker := &wsConnTracker{}
@@ -101,6 +119,68 @@ func TestHandleWebSocket_ProxiesMessagesAfterSign(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatalf("timeout waiting upstream payload")
+	}
+}
+
+func TestHandleWebSocket_IgnoresMessageWithoutUserID(t *testing.T) {
+	received := make(chan string, 10)
+	tracker := &wsConnTracker{}
+	upstream := newUpstreamWSServer(t, func(conn *websocket.Conn) {
+		tracker.add(conn)
+		for {
+			_, data, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			received <- string(data)
+		}
+	})
+	t.Cleanup(func() {
+		tracker.closeAll()
+		upstream.Close()
+	})
+
+	wsManager := NewUpstreamWebSocketManager(nil, toWSURL(upstream.URL), nil, nil, nil)
+	t.Cleanup(wsManager.CloseAllConnections)
+
+	jwtService := NewJWTService("secret-1", 1)
+	token, err := jwtService.GenerateToken()
+	if err != nil {
+		t.Fatalf("GenerateToken failed: %v", err)
+	}
+
+	app := &App{
+		jwt:       jwtService,
+		wsManager: wsManager,
+	}
+
+	backend := httptest.NewServer(http.HandlerFunc(app.handleWebSocket))
+	t.Cleanup(backend.Close)
+
+	wsURL := toWSURL(backend.URL) + "/ws?token=" + url.QueryEscape(token)
+	downstream, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial downstream failed: %v", err)
+	}
+	t.Cleanup(func() { _ = downstream.Close() })
+
+	// Missing id: should be ignored.
+	if err := downstream.WriteMessage(websocket.TextMessage, []byte(`{"act":"noop"}`)); err != nil {
+		t.Fatalf("send noop failed: %v", err)
+	}
+
+	sign := `{"act":"sign","id":"u1"}`
+	if err := downstream.WriteMessage(websocket.TextMessage, []byte(sign)); err != nil {
+		t.Fatalf("send sign failed: %v", err)
+	}
+
+	select {
+	case got := <-received:
+		if got != sign {
+			t.Fatalf("got=%q want=%q", got, sign)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timeout waiting upstream sign")
 	}
 }
 

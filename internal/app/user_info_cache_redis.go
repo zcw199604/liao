@@ -223,10 +223,7 @@ func (s *RedisUserInfoCacheService) SaveUserInfo(info CachedUserInfo) {
 
 	s.local.Set(userID, info)
 
-	raw, err := json.Marshal(info)
-	if err != nil {
-		return
-	}
+	raw, _ := json.Marshal(info)
 
 	if s.flushInterval <= 0 {
 		ctx := context.Background()
@@ -369,18 +366,13 @@ func (s *RedisUserInfoCacheService) multiGetUserInfo(userIDs []string) map[strin
 		if raw == nil {
 			continue
 		}
-		var bytes []byte
-		switch t := raw.(type) {
-		case string:
-			bytes = []byte(t)
-		case []byte:
-			bytes = t
-		default:
+		rawStr := toString(raw)
+		if rawStr == "" {
 			continue
 		}
 
 		var info CachedUserInfo
-		if err := json.Unmarshal(bytes, &info); err != nil {
+		if err := json.Unmarshal([]byte(rawStr), &info); err != nil {
 			continue
 		}
 		uid := missing[i]
@@ -406,10 +398,7 @@ func (s *RedisUserInfoCacheService) SaveLastMessage(message CachedLastMessage) {
 	cacheKey := "lastmsg_" + message.ConversationKey
 	s.local.Set(cacheKey, message)
 
-	raw, err := json.Marshal(message)
-	if err != nil {
-		return
-	}
+	raw, _ := json.Marshal(message)
 
 	if s.flushInterval <= 0 {
 		ctx := context.Background()
@@ -471,9 +460,6 @@ func (s *RedisUserInfoCacheService) BatchEnrichWithLastMessage(userList []map[st
 			continue
 		}
 		key := generateConversationKey(myUserID, otherUserID)
-		if key == "" {
-			continue
-		}
 		conversationKeys = append(conversationKeys, key)
 	}
 	if len(conversationKeys) == 0 {
@@ -534,18 +520,13 @@ func (s *RedisUserInfoCacheService) multiGetLastMessages(conversationKeys []stri
 		if raw == nil {
 			continue
 		}
-		var bytes []byte
-		switch t := raw.(type) {
-		case string:
-			bytes = []byte(t)
-		case []byte:
-			bytes = t
-		default:
+		rawStr := toString(raw)
+		if rawStr == "" {
 			continue
 		}
 
 		var msg CachedLastMessage
-		if err := json.Unmarshal(bytes, &msg); err != nil {
+		if err := json.Unmarshal([]byte(rawStr), &msg); err != nil {
 			continue
 		}
 		key := missing[i]

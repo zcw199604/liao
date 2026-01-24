@@ -73,4 +73,3 @@ func ifThenElse[T any](cond bool, a, b T) T {
 	}
 	return b
 }
-

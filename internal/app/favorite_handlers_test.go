@@ -234,3 +234,79 @@ func TestHandleFavoriteRemoveByID_EmptyID_ReturnsBadRequest(t *testing.T) {
 		t.Fatalf("msg=%q, want %q", got, "id不能为空")
 	}
 }
+
+func TestHandleFavoriteRemoveByID_NonPositiveID_ReturnsBadRequest(t *testing.T) {
+	app := &App{}
+
+	form := url.Values{}
+	form.Set("id", "0")
+	req := newURLEncodedRequest(t, http.MethodPost, "http://example.com/api/favorite/removeById", form)
+	rr := httptest.NewRecorder()
+
+	app.handleFavoriteRemoveByID(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleFavoriteRemoveByID_Success(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectExec(`DELETE FROM chat_favorites WHERE id = \?`).
+		WithArgs(int64(1)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	app := &App{favoriteService: NewFavoriteService(db)}
+
+	form := url.Values{}
+	form.Set("id", "1")
+	req := newURLEncodedRequest(t, http.MethodPost, "http://example.com/api/favorite/removeById", form)
+	rr := httptest.NewRecorder()
+
+	app.handleFavoriteRemoveByID(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestHandleFavoriteListAll_DBError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`SELECT id, identity_id, target_user_id, target_user_name, create_time FROM chat_favorites ORDER BY create_time DESC`).
+		WillReturnError(sql.ErrConnDone)
+
+	app := &App{favoriteService: NewFavoriteService(db)}
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/favorite/list", nil)
+	rr := httptest.NewRecorder()
+
+	app.handleFavoriteListAll(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleFavoriteCheck_DBError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`SELECT 1 FROM chat_favorites WHERE identity_id = \? AND target_user_id = \? LIMIT 1`).
+		WithArgs("i1", "u1").
+		WillReturnError(sql.ErrConnDone)
+
+	app := &App{favoriteService: NewFavoriteService(db)}
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/favorite/check?identityId=i1&targetUserId=u1", nil)
+	rr := httptest.NewRecorder()
+
+	app.handleFavoriteCheck(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusInternalServerError)
+	}
+}

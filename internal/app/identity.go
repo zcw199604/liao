@@ -22,6 +22,10 @@ type IdentityService struct {
 	db *sql.DB
 }
 
+var identityRandIntnFn = func(n int) int {
+	return rand.New(rand.NewSource(time.Now().UnixNano())).Intn(n)
+}
+
 func NewIdentityService(db *sql.DB) *IdentityService {
 	return &IdentityService{db: db}
 }
@@ -91,7 +95,7 @@ func (s *IdentityService) Create(ctx context.Context, name string, sex string) (
 func (s *IdentityService) QuickCreate(ctx context.Context) (*Identity, error) {
 	name := randomIdentityName()
 	sex := "女"
-	if rand.New(rand.NewSource(time.Now().UnixNano())).Intn(2) == 0 {
+	if identityRandIntnFn(2) == 0 {
 		sex = "男"
 	}
 	return s.Create(ctx, name, sex)
@@ -199,4 +203,3 @@ func randomIdentityName() string {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return identityRandomNames[r.Intn(len(identityRandomNames))]
 }
-

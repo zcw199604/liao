@@ -26,6 +26,8 @@ import (
 	"liao/internal/config"
 )
 
+var execCommandContext = exec.CommandContext
+
 type VideoExtractSourceType string
 
 const (
@@ -242,7 +244,7 @@ type VideoExtractService struct {
 	db        *sql.DB
 	cfg       config.Config
 	fileStore *FileStorageService
-	mtPhoto   *MtPhotoService
+	mtPhoto   mtPhotoFilePathResolver
 
 	queue    chan string
 	closing  chan struct{}
@@ -251,7 +253,11 @@ type VideoExtractService struct {
 	runtimes map[string]*videoExtractRuntime
 }
 
-func NewVideoExtractService(db *sql.DB, cfg config.Config, fileStore *FileStorageService, mtPhoto *MtPhotoService) *VideoExtractService {
+type mtPhotoFilePathResolver interface {
+	ResolveFilePath(ctx context.Context, md5Value string) (*MtPhotoFilePath, error)
+}
+
+func NewVideoExtractService(db *sql.DB, cfg config.Config, fileStore *FileStorageService, mtPhoto mtPhotoFilePathResolver) *VideoExtractService {
 	s := &VideoExtractService{
 		db:        db,
 		cfg:       cfg,
@@ -517,7 +523,7 @@ func (s *VideoExtractService) ProbeVideo(ctx context.Context, inputAbsPath strin
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
-	out, err := exec.CommandContext(ctx,
+	out, err := execCommandContext(ctx,
 		s.cfg.FFprobePath,
 		"-v", "error",
 		"-select_streams", "v:0",
@@ -590,9 +596,6 @@ func parseFFprobeFrameRate(v string) float64 {
 		return 0
 	}
 	parts := strings.SplitN(v, "/", 2)
-	if len(parts) != 2 {
-		return 0
-	}
 	num, err1 := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
 	den, err2 := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
 	if err1 != nil || err2 != nil || den == 0 {
@@ -639,7 +642,7 @@ func (s *VideoExtractService) resolveUploadAbsPath(localPath string) (string, er
 		}
 
 		full := filepath.Join(baseTempAbs, cleanInner)
-		rel, err := filepath.Rel(baseTempAbs, full)
+		rel, err := filepathRelFn(baseTempAbs, full)
 		if err != nil {
 			return "", fmt.Errorf("路径解析失败: %w", err)
 		}
@@ -660,7 +663,7 @@ func (s *VideoExtractService) resolveUploadAbsPath(localPath string) (string, er
 	}
 
 	full := filepath.Join(s.fileStore.baseUploadAbs, clean)
-	rel, err := filepath.Rel(s.fileStore.baseUploadAbs, full)
+	rel, err := filepathRelFn(s.fileStore.baseUploadAbs, full)
 	if err != nil {
 		return "", fmt.Errorf("路径解析失败: %w", err)
 	}
@@ -899,7 +902,7 @@ func (s *VideoExtractService) runTask(taskID string) error {
 	args = append(args, "-start_number", strconv.Itoa(startNumber))
 	args = append(args, outputPattern)
 
-	cmd := exec.CommandContext(rtCtx, s.cfg.FFmpegPath, args...)
+	cmd := execCommandContext(rtCtx, s.cfg.FFmpegPath, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		_ = s.setTaskStatus(ctx, taskID, VideoExtractStatusFailed, string(VideoExtractStopReasonError), "ffmpeg 启动失败: "+err.Error())
@@ -957,11 +960,16 @@ func (s *VideoExtractService) runTask(taskID string) error {
 
 	// 读取 stderr（错误/警告）
 	stderrDone := make(chan struct{})
+	lastStderrLine := ""
 	go func() {
 		defer close(stderrDone)
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			rt.appendLog(scanner.Text())
+			line := scanner.Text()
+			rt.appendLog(line)
+			if strings.TrimSpace(line) != "" {
+				lastStderrLine = line
+			}
 		}
 	}()
 
@@ -1037,11 +1045,9 @@ loop:
 	}
 
 	if waitErr != nil {
-		msg := waitErr.Error()
-		if ee := (&exec.ExitError{}); errors.As(waitErr, &ee) {
-			if b := strings.TrimSpace(string(ee.Stderr)); b != "" {
-				msg = b
-			}
+		msg := strings.TrimSpace(lastStderrLine)
+		if msg == "" {
+			msg = waitErr.Error()
 		}
 		_ = s.setTaskStatusWithLogs(ctx, taskID, VideoExtractStatusFailed, string(VideoExtractStopReasonError), msg, lastLogsJSON)
 		return waitErr
@@ -1267,7 +1273,7 @@ func (s *VideoExtractService) DeleteTask(ctx context.Context, req VideoExtractDe
 		}
 		clean := filepath.Clean(filepath.FromSlash(strings.TrimPrefix(outDirLocal, "/")))
 		full := filepath.Join(s.fileStore.baseUploadAbs, clean)
-		rel, err := filepath.Rel(s.fileStore.baseUploadAbs, full)
+		rel, err := filepathRelFn(s.fileStore.baseUploadAbs, full)
 		if err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			_ = os.RemoveAll(full)
 		}

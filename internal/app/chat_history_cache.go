@@ -74,8 +74,5 @@ func mergeHistoryMessages(primary []map[string]any, secondary []map[string]any, 
 	if limit == 0 || len(out) < limit {
 		appendList(secondary)
 	}
-	if limit > 0 && len(out) > limit {
-		out = out[:limit]
-	}
 	return out
 }

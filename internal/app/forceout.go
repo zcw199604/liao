@@ -72,4 +72,3 @@ func (m *ForceoutManager) GetForbiddenUserCount() int {
 	}
 	return len(m.users)
 }
-

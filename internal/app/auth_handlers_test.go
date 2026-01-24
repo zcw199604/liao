@@ -5,10 +5,36 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"liao/internal/config"
 )
+
+func TestHandleAuthLogin_ParseFormError(t *testing.T) {
+	a := &App{
+		cfg: config.Config{AuthAccessCode: "code-1"},
+		jwt: NewJWTService("secret-1", 1),
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/auth/login", strings.NewReader("accessCode=%ZZ"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+
+	a.handleAuthLogin(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusBadRequest)
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if got, _ := resp["msg"].(string); got != "访问码不能为空" {
+		t.Fatalf("msg=%q, want %q", got, "访问码不能为空")
+	}
+}
 
 func TestHandleAuthLogin_EmptyAccessCode(t *testing.T) {
 	a := &App{
@@ -192,4 +218,3 @@ func TestHandleAuthVerify_ValidToken(t *testing.T) {
 		t.Fatalf("msg=%q, want %q", got, "Token有效")
 	}
 }
-

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -316,6 +317,76 @@ func TestUpstreamWebSocketClient_OnMessage_ForceoutMarksForbidden(t *testing.T) 
 
 	if !forceout.IsForbidden("u1") {
 		t.Fatalf("expected forceout marked forbidden")
+	}
+}
+
+type spyChatHistoryKeys struct {
+	mu       sync.Mutex
+	keys     []string
+	messages []map[string]any
+}
+
+func (s *spyChatHistoryKeys) SaveMessages(_ context.Context, conversationKey string, messages []map[string]any) {
+	s.mu.Lock()
+	s.keys = append(s.keys, conversationKey)
+	if len(messages) > 0 && messages[0] != nil {
+		s.messages = append(s.messages, messages[0])
+	}
+	s.mu.Unlock()
+}
+
+func (s *spyChatHistoryKeys) GetMessages(context.Context, string, string, int) ([]map[string]any, error) {
+	return nil, nil
+}
+
+func TestUpstreamWebSocketClient_OnMessage_HistoryCompatConversationKeys(t *testing.T) {
+	history := &spyChatHistoryKeys{}
+	m := NewUpstreamWebSocketManager(nil, "ws://unused", nil, nil, history)
+	c := NewUpstreamWebSocketClient("u0", "ws://unused", m)
+
+	c.onMessage(`{"code":7,"fromuser":{"id":"u1","content":"hi","time":"t1","type":"text","Tid":"tid1"},"touser":{"id":"u2"}}`)
+
+	want := map[string]struct{}{
+		generateConversationKey("u1", "u2"): {},
+		generateConversationKey("u1", "u0"): {},
+		generateConversationKey("u0", "u2"): {},
+	}
+
+	history.mu.Lock()
+	keys := append([]string(nil), history.keys...)
+	msgs := append([]map[string]any(nil), history.messages...)
+	history.mu.Unlock()
+
+	if len(keys) != 3 {
+		t.Fatalf("keys=%v", keys)
+	}
+	for _, k := range keys {
+		if _, ok := want[k]; !ok {
+			t.Fatalf("unexpected key=%q keys=%v", k, keys)
+		}
+	}
+	if len(msgs) == 0 || msgs[0]["id"] != "u1" || msgs[0]["toid"] != "u2" {
+		t.Fatalf("msgs=%v", msgs)
+	}
+}
+
+func TestUpstreamWebSocketClient_OnMessage_HistoryNormalizesMD5ToUserID(t *testing.T) {
+	history := &spyChatHistoryKeys{}
+	m := NewUpstreamWebSocketManager(nil, "ws://unused", nil, nil, history)
+	c := NewUpstreamWebSocketClient("u1", "ws://unused", m)
+
+	localMD5 := md5HexLower("u1")
+	c.onMessage(`{"code":7,"fromuser":{"id":"u2","content":"x","time":"t","type":"text","Tid":"tid2"},"touser":{"id":"` + localMD5 + `"}}`)
+
+	history.mu.Lock()
+	msgs := append([]map[string]any(nil), history.messages...)
+	history.mu.Unlock()
+
+	if len(msgs) != 1 {
+		t.Fatalf("msgs=%v", msgs)
+	}
+	if msgs[0]["toid"] != "u1" {
+		t.Fatalf("toid=%v", msgs[0]["toid"])
 	}
 }
 

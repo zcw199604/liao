@@ -29,4 +29,3 @@ func (a *App) handleRepairMediaHistory(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, result)
 }
-

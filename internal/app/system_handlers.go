@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+var newHTTPRequestWithContextFn = http.NewRequestWithContext
+
 func (a *App) handleDeleteUpstreamUser(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	myUserID := strings.TrimSpace(r.FormValue("myUserId"))
@@ -26,7 +28,7 @@ func (a *App) handleDeleteUpstreamUser(w http.ResponseWriter, r *http.Request) {
 	form.Set("vipcode", "")
 	form.Set("serverPort", "1001")
 
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, upstreamURL, strings.NewReader(form.Encode()))
+	req, err := newHTTPRequestWithContextFn(r.Context(), http.MethodPost, upstreamURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		resp["code"] = -1
 		resp["msg"] = "删除失败: " + err.Error()

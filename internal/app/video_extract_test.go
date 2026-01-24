@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -24,15 +25,83 @@ func TestIsHexMD5(t *testing.T) {
 }
 
 func TestParseFFprobeFrameRate(t *testing.T) {
+	if parseFFprobeFrameRate("") != 0 {
+		t.Fatalf("expected 0")
+	}
 	got := parseFFprobeFrameRate("30000/1001")
 	if got < 29.9 || got > 30.1 {
 		t.Fatalf("got=%v, want about 29.97", got)
 	}
+	if parseFFprobeFrameRate(" 30 ") != 30 {
+		t.Fatalf("expected 30")
+	}
 	if parseFFprobeFrameRate("0/1") != 0 {
+		t.Fatalf("expected 0")
+	}
+	if parseFFprobeFrameRate("1/0") != 0 {
+		t.Fatalf("expected 0")
+	}
+	if parseFFprobeFrameRate("1/-1") != 0 {
+		t.Fatalf("expected 0")
+	}
+	if parseFFprobeFrameRate("nan") != 0 {
+		t.Fatalf("expected 0")
+	}
+	if parseFFprobeFrameRate("inf") != 0 {
+		t.Fatalf("expected 0")
+	}
+	if parseFFprobeFrameRate("1/2/3") != 0 {
+		t.Fatalf("expected 0")
+	}
+	if parseFFprobeFrameRate("x/1") != 0 {
+		t.Fatalf("expected 0")
+	}
+	if parseFFprobeFrameRate("inf/1") != 0 {
 		t.Fatalf("expected 0")
 	}
 	if parseFFprobeFrameRate("bad") != 0 {
 		t.Fatalf("expected 0")
+	}
+}
+
+func TestParseFFprobeDuration(t *testing.T) {
+	if parseFFprobeDuration("") != 0 {
+		t.Fatalf("expected 0")
+	}
+	if parseFFprobeDuration("bad") != 0 {
+		t.Fatalf("expected 0")
+	}
+	if parseFFprobeDuration("-1") != 0 {
+		t.Fatalf("expected 0")
+	}
+	if parseFFprobeDuration("nan") != 0 {
+		t.Fatalf("expected 0")
+	}
+	if parseFFprobeDuration("inf") != 0 {
+		t.Fatalf("expected 0")
+	}
+	if got := parseFFprobeDuration("1.25"); got < 1.24 || got > 1.26 {
+		t.Fatalf("got=%v", got)
+	}
+}
+
+func TestNullIntIfNilAndNullFloatIfZero(t *testing.T) {
+	if nullIntIfNil(nil) != nil {
+		t.Fatalf("expected nil")
+	}
+	i := 1
+	if nullIntIfNil(&i) != 1 {
+		t.Fatalf("expected 1")
+	}
+
+	if nullFloatIfZero(0) != nil {
+		t.Fatalf("expected nil")
+	}
+	if nullFloatIfZero(-1) != nil {
+		t.Fatalf("expected nil")
+	}
+	if nullFloatIfZero(0.1) != 0.1 {
+		t.Fatalf("expected 0.1")
 	}
 }
 
@@ -83,6 +152,102 @@ func TestResolveUploadAbsPath(t *testing.T) {
 	if gotTemp != tempTarget {
 		t.Fatalf("got=%q, want %q", gotTemp, tempTarget)
 	}
+}
+
+func TestResolveUploadAbsPath_MoreBranches(t *testing.T) {
+	tmp := t.TempDir()
+	fileStore := &FileStorageService{baseUploadAbs: tmp, baseTempAbs: filepath.Join(t.TempDir(), "temp")}
+	svc := &VideoExtractService{fileStore: fileStore, cfg: config.Config{ServerPort: 8080}}
+
+	if _, err := svc.resolveUploadAbsPath(" "); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	t.Run("adds leading slash", func(t *testing.T) {
+		videosDir := filepath.Join(tmp, "videos")
+		if err := os.MkdirAll(videosDir, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		target := filepath.Join(videosDir, "x.mp4")
+		if err := os.WriteFile(target, []byte("x"), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+
+		got, err := svc.resolveUploadAbsPath("videos/x.mp4")
+		if err != nil || got != target {
+			t.Fatalf("got=%q err=%v", got, err)
+		}
+	})
+
+	t.Run("temp path requires filestore", func(t *testing.T) {
+		svc2 := &VideoExtractService{fileStore: nil}
+		if _, err := svc2.resolveUploadAbsPath("/tmp/video_extract_inputs/2026/01/21/a.mp4"); err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("temp base defaults to os.TempDir when empty", func(t *testing.T) {
+		baseTempAbs := filepath.Join(os.TempDir(), "video_extract_inputs")
+		t.Cleanup(func() { _ = os.RemoveAll(baseTempAbs) })
+
+		target := filepath.Join(baseTempAbs, "2026", "01", "21", "b.mp4")
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(target, []byte("x"), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+
+		svc2 := &VideoExtractService{fileStore: &FileStorageService{baseUploadAbs: tmp, baseTempAbs: ""}}
+		got, err := svc2.resolveUploadAbsPath("/tmp/video_extract_inputs/2026/01/21/b.mp4")
+		if err != nil || got != target {
+			t.Fatalf("got=%q err=%v", got, err)
+		}
+	})
+
+	t.Run("temp inner clean '.' rejected", func(t *testing.T) {
+		if _, err := svc.resolveUploadAbsPath("/tmp/video_extract_inputs/"); err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("temp filepathRelFn error", func(t *testing.T) {
+		old := filepathRelFn
+		filepathRelFn = func(string, string) (string, error) { return "", errors.New("rel err") }
+		t.Cleanup(func() { filepathRelFn = old })
+
+		if _, err := svc.resolveUploadAbsPath("/tmp/video_extract_inputs/2026/01/21/c.mp4"); err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("temp file not found", func(t *testing.T) {
+		if _, err := svc.resolveUploadAbsPath("/tmp/video_extract_inputs/2026/01/21/missing.mp4"); err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("upload clean '.' rejected", func(t *testing.T) {
+		if _, err := svc.resolveUploadAbsPath("/"); err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("upload filepathRelFn error", func(t *testing.T) {
+		old := filepathRelFn
+		filepathRelFn = func(string, string) (string, error) { return "", errors.New("rel err") }
+		t.Cleanup(func() { filepathRelFn = old })
+
+		if _, err := svc.resolveUploadAbsPath("/videos/a.mp4"); err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("upload file not found", func(t *testing.T) {
+		if _, err := svc.resolveUploadAbsPath("/videos/missing.mp4"); err == nil {
+			t.Fatalf("expected error")
+		}
+	})
 }
 
 func TestVideoExtractService_CreateTask_ValidatesRequest(t *testing.T) {

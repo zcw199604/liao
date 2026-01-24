@@ -16,6 +16,65 @@ import (
 	"liao/internal/config"
 )
 
+var (
+	openDBFn           = openDB
+	ensureSchemaFn     = ensureSchema
+	resolveStaticDirFn = resolveStaticDir
+	mkdirAllFn         = os.MkdirAll
+	sqlOpenFn          = sql.Open
+
+	newRedisUserInfoCacheServiceFn = func(
+		redisURL string,
+		host string,
+		port int,
+		password string,
+		db int,
+		keyPrefix string,
+		lastMessagePrefix string,
+		expireDays int,
+		flushIntervalSeconds int,
+		localTTLSeconds int,
+		timeoutSeconds int,
+	) (UserInfoCacheService, error) {
+		return NewRedisUserInfoCacheService(
+			redisURL,
+			host,
+			port,
+			password,
+			db,
+			keyPrefix,
+			lastMessagePrefix,
+			expireDays,
+			flushIntervalSeconds,
+			localTTLSeconds,
+			timeoutSeconds,
+		)
+	}
+	newRedisChatHistoryCacheServiceFn = func(
+		redisURL string,
+		host string,
+		port int,
+		password string,
+		db int,
+		keyPrefix string,
+		expireDays int,
+		flushIntervalSeconds int,
+		timeoutSeconds int,
+	) (ChatHistoryCacheService, error) {
+		return NewRedisChatHistoryCacheService(
+			redisURL,
+			host,
+			port,
+			password,
+			db,
+			keyPrefix,
+			expireDays,
+			flushIntervalSeconds,
+			timeoutSeconds,
+		)
+	}
+)
+
 // App 负责组装依赖并提供 HTTP Handler。
 type App struct {
 	cfg config.Config
@@ -47,18 +106,18 @@ type App struct {
 }
 
 func New(cfg config.Config) (*App, error) {
-	db, err := openDB(cfg)
+	db, err := openDBFn(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := ensureSchema(db); err != nil {
+	if err := ensureSchemaFn(db); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
 
-	staticDir := resolveStaticDir()
-	if err := os.MkdirAll("upload", 0o755); err != nil {
+	staticDir := resolveStaticDirFn()
+	if err := mkdirAllFn("upload", 0o755); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("创建 upload 目录失败: %w", err)
 	}
@@ -67,7 +126,7 @@ func New(cfg config.Config) (*App, error) {
 	var chatHistoryCache ChatHistoryCacheService
 	switch cfg.CacheType {
 	case "redis":
-		userInfoCache, err = NewRedisUserInfoCacheService(
+		userInfoCache, err = newRedisUserInfoCacheServiceFn(
 			cfg.RedisURL,
 			cfg.RedisHost,
 			cfg.RedisPort,
@@ -85,7 +144,7 @@ func New(cfg config.Config) (*App, error) {
 			return nil, err
 		}
 
-		chatHistoryCache, err = NewRedisChatHistoryCacheService(
+		chatHistoryCache, err = newRedisChatHistoryCacheServiceFn(
 			cfg.RedisURL,
 			cfg.RedisHost,
 			cfg.RedisPort,
@@ -181,7 +240,7 @@ func openDB(cfg config.Config) (*sql.DB, error) {
 		urlQueryEscape(loc),
 	)
 
-	db, err := sql.Open("mysql", dsn)
+	db, err := sqlOpenFn("mysql", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("打开数据库失败: %w", err)
 	}

@@ -364,13 +364,8 @@ func (s *MediaUploadService) ReuploadLocalFile(ctx context.Context, userID, loca
 
 	bodyBuf := &bytes.Buffer{}
 	writer := multipart.NewWriter(bodyBuf)
-	part, err := writer.CreateFormFile("upload_file", originalFilename)
-	if err != nil {
-		return "", err
-	}
-	if _, err := io.Copy(part, bytes.NewReader(fileBytes)); err != nil {
-		return "", err
-	}
+	part, _ := writer.CreateFormFile("upload_file", originalFilename)
+	_, _ = io.Copy(part, bytes.NewReader(fileBytes))
 	_ = writer.Close()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, bodyBuf)
@@ -571,6 +566,10 @@ type BatchDeleteResult struct {
 }
 
 func (s *MediaUploadService) BatchDeleteMedia(ctx context.Context, userID string, localPaths []string) (BatchDeleteResult, error) {
+	if s == nil || s.db == nil || s.fileStore == nil {
+		return BatchDeleteResult{}, fmt.Errorf("服务未初始化")
+	}
+
 	result := BatchDeleteResult{
 		FailedItems: make([]map[string]string, 0),
 	}
@@ -746,9 +745,6 @@ func (s *MediaUploadService) findMediaFileByLocalPath(ctx context.Context, local
 
 	addCandidate := func(p string) {
 		p = strings.ReplaceAll(strings.TrimSpace(p), "\\", "/")
-		if p == "" {
-			return
-		}
 
 		// 兼容 localPath 可能包含 query/hash
 		if idx := strings.IndexAny(p, "?#"); idx >= 0 {

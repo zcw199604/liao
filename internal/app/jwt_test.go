@@ -1,16 +1,52 @@
 package app
 
 import (
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
+func TestNewJWTService_DefaultExpireHours(t *testing.T) {
+	svc := NewJWTService("secret", 0)
+	if svc.expire != 24*time.Hour {
+		t.Fatalf("expire=%v, want %v", svc.expire, 24*time.Hour)
+	}
+}
+
 func TestJWTService_GenerateToken_EmptySecret(t *testing.T) {
 	svc := NewJWTService("", 24)
 	if _, err := svc.GenerateToken(); err == nil {
 		t.Fatalf("expected error")
+	}
+}
+
+func TestJWTService_GenerateToken_SignedStringFailed(t *testing.T) {
+	old := jwtSignedStringFn
+	t.Cleanup(func() { jwtSignedStringFn = old })
+	jwtSignedStringFn = func(token *jwt.Token, key any) (string, error) {
+		return "", errors.New("sign fail")
+	}
+
+	svc := NewJWTService("secret", 24)
+	if _, err := svc.GenerateToken(); err == nil || !strings.Contains(err.Error(), "签发 Token 失败") {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestJWTService_ValidateToken_EmptyTokenString(t *testing.T) {
+	svc := NewJWTService("secret", 24)
+	if svc.ValidateToken("") {
+		t.Fatalf("expected invalid token")
+	}
+}
+
+func TestJWTService_ValidateToken_EmptySecret(t *testing.T) {
+	svc := NewJWTService("", 24)
+	if svc.ValidateToken("token") {
+		t.Fatalf("expected invalid token")
 	}
 }
 

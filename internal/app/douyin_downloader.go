@@ -36,7 +36,7 @@ type TikTokDownloaderClient struct {
 }
 
 func NewTikTokDownloaderClient(baseURL, token string, httpClient *http.Client) *TikTokDownloaderClient {
-	baseURL = strings.TrimSpace(strings.TrimRight(baseURL, "/"))
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if httpClient == nil {
 		httpClient = &http.Client{}
 	}
@@ -143,9 +143,6 @@ func (c *TikTokDownloaderClient) DouyinAccount(ctx context.Context, secUserID, t
 	}
 	switch data := resp.Data.(type) {
 	case map[string]any:
-		if data == nil {
-			return nil, fmt.Errorf("TikTokDownloader 获取数据失败: %s", strings.TrimSpace(resp.Message))
-		}
 		return data, nil
 	case []any:
 		// 上游在“暂无作品”等场景可能返回 data=[]；这里兼容成标准对象结构，避免整体失败。
@@ -211,7 +208,7 @@ var (
 	reDouyinAwemeID  = regexp.MustCompile(`(?i)[?&]aweme_id=([0-9]+)`)
 	reDouyinShareURL = regexp.MustCompile(`https?://[^\s]+`)
 	reDouyinUserPath = regexp.MustCompile(`/user/([^/?\s]+)`)
-	reDouyinSecUID   = regexp.MustCompile(`(?i)[?&](sec_uid|sec_user_id)=([^&]+)`)
+	reDouyinSecUID   = regexp.MustCompile(`(?i)[?&](sec_uid|sec_user_id)=([^&\s]+)`)
 )
 
 func extractDouyinDetailID(text string) string {
@@ -221,18 +218,6 @@ func extractDouyinDetailID(text string) string {
 	}
 	if reDouyinIDOnly.MatchString(raw) {
 		return raw
-	}
-	if m := reDouyinVideoID.FindStringSubmatch(raw); len(m) == 2 {
-		return m[1]
-	}
-	if m := reDouyinNoteID.FindStringSubmatch(raw); len(m) == 2 {
-		return m[1]
-	}
-	if m := reDouyinModalID.FindStringSubmatch(raw); len(m) == 2 {
-		return m[1]
-	}
-	if m := reDouyinAwemeID.FindStringSubmatch(raw); len(m) == 2 {
-		return m[1]
 	}
 
 	// 兼容分享文本：先从文本中抽取 URL 再尝试匹配
@@ -252,6 +237,19 @@ func extractDouyinDetailID(text string) string {
 		}
 	}
 
+	if m := reDouyinVideoID.FindStringSubmatch(raw); len(m) == 2 {
+		return m[1]
+	}
+	if m := reDouyinNoteID.FindStringSubmatch(raw); len(m) == 2 {
+		return m[1]
+	}
+	if m := reDouyinModalID.FindStringSubmatch(raw); len(m) == 2 {
+		return m[1]
+	}
+	if m := reDouyinAwemeID.FindStringSubmatch(raw); len(m) == 2 {
+		return m[1]
+	}
+
 	return ""
 }
 
@@ -266,16 +264,6 @@ func extractDouyinSecUserID(text string) string {
 		return raw
 	}
 
-	if m := reDouyinUserPath.FindStringSubmatch(raw); len(m) == 2 {
-		return strings.TrimSpace(m[1])
-	}
-	if m := reDouyinSecUID.FindStringSubmatch(raw); len(m) == 3 {
-		if decoded, err := url.QueryUnescape(m[2]); err == nil && strings.TrimSpace(decoded) != "" {
-			return strings.TrimSpace(decoded)
-		}
-		return strings.TrimSpace(m[2])
-	}
-
 	// 兼容分享文本：先从文本中抽取 URL 再尝试匹配
 	if m := reDouyinShareURL.FindStringSubmatch(raw); len(m) >= 1 {
 		u := m[0]
@@ -288,6 +276,16 @@ func extractDouyinSecUserID(text string) string {
 			}
 			return strings.TrimSpace(m2[2])
 		}
+	}
+
+	if m := reDouyinUserPath.FindStringSubmatch(raw); len(m) == 2 {
+		return strings.TrimSpace(m[1])
+	}
+	if m := reDouyinSecUID.FindStringSubmatch(raw); len(m) == 3 {
+		if decoded, err := url.QueryUnescape(m[2]); err == nil && strings.TrimSpace(decoded) != "" {
+			return strings.TrimSpace(decoded)
+		}
+		return strings.TrimSpace(m[2])
 	}
 
 	return ""

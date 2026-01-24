@@ -185,4 +185,3 @@ func (a *App) handleSelectIdentity(w http.ResponseWriter, r *http.Request) {
 		"data": identity,
 	})
 }
-

@@ -768,3 +768,300 @@ func TestHandleRecordImageSend_NotFound(t *testing.T) {
 		t.Fatalf("success=%v, want false", resp["success"])
 	}
 }
+
+func TestHandleRecordImageSend_InternalError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	uploadTime := time.Now()
+	fileRows := sqlmock.NewRows([]string{
+		"id", "user_id", "original_filename", "local_filename", "remote_filename", "remote_url", "local_path",
+		"file_size", "file_type", "file_extension", "file_md5", "upload_time", "update_time",
+	}).AddRow(
+		int64(1),
+		"u1",
+		"orig.png",
+		"x.png",
+		"remote.png",
+		"http://remote",
+		"/images/x.png",
+		int64(4),
+		"image/png",
+		"png",
+		sql.NullString{String: "md5", Valid: true},
+		uploadTime,
+		sql.NullTime{Valid: false},
+	)
+
+	mock.ExpectQuery(`(?s)FROM media_file\s+WHERE local_filename = \?\s+AND user_id = \?\s+ORDER BY id LIMIT 1`).
+		WithArgs("x.png", "u1").
+		WillReturnRows(fileRows)
+
+	// findSendLog error
+	mock.ExpectQuery(`SELECT id, remote_url FROM media_send_log WHERE remote_url = \? AND user_id = \? AND to_user_id = \? ORDER BY id LIMIT 1`).
+		WithArgs("http://remote/upload/abc.jpg", "u1", "u2").
+		WillReturnError(context.DeadlineExceeded)
+
+	app := &App{
+		mediaUpload: &MediaUploadService{db: db},
+	}
+
+	form := url.Values{}
+	form.Set("remoteUrl", "http://remote/upload/abc.jpg")
+	form.Set("fromUserId", "u1")
+	form.Set("toUserId", "u2")
+	form.Set("localFilename", "x.png")
+
+	req := newURLEncodedRequest(t, http.MethodPost, "http://example.com/api/recordImageSend", form)
+	rr := httptest.NewRecorder()
+	app.handleRecordImageSend(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want %d; body=%s", rr.Code, http.StatusInternalServerError, rr.Body.String())
+	}
+}
+
+func TestHandleGetUserUploadHistory_QueryError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`(?s)FROM media_file\s+WHERE user_id = \?\s+ORDER BY update_time DESC\s+LIMIT \? OFFSET \?`).
+		WithArgs("u1", 20, 0).
+		WillReturnError(context.DeadlineExceeded)
+
+	app := &App{
+		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://api.local:8080/api/getUserUploadHistory?userId=u1&page=1&pageSize=20", nil)
+	rr := httptest.NewRecorder()
+	app.handleGetUserUploadHistory(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleGetUserUploadHistory_CountError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`(?s)FROM media_file\s+WHERE user_id = \?\s+ORDER BY update_time DESC\s+LIMIT \? OFFSET \?`).
+		WithArgs("u1", 20, 0).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "original_filename", "local_filename", "remote_filename", "remote_url", "local_path",
+			"file_size", "file_type", "file_extension", "file_md5", "upload_time", "update_time",
+		}))
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM media_file`).
+		WillReturnError(context.DeadlineExceeded)
+
+	app := &App{
+		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://api.local:8080/api/getUserUploadHistory?userId=u1&page=1&pageSize=20", nil)
+	rr := httptest.NewRecorder()
+	app.handleGetUserUploadHistory(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleGetUserSentImages_QueryError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`(?s)FROM media_send_log\s+WHERE user_id = \? AND to_user_id = \?\s+ORDER BY send_time DESC\s+LIMIT \? OFFSET \?`).
+		WithArgs("u1", "u2", 20, 0).
+		WillReturnError(context.DeadlineExceeded)
+
+	app := &App{
+		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://api.local:8080/api/getUserSentImages?fromUserId=u1&toUserId=u2&page=1&pageSize=20", nil)
+	rr := httptest.NewRecorder()
+	app.handleGetUserSentImages(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleGetUserSentImages_CountError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	sendTime := time.Now()
+	logRows := sqlmock.NewRows([]string{"id", "local_path", "remote_url", "send_time"}).
+		AddRow(int64(1), "/images/x.png", "http://remote", sendTime)
+
+	mock.ExpectQuery(`(?s)FROM media_send_log\s+WHERE user_id = \? AND to_user_id = \?\s+ORDER BY send_time DESC\s+LIMIT \? OFFSET \?`).
+		WithArgs("u1", "u2", 20, 0).
+		WillReturnRows(logRows)
+
+	mock.ExpectQuery(`(?s)FROM media_file\s+WHERE local_path = \?\s+AND user_id = \?\s+ORDER BY id LIMIT 1`).
+		WithArgs(sqlmock.AnyArg(), "u1").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "original_filename", "local_filename", "remote_filename", "remote_url", "local_path",
+			"file_size", "file_type", "file_extension", "file_md5", "upload_time", "update_time",
+		}))
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM media_send_log WHERE user_id = \? AND to_user_id = \?`).
+		WithArgs("u1", "u2").
+		WillReturnError(context.DeadlineExceeded)
+
+	app := &App{
+		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://api.local:8080/api/getUserSentImages?fromUserId=u1&toUserId=u2&page=1&pageSize=20", nil)
+	rr := httptest.NewRecorder()
+	app.handleGetUserSentImages(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleGetUserUploadStats_CountError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM media_file`).
+		WillReturnError(context.DeadlineExceeded)
+
+	app := &App{mediaUpload: &MediaUploadService{db: db}}
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/getUserUploadStats?userId=u1", nil)
+	rr := httptest.NewRecorder()
+	app.handleGetUserUploadStats(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleGetChatImages_QueryError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`(?s)SELECT local_path\s+FROM media_send_log\s+WHERE \(\(user_id = \? AND to_user_id = \?\) OR \(user_id = \? AND to_user_id = \?\)\)\s+GROUP BY local_path\s+ORDER BY MAX\(send_time\) DESC\s+LIMIT \?`).
+		WithArgs("u1", "u2", "u2", "u1", 20).
+		WillReturnError(context.DeadlineExceeded)
+
+	app := &App{
+		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://api.local:8080/api/getChatImages?userId1=u1&userId2=u2&limit=20", nil)
+	rr := httptest.NewRecorder()
+	app.handleGetChatImages(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleGetAllUploadImages_ListError(t *testing.T) {
+	oldDetect := detectAvailablePort
+	detectAvailablePort = func(string) string { return "9006" }
+	t.Cleanup(func() { detectAvailablePort = oldDetect })
+
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`(?s)SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time\s+FROM media_file\s+ORDER BY update_time DESC\s+LIMIT \? OFFSET \?`).
+		WithArgs(20, 0).
+		WillReturnError(context.DeadlineExceeded)
+
+	app := &App{
+		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+		imageServer: NewImageServerService("img-host", "9003"),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://api.local:8080/api/getAllUploadImages?page=1&pageSize=20", nil)
+	rr := httptest.NewRecorder()
+	app.handleGetAllUploadImages(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleGetAllUploadImages_CountError(t *testing.T) {
+	oldDetect := detectAvailablePort
+	detectAvailablePort = func(string) string { return "9006" }
+	t.Cleanup(func() { detectAvailablePort = oldDetect })
+
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`(?s)SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time\s+FROM media_file\s+ORDER BY update_time DESC\s+LIMIT \? OFFSET \?`).
+		WithArgs(20, 0).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"local_filename", "original_filename", "local_path", "file_size", "file_type", "file_extension", "upload_time", "update_time",
+		}))
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM media_file`).
+		WillReturnError(context.DeadlineExceeded)
+
+	app := &App{
+		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+		imageServer: NewImageServerService("img-host", "9003"),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://api.local:8080/api/getAllUploadImages?page=1&pageSize=20", nil)
+	rr := httptest.NewRecorder()
+	app.handleGetAllUploadImages(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleBatchDeleteMedia_TooMany(t *testing.T) {
+	app := &App{mediaUpload: &MediaUploadService{}}
+
+	paths := make([]string, 0, 51)
+	for i := 0; i < 51; i++ {
+		paths = append(paths, "/images/x.png")
+	}
+	body, _ := json.Marshal(map[string]any{
+		"userId":     "u1",
+		"localPaths": paths,
+	})
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/batchDeleteMedia", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	app.handleBatchDeleteMedia(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleBatchDeleteMedia_InternalError(t *testing.T) {
+	app := &App{mediaUpload: &MediaUploadService{}}
+
+	body := bytes.NewBufferString(`{"userId":"u1","localPaths":["/images/x.png"]}`)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/batchDeleteMedia", body)
+	req.Header.Set("Content-Type", "application/json")
+	app.handleBatchDeleteMedia(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want %d; body=%s", rr.Code, http.StatusInternalServerError, rr.Body.String())
+	}
+}
+
+func TestParseIntDefault(t *testing.T) {
+	if got := parseIntDefault(" ", 7); got != 7 {
+		t.Fatalf("got=%d, want 7", got)
+	}
+	if got := parseIntDefault("10", 7); got != 10 {
+		t.Fatalf("got=%d, want 10", got)
+	}
+	if got := parseIntDefault("bad", 7); got != 7 {
+		t.Fatalf("got=%d, want 7", got)
+	}
+}

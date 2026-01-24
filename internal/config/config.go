@@ -149,16 +149,8 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("SERVER_PORT 非法: %d", cfg.ServerPort)
 	}
 
-	if strings.TrimSpace(cfg.JWTSecret) == "" {
-		return Config{}, fmt.Errorf("JWT_SECRET 不能为空")
-	}
-
 	if cfg.TokenExpireHours <= 0 {
 		return Config{}, fmt.Errorf("TOKEN_EXPIRE_HOURS 非法: %d", cfg.TokenExpireHours)
-	}
-
-	if strings.TrimSpace(cfg.CacheType) == "" {
-		cfg.CacheType = "memory"
 	}
 
 	switch cfg.CacheType {
@@ -191,12 +183,6 @@ func Load() (Config, error) {
 		cfg.RedisTimeoutSeconds = 15
 	}
 
-	if strings.TrimSpace(cfg.FFmpegPath) == "" {
-		cfg.FFmpegPath = "ffmpeg"
-	}
-	if strings.TrimSpace(cfg.FFprobePath) == "" {
-		cfg.FFprobePath = "ffprobe"
-	}
 	if cfg.VideoExtractWorkers <= 0 {
 		cfg.VideoExtractWorkers = 1
 	}

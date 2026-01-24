@@ -80,9 +80,6 @@ func (c *lruCache) Set(key string, value any) {
 
 	for c.maxEntries > 0 && c.ll.Len() > c.maxEntries {
 		back := c.ll.Back()
-		if back == nil {
-			break
-		}
 		c.ll.Remove(back)
 		if entry, ok := back.Value.(lruCacheEntry); ok {
 			delete(c.data, entry.key)
@@ -104,4 +101,3 @@ func (c *lruCache) Delete(key string) {
 	c.ll.Remove(el)
 	delete(c.data, key)
 }
-

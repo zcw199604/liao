@@ -41,4 +41,3 @@ func (s *ImageServerService) SetImgServerHost(server string) {
 	s.host = server + ":" + s.port
 	s.mu.Unlock()
 }
-

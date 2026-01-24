@@ -233,10 +233,6 @@ func (a *App) handleImportMtPhotoMedia(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "不支持的文件类型"})
 		return
 	}
-	if !a.fileStorage.IsValidMediaType(contentType) {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "不支持的文件类型"})
-		return
-	}
 
 	// 3) 先保存到本地 upload/，即便上游失败也可在“全站图片库”中重试
 	src, err := openLocalFileForRead(absPath)

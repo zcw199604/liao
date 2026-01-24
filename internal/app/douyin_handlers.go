@@ -365,9 +365,6 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, data map[string]any) 
 				previewItems = make([]douyinMediaItem, 0, len(downloads))
 				for i, u := range downloads {
 					u = strings.TrimSpace(u)
-					if u == "" {
-						continue
-					}
 
 					mediaType := guessDouyinMediaTypeFromURL(u)
 					ext := guessExtFromURL(u)
@@ -532,9 +529,6 @@ func (a *App) handleDouyinDetail(w http.ResponseWriter, r *http.Request) {
 	items := make([]douyinMediaItem, 0, len(detail.Downloads))
 	for i, u := range detail.Downloads {
 		u = strings.TrimSpace(u)
-		if u == "" {
-			continue
-		}
 
 		ext := guessExtFromURL(u)
 		if ext == "" {
@@ -730,16 +724,15 @@ func (a *App) handleDouyinCover(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleDouyinDownloadHead(w http.ResponseWriter, r *http.Request, cached *douyinCachedDetail, index int, remoteURL string) {
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodHead, remoteURL, nil)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "下载链接非法"})
-		return
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-	req.Header.Set("Referer", "https://www.douyin.com/")
+	var resp *http.Response
+	if err == nil {
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+		req.Header.Set("Referer", "https://www.douyin.com/")
 
-	resp, err := a.douyinDownloader.api.httpClient.Do(req)
-	if err == nil && resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
+		resp, err = a.douyinDownloader.api.httpClient.Do(req)
+		if err == nil && resp != nil && resp.Body != nil {
+			defer resp.Body.Close()
+		}
 	}
 
 	// 部分 CDN 不支持 HEAD：fallback 到 Range=0-0 的 GET，最佳努力拿到 Content-Length。
@@ -891,12 +884,6 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ext := guessExtFromContentType(contentType)
-	if ext == "" {
-		ext = guessExtFromURL(remoteURL)
-	}
-	if ext == "" {
-		ext = ".bin"
-	}
 
 	originalFilename := buildDouyinOriginalFilename(cached.Title, cached.DetailID, index, len(cached.Downloads), ext)
 	localPath, fileSize, md5Value, err := a.fileStorage.SaveFileFromReader(originalFilename, contentType, downloadResp.Body)

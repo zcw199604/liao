@@ -111,17 +111,14 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 
 			resultSize = len(list)
 
-			enhanced, marshalErr := json.Marshal(list)
-			if marshalErr == nil {
-				writeText(w, http.StatusOK, string(enhanced))
-				return
+				if enhanced, err := json.Marshal(list); err == nil {
+					writeText(w, http.StatusOK, string(enhanced))
+					return
+				}
 			}
-
-			slog.Error("增强历史用户列表失败", "error", marshalErr)
 		}
-	}
 
-	writeText(w, http.StatusOK, body)
+		writeText(w, http.StatusOK, body)
 }
 
 func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) {
@@ -213,17 +210,14 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 
 			resultSize = len(list)
 
-			enhanced, marshalErr := json.Marshal(list)
-			if marshalErr == nil {
-				writeText(w, http.StatusOK, string(enhanced))
-				return
+				if enhanced, err := json.Marshal(list); err == nil {
+					writeText(w, http.StatusOK, string(enhanced))
+					return
+				}
 			}
-
-			slog.Error("增强收藏用户列表失败", "error", marshalErr)
 		}
-	}
 
-	writeText(w, http.StatusOK, body)
+		writeText(w, http.StatusOK, body)
 }
 
 func (a *App) handleReportReferrer(w http.ResponseWriter, r *http.Request) {
@@ -798,7 +792,7 @@ func (a *App) uploadToUpstream(ctx context.Context, uploadURL, imgServerHost str
 			return
 		}
 
-		src, err := fileHeader.Open()
+		src, err := openMultipartFileHeaderFn(fileHeader)
 		if err != nil {
 			_ = pw.CloseWithError(err)
 			return

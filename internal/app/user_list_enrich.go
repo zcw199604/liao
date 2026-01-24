@@ -92,9 +92,6 @@ func collectConversationKeys(userList []map[string]any, myUserID string) []strin
 			continue
 		}
 		key := generateConversationKey(myUserID, otherUserID)
-		if key == "" {
-			continue
-		}
 		if _, ok := seen[key]; ok {
 			continue
 		}
@@ -145,9 +142,6 @@ func applyLastMessage(userList []map[string]any, myUserID string, messageMap map
 			continue
 		}
 		key := generateConversationKey(myUserID, otherUserID)
-		if key == "" {
-			continue
-		}
 		msg, ok := messageMap[key]
 		if !ok {
 			continue

@@ -31,6 +31,12 @@ var (
 	phashCosTable [phashLowFreq][phashSize]float64
 )
 
+var (
+	resizeToGrayFn    = resizeToGray
+	dctLowFreq8x8Fn   = dctLowFreq8x8
+	lanczosKernelFunc = lanczos
+)
+
 func init() {
 	n := float64(phashSize)
 	for u := 0; u < phashLowFreq; u++ {
@@ -166,7 +172,7 @@ func (s *ImageHashService) CalculatePHash(file *multipart.FileHeader) (int64, er
 		return 0, ErrPHashUnsupported
 	}
 
-	src, err := file.Open()
+	src, err := openMultipartFileHeaderFn(file)
 	if err != nil {
 		return 0, ErrPHashUnsupported
 	}
@@ -177,12 +183,12 @@ func (s *ImageHashService) CalculatePHash(file *multipart.FileHeader) (int64, er
 		return 0, ErrPHashUnsupported
 	}
 
-	gray, err := resizeToGray(img, phashSize, phashSize)
+	gray, err := resizeToGrayFn(img, phashSize, phashSize)
 	if err != nil {
 		return 0, ErrPHashUnsupported
 	}
 
-	coeffs := dctLowFreq8x8(gray)
+	coeffs := dctLowFreq8x8Fn(gray)
 	if len(coeffs) != phashBitLength {
 		return 0, fmt.Errorf("pHash计算失败：DCT系数长度异常")
 	}
@@ -232,13 +238,13 @@ func resizeToGray(src image.Image, width, height int) (*image.Gray, error) {
 			sumW := 0.0
 
 			for sy := iy - halfKernel + 1; sy <= iy+halfKernel; sy++ {
-				wy := lanczos(srcY-float64(sy), a)
+				wy := lanczosKernelFunc(srcY-float64(sy), a)
 				if wy == 0 {
 					continue
 				}
 				py := clampInt(sy, 0, sh-1)
 				for sx := ix - halfKernel + 1; sx <= ix+halfKernel; sx++ {
-					wx := lanczos(srcX-float64(sx), a)
+					wx := lanczosKernelFunc(srcX-float64(sx), a)
 					if wx == 0 {
 						continue
 					}

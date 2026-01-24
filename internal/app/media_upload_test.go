@@ -130,6 +130,75 @@ func TestMediaUploadService_DeleteMediaByPath_Success(t *testing.T) {
 	}
 }
 
+func TestMediaUploadService_DeleteMediaByPath_FileMD5StillUsed_DoesNotDeleteFile(t *testing.T) {
+	tempDir := t.TempDir()
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	fileStore := &FileStorageService{baseUploadAbs: tempDir}
+	svc := &MediaUploadService{db: db, fileStore: fileStore}
+
+	localPath := "/images/2026/01/10/x.png"
+	full := filepath.Join(tempDir, filepath.FromSlash(strings.TrimPrefix(localPath, "/")))
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	if err := os.WriteFile(full, []byte("data"), 0o644); err != nil {
+		t.Fatalf("write file failed: %v", err)
+	}
+
+	uploadTime := time.Now()
+	mock.ExpectQuery(`(?s)SELECT id, user_id.*FROM media_file.*WHERE local_path = \?.*ORDER BY id LIMIT 1`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "original_filename", "local_filename", "remote_filename", "remote_url", "local_path",
+			"file_size", "file_type", "file_extension", "file_md5", "upload_time", "update_time",
+		}).AddRow(
+			int64(1),
+			"u1",
+			"orig.png",
+			"x.png",
+			"remote.png",
+			"http://remote",
+			localPath,
+			int64(4),
+			"image/png",
+			"png",
+			sql.NullString{String: "md5", Valid: true},
+			uploadTime,
+			sql.NullTime{Time: uploadTime, Valid: true},
+		))
+
+	for i := 0; i < 4; i++ {
+		mock.ExpectExec(`DELETE FROM media_send_log WHERE local_path = \?`).
+			WithArgs(sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+	}
+	for i := 0; i < 4; i++ {
+		mock.ExpectExec(`DELETE FROM media_file WHERE local_path = \?`).
+			WithArgs(sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+	}
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM media_file WHERE file_md5 = \?`).
+		WithArgs("md5").
+		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(1))
+
+	got, err := svc.DeleteMediaByPath(context.Background(), "ignored", localPath)
+	if err != nil {
+		t.Fatalf("DeleteMediaByPath failed: %v", err)
+	}
+	if got.DeletedRecords != 4 {
+		t.Fatalf("DeletedRecords=%d, want 4", got.DeletedRecords)
+	}
+	if got.FileDeleted {
+		t.Fatalf("FileDeleted=true, want false")
+	}
+	if _, err := os.Stat(full); err != nil {
+		t.Fatalf("expected file still exists: %v", err)
+	}
+}
+
 func TestMediaUploadService_DeleteMediaByPath_Forbidden(t *testing.T) {
 	svc := &MediaUploadService{fileStore: &FileStorageService{}}
 
@@ -177,5 +246,67 @@ func TestExtractRemoteFilenameFromURL(t *testing.T) {
 				t.Fatalf("extractRemoteFilenameFromURL(%q)=%q, want %q", tc.in, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestMediaUploadService_FindByRemoteURLAndFilename(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	uploadTime := time.Now()
+	rows := sqlmock.NewRows([]string{
+		"id", "user_id", "original_filename", "local_filename", "remote_filename", "remote_url", "local_path",
+		"file_size", "file_type", "file_extension", "file_md5", "upload_time", "update_time",
+	}).AddRow(
+		int64(1),
+		"u1",
+		"orig.png",
+		"l.png",
+		"r.png",
+		"http://remote",
+		"/images/x.png",
+		int64(1),
+		"image/png",
+		"png",
+		sql.NullString{String: "md5", Valid: true},
+		uploadTime,
+		sql.NullTime{Time: uploadTime, Valid: true},
+	)
+
+	mock.ExpectQuery(`(?s)FROM media_file.*WHERE remote_url = \?.*AND user_id = \?.*ORDER BY id LIMIT 1`).
+		WithArgs("http://remote", "u1").
+		WillReturnRows(rows)
+
+	svc := &MediaUploadService{db: db}
+	got, err := svc.findMediaFileByRemoteURL(context.Background(), "http://remote", "u1")
+	if err != nil || got == nil || got.ID != 1 {
+		t.Fatalf("got=%+v err=%v", got, err)
+	}
+
+	rows2 := sqlmock.NewRows([]string{
+		"id", "user_id", "original_filename", "local_filename", "remote_filename", "remote_url", "local_path",
+		"file_size", "file_type", "file_extension", "file_md5", "upload_time", "update_time",
+	}).AddRow(
+		int64(2),
+		"u2",
+		"orig.png",
+		"l.png",
+		"r.png",
+		"http://remote2",
+		"/images/y.png",
+		int64(1),
+		"image/png",
+		"png",
+		sql.NullString{String: "", Valid: false},
+		uploadTime,
+		sql.NullTime{Time: uploadTime, Valid: true},
+	)
+	mock.ExpectQuery(`(?s)FROM media_file.*WHERE remote_filename = \?.*ORDER BY id LIMIT 1`).
+		WithArgs("r.png").
+		WillReturnRows(rows2)
+
+	got2, err := svc.findMediaFileByRemoteFilename(context.Background(), "r.png", "")
+	if err != nil || got2 == nil || got2.ID != 2 {
+		t.Fatalf("got=%+v err=%v", got2, err)
 	}
 }

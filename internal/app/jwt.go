@@ -7,6 +7,10 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+var jwtSignedStringFn = func(token *jwt.Token, key any) (string, error) {
+	return token.SignedString(key)
+}
+
 // JWTService 提供与 Spring 侧兼容的 JWT 生成与校验（HS256，sub=user）。
 type JWTService struct {
 	secret []byte
@@ -36,7 +40,7 @@ func (s *JWTService) GenerateToken() (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := token.SignedString(s.secret)
+	signed, err := jwtSignedStringFn(token, s.secret)
 	if err != nil {
 		return "", fmt.Errorf("签发 Token 失败: %w", err)
 	}

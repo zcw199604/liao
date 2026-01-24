@@ -73,6 +73,25 @@ func TestHandleCreateIdentity_Success(t *testing.T) {
 	}
 }
 
+func TestHandleCreateIdentity_DBError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectExec(`INSERT INTO identity`).
+		WithArgs(sqlmock.AnyArg(), "Alice", "女", sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnError(sql.ErrConnDone)
+
+	a := &App{identityService: NewIdentityService(db)}
+	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/createIdentity", strings.NewReader("name=Alice&sex=女"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	a.handleCreateIdentity(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want 500", rec.Code)
+	}
+}
+
 func TestHandleUpdateIdentity_NotFound(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
@@ -88,6 +107,34 @@ func TestHandleUpdateIdentity_NotFound(t *testing.T) {
 	a.handleUpdateIdentity(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d, want 400", rec.Code)
+	}
+}
+
+func TestHandleUpdateIdentity_ValidatesInput(t *testing.T) {
+	a := &App{identityService: &IdentityService{}}
+
+	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/updateIdentity", strings.NewReader("name=Alice&sex=女"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	a.handleUpdateIdentity(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", rec.Code)
+	}
+
+	req2 := httptest.NewRequest(http.MethodPost, "http://api.local/api/updateIdentity", strings.NewReader("id=id1&sex=女"))
+	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec2 := httptest.NewRecorder()
+	a.handleUpdateIdentity(rec2, req2)
+	if rec2.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", rec2.Code)
+	}
+
+	req3 := httptest.NewRequest(http.MethodPost, "http://api.local/api/updateIdentity", strings.NewReader("id=id1&name=Alice&sex=x"))
+	req3.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec3 := httptest.NewRecorder()
+	a.handleUpdateIdentity(rec3, req3)
+	if rec3.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", rec3.Code)
 	}
 }
 
@@ -318,6 +365,65 @@ func TestHandleUpdateIdentityID_NewIDAlreadyUsed(t *testing.T) {
 	}
 }
 
+func TestHandleUpdateIdentityID_ValidatesInput(t *testing.T) {
+	a := &App{identityService: &IdentityService{}}
+
+	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/updateIdentityID", strings.NewReader("newId=new&name=New&sex=女"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	a.handleUpdateIdentityID(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", rec.Code)
+	}
+
+	req2 := httptest.NewRequest(http.MethodPost, "http://api.local/api/updateIdentityID", strings.NewReader("oldId=old&name=New&sex=女"))
+	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec2 := httptest.NewRecorder()
+	a.handleUpdateIdentityID(rec2, req2)
+	if rec2.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", rec2.Code)
+	}
+
+	req3 := httptest.NewRequest(http.MethodPost, "http://api.local/api/updateIdentityID", strings.NewReader("oldId=old&newId=new&sex=女"))
+	req3.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec3 := httptest.NewRecorder()
+	a.handleUpdateIdentityID(rec3, req3)
+	if rec3.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", rec3.Code)
+	}
+
+	req4 := httptest.NewRequest(http.MethodPost, "http://api.local/api/updateIdentityID", strings.NewReader("oldId=old&newId=new&name=New&sex=x"))
+	req4.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec4 := httptest.NewRecorder()
+	a.handleUpdateIdentityID(rec4, req4)
+	if rec4.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", rec4.Code)
+	}
+}
+
+func TestHandleUpdateIdentityID_UpdateError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`SELECT name, sex, created_at, last_used_at FROM identity WHERE id = \?`).
+		WithArgs("old").
+		WillReturnError(sql.ErrConnDone)
+
+	a := &App{identityService: NewIdentityService(db)}
+	form := url.Values{}
+	form.Set("oldId", "old")
+	form.Set("newId", "new")
+	form.Set("name", "New")
+	form.Set("sex", "女")
+	req := newURLEncodedRequest(t, http.MethodPost, "http://api.local/api/updateIdentityID", form)
+	rec := httptest.NewRecorder()
+	a.handleUpdateIdentityID(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want 500", rec.Code)
+	}
+}
+
 func TestHandleUpdateIdentityID_TransactionInsertError(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
@@ -407,6 +513,79 @@ func TestHandleDeleteIdentity_Success(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status=%d, want 200", rec.Code)
+	}
+}
+
+func TestHandleDeleteIdentity_DBError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectExec(`DELETE FROM identity WHERE id = \?`).
+		WithArgs("id1").
+		WillReturnError(sql.ErrConnDone)
+
+	a := &App{identityService: NewIdentityService(db)}
+	form := url.Values{}
+	form.Set("id", "id1")
+	req := newURLEncodedRequest(t, http.MethodPost, "http://api.local/api/deleteIdentity", form)
+	rec := httptest.NewRecorder()
+	a.handleDeleteIdentity(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want 500", rec.Code)
+	}
+}
+
+func TestHandleSelectIdentity_EmptyID(t *testing.T) {
+	a := &App{identityService: &IdentityService{}}
+
+	form := url.Values{}
+	req := newURLEncodedRequest(t, http.MethodPost, "http://api.local/api/selectIdentity", form)
+	rec := httptest.NewRecorder()
+	a.handleSelectIdentity(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", rec.Code)
+	}
+}
+
+func TestHandleSelectIdentity_GetByIDError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`SELECT name, sex, created_at, last_used_at FROM identity WHERE id = \?`).
+		WithArgs("id1").
+		WillReturnError(sql.ErrConnDone)
+
+	a := &App{identityService: NewIdentityService(db)}
+	form := url.Values{}
+	form.Set("id", "id1")
+	req := newURLEncodedRequest(t, http.MethodPost, "http://api.local/api/selectIdentity", form)
+	rec := httptest.NewRecorder()
+	a.handleSelectIdentity(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want 500", rec.Code)
+	}
+}
+
+func TestHandleSelectIdentity_NotFound(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`SELECT name, sex, created_at, last_used_at FROM identity WHERE id = \?`).
+		WithArgs("missing").
+		WillReturnRows(sqlmock.NewRows([]string{"name", "sex", "created_at", "last_used_at"}))
+
+	a := &App{identityService: NewIdentityService(db)}
+	form := url.Values{}
+	form.Set("id", "missing")
+	req := newURLEncodedRequest(t, http.MethodPost, "http://api.local/api/selectIdentity", form)
+	rec := httptest.NewRecorder()
+	a.handleSelectIdentity(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", rec.Code)
 	}
 }
 

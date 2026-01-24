@@ -83,4 +83,3 @@ func (s *ImageCacheService) ClearCache(userID string) {
 	defer s.mu.Unlock()
 	delete(s.cache, userID)
 }
-

@@ -8,11 +8,11 @@ import (
 )
 
 type Favorite struct {
-	ID            int64  `json:"id"`
-	IdentityID    string `json:"identityId"`
-	TargetUserID  string `json:"targetUserId"`
+	ID             int64  `json:"id"`
+	IdentityID     string `json:"identityId"`
+	TargetUserID   string `json:"targetUserId"`
 	TargetUserName string `json:"targetUserName,omitempty"`
-	CreateTime    string `json:"createTime"`
+	CreateTime     string `json:"createTime"`
 }
 
 type FavoriteService struct {

@@ -8,6 +8,10 @@ import (
 	"strings"
 )
 
+var calculateMD5FromLocalPathFn = func(fileStore *FileStorageService, localPath string) (string, error) {
+	return fileStore.CalculateMD5FromLocalPath(localPath)
+}
+
 type RepairMediaHistoryRequest struct {
 	// Commit=true 才会真实写入/删除；默认 false 为 dry-run。
 	Commit bool `json:"commit"`
@@ -16,8 +20,8 @@ type RepairMediaHistoryRequest struct {
 	UserID string `json:"userId,omitempty"`
 
 	// 兼容开关：默认会执行“补齐缺失 MD5 + 按 MD5 全局去重”；local_path 去重可按需开启。
-	FixMissingMD5         bool `json:"fixMissingMd5"`
-	DeduplicateByMD5      bool `json:"deduplicateByMd5"`
+	FixMissingMD5          bool `json:"fixMissingMd5"`
+	DeduplicateByMD5       bool `json:"deduplicateByMd5"`
 	DeduplicateByLocalPath bool `json:"deduplicateByLocalPath"`
 
 	// 每次调用的处理上限，避免一次性跑太久。
@@ -27,11 +31,11 @@ type RepairMediaHistoryRequest struct {
 }
 
 type RepairMediaHistoryResult struct {
-	Commit bool `json:"commit"`
+	Commit bool   `json:"commit"`
 	UserID string `json:"userId,omitempty"`
 
-	FixMissingMD5         bool `json:"fixMissingMd5"`
-	DeduplicateByMD5      bool `json:"deduplicateByMd5"`
+	FixMissingMD5          bool `json:"fixMissingMd5"`
+	DeduplicateByMD5       bool `json:"deduplicateByMd5"`
 	DeduplicateByLocalPath bool `json:"deduplicateByLocalPath"`
 
 	MissingMD5            RepairMissingMD5Result `json:"missingMd5,omitempty"`
@@ -196,7 +200,7 @@ WHERE (file_md5 IS NULL OR file_md5 = '')
 		scanned++
 		res.MissingMD5.Scanned++
 
-		md5Value, err := s.fileStore.CalculateMD5FromLocalPath(localPath)
+		md5Value, err := calculateMD5FromLocalPathFn(s.fileStore, localPath)
 		if err != nil {
 			res.MissingMD5.Skipped++
 			if len(res.Warnings) < 200 {

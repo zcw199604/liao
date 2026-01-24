@@ -1,8 +1,10 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -137,6 +139,160 @@ func TestHandleGetHistoryUserList_EnrichesWhenCacheEnabled(t *testing.T) {
 	}
 	if got, _ := item["lastTime"].(string); got != "t1" {
 		t.Fatalf("lastTime=%q, want %q", got, "t1")
+	}
+}
+
+func TestHandleReportReferrer_SuccessAndErrors(t *testing.T) {
+	clientOK := &http.Client{
+		Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			if r.URL.String() == upstreamReportURL {
+				return newTextResponse(http.StatusOK, "ok"), nil
+			}
+			return newTextResponse(http.StatusNotFound, "no"), nil
+		}),
+	}
+	app := &App{httpClient: clientOK}
+
+	form := url.Values{}
+	form.Set("referrerUrl", "a")
+	form.Set("currUrl", "b")
+	form.Set("userid", "u1")
+	req := newURLEncodedRequest(t, http.MethodPost, "http://example.com/api/reportReferrer", form)
+	rr := httptest.NewRecorder()
+	app.handleReportReferrer(rr, req)
+	if rr.Code != http.StatusOK || strings.TrimSpace(rr.Body.String()) != "ok" {
+		t.Fatalf("status=%d body=%q", rr.Code, rr.Body.String())
+	}
+
+	clientErr := &http.Client{
+		Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			return nil, errors.New("boom")
+		}),
+	}
+	app2 := &App{httpClient: clientErr}
+	rr2 := httptest.NewRecorder()
+	app2.handleReportReferrer(rr2, req)
+	if rr2.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want 500", rr2.Code)
+	}
+
+	clientBadStatus := &http.Client{
+		Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			return newTextResponse(http.StatusBadGateway, "bad"), nil
+		}),
+	}
+	app3 := &App{httpClient: clientBadStatus}
+	rr3 := httptest.NewRecorder()
+	app3.handleReportReferrer(rr3, req)
+	if rr3.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want 500", rr3.Code)
+	}
+}
+
+func TestHandleImgServerAndUpdate(t *testing.T) {
+	client := &http.Client{
+		Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			if strings.HasPrefix(r.URL.String(), upstreamImgServer+"?_=") {
+				return newTextResponse(http.StatusOK, "body"), nil
+			}
+			return newTextResponse(http.StatusBadGateway, "bad"), nil
+		}),
+	}
+	app := &App{httpClient: client}
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/getImgServer", nil)
+	rr := httptest.NewRecorder()
+	app.handleGetImgServer(rr, req)
+	if rr.Code != http.StatusOK || strings.TrimSpace(rr.Body.String()) != "body" {
+		t.Fatalf("status=%d body=%q", rr.Code, rr.Body.String())
+	}
+
+	app2 := &App{
+		imageServer:       NewImageServerService("localhost", "9003"),
+		imagePortResolver: NewImagePortResolver(nil),
+	}
+	app2.imagePortResolver.cache["h"] = "9003"
+
+	form := url.Values{}
+	form.Set("server", "img.host")
+	req2 := newURLEncodedRequest(t, http.MethodPost, "http://example.com/api/updateImgServer", form)
+	rr2 := httptest.NewRecorder()
+	app2.handleUpdateImgServer(rr2, req2)
+	if strings.TrimSpace(rr2.Body.String()) == "" {
+		t.Fatalf("expected body")
+	}
+	if got := app2.imageServer.GetImgServerHost(); got != "img.host:9003" {
+		t.Fatalf("host=%q", got)
+	}
+	if app2.imagePortResolver.GetCached("h") != "" {
+		t.Fatalf("expected resolver cache cleared")
+	}
+}
+
+func TestHandleUploadImage_DelegatesToUploadMedia(t *testing.T) {
+	app := &App{}
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/uploadImage", bytes.NewBufferString("x"))
+	rr := httptest.NewRecorder()
+	app.handleUploadImage(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want 500", rr.Code)
+	}
+}
+
+func TestHandleToggleAndCancelFavorite(t *testing.T) {
+	okBody := `{"state":"OK"}`
+	client := &http.Client{
+		Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			return newTextResponse(http.StatusOK, okBody), nil
+		}),
+	}
+	app := &App{httpClient: client}
+
+	form := url.Values{}
+	form.Set("myUserID", "me")
+	form.Set("UserToID", "u2")
+	req := newURLEncodedRequest(t, http.MethodPost, "http://example.com/api/toggleFavorite", form)
+	rr := httptest.NewRecorder()
+	app.handleToggleFavorite(rr, req)
+	if strings.TrimSpace(rr.Body.String()) != okBody {
+		t.Fatalf("body=%q", rr.Body.String())
+	}
+
+	rr2 := httptest.NewRecorder()
+	app.handleCancelFavorite(rr2, req)
+	if strings.TrimSpace(rr2.Body.String()) != okBody {
+		t.Fatalf("body=%q", rr2.Body.String())
+	}
+
+	// error branch: upstream status != 200
+	clientBad := &http.Client{
+		Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			return newTextResponse(http.StatusBadGateway, "bad"), nil
+		}),
+	}
+	app2 := &App{httpClient: clientBad}
+	rr3 := httptest.NewRecorder()
+	app2.handleToggleFavorite(rr3, req)
+	if !strings.Contains(rr3.Body.String(), `"state":"ERROR"`) {
+		t.Fatalf("body=%q", rr3.Body.String())
+	}
+}
+
+func TestTypePriority(t *testing.T) {
+	if typePriority("image") != 1 {
+		t.Fatalf("image")
+	}
+	if typePriority("video") != 2 {
+		t.Fatalf("video")
+	}
+	if typePriority("audio") != 3 {
+		t.Fatalf("audio")
+	}
+	if typePriority("file") != 4 {
+		t.Fatalf("file")
+	}
+	if typePriority("x") != 100 {
+		t.Fatalf("default")
 	}
 }
 

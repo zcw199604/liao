@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+var filepathRelFn = filepath.Rel
+
 func (a *App) spaHandler() http.Handler {
 	indexPath := filepath.Join(a.staticDir, "index.html")
 	fileServer := http.FileServer(http.Dir(a.staticDir))
@@ -96,10 +98,11 @@ func (a *App) lspFileServer() http.Handler {
 }
 
 func resolveLspLocalPath(root, requestPath string) (string, error) {
-	root = filepath.Clean(strings.TrimSpace(root))
+	root = strings.TrimSpace(root)
 	if root == "" {
-		root = string(filepath.Separator)
+		root = filepath.Join(string(filepath.Separator), "lsp")
 	}
+	root = filepath.Clean(root)
 
 	if !strings.HasPrefix(requestPath, "/lsp") {
 		return "", fmt.Errorf("不支持的路径前缀")
@@ -121,7 +124,7 @@ func resolveLspLocalPath(root, requestPath string) (string, error) {
 	target := filepath.Join(root, filepath.FromSlash(strings.TrimPrefix(cleanURL, "/")))
 
 	// 二次校验：确保 target 仍位于 root 之下。
-	rel2, err := filepath.Rel(root, target)
+	rel2, err := filepathRelFn(root, target)
 	if err != nil {
 		return "", fmt.Errorf("路径解析失败: %w", err)
 	}

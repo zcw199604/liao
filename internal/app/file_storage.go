@@ -52,6 +52,10 @@ var mediaTypeCategory = map[string]string{
 	"video/mp4":  "video",
 }
 
+var openMultipartFileHeaderFn = func(file *multipart.FileHeader) (multipart.File, error) {
+	return file.Open()
+}
+
 func (s *FileStorageService) IsValidMediaType(contentType string) bool {
 	if contentType == "" {
 		return false
@@ -86,7 +90,7 @@ func (s *FileStorageService) CalculateMD5(file *multipart.FileHeader) (string, e
 	if file == nil {
 		return "", fmt.Errorf("文件为空")
 	}
-	src, err := file.Open()
+	src, err := openMultipartFileHeaderFn(file)
 	if err != nil {
 		return "", err
 	}
@@ -121,7 +125,7 @@ func (s *FileStorageService) SaveFile(file *multipart.FileHeader, fileType strin
 		return "", fmt.Errorf("无法创建存储目录: %w", err)
 	}
 
-	src, err := file.Open()
+	src, err := openMultipartFileHeaderFn(file)
 	if err != nil {
 		return "", err
 	}
@@ -138,7 +142,7 @@ func (s *FileStorageService) SaveFile(file *multipart.FileHeader, fileType strin
 		return "", err
 	}
 
-	rel, err := filepath.Rel(s.baseUploadAbs, dstPath)
+	rel, err := filepathRelFn(s.baseUploadAbs, dstPath)
 	if err != nil {
 		return "", err
 	}
@@ -172,7 +176,7 @@ func (s *FileStorageService) SaveTempVideoExtractInput(file *multipart.FileHeade
 		return "", fmt.Errorf("无法创建存储目录: %w", err)
 	}
 
-	src, err := file.Open()
+	src, err := openMultipartFileHeaderFn(file)
 	if err != nil {
 		return "", err
 	}
@@ -231,7 +235,7 @@ func (s *FileStorageService) SaveFileFromReader(originalFilename, contentType st
 		return "", 0, "", err
 	}
 
-	rel, err := filepath.Rel(s.baseUploadAbs, dstPath)
+	rel, err := filepathRelFn(s.baseUploadAbs, dstPath)
 	if err != nil {
 		return "", 0, "", err
 	}

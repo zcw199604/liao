@@ -140,6 +140,51 @@ func TestJWTMiddleware_AllowsWhitelistPath_DouyinCover(t *testing.T) {
 	}
 }
 
+func TestJWTMiddleware_AllowsWhitelistPath_AuthLogin(t *testing.T) {
+	a := &App{jwt: NewJWTService("secret", 24)}
+	nextCalled := false
+	h := a.jwtMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/auth/login", strings.NewReader("accessCode=x"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d, want 200", rec.Code)
+	}
+	if !nextCalled {
+		t.Fatalf("expected next called")
+	}
+}
+
+func TestJWTMiddleware_RejectsInvalidToken(t *testing.T) {
+	a := &App{jwt: NewJWTService("secret", 24)}
+	h := a.jwtMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getSystemConfig", nil)
+	req.Header.Set("Authorization", "Bearer bad-token")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d, want 401", rec.Code)
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if payload["msg"].(string) != "Token无效或已过期" {
+		t.Fatalf("msg=%v", payload["msg"])
+	}
+}
+
 func TestJWTMiddleware_AllowsValidBearer(t *testing.T) {
 	jwtSvc := NewJWTService("secret", 24)
 	token, err := jwtSvc.GenerateToken()

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 )
@@ -108,4 +109,43 @@ func TestRedisChatHistoryCacheService_DedupByTid(t *testing.T) {
 	if tid := extractHistoryMessageTid(got[1]); tid != "1" {
 		t.Fatalf("tid[1]=%q, want %q", tid, "1")
 	}
+}
+
+func TestRedisChatHistoryCacheService_FlushLoop_TickerAndStop(t *testing.T) {
+	mr := miniredis.RunT(t)
+
+	svc, err := NewRedisChatHistoryCacheService(
+		"redis://"+mr.Addr(),
+		"",
+		0,
+		"",
+		0,
+		"test:ch:",
+		1,
+		1, // 启用 flushLoop
+		15,
+	)
+	if err != nil {
+		t.Fatalf("NewRedisChatHistoryCacheService failed: %v", err)
+	}
+	t.Cleanup(func() { _ = svc.Close() })
+
+	conv := "a_b"
+	svc.SaveMessages(context.Background(), conv, []map[string]any{
+		{"Tid": "1", "content": "m1"},
+	})
+
+	// 等待 ticker 至少触发一次，把 pending 刷入 Redis
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		got, err := svc.GetMessages(context.Background(), conv, "0", 10)
+		if err != nil {
+			t.Fatalf("GetMessages failed: %v", err)
+		}
+		if len(got) == 1 {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("expected flushed message")
 }

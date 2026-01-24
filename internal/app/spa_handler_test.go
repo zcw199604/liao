@@ -95,4 +95,3 @@ func TestSpaHandler_MissingAssetReturns404(t *testing.T) {
 		t.Fatalf("status=%d, want %d", rr.Code, http.StatusNotFound)
 	}
 }
-

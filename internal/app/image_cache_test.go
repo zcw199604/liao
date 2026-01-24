@@ -12,6 +12,11 @@ func TestImageCacheService_AddGetRebuildClearAndExpire(t *testing.T) {
 		t.Fatalf("expected nil cache, got %+v", got)
 	}
 
+	svc.RebuildCache("u1", nil)
+	if got := svc.GetCachedImages("u1"); got != nil {
+		t.Fatalf("expected nil after empty rebuild, got %+v", got)
+	}
+
 	svc.AddImageToCache("u1", "/images/a.png")
 	svc.AddImageToCache("u1", "/images/b.png")
 

@@ -18,23 +18,24 @@ import (
 )
 
 const (
-	wsCloseDelaySeconds        = 80
-	wsMaxConcurrentIdentities  = 2
-	wsUpstreamPingInterval     = 600 * time.Second
-	wsUpstreamConnectionLost   = 700 * time.Second
-	wsUpstreamWriteDeadline    = 10 * time.Second
-	wsDownstreamWriteDeadline  = 5 * time.Second
-	wsUpstreamConnectTimeout   = 15 * time.Second
-	wsUpstreamCloseWait        = 5 * time.Second
-	wsEvictionCloseDelay       = 1 * time.Second
-	wsForceoutDownstreamDelay  = 1 * time.Second
-	wsWebServiceRandServerBase = "http://v1.chat2019.cn/Act/WebService.asmx/getRandServer?ServerInfo=serversdeskry&_="
+	wsCloseDelaySeconds       = 80
+	wsMaxConcurrentIdentities = 2
+	wsUpstreamConnectionLost  = 700 * time.Second
+	wsUpstreamWriteDeadline   = 10 * time.Second
+	wsDownstreamWriteDeadline = 5 * time.Second
+	wsUpstreamConnectTimeout  = 15 * time.Second
+	wsUpstreamCloseWait       = 5 * time.Second
+	wsEvictionCloseDelay      = 1 * time.Second
+	wsForceoutDownstreamDelay = 1 * time.Second
 )
 
 var (
 	wsCloseDelay    = wsCloseDelaySeconds * time.Second
 	wsEvictionDelay = wsEvictionCloseDelay
 	wsForceoutDelay = wsForceoutDownstreamDelay
+
+	wsUpstreamPingInterval     = 600 * time.Second
+	wsWebServiceRandServerBase = "http://v1.chat2019.cn/Act/WebService.asmx/getRandServer?ServerInfo=serversdeskry&_="
 )
 
 type UpstreamWebSocketManager struct {
@@ -254,9 +255,11 @@ func (m *UpstreamWebSocketManager) CloseAllConnections() {
 	for _, c := range m.upstreamClients {
 		upstream = append(upstream, c)
 	}
-	downstreamUsers := make([]string, 0, len(m.downstreamSessions))
-	for uid := range m.downstreamSessions {
-		downstreamUsers = append(downstreamUsers, uid)
+	downstream := make([]*DownstreamSession, 0)
+	for _, sessions := range m.downstreamSessions {
+		for s := range sessions {
+			downstream = append(downstream, s)
+		}
 	}
 	for _, t := range m.pendingCloseTasks {
 		t.Stop()
@@ -270,10 +273,11 @@ func (m *UpstreamWebSocketManager) CloseAllConnections() {
 	for _, c := range upstream {
 		c.CloseExpected()
 	}
-	for _, uid := range downstreamUsers {
-		for _, s := range m.snapshotDownstream(uid) {
-			_ = s.Close()
+	for _, s := range downstream {
+		if s == nil {
+			continue
 		}
+		_ = s.Close()
 	}
 }
 
