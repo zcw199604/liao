@@ -15,7 +15,7 @@ import DouyinDownloadModal from '@/components/media/DouyinDownloadModal.vue'
 import { useDouyinStore } from '@/stores/douyin'
 
 const flushAsync = async () => {
-  await new Promise<void>((resolve) => setImmediate(resolve))
+  await new Promise<void>((resolve) => setTimeout(resolve, 0))
   await nextTick()
 }
 
@@ -106,4 +106,3 @@ describe('components/media/DouyinDownloadModal.vue', () => {
     expect(toastShow).toHaveBeenCalledWith('已从剪贴板读取')
   })
 })
-
