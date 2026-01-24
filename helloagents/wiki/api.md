@@ -1135,6 +1135,74 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 **备注**
 - `dedup=true` 表示命中“当前用户 + MD5”去重：复用已存在媒体记录并删除临时落盘文件，不会重复上传到上游。
 
+---
+
+#### 抖音收藏（全局）
+
+> 说明：收藏数据为 **全局一份**（不按本地身份隔离）。用于前端“收藏列表”展示与一键再次解析。
+
+#### [GET] /api/douyin/favoriteUser/list
+**描述**：获取已收藏的抖音用户列表（按更新时间倒序）。
+
+**响应（HTTP 200）**
+```json
+{"items":[{"secUserId":"MS4wLjABAAAA...","sourceInput":"...","displayName":"","avatarUrl":"","profileUrl":"","lastParsedAt":"2026-01-24T01:02:03","lastParsedCount":18,"createTime":"2026-01-24T01:02:03","updateTime":"2026-01-24T01:02:03"}]}
+```
+
+#### [POST] /api/douyin/favoriteUser/add
+**描述**：收藏/更新一个抖音用户（Upsert）。
+
+**请求（application/json）**
+```json
+{"secUserId":"MS4wLjABAAAA...","sourceInput":"https://www.douyin.com/user/MS4wLjABAAAA...","lastParsedCount":18,"lastParsedRaw":{}}
+```
+
+**响应（HTTP 200）**：返回该用户的最新收藏记录（同 list 的元素结构）。
+
+#### [POST] /api/douyin/favoriteUser/remove
+**描述**：取消收藏一个抖音用户（best-effort）。
+
+**请求（application/json）**
+```json
+{"secUserId":"MS4wLjABAAAA..."}
+```
+
+**响应（HTTP 200）**
+```json
+{"success":true}
+```
+
+#### [GET] /api/douyin/favoriteAweme/list
+**描述**：获取已收藏的抖音作品列表（按更新时间倒序）。
+
+**响应（HTTP 200）**
+```json
+{"items":[{"awemeId":"0123456789","secUserId":"MS4wLjABAAAA...","type":"video","desc":"作品标题/描述","coverUrl":"https://...","createTime":"2026-01-24T01:02:03","updateTime":"2026-01-24T01:02:03"}]}
+```
+
+#### [POST] /api/douyin/favoriteAweme/add
+**描述**：收藏/更新一个抖音作品（Upsert）。
+
+**请求（application/json）**
+```json
+{"awemeId":"0123456789","secUserId":"MS4wLjABAAAA...","type":"video","desc":"作品标题/描述","coverUrl":"https://...","rawDetail":{}}
+```
+
+**响应（HTTP 200）**：返回该作品的最新收藏记录（同 list 的元素结构）。
+
+#### [POST] /api/douyin/favoriteAweme/remove
+**描述**：取消收藏一个抖音作品（best-effort）。
+
+**请求（application/json）**
+```json
+{"awemeId":"0123456789"}
+```
+
+**响应（HTTP 200）**
+```json
+{"success":true}
+```
+
 ## 5. 静态资源与 SPA 回退
 
 - Go（现行实现）：

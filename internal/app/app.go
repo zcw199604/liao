@@ -88,6 +88,7 @@ type App struct {
 
 	identityService  *IdentityService
 	favoriteService  *FavoriteService
+	douyinFavorite   *DouyinFavoriteService
 	fileStorage      *FileStorageService
 	imageServer      *ImageServerService
 	imageCache       *ImageCacheService
@@ -173,6 +174,7 @@ func New(cfg config.Config) (*App, error) {
 		jwt:              NewJWTService(cfg.JWTSecret, cfg.TokenExpireHours),
 		identityService:  NewIdentityService(db),
 		favoriteService:  NewFavoriteService(db),
+		douyinFavorite:   NewDouyinFavoriteService(db),
 		fileStorage:      NewFileStorageService(db),
 		imageServer:      NewImageServerService(cfg.ImageServerHost, cfg.ImageServerPort),
 		imageCache:       NewImageCacheService(),

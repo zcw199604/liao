@@ -25,7 +25,7 @@
         </div>
 
         <div class="flex-1 overflow-y-auto p-6 no-scrollbar">
-          <div class="space-y-3">
+            <div class="space-y-3">
             <div class="flex items-center gap-2">
               <button
                 class="px-4 py-2 rounded-xl border transition text-sm"
@@ -43,14 +43,25 @@
               >
                 用户作品
               </button>
+              <button
+                class="px-4 py-2 rounded-xl border transition text-sm"
+                :class="activeMode === 'favorites' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                :disabled="uiDisabled"
+                @click="switchMode('favorites')"
+              >
+                收藏
+              </button>
             </div>
 
             <div class="text-xs text-gray-500">
               <template v-if="activeMode === 'detail'">
                 支持直接粘贴整段分享文本/短链/URL/作品ID；无需手动提取链接。
               </template>
+              <template v-else-if="activeMode === 'account'">
+                支持粘贴用户主页链接/分享文本/sec_uid，拉取该用户发布作品列表（默认全量拉取）。
+              </template>
               <template v-else>
-                支持粘贴用户主页链接/分享文本/sec_uid，拉取该用户发布作品列表（可分页加载）。
+                查看已收藏的抖音用户/作品，并支持一键再次解析。
               </template>
             </div>
 
@@ -69,7 +80,7 @@
                 <i class="fas fa-times"></i>
               </button>
             </div>
-            <div v-else class="relative">
+            <div v-else-if="activeMode === 'account'" class="relative">
               <textarea
                 v-model="accountInput"
                 class="w-full min-h-[110px] bg-[#111113] border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
@@ -116,7 +127,7 @@
               </div>
             </div>
 
-            <div class="flex gap-2">
+            <div v-if="activeMode !== 'favorites'" class="flex gap-2">
               <button
                 class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
                 :disabled="uiDisabled"
@@ -145,7 +156,10 @@
               </button>
             </div>
 
-            <div class="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between text-xs text-gray-500">
+            <div
+              v-if="activeMode !== 'favorites'"
+              class="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between text-xs text-gray-500"
+            >
               <label class="flex items-center gap-2 cursor-pointer select-none">
                 <input type="checkbox" v-model="autoClipboard" class="accent-emerald-500" />
                 <span>打开时自动读取剪贴板</span>
@@ -169,8 +183,19 @@
             </div>
 
             <div v-if="activeMode === 'account'" class="pt-2">
-              <div v-if="accountSecUserId" class="text-xs text-gray-500">
-                sec_user_id: <span class="font-mono text-gray-300">{{ accountSecUserId }}</span>
+              <div v-if="accountSecUserId" class="flex items-center justify-between gap-3 text-xs text-gray-500">
+                <div class="min-w-0">
+                  sec_user_id: <span class="font-mono text-gray-300">{{ accountSecUserId }}</span>
+                </div>
+                <button
+                  class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs flex items-center gap-2 flex-shrink-0"
+                  :disabled="uiDisabled"
+                  @click="toggleFavoriteCurrentUser"
+                  title="收藏/取消收藏该用户"
+                >
+                  <i :class="isFavoriteUser(accountSecUserId) ? 'fas fa-star text-yellow-400' : 'far fa-star text-gray-400'"></i>
+                  <span>{{ isFavoriteUser(accountSecUserId) ? '已收藏' : '收藏用户' }}</span>
+                </button>
               </div>
 
               <div v-if="accountItems.length > 0" class="mt-3 space-y-3">
@@ -200,6 +225,14 @@
                       <div v-if="accountItemLoading.has(item.detailId)" class="absolute inset-0 z-20 bg-black/60 flex items-center justify-center backdrop-blur-sm">
                         <i class="fas fa-spinner fa-spin text-white text-xl"></i>
                       </div>
+                      <button
+                        class="absolute top-2 right-2 z-30 w-10 h-10 rounded-xl bg-black/50 hover:bg-black/70 backdrop-blur border border-white/10 flex items-center justify-center transition-transform active:scale-95"
+                        :disabled="uiDisabled"
+                        @click.stop="toggleFavoriteAwemeFromAccount(item)"
+                        :title="isFavoriteAweme(item.detailId) ? '取消收藏' : '收藏作品'"
+                      >
+                        <i :class="isFavoriteAweme(item.detailId) ? 'fas fa-star text-yellow-400' : 'far fa-star text-gray-300'"></i>
+                      </button>
 	                    <div class="aspect-video bg-[#111113] overflow-hidden">
 		                      <MediaTile
 		                        v-if="item.coverDownloadUrl || item.coverUrl"
@@ -236,6 +269,140 @@
               </div>
             </div>
 
+            <div v-if="activeMode === 'favorites'" class="pt-2">
+              <div class="sticky top-0 z-10 bg-[#18181b] py-2">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2">
+                    <button
+                      class="px-3 py-2 rounded-xl border transition text-xs"
+                      :class="favoritesTab === 'users' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                      :disabled="favoritesLoading"
+                      @click="favoritesTab = 'users'"
+                    >
+                      用户收藏
+                    </button>
+                    <button
+                      class="px-3 py-2 rounded-xl border transition text-xs"
+                      :class="favoritesTab === 'awemes' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                      :disabled="favoritesLoading"
+                      @click="favoritesTab = 'awemes'"
+                    >
+                      作品收藏
+                    </button>
+                  </div>
+
+                  <button
+                    class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs"
+                    :disabled="favoritesLoading"
+                    @click="refreshFavorites"
+                  >
+                    {{ favoritesLoading ? '刷新中…' : '刷新' }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="favoritesError" class="mt-2 text-sm text-red-400">
+                {{ favoritesError }}
+              </div>
+
+              <div v-if="favoritesLoading" class="mt-4 text-sm text-gray-500">
+                加载中…
+              </div>
+
+              <template v-else-if="favoritesTab === 'users'">
+                <div v-if="favoriteUsers.length === 0" class="mt-4 text-sm text-gray-500">
+                  暂无收藏用户
+                </div>
+                <div v-else class="mt-4 space-y-3">
+                  <div
+                    v-for="u in favoriteUsers"
+                    :key="u.secUserId"
+                    class="rounded-xl border border-gray-700 bg-black/20 p-3"
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="text-white text-sm font-medium truncate">
+                          {{ u.displayName || u.secUserId }}
+                        </div>
+                        <div class="text-xs text-gray-500 font-mono truncate">
+                          {{ u.secUserId }}
+                        </div>
+                        <div v-if="u.lastParsedAt || u.lastParsedCount" class="text-xs text-gray-500 mt-1">
+                          <span v-if="u.lastParsedAt">上次解析: {{ u.lastParsedAt }}</span>
+                          <span v-if="u.lastParsedCount"> · 作品: {{ u.lastParsedCount }}</span>
+                        </div>
+                      </div>
+
+                      <div class="flex flex-col gap-2 flex-shrink-0 sm:flex-row sm:items-center">
+                        <button
+                          class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                          :disabled="uiDisabled"
+                          @click="reparseFavoriteUser(u)"
+                        >
+                          再次解析
+                        </button>
+                        <button
+                          class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                          :disabled="uiDisabled"
+                          @click="removeFavoriteUser(u.secUserId)"
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <template v-else>
+                <div v-if="favoriteAwemes.length === 0" class="mt-4 text-sm text-gray-500">
+                  暂无收藏作品
+                </div>
+                <div v-else class="mt-4 space-y-3">
+                  <div
+                    v-for="it in favoriteAwemes"
+                    :key="it.awemeId"
+                    class="rounded-xl border border-gray-700 bg-black/20 p-3 flex gap-3"
+                  >
+                    <div class="w-24 h-14 bg-[#111113] rounded-lg overflow-hidden flex-shrink-0">
+                      <MediaTile
+                        v-if="it.coverUrl"
+                        :src="it.coverUrl"
+                        type="image"
+                        class="w-full h-full"
+                        :show-skeleton="false"
+                        img-referrer-policy="no-referrer"
+                      />
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <div class="text-white text-sm font-medium line-clamp-2">
+                        {{ it.desc || '（无描述）' }}
+                      </div>
+                      <div class="text-xs text-gray-500 font-mono truncate mt-1">
+                        {{ it.awemeId }}
+                      </div>
+                      <div class="flex flex-col gap-2 mt-2 sm:flex-row sm:items-center">
+                        <button
+                          class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                          :disabled="uiDisabled"
+                          @click="reparseFavoriteAweme(it)"
+                        >
+                          解析
+                        </button>
+                        <button
+                          class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                          :disabled="uiDisabled"
+                          @click="removeFavoriteAweme(it.awemeId)"
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+
             <div v-if="activeMode === 'detail' && detail" class="pt-2">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
@@ -251,15 +418,27 @@
                   </div>
                 </div>
 
-                <button
-                  v-if="userStore.currentUser"
-                  class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs flex items-center gap-2"
-                  @click="openUploadMenu"
-                  title="打开聊天页上传菜单"
-                >
-                  <i class="fas fa-paper-plane"></i>
-                  <span>上传菜单</span>
-                </button>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs flex items-center gap-2"
+                    :disabled="uiDisabled"
+                    @click="toggleFavoriteCurrentDetail"
+                    title="收藏/取消收藏该作品"
+                  >
+                    <i :class="isFavoriteAweme(detail.detailId) ? 'fas fa-star text-yellow-400' : 'far fa-star text-gray-400'"></i>
+                    <span>{{ isFavoriteAweme(detail.detailId) ? '已收藏' : '收藏' }}</span>
+                  </button>
+
+                  <button
+                    v-if="userStore.currentUser"
+                    class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs flex items-center gap-2"
+                    @click="openUploadMenu"
+                    title="打开聊天页上传菜单"
+                  >
+                    <i class="fas fa-paper-plane"></i>
+                    <span>上传菜单</span>
+                  </button>
+                </div>
               </div>
 
               <div v-if="detail.items && detail.items.length > 0" class="mt-4 space-y-2">
@@ -477,13 +656,35 @@ interface DouyinAccountResponse {
   items: DouyinAccountItem[]
 }
 
+interface DouyinFavoriteUser {
+  secUserId: string
+  sourceInput?: string
+  displayName?: string
+  avatarUrl?: string
+  profileUrl?: string
+  lastParsedAt?: string
+  lastParsedCount?: number
+  createTime: string
+  updateTime: string
+}
+
+interface DouyinFavoriteAweme {
+  awemeId: string
+  secUserId?: string
+  type?: 'image' | 'video'
+  desc?: string
+  coverUrl?: string
+  createTime: string
+  updateTime: string
+}
+
 const douyinStore = useDouyinStore()
 const userStore = useUserStore()
 const mediaStore = useMediaStore()
 const systemConfigStore = useSystemConfigStore()
 const { show } = useToast()
 
-const activeMode = ref<'detail' | 'account'>('detail')
+const activeMode = ref<'detail' | 'account' | 'favorites'>('detail')
 
 const inputText = ref('')
 const accountInput = ref('')
@@ -510,6 +711,18 @@ const accountHasMore = ref(false)
 const accountSecUserId = ref('')
 const accountQueried = ref(false)
 const accountItemLoading = reactive<Set<string>>(new Set())
+
+const favoritesTab = ref<'users' | 'awemes'>('users')
+const favoritesLoading = ref(false)
+const favoritesError = ref('')
+const favoriteUsers = ref<DouyinFavoriteUser[]>([])
+const favoriteAwemes = ref<DouyinFavoriteAweme[]>([])
+
+const favoriteUserIdSet = computed(() => new Set(favoriteUsers.value.map((u) => String(u.secUserId || '').trim()).filter(Boolean)))
+const favoriteAwemeIdSet = computed(() => new Set(favoriteAwemes.value.map((it) => String(it.awemeId || '').trim()).filter(Boolean)))
+
+const isFavoriteUser = (secUserId: string) => favoriteUserIdSet.value.has(String(secUserId || '').trim())
+const isFavoriteAweme = (awemeId: string) => favoriteAwemeIdSet.value.has(String(awemeId || '').trim())
 
 const showPreview = ref(false)
 const previewUrl = ref('')
@@ -656,6 +869,22 @@ const resetAccountStates = () => {
   accountQueried.value = false
 }
 
+const refreshFavorites = async () => {
+  favoritesLoading.value = true
+  favoritesError.value = ''
+  try {
+    const [usersRes, awemesRes] = await Promise.all([douyinApi.listDouyinFavoriteUsers(), douyinApi.listDouyinFavoriteAwemes()])
+
+    favoriteUsers.value = Array.isArray(usersRes?.items) ? (usersRes.items as DouyinFavoriteUser[]) : []
+    favoriteAwemes.value = Array.isArray(awemesRes?.items) ? (awemesRes.items as DouyinFavoriteAweme[]) : []
+  } catch (e: any) {
+    console.error('加载抖音收藏失败:', e)
+    favoritesError.value = e?.response?.data?.error || e?.message || '加载失败'
+  } finally {
+    favoritesLoading.value = false
+  }
+}
+
 watch(
   () => douyinStore.showModal,
   async (v) => {
@@ -672,6 +901,8 @@ watch(
       previewUrl.value = ''
       previewMediaList.value = []
       previewIndex.value = 0
+      favoritesTab.value = 'users'
+      void refreshFavorites()
 
       // 优先使用调用方传入的预填内容；否则按设置尝试读取剪贴板
       const hasInput = () => !!String(inputText.value || '').trim() || !!String(accountInput.value || '').trim()
@@ -725,6 +956,11 @@ const handleClear = () => {
     return
   }
 
+  if (activeMode.value === 'favorites') {
+    favoritesError.value = ''
+    return
+  }
+
   accountInput.value = ''
   accountError.value = ''
   resetAccountStates()
@@ -732,7 +968,7 @@ const handleClear = () => {
 
 const uiDisabled = computed(() => loading.value || accountLoading.value || batchImport.running || batchDownload.running)
 
-const switchMode = (mode: 'detail' | 'account') => {
+const switchMode = (mode: 'detail' | 'account' | 'favorites') => {
   if (uiDisabled.value) return
   activeMode.value = mode
   cookieHint.value = ''
@@ -744,6 +980,12 @@ const switchMode = (mode: 'detail' | 'account') => {
     previewUrl.value = ''
     previewMediaList.value = []
     previewIndex.value = 0
+  }
+
+  if (mode === 'favorites') {
+    if (favoriteUsers.value.length === 0 && favoriteAwemes.value.length === 0) {
+      void refreshFavorites()
+    }
   }
 }
 
@@ -778,38 +1020,89 @@ const handleFetchAccount = async (opts: { append?: boolean } = {}) => {
   }
 
   try {
-    const res = await douyinApi.getDouyinAccount({
-      input,
-      cookie: String(cookie.value || '').trim(),
-      tab: 'post',
-      cursor: append ? accountCursor.value : 0,
-      count: 18
-    })
+    const countPerPage = 18
+    const existing = new Set(accountItems.value.map((i) => String(i.detailId || '').trim()).filter(Boolean))
 
-    if (!res || !Array.isArray(res?.items)) {
-      accountError.value = res?.error || '获取失败'
+    const fetchPage = async (cursor: number) => {
+      const res = await douyinApi.getDouyinAccount({
+        input,
+        cookie: String(cookie.value || '').trim(),
+        tab: 'post',
+        cursor,
+        count: countPerPage
+      })
+      if (!res || !Array.isArray(res?.items)) {
+        throw new Error(res?.error || '获取失败')
+      }
+      return res as DouyinAccountResponse
+    }
+
+    const appendItems = (incoming: DouyinAccountItem[]) => {
+      for (const it of incoming || []) {
+        const id = String(it?.detailId || '').trim()
+        if (!id || existing.has(id)) continue
+        existing.add(id)
+        accountItems.value.push({
+          detailId: id,
+          type: it?.type,
+          desc: String(it?.desc || '').trim(),
+          coverUrl: String(it?.coverUrl || '').trim(),
+          coverDownloadUrl: String(it?.coverDownloadUrl || '').trim(),
+          key: String(it?.key || '').trim(),
+          items: Array.isArray(it?.items) ? it.items : []
+        })
+      }
+    }
+
+    if (append) {
+      const res = await fetchPage(accountCursor.value)
+      accountSecUserId.value = String(res?.secUserId || accountSecUserId.value || '').trim()
+      accountCursor.value = Number(res?.cursor || 0)
+      accountHasMore.value = !!res?.hasMore
+      appendItems(res.items || [])
       return
     }
 
-    accountSecUserId.value = String(res?.secUserId || accountSecUserId.value || '').trim()
-    accountCursor.value = Number(res?.cursor || 0)
-    accountHasMore.value = !!res?.hasMore
+    let cursor = 0
+    let loops = 0
+    while (true) {
+      loops += 1
+      const res = await fetchPage(cursor)
+      accountSecUserId.value = String(res?.secUserId || accountSecUserId.value || '').trim()
+      appendItems(res.items || [])
 
-    const incoming = (res.items || []) as DouyinAccountItem[]
-    const existing = new Set(accountItems.value.map((i) => String(i.detailId || '').trim()).filter(Boolean))
-    for (const it of incoming) {
-      const id = String(it?.detailId || '').trim()
-      if (!id || existing.has(id)) continue
-      existing.add(id)
-      accountItems.value.push({
-        detailId: id,
-        type: it?.type,
-        desc: String(it?.desc || '').trim(),
-        coverUrl: String(it?.coverUrl || '').trim(),
-        coverDownloadUrl: String(it?.coverDownloadUrl || '').trim(),
-        key: String(it?.key || '').trim(),
-        items: Array.isArray(it?.items) ? it.items : []
-      })
+      const nextCursor = Number(res?.cursor || 0)
+      const hasMore = !!res?.hasMore
+      accountCursor.value = nextCursor
+      accountHasMore.value = hasMore
+
+      if (!hasMore) break
+      if (nextCursor <= 0 || nextCursor === cursor) break
+      cursor = nextCursor
+
+      // best-effort：避免上游异常导致死循环（正常情况下 hasMore 会在有限次数内归零）
+      if (loops >= 200) {
+        show('已达到最大分页限制，可能还有未加载的作品')
+        break
+      }
+    }
+
+    // 若该用户已被收藏，则同步更新“最后解析时间/作品数”
+    const secUserId = String(accountSecUserId.value || '').trim()
+    if (secUserId && isFavoriteUser(secUserId)) {
+      try {
+        const updated = await douyinApi.addDouyinFavoriteUser({
+          secUserId,
+          sourceInput: input,
+          lastParsedCount: accountItems.value.length
+        })
+        if (updated?.secUserId) {
+          const next = [updated as DouyinFavoriteUser, ...favoriteUsers.value.filter((u) => u.secUserId !== updated.secUserId)]
+          favoriteUsers.value = next
+        }
+      } catch (e) {
+        console.warn('同步抖音用户收藏解析信息失败:', e)
+      }
     }
   } catch (e: any) {
     console.error('获取抖音账号作品失败:', e)
@@ -830,6 +1123,161 @@ const handleFetchMoreAccount = async () => {
   if (accountLoading.value) return
   if (!accountHasMore.value) return
   await handleFetchAccount({ append: true })
+}
+
+const upsertFavoriteUser = async (payload: {
+  secUserId: string
+  sourceInput?: string
+  displayName?: string
+  avatarUrl?: string
+  profileUrl?: string
+  lastParsedCount?: number
+  lastParsedRaw?: any
+}) => {
+  const secUserId = String(payload?.secUserId || '').trim()
+  if (!secUserId) return
+
+  try {
+    const res = await douyinApi.addDouyinFavoriteUser(payload as any)
+    if (res?.secUserId) {
+      favoriteUsers.value = [res as DouyinFavoriteUser, ...favoriteUsers.value.filter((u) => u.secUserId !== res.secUserId)]
+      show('已收藏用户')
+    } else {
+      throw new Error(res?.error || '收藏失败')
+    }
+  } catch (e: any) {
+    console.error('收藏抖音用户失败:', e)
+    show(e?.response?.data?.error || e?.message || '收藏失败')
+  }
+}
+
+const removeFavoriteUser = async (secUserId: string) => {
+  const id = String(secUserId || '').trim()
+  if (!id) return
+
+  try {
+    await douyinApi.removeDouyinFavoriteUser({ secUserId: id })
+    favoriteUsers.value = favoriteUsers.value.filter((u) => u.secUserId !== id)
+    show('已取消收藏')
+  } catch (e: any) {
+    console.error('取消抖音用户收藏失败:', e)
+    show(e?.response?.data?.error || e?.message || '取消失败')
+  }
+}
+
+const toggleFavoriteCurrentUser = async () => {
+  const secUserId = String(accountSecUserId.value || '').trim()
+  if (!secUserId) {
+    show('请先获取用户作品')
+    return
+  }
+  if (isFavoriteUser(secUserId)) {
+    await removeFavoriteUser(secUserId)
+    return
+  }
+
+  await upsertFavoriteUser({
+    secUserId,
+    sourceInput: String(accountInput.value || '').trim(),
+    lastParsedCount: accountItems.value.length
+  })
+}
+
+const upsertFavoriteAweme = async (payload: {
+  awemeId: string
+  secUserId?: string
+  type?: string
+  desc?: string
+  coverUrl?: string
+  rawDetail?: any
+}) => {
+  const awemeId = String(payload?.awemeId || '').trim()
+  if (!awemeId) return
+
+  try {
+    const res = await douyinApi.addDouyinFavoriteAweme(payload as any)
+    if (res?.awemeId) {
+      favoriteAwemes.value = [res as DouyinFavoriteAweme, ...favoriteAwemes.value.filter((it) => it.awemeId !== res.awemeId)]
+      show('已收藏作品')
+    } else {
+      throw new Error(res?.error || '收藏失败')
+    }
+  } catch (e: any) {
+    console.error('收藏抖音作品失败:', e)
+    show(e?.response?.data?.error || e?.message || '收藏失败')
+  }
+}
+
+const removeFavoriteAweme = async (awemeId: string) => {
+  const id = String(awemeId || '').trim()
+  if (!id) return
+
+  try {
+    await douyinApi.removeDouyinFavoriteAweme({ awemeId: id })
+    favoriteAwemes.value = favoriteAwemes.value.filter((it) => it.awemeId !== id)
+    show('已取消收藏')
+  } catch (e: any) {
+    console.error('取消抖音作品收藏失败:', e)
+    show(e?.response?.data?.error || e?.message || '取消失败')
+  }
+}
+
+const toggleFavoriteAwemeFromAccount = async (item: DouyinAccountItem) => {
+  const awemeId = String(item?.detailId || '').trim()
+  if (!awemeId) return
+
+  if (isFavoriteAweme(awemeId)) {
+    await removeFavoriteAweme(awemeId)
+    return
+  }
+
+  await upsertFavoriteAweme({
+    awemeId,
+    secUserId: String(accountSecUserId.value || '').trim(),
+    type: String(item?.type || '').trim(),
+    desc: String(item?.desc || '').trim(),
+    coverUrl: String(item?.coverUrl || '').trim()
+  })
+}
+
+const toggleFavoriteCurrentDetail = async () => {
+  const d = detail.value
+  if (!d) return
+
+  const awemeId = String(d.detailId || '').trim()
+  if (!awemeId) return
+
+  if (isFavoriteAweme(awemeId)) {
+    await removeFavoriteAweme(awemeId)
+    return
+  }
+
+  const typeValue = String(d.items?.[0]?.type || '').trim() || (d.type?.includes('图集') ? 'image' : 'video')
+  await upsertFavoriteAweme({
+    awemeId,
+    type: typeValue,
+    desc: String(d.title || '').trim(),
+    coverUrl: String(d.coverUrl || '').trim(),
+    rawDetail: d
+  })
+}
+
+const reparseFavoriteUser = async (u: DouyinFavoriteUser) => {
+  const secUserId = String(u?.secUserId || '').trim()
+  if (!secUserId) return
+
+  activeMode.value = 'account'
+  accountInput.value = secUserId
+  await handleFetchAccount()
+}
+
+const reparseFavoriteAweme = async (it: DouyinFavoriteAweme) => {
+  const awemeId = String(it?.awemeId || '').trim()
+  if (!awemeId) return
+
+  activeMode.value = 'detail'
+  inputText.value = awemeId
+  await handleResolve()
 }
 
 const getAccountItemTitle = (item: DouyinAccountItem) => {
@@ -911,6 +1359,10 @@ const openAccountItem = async (item: DouyinAccountItem) => {
 const handlePrimaryAction = async () => {
   if (activeMode.value === 'detail') {
     await handleResolve()
+    return
+  }
+  if (activeMode.value === 'favorites') {
+    await refreshFavorites()
     return
   }
   await handleFetchAccount()
@@ -1036,8 +1488,28 @@ const handleResolve = async () => {
 
     detail.value = res as DouyinDetailResponse
 
-	    // 预取文件大小（最佳努力）
-	    void prefetchMetas(detail.value.key, detail.value.items || [])
+    // 若该作品已被收藏，则同步更新“最后解析数据”（不弹 Toast）
+    const awemeId = String(detail.value.detailId || '').trim()
+    if (awemeId && isFavoriteAweme(awemeId)) {
+      try {
+        const typeValue = String(detail.value.items?.[0]?.type || '').trim() || (detail.value.type?.includes('图集') ? 'image' : 'video')
+        const updated = await douyinApi.addDouyinFavoriteAweme({
+          awemeId,
+          type: typeValue,
+          desc: String(detail.value.title || '').trim(),
+          coverUrl: String(detail.value.coverUrl || '').trim(),
+          rawDetail: detail.value
+        })
+        if (updated?.awemeId) {
+          favoriteAwemes.value = [updated as DouyinFavoriteAweme, ...favoriteAwemes.value.filter((it) => it.awemeId !== updated.awemeId)]
+        }
+      } catch (e) {
+        console.warn('同步抖音作品收藏解析信息失败:', e)
+      }
+    }
+
+    // 预取文件大小（最佳努力）
+    void prefetchMetas(detail.value.key, detail.value.items || [])
 	  } catch (e: any) {
 	    console.error('解析抖音失败:', e)
 	    const msg = e?.response?.data?.error || e?.message || '解析失败'

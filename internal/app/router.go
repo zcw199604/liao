@@ -93,6 +93,14 @@ func (a *App) buildRouter() http.Handler {
 			dr.Get("/download", a.handleDouyinDownload)
 			dr.Head("/download", a.handleDouyinDownload)
 			dr.Post("/import", a.handleDouyinImport)
+
+			// 抖音收藏（全局）
+			dr.Get("/favoriteUser/list", a.handleDouyinFavoriteUserList)
+			dr.Post("/favoriteUser/add", a.handleDouyinFavoriteUserAdd)
+			dr.Post("/favoriteUser/remove", a.handleDouyinFavoriteUserRemove)
+			dr.Get("/favoriteAweme/list", a.handleDouyinFavoriteAwemeList)
+			dr.Post("/favoriteAweme/add", a.handleDouyinFavoriteAwemeAdd)
+			dr.Post("/favoriteAweme/remove", a.handleDouyinFavoriteAwemeRemove)
 		})
 
 		// mtPhoto 相册

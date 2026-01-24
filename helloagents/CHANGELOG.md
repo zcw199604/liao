@@ -13,6 +13,9 @@
 - 测试：新增前端“抖音下载”弹窗剪贴板粘贴/打开时自动读取的单元测试。
 - 前端/后端：对接 TikTokDownloader Web API，新增抖音作品“解析→预览→下载→导入上传”能力（入口：图片管理→抖音下载；支持视频/图集；下载文件名按作品标题；导入上传按 MD5 去重；弹窗交互增强：剪贴板预填/自动解析开关、多选批量下载/导入、文件大小探测（`HEAD /api/douyin/download`）、导入状态提示与一键打开上传菜单）。
 - 前端/后端：抖音下载新增“用户作品”模式：支持通过用户主页链接/分享文本拉取发布作品列表（分页加载），并可一键跳转到“作品解析”；同时移除 proxy 输入并为输入框增加显式清空按钮；新增接口 `POST /api/douyin/account`。
+- 前端/后端：抖音下载新增“收藏”能力：可收藏已解析的抖音用户（`sec_user_id`）与作品（`aweme_id`），提供收藏列表查看、取消收藏，并支持一键再次解析；新增接口 `GET/POST /api/douyin/favoriteUser/*`、`GET/POST /api/douyin/favoriteAweme/*`；新增 MySQL 表 `douyin_favorite_user`、`douyin_favorite_aweme`。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
 - 前端：抖音下载“用户作品”预览支持跨作品画廊左右滑动切换，并在预览顶部展示作品名称（方案包：`helloagents/archive/2026-01/202601230536_feat-douyin-account-preview-gallery/`）。
 - 后端：新增超时配置环境变量：`UPSTREAM_HTTP_TIMEOUT_SECONDS`（上游 HTTP，秒，默认 60）、`TIKTOKDOWNLOADER_TIMEOUT_SECONDS`（抖音上游，秒，默认跟随 UPSTREAM）、`REDIS_TIMEOUT_SECONDS`（Redis 连接/读写，秒，默认 15）。
 - 增强聊天交互：会话列表左右滑切换“消息/收藏”、聊天页边缘右滑返回、侧边栏左滑关闭、长按菜单点击外关闭

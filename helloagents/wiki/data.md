@@ -235,6 +235,55 @@
 - `uk_vef_task_seq (task_id, seq)`
 - `idx_vef_task_id (task_id)`
 
+---
+
+### 1.10 `douyin_favorite_user`（抖音用户收藏，全局）
+
+**用途**：存储“已解析后手动收藏”的抖音用户（全局一份，不按本地身份隔离），用于前端收藏列表与一键再次解析。  
+**创建位置**：`internal/app/schema.go`（启动时 `CREATE TABLE IF NOT EXISTS`）。  
+**实现**：`internal/app/douyin_favorite.go`、`internal/app/douyin_favorite_handlers.go`。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| sec_user_id | VARCHAR(128) | PK | 抖音 `sec_user_id`（sec_uid） |
+| source_input | TEXT | 可空 | 收藏时原始输入（分享文本/链接/sec_uid） |
+| display_name | VARCHAR(128) | 可空 | 展示名（best-effort，可由前端/后端补齐） |
+| avatar_url | VARCHAR(500) | 可空 | 头像 URL（best-effort） |
+| profile_url | VARCHAR(500) | 可空 | 用户主页 URL（best-effort） |
+| last_parsed_at | DATETIME | 可空 | 最后一次解析时间 |
+| last_parsed_count | INT | 可空 | 最后一次解析得到的作品数量（best-effort） |
+| last_parsed_raw | LONGTEXT | 可空 | 最后一次解析原始数据（JSON 字符串，可选） |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+| updated_at | DATETIME | NOT NULL | 更新时间 |
+
+**索引**
+- `idx_dfu_updated_at (updated_at DESC)`
+- `idx_dfu_created_at (created_at DESC)`
+
+---
+
+### 1.11 `douyin_favorite_aweme`（抖音作品收藏，全局）
+
+**用途**：存储“已解析后手动收藏”的抖音作品（全局一份），用于前端收藏列表展示与一键再次解析。  
+**创建位置**：`internal/app/schema.go`（启动时 `CREATE TABLE IF NOT EXISTS`）。  
+**实现**：`internal/app/douyin_favorite.go`、`internal/app/douyin_favorite_handlers.go`。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| aweme_id | VARCHAR(64) | PK | 作品 ID（aweme_id） |
+| sec_user_id | VARCHAR(128) | 可空 | 作者 `sec_user_id`（可选） |
+| type | VARCHAR(16) | 可空 | `video/image`（best-effort） |
+| description | TEXT | 可空 | 作品描述/标题（best-effort） |
+| cover_url | VARCHAR(500) | 可空 | 封面 URL（best-effort） |
+| raw_detail | LONGTEXT | 可空 | 作品解析原始数据（JSON 字符串，可选） |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+| updated_at | DATETIME | NOT NULL | 更新时间 |
+
+**索引**
+- `idx_dfa_sec_user_id (sec_user_id)`
+- `idx_dfa_updated_at (updated_at DESC)`
+- `idx_dfa_created_at (created_at DESC)`
+
 ## 2. 缓存（内存 / Redis）
 
 ### 2.1 用户信息缓存（UserInfoCacheService）

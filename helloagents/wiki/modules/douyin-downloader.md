@@ -29,8 +29,13 @@
 > 前端应优先使用 `items[].downloadUrl`（`/api/douyin/download`）进行缩略图与预览加载。
   - 模式B：用户作品
     1) 粘贴用户主页链接/分享文本/sec_uid
-    2) 点击“获取作品”拉取该用户发布作品列表（支持分页加载）
+    2) 点击“获取作品”拉取该用户发布作品列表（当前实现默认全量拉取；列表展示仍可复用分页接口）
     3) 点击某个作品 → 进入预览：支持左右滑动在“当前已加载作品”之间切换，并在预览顶部显示当前作品名称（best-effort 使用 `/api/douyin/account` 返回的 `key/items`，避免再请求 `/api/douyin/detail`；若缺失则回退到“作品解析”抓取资源列表）
+  - 模式C：收藏
+    1) 查看“用户收藏 / 作品收藏”列表（全局一份，不按本地身份隔离）
+    2) 用户收藏：支持“再次解析”一键重新拉取该用户作品列表，并同步更新收藏记录的 `last_parsed_at/last_parsed_count`
+    3) 作品收藏：支持“一键解析”重新抓取该作品详情，获取最新可下载资源列表
+    4) 在“用户作品/作品解析”模式中支持点星标收藏/取消收藏（用户在用户作品页头部收藏；作品在卡片右上角/详情页头部收藏）
 
 **本地配置（localStorage）**
 - `douyin_cookie`：Cookie（可选；支持一键清除）
@@ -78,7 +83,7 @@
 - **大文件处理**：下载与导入均采用流式转发与落盘，避免一次性读入内存。
 
 ## API接口
-详见 `helloagents/wiki/api.md` 的 “4.9 抖音下载（TikTokDownloader Web API）”。
+详见 `helloagents/wiki/api.md` 的 “4.9 抖音下载（TikTokDownloader Web API）”（含抖音收藏接口）。
 
 ## 配置（环境变量）
 - `TIKTOKDOWNLOADER_BASE_URL`：TikTokDownloader Web API 地址（必配才能启用）

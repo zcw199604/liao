@@ -28,6 +28,37 @@ func ensureSchema(db *sql.DB) error {
 			INDEX idx_target_user_id (target_user_id)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='本地聊天收藏'`,
 
+		// douyin_favorite_user（抖音用户收藏，全局）
+		`CREATE TABLE IF NOT EXISTS douyin_favorite_user (
+			sec_user_id VARCHAR(128) PRIMARY KEY COMMENT '抖音 sec_user_id（sec_uid）',
+			source_input TEXT NULL COMMENT '收藏时的原始输入（分享文本/链接/sec_uid）',
+			display_name VARCHAR(128) NULL COMMENT '展示名（可选）',
+			avatar_url VARCHAR(500) NULL COMMENT '头像URL（可选）',
+			profile_url VARCHAR(500) NULL COMMENT '用户主页URL（可选）',
+			last_parsed_at DATETIME NULL COMMENT '最后一次解析时间',
+			last_parsed_count INT NULL COMMENT '最后一次解析得到的作品数量（best-effort）',
+			last_parsed_raw LONGTEXT NULL COMMENT '最后一次解析的原始数据（JSON字符串，可选）',
+			created_at DATETIME NOT NULL COMMENT '创建时间',
+			updated_at DATETIME NOT NULL COMMENT '更新时间',
+			INDEX idx_dfu_updated_at (updated_at DESC),
+			INDEX idx_dfu_created_at (created_at DESC)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音用户收藏（全局）'`,
+
+		// douyin_favorite_aweme（抖音作品收藏，全局）
+		`CREATE TABLE IF NOT EXISTS douyin_favorite_aweme (
+			aweme_id VARCHAR(64) PRIMARY KEY COMMENT '作品ID（aweme_id）',
+			sec_user_id VARCHAR(128) NULL COMMENT '作者 sec_user_id（可选）',
+			type VARCHAR(16) NULL COMMENT '作品类型（video/image）',
+			description TEXT NULL COMMENT '作品描述/标题（best-effort）',
+			cover_url VARCHAR(500) NULL COMMENT '封面URL（best-effort）',
+			raw_detail LONGTEXT NULL COMMENT '作品解析原始数据（JSON字符串，可选）',
+			created_at DATETIME NOT NULL COMMENT '创建时间',
+			updated_at DATETIME NOT NULL COMMENT '更新时间',
+			INDEX idx_dfa_sec_user_id (sec_user_id),
+			INDEX idx_dfa_updated_at (updated_at DESC),
+			INDEX idx_dfa_created_at (created_at DESC)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音作品收藏（全局）'`,
+
 		// media_file（媒体库）
 		`CREATE TABLE IF NOT EXISTS media_file (
 			id BIGINT AUTO_INCREMENT PRIMARY KEY,
