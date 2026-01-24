@@ -65,3 +65,41 @@ CREATE TABLE IF NOT EXISTS douyin_favorite_aweme (
     INDEX idx_dfa_updated_at (updated_at DESC),
     INDEX idx_dfa_created_at (created_at DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音作品收藏（全局）';
+
+-- 抖音用户收藏标签（全局）
+CREATE TABLE IF NOT EXISTS douyin_favorite_user_tag (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(64) NOT NULL COMMENT '标签名称（全局唯一）',
+    created_at DATETIME NOT NULL COMMENT '创建时间',
+    updated_at DATETIME NOT NULL COMMENT '更新时间',
+    UNIQUE KEY uk_dfut_name (name),
+    INDEX idx_dfut_updated_at (updated_at DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音用户收藏标签（全局）';
+
+-- 抖音用户收藏标签映射（全局）
+CREATE TABLE IF NOT EXISTS douyin_favorite_user_tag_map (
+    sec_user_id VARCHAR(128) NOT NULL COMMENT '抖音 sec_user_id（sec_uid）',
+    tag_id BIGINT NOT NULL COMMENT '标签ID',
+    created_at DATETIME NOT NULL COMMENT '创建时间',
+    PRIMARY KEY (sec_user_id, tag_id),
+    INDEX idx_dfutm_tag_id (tag_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音用户收藏标签映射（全局）';
+
+-- 抖音作品收藏标签（全局）
+CREATE TABLE IF NOT EXISTS douyin_favorite_aweme_tag (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(64) NOT NULL COMMENT '标签名称（全局唯一）',
+    created_at DATETIME NOT NULL COMMENT '创建时间',
+    updated_at DATETIME NOT NULL COMMENT '更新时间',
+    UNIQUE KEY uk_dfat_name (name),
+    INDEX idx_dfat_updated_at (updated_at DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音作品收藏标签（全局）';
+
+-- 抖音作品收藏标签映射（全局）
+CREATE TABLE IF NOT EXISTS douyin_favorite_aweme_tag_map (
+    aweme_id VARCHAR(64) NOT NULL COMMENT '作品ID（aweme_id）',
+    tag_id BIGINT NOT NULL COMMENT '标签ID',
+    created_at DATETIME NOT NULL COMMENT '创建时间',
+    PRIMARY KEY (aweme_id, tag_id),
+    INDEX idx_dfatm_tag_id (tag_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音作品收藏标签映射（全局）';

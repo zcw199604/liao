@@ -9,30 +9,32 @@ import (
 )
 
 type DouyinFavoriteUser struct {
-	SecUserID       string `json:"secUserId"`
-	SourceInput     string `json:"sourceInput,omitempty"`
-	DisplayName     string `json:"displayName,omitempty"`
-	Signature       string `json:"signature,omitempty"`
-	AvatarURL       string `json:"avatarUrl,omitempty"`
-	ProfileURL      string `json:"profileUrl,omitempty"`
-	FollowerCount   *int64 `json:"followerCount,omitempty"`
-	FollowingCount  *int64 `json:"followingCount,omitempty"`
-	AwemeCount      *int64 `json:"awemeCount,omitempty"`
-	TotalFavorited  *int64 `json:"totalFavorited,omitempty"`
-	LastParsedAt    string `json:"lastParsedAt,omitempty"`
-	LastParsedCount int    `json:"lastParsedCount,omitempty"`
-	CreateTime      string `json:"createTime"`
-	UpdateTime      string `json:"updateTime"`
+	SecUserID       string  `json:"secUserId"`
+	SourceInput     string  `json:"sourceInput,omitempty"`
+	DisplayName     string  `json:"displayName,omitempty"`
+	Signature       string  `json:"signature,omitempty"`
+	AvatarURL       string  `json:"avatarUrl,omitempty"`
+	ProfileURL      string  `json:"profileUrl,omitempty"`
+	FollowerCount   *int64  `json:"followerCount,omitempty"`
+	FollowingCount  *int64  `json:"followingCount,omitempty"`
+	AwemeCount      *int64  `json:"awemeCount,omitempty"`
+	TotalFavorited  *int64  `json:"totalFavorited,omitempty"`
+	LastParsedAt    string  `json:"lastParsedAt,omitempty"`
+	LastParsedCount int     `json:"lastParsedCount,omitempty"`
+	CreateTime      string  `json:"createTime"`
+	UpdateTime      string  `json:"updateTime"`
+	TagIDs          []int64 `json:"tagIds"`
 }
 
 type DouyinFavoriteAweme struct {
-	AwemeID    string `json:"awemeId"`
-	SecUserID  string `json:"secUserId,omitempty"`
-	Type       string `json:"type,omitempty"`
-	Desc       string `json:"desc,omitempty"`
-	CoverURL   string `json:"coverUrl,omitempty"`
-	CreateTime string `json:"createTime"`
-	UpdateTime string `json:"updateTime"`
+	AwemeID    string  `json:"awemeId"`
+	SecUserID  string  `json:"secUserId,omitempty"`
+	Type       string  `json:"type,omitempty"`
+	Desc       string  `json:"desc,omitempty"`
+	CoverURL   string  `json:"coverUrl,omitempty"`
+	CreateTime string  `json:"createTime"`
+	UpdateTime string  `json:"updateTime"`
+	TagIDs     []int64 `json:"tagIds"`
 }
 
 type DouyinFavoriteService struct {
@@ -135,6 +137,7 @@ func (s *DouyinFavoriteService) UpsertUser(ctx context.Context, in DouyinFavorit
 }
 
 func (s *DouyinFavoriteService) RemoveUser(ctx context.Context, secUserID string) error {
+	_, _ = s.db.ExecContext(ctx, "DELETE FROM douyin_favorite_user_tag_map WHERE sec_user_id = ?", secUserID)
 	_, err := s.db.ExecContext(ctx, "DELETE FROM douyin_favorite_user WHERE sec_user_id = ?", secUserID)
 	return err
 }
@@ -194,11 +197,18 @@ func (s *DouyinFavoriteService) ListUsers(ctx context.Context) ([]DouyinFavorite
 		u.CreateTime = formatNullLocalDateTimeISO(createdAt)
 		u.UpdateTime = formatNullLocalDateTimeISO(updatedAt)
 		applyDouyinFavoriteUserMetaFromRaw(&u, lastParsedRaw)
+		u.TagIDs = []int64{}
 
 		out = append(out, u)
 	}
 
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.fillUserTagIDs(ctx, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (s *DouyinFavoriteService) findUserBySecUserID(ctx context.Context, secUserID string) (*DouyinFavoriteUser, error) {
@@ -254,6 +264,15 @@ func (s *DouyinFavoriteService) findUserBySecUserID(ctx context.Context, secUser
 	u.UpdateTime = formatNullLocalDateTimeISO(updatedAt)
 	applyDouyinFavoriteUserMetaFromRaw(&u, lastParsedRaw)
 
+	tagIDs, err := s.listUserTagIDsBySecUserID(ctx, secUserID)
+	if err != nil {
+		return nil, err
+	}
+	if tagIDs == nil {
+		tagIDs = []int64{}
+	}
+	u.TagIDs = tagIDs
+
 	return &u, nil
 }
 
@@ -299,6 +318,7 @@ func (s *DouyinFavoriteService) UpsertAweme(ctx context.Context, in DouyinFavori
 }
 
 func (s *DouyinFavoriteService) RemoveAweme(ctx context.Context, awemeID string) error {
+	_, _ = s.db.ExecContext(ctx, "DELETE FROM douyin_favorite_aweme_tag_map WHERE aweme_id = ?", awemeID)
 	_, err := s.db.ExecContext(ctx, "DELETE FROM douyin_favorite_aweme WHERE aweme_id = ?", awemeID)
 	return err
 }
@@ -337,10 +357,17 @@ func (s *DouyinFavoriteService) ListAwemes(ctx context.Context) ([]DouyinFavorit
 		}
 		it.CreateTime = formatNullLocalDateTimeISO(createdAt)
 		it.UpdateTime = formatNullLocalDateTimeISO(updatedAt)
+		it.TagIDs = []int64{}
 
 		out = append(out, it)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.fillAwemeTagIDs(ctx, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (s *DouyinFavoriteService) findAwemeByID(ctx context.Context, awemeID string) (*DouyinFavoriteAweme, error) {
@@ -375,6 +402,15 @@ func (s *DouyinFavoriteService) findAwemeByID(ctx context.Context, awemeID strin
 	}
 	it.CreateTime = formatNullLocalDateTimeISO(createdAt)
 	it.UpdateTime = formatNullLocalDateTimeISO(updatedAt)
+
+	tagIDs, err := s.listAwemeTagIDsByID(ctx, awemeID)
+	if err != nil {
+		return nil, err
+	}
+	if tagIDs == nil {
+		tagIDs = []int64{}
+	}
+	it.TagIDs = tagIDs
 
 	return &it, nil
 }

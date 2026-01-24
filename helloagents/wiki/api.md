@@ -1146,7 +1146,7 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 
 **响应（HTTP 200）**
 ```json
-{"items":[{"secUserId":"MS4wLjABAAAA...","sourceInput":"...","displayName":"","avatarUrl":"","profileUrl":"","lastParsedAt":"2026-01-24T01:02:03","lastParsedCount":18,"createTime":"2026-01-24T01:02:03","updateTime":"2026-01-24T01:02:03"}]}
+{"items":[{"secUserId":"MS4wLjABAAAA...","sourceInput":"...","displayName":"","avatarUrl":"","profileUrl":"","lastParsedAt":"2026-01-24T01:02:03","lastParsedCount":18,"createTime":"2026-01-24T01:02:03","updateTime":"2026-01-24T01:02:03","tagIds":[1,2]}]}
 ```
 
 #### [POST] /api/douyin/favoriteUser/add
@@ -1172,12 +1172,76 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 {"success":true}
 ```
 
+#### 抖音收藏标签（用户）
+
+> 说明：标签为“全局共享”；用户收藏标签与作品收藏标签两套体系互不影响。  
+> 约定：收藏元素的 `tagIds` 为空数组表示“未分类”。
+
+#### [GET] /api/douyin/favoriteUser/tag/list
+**描述**：获取“用户收藏标签”列表（附带 `count` 统计：被多少条用户收藏使用）。
+
+**响应（HTTP 200）**
+```json
+{"items":[{"id":1,"name":"教程","count":12,"createTime":"2026-01-24T01:02:03","updateTime":"2026-01-24T01:02:03"}]}
+```
+
+#### [POST] /api/douyin/favoriteUser/tag/add
+**描述**：新建一个“用户收藏标签”（名称全局唯一）。
+
+**请求（application/json）**
+```json
+{"name":"教程"}
+```
+
+**响应（HTTP 200）**：返回该标签（结构同 list 元素）。
+
+#### [POST] /api/douyin/favoriteUser/tag/update
+**描述**：重命名一个“用户收藏标签”。
+
+**请求（application/json）**
+```json
+{"id":1,"name":"教程"}
+```
+
+**响应（HTTP 200）**：返回该标签（结构同 list 元素）。
+
+#### [POST] /api/douyin/favoriteUser/tag/remove
+**描述**：删除一个“用户收藏标签”。删除后该标签会从所有绑定条目移除（条目保留 → 未分类）。
+
+**请求（application/json）**
+```json
+{"id":1}
+```
+
+**响应（HTTP 200）**
+```json
+{"success":true}
+```
+
+#### [POST] /api/douyin/favoriteUser/tag/apply
+**描述**：对一个或多个“用户收藏条目”应用标签。
+
+**请求（application/json）**
+```json
+{"secUserIds":["MS4wLjABAAAA..."],"tagIds":[1,2],"mode":"set"}
+```
+
+**mode 说明**
+- `set`：覆盖设置（可传空数组表示清空为未分类）
+- `add`：批量添加（不移除已有标签）
+- `remove`：批量移除（从条目中移除传入 tagIds）
+
+**响应（HTTP 200）**
+```json
+{"success":true}
+```
+
 #### [GET] /api/douyin/favoriteAweme/list
 **描述**：获取已收藏的抖音作品列表（按更新时间倒序）。
 
 **响应（HTTP 200）**
 ```json
-{"items":[{"awemeId":"0123456789","secUserId":"MS4wLjABAAAA...","type":"video","desc":"作品标题/描述","coverUrl":"https://...","createTime":"2026-01-24T01:02:03","updateTime":"2026-01-24T01:02:03"}]}
+{"items":[{"awemeId":"0123456789","secUserId":"MS4wLjABAAAA...","type":"video","desc":"作品标题/描述","coverUrl":"https://...","createTime":"2026-01-24T01:02:03","updateTime":"2026-01-24T01:02:03","tagIds":[3]}]}
 ```
 
 #### [POST] /api/douyin/favoriteAweme/add
@@ -1196,6 +1260,62 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 **请求（application/json）**
 ```json
 {"awemeId":"0123456789"}
+```
+
+**响应（HTTP 200）**
+```json
+{"success":true}
+```
+
+#### 抖音收藏标签（作品）
+
+#### [GET] /api/douyin/favoriteAweme/tag/list
+**描述**：获取“作品收藏标签”列表（附带 `count` 统计：被多少条作品收藏使用）。
+
+**响应（HTTP 200）**
+```json
+{"items":[{"id":3,"name":"美食","count":9,"createTime":"2026-01-24T01:02:03","updateTime":"2026-01-24T01:02:03"}]}
+```
+
+#### [POST] /api/douyin/favoriteAweme/tag/add
+**描述**：新建一个“作品收藏标签”（名称全局唯一）。
+
+**请求（application/json）**
+```json
+{"name":"美食"}
+```
+
+**响应（HTTP 200）**：返回该标签（结构同 list 元素）。
+
+#### [POST] /api/douyin/favoriteAweme/tag/update
+**描述**：重命名一个“作品收藏标签”。
+
+**请求（application/json）**
+```json
+{"id":3,"name":"美食"}
+```
+
+**响应（HTTP 200）**：返回该标签（结构同 list 元素）。
+
+#### [POST] /api/douyin/favoriteAweme/tag/remove
+**描述**：删除一个“作品收藏标签”。删除后该标签会从所有绑定条目移除（条目保留 → 未分类）。
+
+**请求（application/json）**
+```json
+{"id":3}
+```
+
+**响应（HTTP 200）**
+```json
+{"success":true}
+```
+
+#### [POST] /api/douyin/favoriteAweme/tag/apply
+**描述**：对一个或多个“作品收藏条目”应用标签（mode 语义同用户收藏）。
+
+**请求（application/json）**
+```json
+{"awemeIds":["0123456789"],"tagIds":[3],"mode":"add"}
 ```
 
 **响应（HTTP 200）**

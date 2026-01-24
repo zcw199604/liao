@@ -7,6 +7,7 @@
 
 | 时间戳 | 名称 | 类型 | 涉及模块 | 决策 | 结果 |
 |--------|------|------|---------|------|------|
+| 202601240917 | douyin-favorite-tags | - | - | - | ✅完成 |
 | 202601230536 | feat-douyin-account-preview-gallery | 新增 | Douyin/MediaPreview | feat-douyin-account-preview-gallery#D001 | ✅完成 |
 | 202601220110 | fix-favorite-removebyid-invalid-id | 修复 | Favorite | fix-favorite-removebyid-invalid-id#D001 | ✅完成 |
 | 202601220044 | tests-boundary-cases | 测试 | Identity/Favorite/Douyin/MediaUpload/Chat UI | tests-boundary-cases#D001 | ✅完成 |

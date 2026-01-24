@@ -11,9 +11,13 @@
 - 知识库：补充《TikTokDownloader Web API 调用指南与 SDK 草稿》（`helloagents/wiki/external/tiktokdownloader-web-api-sdk.md`）。
 - 测试：补齐后端 Identity/Favorite/Douyin/MediaUpload 关键边界用例，并扩展前端 `messageSegments` 异常输入与预览兜底测试（方案包：`helloagents/archive/2026-01/202601220044_tests-boundary-cases/`）。
 - 测试：新增前端“抖音下载”弹窗剪贴板粘贴/打开时自动读取的单元测试。
+- 测试：补充抖音收藏“分类标签”的后端接口与前端弹窗流程用例（更新/删除/打标签、筛选、标签管理、批量打标签）。
 - 前端/后端：对接 TikTokDownloader Web API，新增抖音作品“解析→预览→下载→导入上传”能力（入口：图片管理→抖音下载；支持视频/图集；下载文件名按作品标题；导入上传按 MD5 去重；弹窗交互增强：剪贴板预填/自动解析开关、多选批量下载/导入、文件大小探测（`HEAD /api/douyin/download`）、导入状态提示与一键打开上传菜单）。
 - 前端/后端：抖音下载新增“用户作品”模式：支持通过用户主页链接/分享文本拉取发布作品列表（分页加载），并可一键跳转到“作品解析”；同时移除 proxy 输入并为输入框增加显式清空按钮；新增接口 `POST /api/douyin/account`。
 - 前端/后端：抖音下载新增“收藏”能力：可收藏已解析的抖音用户（`sec_user_id`）与作品（`aweme_id`），提供收藏列表查看、取消收藏，并支持一键再次解析；新增接口 `GET/POST /api/douyin/favoriteUser/*`、`GET/POST /api/douyin/favoriteAweme/*`；新增 MySQL 表 `douyin_favorite_user`、`douyin_favorite_aweme`。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端/后端：抖音收藏新增“分类标签”能力：用户收藏与作品收藏分别维护标签（名称、全局共享），支持按标签筛选、单条编辑、批量打标签与独立标签管理页（新建/重命名/删除）；收藏元素新增 `tagIds`；新增接口 `GET/POST /api/douyin/favoriteUser/tag/*`、`GET/POST /api/douyin/favoriteAweme/tag/*`；新增 MySQL 表 `douyin_favorite_user_tag`、`douyin_favorite_user_tag_map`、`douyin_favorite_aweme_tag`、`douyin_favorite_aweme_tag_map`。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`
 - 前端：抖音下载“用户作品”预览支持跨作品画廊左右滑动切换，并在预览顶部展示作品名称（方案包：`helloagents/archive/2026-01/202601230536_feat-douyin-account-preview-gallery/`）。
@@ -110,6 +114,9 @@
 - 前端：修复聊天页在媒体加载/失败时可能出现的贴底滚动抖动（系统贴底 `auto`、用户触发 `smooth`；合并同帧滚动请求；`ChatMedia` 默认占位比例 + `layout` 事件）。
 - 前端：修复移动端键盘弹出时聊天最新消息被输入框/键盘遮挡（动态视口高度 + ResizeObserver 贴底滚动）。
 - 前端：修复在聊天页自己发送消息回显时，会话未置顶到“消息/收藏”列表且 lastMsg 预览未加 `我: ` 前缀的问题。
+- 前端：修复进入聊天后历史拉取/增量补齐到最新消息，但会话列表 lastMsg/lastTime 未同步更新的问题（从 `messageStore` 的最后一条消息回写预览）。
+- 前端：优化消息列表贴底滚动实现，禁用 scroll anchoring，并避免多套滚动 API 混用导致的渲染抖动。
+- 前端：修复部分设备高度取整偏小导致的输入框遮挡最后一条消息（padding 计算改用 `ceil`，并在视口 `resize` 时刷新测量/贴底）。
 - 修复 `/api/getHistoryUserList` 在上游用户ID字段为 `UserID/userid` 时，未能填充 `lastMsg` / `lastTime` 的问题。
 - 修复上游返回的消息 `id/toid` 与 `myUserID` 不一致时，最后消息缓存会话Key无法命中导致 `lastMsg` / `lastTime` 缺失的问题。
 - 后端：补齐 Go 版 User History/鉴权关键日志，避免容器运行时仅有启动日志。

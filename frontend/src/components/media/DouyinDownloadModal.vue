@@ -270,14 +270,14 @@
             </div>
 
             <div v-if="activeMode === 'favorites'" class="pt-2">
-              <div class="sticky top-0 z-10 bg-[#18181b] py-2">
+              <div class="sticky top-0 z-10 bg-[#18181b] py-2 space-y-2">
                 <div class="flex items-center justify-between gap-2">
                   <div class="flex items-center gap-2">
                     <button
                       class="px-3 py-2 rounded-xl border transition text-xs"
                       :class="favoritesTab === 'users' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
                       :disabled="favoritesLoading"
-                      @click="favoritesTab = 'users'"
+                      @click="setFavoritesTab('users')"
                     >
                       用户收藏
                     </button>
@@ -285,18 +285,69 @@
                       class="px-3 py-2 rounded-xl border transition text-xs"
                       :class="favoritesTab === 'awemes' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
                       :disabled="favoritesLoading"
-                      @click="favoritesTab = 'awemes'"
+                      @click="setFavoritesTab('awemes')"
                     >
                       作品收藏
                     </button>
                   </div>
 
+                  <div class="flex items-center gap-2">
+                    <button
+                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs"
+                      :disabled="favoritesLoading || uiDisabled"
+                      @click="toggleFavoritesSelectionMode"
+                      title="批量选择"
+                    >
+                      {{ favoritesSelectionMode ? '完成' : '批量' }}
+                    </button>
+                    <button
+                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs"
+                      :disabled="favoritesLoading"
+                      @click="refreshFavorites"
+                    >
+                      {{ favoritesLoading ? '刷新中…' : '刷新' }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <div class="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar">
+                    <button
+                      class="px-3 py-1.5 rounded-full border transition text-xs whitespace-nowrap"
+                      :class="currentFavoriteTagFilter === null ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                      :disabled="favoritesLoading"
+                      @click="setCurrentFavoriteTagFilterValue(null)"
+                    >
+                      全部
+                    </button>
+                    <button
+                      class="px-3 py-1.5 rounded-full border transition text-xs whitespace-nowrap"
+                      :class="currentFavoriteTagFilter === -1 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                      :disabled="favoritesLoading"
+                      @click="setCurrentFavoriteTagFilterValue(-1)"
+                    >
+                      未分类
+                    </button>
+                    <button
+                      v-for="t in currentFavoriteTags"
+                      :key="`douyin-fav-tag-${favoritesTab}-${t.id}`"
+                      class="px-3 py-1.5 rounded-full border transition text-xs max-w-[140px] truncate"
+                      :class="currentFavoriteTagFilter === t.id ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                      :disabled="favoritesLoading"
+                      @click="setCurrentFavoriteTagFilterValue(t.id)"
+                      :title="t.name"
+                    >
+                      {{ t.name }}
+                    </button>
+                  </div>
+
                   <button
-                    class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs"
-                    :disabled="favoritesLoading"
-                    @click="refreshFavorites"
+                    class="w-10 h-10 flex items-center justify-center bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    :disabled="favoritesLoading || uiDisabled"
+                    @click="openTagManager(favoritesTab)"
+                    title="管理标签"
                   >
-                    {{ favoritesLoading ? '刷新中…' : '刷新' }}
+                    <i class="fas fa-tags text-sm"></i>
                   </button>
                 </div>
               </div>
@@ -310,18 +361,30 @@
               </div>
 
               <template v-else-if="favoritesTab === 'users'">
-                <div v-if="favoriteUsers.length === 0" class="mt-4 text-sm text-gray-500">
-                  暂无收藏用户
+                <div v-if="filteredFavoriteUsers.length === 0" class="mt-4 text-sm text-gray-500">
+                  {{ favoriteUsers.length === 0 ? '暂无收藏用户' : '暂无匹配结果' }}
                 </div>
 	                <div v-else class="mt-4 space-y-3">
 	                  <div
-	                    v-for="u in favoriteUsers"
+	                    v-for="u in filteredFavoriteUsers"
 	                    :key="u.secUserId"
-	                    class="rounded-xl border border-gray-700 bg-black/20 p-3 cursor-pointer active:bg-white/5 transition"
+	                    class="rounded-xl border bg-black/20 p-3 active:bg-white/5 transition"
+                      :class="favoritesSelectionMode && selectedFavoriteUserIds.has(String(u.secUserId || '').trim()) ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'border-gray-700'"
 	                    role="button"
-	                    @click="openFavoriteUserDetail(u)"
+	                    @click="favoritesSelectionMode ? toggleSelectFavoriteUser(u.secUserId) : openFavoriteUserDetail(u)"
 	                  >
 	                    <div class="flex items-start gap-3">
+                        <div v-if="favoritesSelectionMode" class="pt-1">
+                          <div
+                            class="w-5 h-5 rounded-full border flex items-center justify-center"
+                            :class="selectedFavoriteUserIds.has(String(u.secUserId || '').trim()) ? 'border-emerald-400 bg-emerald-600/10' : 'border-gray-600'"
+                          >
+                            <i
+                              v-if="selectedFavoriteUserIds.has(String(u.secUserId || '').trim())"
+                              class="fas fa-check text-emerald-400 text-[10px]"
+                            ></i>
+                          </div>
+                        </div>
 	                      <div class="w-12 h-12 rounded-full overflow-hidden bg-[#111113] border border-gray-700 flex-shrink-0">
 	                        <img
 	                          v-if="u.avatarUrl && !favoriteUserAvatarError.has(u.secUserId)"
@@ -367,41 +430,74 @@
 	                              <span v-if="u.lastParsedAt">上次解析: {{ u.lastParsedAt }}</span>
 	                              <span v-if="u.lastParsedCount"> · 作品: {{ u.lastParsedCount }}</span>
 	                            </div>
+
+                              <div class="mt-2 flex flex-wrap gap-1">
+                                <template v-if="Array.isArray(u.tagIds) && u.tagIds.length > 0">
+                                  <span
+                                    v-for="id in u.tagIds.slice(0, 2)"
+                                    :key="`user-tag-${u.secUserId}-${id}`"
+                                    class="text-[10px] bg-white/5 text-gray-300 px-2 py-0.5 rounded-full border border-white/10 max-w-[140px] truncate"
+                                    :title="getFavoriteTagName('users', id)"
+                                  >
+                                    {{ getFavoriteTagName('users', id) }}
+                                  </span>
+                                  <span v-if="u.tagIds.length > 2" class="text-[10px] text-gray-500">+{{ u.tagIds.length - 2 }}</span>
+                                </template>
+                                <span v-else class="text-[10px] bg-white/5 text-gray-500 px-2 py-0.5 rounded-full border border-white/10">
+                                  未分类
+                                </span>
+                              </div>
 	                          </div>
 	
 	                          <div class="flex flex-col gap-2 flex-shrink-0 sm:flex-row sm:items-center">
-	                            <button
-	                              class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
-	                              :disabled="uiDisabled"
-	                              @click.stop="reparseFavoriteUser(u)"
-	                            >
-	                              再次解析
-	                            </button>
-	                            <button
-	                              class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
-	                              :disabled="uiDisabled"
-	                              @click.stop="removeFavoriteUser(u.secUserId)"
-	                            >
-	                              取消
-	                            </button>
+	                            <template v-if="!favoritesSelectionMode">
+	                              <button
+	                                class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+	                                :disabled="uiDisabled"
+	                                @click.stop="reparseFavoriteUser(u)"
+	                              >
+	                                再次解析
+	                              </button>
+	                              <button
+	                                class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+	                                :disabled="uiDisabled"
+	                                @click.stop="removeFavoriteUser(u.secUserId)"
+	                              >
+	                                取消
+	                              </button>
+	                            </template>
 	                          </div>
 	                        </div>
 	                      </div>
 	                    </div>
 	                  </div>
 	                </div>
-	              </template>
+              </template>
 
               <template v-else>
-                <div v-if="favoriteAwemes.length === 0" class="mt-4 text-sm text-gray-500">
-                  暂无收藏作品
+                <div v-if="filteredFavoriteAwemes.length === 0" class="mt-4 text-sm text-gray-500">
+                  {{ favoriteAwemes.length === 0 ? '暂无收藏作品' : '暂无匹配结果' }}
                 </div>
                 <div v-else class="mt-4 space-y-3">
                   <div
-                    v-for="it in favoriteAwemes"
+                    v-for="it in filteredFavoriteAwemes"
                     :key="it.awemeId"
-                    class="rounded-xl border border-gray-700 bg-black/20 p-3 flex gap-3"
+                    class="rounded-xl border bg-black/20 p-3 flex gap-3 active:bg-white/5 transition"
+                    :class="favoritesSelectionMode && selectedFavoriteAwemeIds.has(String(it.awemeId || '').trim()) ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'border-gray-700'"
+                    role="button"
+                    @click="favoritesSelectionMode ? toggleSelectFavoriteAweme(it.awemeId) : null"
                   >
+                    <div v-if="favoritesSelectionMode" class="pt-1">
+                      <div
+                        class="w-5 h-5 rounded-full border flex items-center justify-center"
+                        :class="selectedFavoriteAwemeIds.has(String(it.awemeId || '').trim()) ? 'border-emerald-400 bg-emerald-600/10' : 'border-gray-600'"
+                      >
+                        <i
+                          v-if="selectedFavoriteAwemeIds.has(String(it.awemeId || '').trim())"
+                          class="fas fa-check text-emerald-400 text-[10px]"
+                        ></i>
+                      </div>
+                    </div>
                     <div class="w-24 h-14 bg-[#111113] rounded-lg overflow-hidden flex-shrink-0">
                       <MediaTile
                         v-if="it.coverUrl"
@@ -419,18 +515,43 @@
                       <div class="text-xs text-gray-500 font-mono truncate mt-1">
                         {{ it.awemeId }}
                       </div>
-                      <div class="flex flex-col gap-2 mt-2 sm:flex-row sm:items-center">
+
+                      <div class="mt-2 flex flex-wrap gap-1">
+                        <template v-if="Array.isArray(it.tagIds) && it.tagIds.length > 0">
+                          <span
+                            v-for="id in it.tagIds.slice(0, 2)"
+                            :key="`aweme-tag-${it.awemeId}-${id}`"
+                            class="text-[10px] bg-white/5 text-gray-300 px-2 py-0.5 rounded-full border border-white/10 max-w-[140px] truncate"
+                            :title="getFavoriteTagName('awemes', id)"
+                          >
+                            {{ getFavoriteTagName('awemes', id) }}
+                          </span>
+                          <span v-if="it.tagIds.length > 2" class="text-[10px] text-gray-500">+{{ it.tagIds.length - 2 }}</span>
+                        </template>
+                        <span v-else class="text-[10px] bg-white/5 text-gray-500 px-2 py-0.5 rounded-full border border-white/10">
+                          未分类
+                        </span>
+                      </div>
+
+                      <div v-if="!favoritesSelectionMode" class="flex flex-col gap-2 mt-2 sm:flex-row sm:items-center">
+                        <button
+                          class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                          :disabled="uiDisabled"
+                          @click.stop="openTagSheet({ kind: 'awemes', mode: 'single', targetIds: [it.awemeId], presetTagIds: it.tagIds || [] })"
+                        >
+                          标签
+                        </button>
                         <button
                           class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
                           :disabled="uiDisabled"
-                          @click="reparseFavoriteAweme(it)"
+                          @click.stop="reparseFavoriteAweme(it)"
                         >
                           解析
                         </button>
                         <button
                           class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
                           :disabled="uiDisabled"
-                          @click="removeFavoriteAweme(it.awemeId)"
+                          @click.stop="removeFavoriteAweme(it.awemeId)"
                         >
                           取消
                         </button>
@@ -439,6 +560,33 @@
                   </div>
                 </div>
               </template>
+
+              <div
+                v-if="favoritesSelectionMode"
+                class="sticky bottom-0 z-10 mt-4 pt-3 pb-2 bg-[#18181b] border-t border-gray-800"
+              >
+                <div class="flex items-center justify-between gap-3">
+                  <div class="text-xs text-gray-400">
+                    已选 {{ selectedFavoritesCount }} 项
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button
+                      class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                      :disabled="uiDisabled || selectedFavoritesCount === 0"
+                      @click="openBatchTagSheet"
+                    >
+                      打标签
+                    </button>
+                    <button
+                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                      :disabled="uiDisabled"
+                      @click="toggleFavoritesSelectionMode"
+                    >
+                      取消选择
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div v-if="activeMode === 'detail' && detail" class="pt-2">
@@ -625,6 +773,247 @@
         </div>
 	      </div>
 
+        <!-- 收藏标签编辑（底部抽屉） -->
+        <div
+          v-if="tagSheetOpen"
+          class="fixed inset-0 z-[87] bg-black/60 backdrop-blur-sm"
+          @click.stop="closeTagSheet"
+        >
+          <div class="fixed bottom-0 left-0 right-0 z-[88] bg-[#18181b] rounded-t-2xl shadow-2xl border-t border-white/10" @click.stop>
+            <div class="w-full h-6 flex items-center justify-center">
+              <div class="w-10 h-1 bg-white/20 rounded-full"></div>
+            </div>
+
+            <div class="px-5 pb-5 max-h-[75vh] overflow-y-auto no-scrollbar">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="text-white text-base font-semibold">
+                    {{ tagSheetMode === 'batch' ? '批量打标签' : '编辑标签' }}
+                  </div>
+                  <div class="text-xs text-gray-500 mt-1">
+                    <template v-if="tagSheetMode === 'batch'">
+                      将把所选标签添加到 {{ tagSheetTargetIds.length }} 个条目（不会移除已有标签）
+                    </template>
+                    <template v-else>
+                      可选择多个标签；不选则为未分类
+                    </template>
+                  </div>
+                </div>
+
+                <button
+                  class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a] flex-shrink-0"
+                  type="button"
+                  @click="closeTagSheet"
+                  title="关闭"
+                >
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+
+              <div v-if="tagSheetError" class="mt-3 text-sm text-red-400">
+                {{ tagSheetError }}
+              </div>
+
+              <div
+                v-if="(tagSheetKind === 'users' ? favoriteUserTags.length : favoriteAwemeTags.length) === 0"
+                class="mt-4 text-sm text-gray-500"
+              >
+                暂无标签，可先去“管理标签”创建。
+              </div>
+
+              <div class="mt-4 flex flex-wrap gap-2">
+                <button
+                  v-for="t in (tagSheetKind === 'users' ? favoriteUserTags : favoriteAwemeTags)"
+                  :key="`tag-sheet-${tagSheetKind}-${t.id}`"
+                  class="px-3 py-2 rounded-full border transition text-xs max-w-[160px] truncate"
+                  :class="tagSheetSelectedTagIds.has(t.id) ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                  @click="toggleTagInSheet(t.id)"
+                  :title="t.name"
+                >
+                  {{ t.name }}
+                </button>
+              </div>
+
+              <div class="mt-5 flex items-center justify-between gap-3">
+                <button
+                  class="px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  :disabled="tagSheetApplying"
+                  @click="openTagManager(tagSheetKind); closeTagSheet()"
+                >
+                  管理标签
+                </button>
+                <button
+                  class="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  :disabled="tagSheetApplying || (tagSheetMode === 'batch' && tagSheetSelectedTagIds.size === 0)"
+                  @click="applyTagSheet"
+                >
+                  <i v-if="tagSheetApplying" class="fas fa-spinner fa-spin mr-2"></i>
+                  <span>{{ tagSheetMode === 'batch' ? '添加' : '保存' }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 收藏标签管理（独立页面） -->
+        <div
+          v-if="tagManagerOpen"
+          class="fixed inset-0 z-[90] bg-[#18181b] flex flex-col"
+          @click.stop
+        >
+          <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+            <button
+              class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+              type="button"
+              @click="closeTagManager"
+              title="返回"
+            >
+              <i class="fas fa-arrow-left"></i>
+            </button>
+
+            <div class="text-white font-bold text-base">
+              {{ tagManagerKind === 'users' ? '管理用户标签' : '管理作品标签' }}
+            </div>
+
+            <button
+              class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+              type="button"
+              @click="closeTagManager"
+              title="关闭"
+            >
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <div class="flex-1 overflow-y-auto p-6 no-scrollbar space-y-3">
+            <div class="text-xs text-gray-500">
+              标签全局共享；删除标签会从所有收藏条目移除（条目保留）。
+            </div>
+
+            <div class="flex items-center gap-2">
+              <input
+                v-model="tagManagerNameInput"
+                class="flex-1 bg-[#111113] border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
+                placeholder="新建标签名称（仅名称）"
+                :disabled="tagManagerSaving"
+                @keyup.enter="handleCreateTag"
+              />
+              <button
+                class="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                :disabled="tagManagerSaving || !String(tagManagerNameInput || '').trim()"
+                @click="handleCreateTag"
+              >
+                创建
+              </button>
+            </div>
+
+            <div v-if="tagManagerError" class="text-sm text-red-400">
+              {{ tagManagerError }}
+            </div>
+
+            <div v-if="(tagManagerKind === 'users' ? favoriteUserTags.length : favoriteAwemeTags.length) === 0" class="text-sm text-gray-500">
+              暂无标签
+            </div>
+
+            <div v-else class="space-y-2">
+              <div
+                v-for="t in (tagManagerKind === 'users' ? favoriteUserTags : favoriteAwemeTags)"
+                :key="`tag-manager-${tagManagerKind}-${t.id}`"
+                class="rounded-xl border border-gray-700 bg-black/20 p-3"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0 flex-1">
+                    <template v-if="editingTagId === t.id">
+                      <input
+                        v-model="editingTagName"
+                        class="w-full bg-[#111113] border border-gray-700 rounded-xl px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 text-sm"
+                        placeholder="标签名称"
+                        :disabled="tagManagerSaving"
+                        @keyup.enter="saveEditTag"
+                      />
+                    </template>
+                    <template v-else>
+                      <div class="text-white text-sm font-medium truncate">
+                        {{ t.name }}
+                      </div>
+                    </template>
+
+                    <div class="text-xs text-gray-500 mt-1">
+                      {{ t.count }} 个{{ tagManagerKind === 'users' ? '用户' : '作品' }}
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2 flex-shrink-0">
+                    <template v-if="editingTagId === t.id">
+                      <button
+                        class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                        :disabled="tagManagerSaving || !String(editingTagName || '').trim()"
+                        @click="saveEditTag"
+                      >
+                        保存
+                      </button>
+                      <button
+                        class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                        :disabled="tagManagerSaving"
+                        @click="cancelEditTag"
+                      >
+                        取消
+                      </button>
+                    </template>
+                    <template v-else>
+                      <button
+                        class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                        :disabled="tagManagerSaving"
+                        @click="startEditTag(t)"
+                      >
+                        重命名
+                      </button>
+                      <button
+                        class="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-300 rounded-xl border border-red-500/30 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                        :disabled="tagManagerSaving"
+                        @click="askDeleteTag(t)"
+                      >
+                        删除
+                      </button>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="confirmDeleteTagOpen && confirmDeleteTag"
+            class="fixed inset-0 z-[91] bg-black/70 flex items-center justify-center px-6"
+            @click.stop="cancelDeleteTag"
+          >
+            <div class="w-full max-w-sm bg-[#18181b] rounded-2xl shadow-2xl border border-white/10 p-5" @click.stop>
+              <div class="text-white font-semibold text-base">
+                删除标签“{{ confirmDeleteTag.name }}”？
+              </div>
+              <div class="text-sm text-gray-400 mt-2 leading-relaxed">
+                删除后，该标签将从 {{ confirmDeleteTag.count }} 个收藏条目中移除，收藏条目本身不会被删除。
+              </div>
+              <div class="mt-5 flex items-center gap-2">
+                <button
+                  class="flex-1 px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  :disabled="tagManagerSaving"
+                  @click="cancelDeleteTag"
+                >
+                  取消
+                </button>
+                <button
+                  class="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  :disabled="tagManagerSaving"
+                  @click="confirmDeleteTagNow"
+                >
+                  确认删除
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
 	      <!-- 收藏用户详情（移动端底部抽屉） -->
 	      <div
 	        v-if="favoriteUserDetailOpen"
@@ -715,6 +1104,38 @@
 	              <i v-if="favoriteUserDetailLoading" class="fas fa-spinner fa-spin"></i>
 	              <span>{{ favoriteUserDetailLoading ? '更新中…' : '刷新信息' }}</span>
 	            </button>
+
+              <div class="mt-4">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="text-xs text-gray-500">
+                    分类标签
+                  </div>
+                  <button
+                    class="text-xs text-emerald-400 hover:text-emerald-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                    type="button"
+                    :disabled="uiDisabled"
+                    @click="openTagSheet({ kind: 'users', mode: 'single', targetIds: [selectedFavoriteUser.secUserId], presetTagIds: selectedFavoriteUser.tagIds || [] })"
+                  >
+                    编辑
+                  </button>
+                </div>
+
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <template v-if="Array.isArray(selectedFavoriteUser.tagIds) && selectedFavoriteUser.tagIds.length > 0">
+                    <span
+                      v-for="id in selectedFavoriteUser.tagIds"
+                      :key="`user-detail-tag-${selectedFavoriteUser.secUserId}-${id}`"
+                      class="text-xs bg-white/5 text-gray-200 px-3 py-1 rounded-full border border-white/10 max-w-[220px] truncate"
+                      :title="getFavoriteTagName('users', id)"
+                    >
+                      {{ getFavoriteTagName('users', id) }}
+                    </span>
+                  </template>
+                  <span v-else class="text-xs bg-white/5 text-gray-500 px-3 py-1 rounded-full border border-white/10">
+                    未分类
+                  </span>
+                </div>
+              </div>
 
 	            <div class="mt-4 grid grid-cols-2 gap-3">
 	              <div class="flex flex-col items-center p-3 bg-white/5 rounded-xl">
@@ -858,6 +1279,7 @@ interface DouyinFavoriteUser {
   lastParsedCount?: number
   createTime: string
   updateTime: string
+  tagIds?: number[]
 }
 
 interface DouyinFavoriteAweme {
@@ -866,6 +1288,15 @@ interface DouyinFavoriteAweme {
   type?: 'image' | 'video'
   desc?: string
   coverUrl?: string
+  createTime: string
+  updateTime: string
+  tagIds?: number[]
+}
+
+interface DouyinFavoriteTag {
+  id: number
+  name: string
+  count: number
   createTime: string
   updateTime: string
 }
@@ -917,6 +1348,32 @@ const favoritesLoading = ref(false)
 const favoritesError = ref('')
 const favoriteUsers = ref<DouyinFavoriteUser[]>([])
 const favoriteAwemes = ref<DouyinFavoriteAweme[]>([])
+const favoriteUserTags = ref<DouyinFavoriteTag[]>([])
+const favoriteAwemeTags = ref<DouyinFavoriteTag[]>([])
+const favoriteUserTagFilter = ref<number | null>(null) // null=全部, -1=未分类, 其他=tagId
+const favoriteAwemeTagFilter = ref<number | null>(null) // null=全部, -1=未分类, 其他=tagId
+
+const favoritesSelectionMode = ref(false)
+const selectedFavoriteUserIds = reactive<Set<string>>(new Set())
+const selectedFavoriteAwemeIds = reactive<Set<string>>(new Set())
+
+const tagManagerOpen = ref(false)
+const tagManagerKind = ref<'users' | 'awemes'>('users')
+const tagManagerNameInput = ref('')
+const tagManagerSaving = ref(false)
+const tagManagerError = ref('')
+const editingTagId = ref<number | null>(null)
+const editingTagName = ref('')
+const confirmDeleteTagOpen = ref(false)
+const confirmDeleteTag = ref<DouyinFavoriteTag | null>(null)
+
+const tagSheetOpen = ref(false)
+const tagSheetKind = ref<'users' | 'awemes'>('users')
+const tagSheetMode = ref<'single' | 'batch'>('single')
+const tagSheetTargetIds = ref<string[]>([])
+const tagSheetSelectedTagIds = reactive<Set<number>>(new Set())
+const tagSheetApplying = ref(false)
+const tagSheetError = ref('')
 
 const favoriteUserDetailOpen = ref(false)
 const favoriteUserDetailId = ref('')
@@ -931,6 +1388,45 @@ const favoriteAwemeIdSet = computed(() => new Set(favoriteAwemes.value.map((it) 
 
 const isFavoriteUser = (secUserId: string) => favoriteUserIdSet.value.has(String(secUserId || '').trim())
 const isFavoriteAweme = (awemeId: string) => favoriteAwemeIdSet.value.has(String(awemeId || '').trim())
+
+const favoriteUserTagNameById = computed(() => {
+  const m = new Map<number, string>()
+  for (const t of favoriteUserTags.value) {
+    m.set(Number(t.id), String(t.name || '').trim())
+  }
+  return m
+})
+
+const favoriteAwemeTagNameById = computed(() => {
+  const m = new Map<number, string>()
+  for (const t of favoriteAwemeTags.value) {
+    m.set(Number(t.id), String(t.name || '').trim())
+  }
+  return m
+})
+
+const getFavoriteTagName = (kind: 'users' | 'awemes', id: number) => {
+  const map = kind === 'users' ? favoriteUserTagNameById.value : favoriteAwemeTagNameById.value
+  return map.get(Number(id)) || `#${id}`
+}
+
+const filteredFavoriteUsers = computed(() => {
+  const filter = favoriteUserTagFilter.value
+  if (filter === null) return favoriteUsers.value
+  if (filter === -1) return favoriteUsers.value.filter((u) => (Array.isArray(u.tagIds) ? u.tagIds : []).length === 0)
+  return favoriteUsers.value.filter((u) => (Array.isArray(u.tagIds) ? u.tagIds : []).includes(Number(filter)))
+})
+
+const filteredFavoriteAwemes = computed(() => {
+  const filter = favoriteAwemeTagFilter.value
+  if (filter === null) return favoriteAwemes.value
+  if (filter === -1) return favoriteAwemes.value.filter((it) => (Array.isArray(it.tagIds) ? it.tagIds : []).length === 0)
+  return favoriteAwemes.value.filter((it) => (Array.isArray(it.tagIds) ? it.tagIds : []).includes(Number(filter)))
+})
+
+const currentFavoriteTags = computed(() => (favoritesTab.value === 'users' ? favoriteUserTags.value : favoriteAwemeTags.value))
+const currentFavoriteTagFilter = computed(() => (favoritesTab.value === 'users' ? favoriteUserTagFilter.value : favoriteAwemeTagFilter.value))
+const selectedFavoritesCount = computed(() => (favoritesTab.value === 'users' ? selectedFavoriteUserIds.size : selectedFavoriteAwemeIds.size))
 
 const showPreview = ref(false)
 const previewUrl = ref('')
@@ -1089,10 +1585,52 @@ const refreshFavorites = async () => {
   favoritesLoading.value = true
   favoritesError.value = ''
 	try {
-		const [usersRes, awemesRes] = await Promise.all([douyinApi.listDouyinFavoriteUsers(), douyinApi.listDouyinFavoriteAwemes()])
+		const [usersRes, awemesRes, userTagsRes, awemeTagsRes] = await Promise.all([
+      douyinApi.listDouyinFavoriteUsers(),
+      douyinApi.listDouyinFavoriteAwemes(),
+      douyinApi.listDouyinFavoriteUserTags(),
+      douyinApi.listDouyinFavoriteAwemeTags()
+    ])
 
-		favoriteUsers.value = Array.isArray(usersRes?.items) ? (usersRes.items as DouyinFavoriteUser[]) : []
-		favoriteAwemes.value = Array.isArray(awemesRes?.items) ? (awemesRes.items as DouyinFavoriteAweme[]) : []
+    const normalizeTagIds = (raw: any) =>
+      Array.isArray(raw)
+        ? (raw as any[])
+            .map((v) => Number(v))
+            .filter((n) => Number.isFinite(n) && n > 0)
+        : ([] as number[])
+
+		favoriteUsers.value = Array.isArray(usersRes?.items)
+      ? (usersRes.items as any[]).map((u) => ({ ...(u as any), tagIds: normalizeTagIds((u as any).tagIds) })) as DouyinFavoriteUser[]
+      : []
+		favoriteAwemes.value = Array.isArray(awemesRes?.items)
+      ? (awemesRes.items as any[]).map((it) => ({ ...(it as any), tagIds: normalizeTagIds((it as any).tagIds) })) as DouyinFavoriteAweme[]
+      : []
+
+    favoriteUserTags.value = Array.isArray(userTagsRes?.items) ? (userTagsRes.items as DouyinFavoriteTag[]) : []
+    favoriteAwemeTags.value = Array.isArray(awemeTagsRes?.items) ? (awemeTagsRes.items as DouyinFavoriteTag[]) : []
+
+    const userTagIDSet = new Set(favoriteUserTags.value.map((t) => Number(t.id)).filter((n) => Number.isFinite(n) && n > 0))
+    if (favoriteUserTagFilter.value !== null && favoriteUserTagFilter.value !== -1 && !userTagIDSet.has(favoriteUserTagFilter.value)) {
+      favoriteUserTagFilter.value = null
+    }
+    const awemeTagIDSet = new Set(favoriteAwemeTags.value.map((t) => Number(t.id)).filter((n) => Number.isFinite(n) && n > 0))
+    if (favoriteAwemeTagFilter.value !== null && favoriteAwemeTagFilter.value !== -1 && !awemeTagIDSet.has(favoriteAwemeTagFilter.value)) {
+      favoriteAwemeTagFilter.value = null
+    }
+
+    const userIDSet = new Set(favoriteUsers.value.map((u) => String(u.secUserId || '').trim()).filter(Boolean))
+    for (const id of Array.from(selectedFavoriteUserIds)) {
+      if (!userIDSet.has(String(id || '').trim())) {
+        selectedFavoriteUserIds.delete(id)
+      }
+    }
+    const awemeIDSet = new Set(favoriteAwemes.value.map((it) => String(it.awemeId || '').trim()).filter(Boolean))
+    for (const id of Array.from(selectedFavoriteAwemeIds)) {
+      if (!awemeIDSet.has(String(id || '').trim())) {
+        selectedFavoriteAwemeIds.delete(id)
+      }
+    }
+
 		if (favoriteUserDetailOpen.value && String(favoriteUserDetailId.value || '').trim()) {
 			const id = String(favoriteUserDetailId.value || '').trim()
 			if (!favoriteUsers.value.some((u) => String(u.secUserId || '').trim() === id)) {
@@ -1124,6 +1662,29 @@ watch(
 	      previewMediaList.value = []
 	      previewIndex.value = 0
 	      favoritesTab.value = 'users'
+        favoriteUserTags.value = []
+        favoriteAwemeTags.value = []
+        favoriteUserTagFilter.value = null
+        favoriteAwemeTagFilter.value = null
+        favoritesSelectionMode.value = false
+        selectedFavoriteUserIds.clear()
+        selectedFavoriteAwemeIds.clear()
+        tagManagerOpen.value = false
+        tagManagerKind.value = 'users'
+        tagManagerNameInput.value = ''
+        tagManagerSaving.value = false
+        tagManagerError.value = ''
+        editingTagId.value = null
+        editingTagName.value = ''
+        confirmDeleteTagOpen.value = false
+        confirmDeleteTag.value = null
+        tagSheetOpen.value = false
+        tagSheetKind.value = 'users'
+        tagSheetMode.value = 'single'
+        tagSheetTargetIds.value = []
+        tagSheetSelectedTagIds.clear()
+        tagSheetApplying.value = false
+        tagSheetError.value = ''
 	      favoriteUserDetailOpen.value = false
 	      favoriteUserDetailId.value = ''
 	      favoriteUserDetailLoading.value = false
@@ -1418,6 +1979,248 @@ const formatDouyinCount = (value?: number) => {
   return String(Math.round(n))
 }
 
+const setCurrentFavoriteTagFilterValue = (value: number | null) => {
+  if (favoritesTab.value === 'users') {
+    favoriteUserTagFilter.value = value
+  } else {
+    favoriteAwemeTagFilter.value = value
+  }
+  if (favoritesSelectionMode.value) {
+    selectedFavoriteUserIds.clear()
+    selectedFavoriteAwemeIds.clear()
+  }
+}
+
+const toggleFavoritesSelectionMode = () => {
+  favoritesSelectionMode.value = !favoritesSelectionMode.value
+  selectedFavoriteUserIds.clear()
+  selectedFavoriteAwemeIds.clear()
+}
+
+const setFavoritesTab = (tab: 'users' | 'awemes') => {
+  if (favoritesLoading.value) return
+  favoritesTab.value = tab
+  if (favoritesSelectionMode.value) {
+    favoritesSelectionMode.value = false
+    selectedFavoriteUserIds.clear()
+    selectedFavoriteAwemeIds.clear()
+  }
+}
+
+const toggleSelectFavoriteUser = (secUserId: string) => {
+  const id = String(secUserId || '').trim()
+  if (!id) return
+  if (selectedFavoriteUserIds.has(id)) {
+    selectedFavoriteUserIds.delete(id)
+  } else {
+    selectedFavoriteUserIds.add(id)
+  }
+}
+
+const toggleSelectFavoriteAweme = (awemeId: string) => {
+  const id = String(awemeId || '').trim()
+  if (!id) return
+  if (selectedFavoriteAwemeIds.has(id)) {
+    selectedFavoriteAwemeIds.delete(id)
+  } else {
+    selectedFavoriteAwemeIds.add(id)
+  }
+}
+
+const openTagManager = (kind: 'users' | 'awemes') => {
+  if (uiDisabled.value) return
+  tagManagerKind.value = kind
+  tagManagerOpen.value = true
+  tagManagerNameInput.value = ''
+  tagManagerError.value = ''
+  editingTagId.value = null
+  editingTagName.value = ''
+  confirmDeleteTagOpen.value = false
+  confirmDeleteTag.value = null
+}
+
+const closeTagManager = () => {
+  tagManagerOpen.value = false
+  tagManagerNameInput.value = ''
+  tagManagerSaving.value = false
+  tagManagerError.value = ''
+  editingTagId.value = null
+  editingTagName.value = ''
+  confirmDeleteTagOpen.value = false
+  confirmDeleteTag.value = null
+}
+
+const handleCreateTag = async () => {
+  const name = String(tagManagerNameInput.value || '').trim()
+  if (!name || tagManagerSaving.value) return
+
+  tagManagerSaving.value = true
+  tagManagerError.value = ''
+  try {
+    if (tagManagerKind.value === 'users') {
+      await douyinApi.addDouyinFavoriteUserTag({ name })
+    } else {
+      await douyinApi.addDouyinFavoriteAwemeTag({ name })
+    }
+    tagManagerNameInput.value = ''
+    show('已创建标签')
+    await refreshFavorites()
+  } catch (e: any) {
+    console.error('创建标签失败:', e)
+    tagManagerError.value = e?.response?.data?.error || e?.message || '创建失败'
+  } finally {
+    tagManagerSaving.value = false
+  }
+}
+
+const startEditTag = (t: DouyinFavoriteTag) => {
+  editingTagId.value = Number(t?.id || 0) || null
+  editingTagName.value = String(t?.name || '').trim()
+}
+
+const cancelEditTag = () => {
+  editingTagId.value = null
+  editingTagName.value = ''
+}
+
+const saveEditTag = async () => {
+  const id = Number(editingTagId.value || 0)
+  const name = String(editingTagName.value || '').trim()
+  if (!id || !name || tagManagerSaving.value) return
+
+  tagManagerSaving.value = true
+  tagManagerError.value = ''
+  try {
+    if (tagManagerKind.value === 'users') {
+      await douyinApi.updateDouyinFavoriteUserTag({ id, name })
+    } else {
+      await douyinApi.updateDouyinFavoriteAwemeTag({ id, name })
+    }
+    cancelEditTag()
+    show('已更新标签')
+    await refreshFavorites()
+  } catch (e: any) {
+    console.error('更新标签失败:', e)
+    tagManagerError.value = e?.response?.data?.error || e?.message || '更新失败'
+  } finally {
+    tagManagerSaving.value = false
+  }
+}
+
+const askDeleteTag = (t: DouyinFavoriteTag) => {
+  confirmDeleteTag.value = t
+  confirmDeleteTagOpen.value = true
+}
+
+const cancelDeleteTag = () => {
+  confirmDeleteTagOpen.value = false
+  confirmDeleteTag.value = null
+}
+
+const confirmDeleteTagNow = async () => {
+  const t = confirmDeleteTag.value
+  const id = Number(t?.id || 0)
+  if (!id || tagManagerSaving.value) return
+
+  tagManagerSaving.value = true
+  tagManagerError.value = ''
+  try {
+    if (tagManagerKind.value === 'users') {
+      await douyinApi.removeDouyinFavoriteUserTag({ id })
+    } else {
+      await douyinApi.removeDouyinFavoriteAwemeTag({ id })
+    }
+    cancelDeleteTag()
+    show('已删除标签')
+    await refreshFavorites()
+  } catch (e: any) {
+    console.error('删除标签失败:', e)
+    tagManagerError.value = e?.response?.data?.error || e?.message || '删除失败'
+  } finally {
+    tagManagerSaving.value = false
+  }
+}
+
+const openTagSheet = (opts: { kind: 'users' | 'awemes'; mode: 'single' | 'batch'; targetIds: string[]; presetTagIds?: number[] }) => {
+  if (uiDisabled.value) return
+  tagSheetKind.value = opts.kind
+  tagSheetMode.value = opts.mode
+  tagSheetTargetIds.value = Array.isArray(opts.targetIds) ? opts.targetIds.map((v) => String(v || '').trim()).filter(Boolean) : []
+  tagSheetSelectedTagIds.clear()
+  for (const id of Array.isArray(opts.presetTagIds) ? opts.presetTagIds : []) {
+    const n = Number(id)
+    if (Number.isFinite(n) && n > 0) {
+      tagSheetSelectedTagIds.add(n)
+    }
+  }
+  tagSheetError.value = ''
+  tagSheetApplying.value = false
+  tagSheetOpen.value = true
+}
+
+const closeTagSheet = () => {
+  tagSheetOpen.value = false
+  tagSheetTargetIds.value = []
+  tagSheetSelectedTagIds.clear()
+  tagSheetApplying.value = false
+  tagSheetError.value = ''
+}
+
+const toggleTagInSheet = (id: number) => {
+  const n = Number(id)
+  if (!Number.isFinite(n) || n <= 0) return
+  if (tagSheetSelectedTagIds.has(n)) {
+    tagSheetSelectedTagIds.delete(n)
+  } else {
+    tagSheetSelectedTagIds.add(n)
+  }
+}
+
+const applyTagSheet = async () => {
+  if (tagSheetApplying.value) return
+
+  const kind = tagSheetKind.value
+  const targetIds = Array.isArray(tagSheetTargetIds.value) ? tagSheetTargetIds.value.map((v) => String(v || '').trim()).filter(Boolean) : []
+  const tagIds = Array.from(tagSheetSelectedTagIds).map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0)
+  const mode = tagSheetMode.value === 'batch' ? 'add' : 'set'
+
+  if (targetIds.length === 0) {
+    closeTagSheet()
+    return
+  }
+  if (tagSheetMode.value === 'batch' && tagIds.length === 0) {
+    show('请选择标签')
+    return
+  }
+
+  tagSheetApplying.value = true
+  tagSheetError.value = ''
+  try {
+    if (kind === 'users') {
+      await douyinApi.applyDouyinFavoriteUserTags({ secUserIds: targetIds, tagIds, mode })
+    } else {
+      await douyinApi.applyDouyinFavoriteAwemeTags({ awemeIds: targetIds, tagIds, mode })
+    }
+    show(tagSheetMode.value === 'batch' ? '已批量添加标签' : '已更新标签')
+    closeTagSheet()
+    await refreshFavorites()
+  } catch (e: any) {
+    console.error('更新标签失败:', e)
+    tagSheetError.value = e?.response?.data?.error || e?.message || '保存失败'
+    show(tagSheetError.value)
+  } finally {
+    tagSheetApplying.value = false
+  }
+}
+
+const openBatchTagSheet = () => {
+  if (favoritesTab.value === 'users') {
+    openTagSheet({ kind: 'users', mode: 'batch', targetIds: Array.from(selectedFavoriteUserIds) })
+    return
+  }
+  openTagSheet({ kind: 'awemes', mode: 'batch', targetIds: Array.from(selectedFavoriteAwemeIds) })
+}
+
 const openFavoriteUserDetail = (u: DouyinFavoriteUser) => {
   if (uiDisabled.value) return
   const id = String(u?.secUserId || '').trim()
@@ -1482,8 +2285,9 @@ const refreshSelectedFavoriteUser = async () => {
     } as any)
 
     if (updated?.secUserId) {
-      favoriteUsers.value = [updated as DouyinFavoriteUser, ...favoriteUsers.value.filter((it) => it.secUserId !== updated.secUserId)]
-      favoriteUserAvatarError.delete(updated.secUserId)
+      const normalized = { ...(updated as any), tagIds: Array.isArray((updated as any).tagIds) ? (updated as any).tagIds : [] } as DouyinFavoriteUser
+      favoriteUsers.value = [normalized, ...favoriteUsers.value.filter((it) => it.secUserId !== normalized.secUserId)]
+      favoriteUserAvatarError.delete(normalized.secUserId)
       show('已更新用户信息')
     } else {
       throw new Error((updated as any)?.error || '更新失败')
@@ -1511,7 +2315,8 @@ const upsertFavoriteUser = async (payload: {
   try {
     const res = await douyinApi.addDouyinFavoriteUser(payload as any)
     if (res?.secUserId) {
-      favoriteUsers.value = [res as DouyinFavoriteUser, ...favoriteUsers.value.filter((u) => u.secUserId !== res.secUserId)]
+      const normalized = { ...(res as any), tagIds: Array.isArray((res as any).tagIds) ? (res as any).tagIds : [] } as DouyinFavoriteUser
+      favoriteUsers.value = [normalized, ...favoriteUsers.value.filter((u) => u.secUserId !== normalized.secUserId)]
       show('已收藏用户')
     } else {
       throw new Error(res?.error || '收藏失败')
@@ -1529,6 +2334,7 @@ const removeFavoriteUser = async (secUserId: string) => {
 	try {
 		await douyinApi.removeDouyinFavoriteUser({ secUserId: id })
 		favoriteUsers.value = favoriteUsers.value.filter((u) => u.secUserId !== id)
+    selectedFavoriteUserIds.delete(id)
 		if (favoriteUserDetailOpen.value && String(favoriteUserDetailId.value || '').trim() === id) {
 			closeFavoriteUserDetail()
 		}
@@ -1581,7 +2387,8 @@ const upsertFavoriteAweme = async (payload: {
   try {
     const res = await douyinApi.addDouyinFavoriteAweme(payload as any)
     if (res?.awemeId) {
-      favoriteAwemes.value = [res as DouyinFavoriteAweme, ...favoriteAwemes.value.filter((it) => it.awemeId !== res.awemeId)]
+      const normalized = { ...(res as any), tagIds: Array.isArray((res as any).tagIds) ? (res as any).tagIds : [] } as DouyinFavoriteAweme
+      favoriteAwemes.value = [normalized, ...favoriteAwemes.value.filter((it) => it.awemeId !== normalized.awemeId)]
       show('已收藏作品')
     } else {
       throw new Error(res?.error || '收藏失败')
@@ -1599,6 +2406,7 @@ const removeFavoriteAweme = async (awemeId: string) => {
   try {
     await douyinApi.removeDouyinFavoriteAweme({ awemeId: id })
     favoriteAwemes.value = favoriteAwemes.value.filter((it) => it.awemeId !== id)
+    selectedFavoriteAwemeIds.delete(id)
     show('已取消收藏')
   } catch (e: any) {
     console.error('取消抖音作品收藏失败:', e)

@@ -73,6 +73,12 @@ func TestHandleDouyinFavoriteUserAdd_Success(t *testing.T) {
 			sql.NullTime{Time: updateTime, Valid: true},
 		))
 
+	mock.ExpectQuery(`SELECT tag_id\s+FROM douyin_favorite_user_tag_map`).
+		WithArgs("MS4wLjABAAAA_x").
+		WillReturnRows(sqlmock.NewRows([]string{"tag_id"}).
+			AddRow(int64(1)).
+			AddRow(int64(3)))
+
 	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
 
 	req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/add", map[string]any{
@@ -95,6 +101,16 @@ func TestHandleDouyinFavoriteUserAdd_Success(t *testing.T) {
 	}
 	if got, _ := resp["secUserId"].(string); got != "MS4wLjABAAAA_x" {
 		t.Fatalf("secUserId=%q, want %q", got, "MS4wLjABAAAA_x")
+	}
+	tagIDs, ok := resp["tagIds"].([]any)
+	if !ok || len(tagIDs) != 2 {
+		t.Fatalf("tagIds=%v, want 2 items", resp["tagIds"])
+	}
+	if got, _ := tagIDs[0].(float64); got != 1 {
+		t.Fatalf("tagIds[0]=%v, want %v", tagIDs[0], 1)
+	}
+	if got, _ := tagIDs[1].(float64); got != 3 {
+		t.Fatalf("tagIds[1]=%v, want %v", tagIDs[1], 3)
 	}
 }
 
@@ -128,6 +144,11 @@ func TestHandleDouyinFavoriteUserList_Success(t *testing.T) {
 			sql.NullTime{Time: createTime, Valid: true},
 		))
 
+	mock.ExpectQuery(`FROM douyin_favorite_user_tag_map`).
+		WillReturnRows(sqlmock.NewRows([]string{"sec_user_id", "tag_id"}).
+			AddRow("MS4wLjABAAAA_x", int64(7)).
+			AddRow("MS4wLjABAAAA_x", int64(9)))
+
 	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/favoriteUser/list", nil)
@@ -147,11 +168,23 @@ func TestHandleDouyinFavoriteUserList_Success(t *testing.T) {
 	if !ok || len(items) != 1 {
 		t.Fatalf("items=%v, want 1 item", resp["items"])
 	}
+	first, ok := items[0].(map[string]any)
+	if !ok {
+		t.Fatalf("items[0]=%T, want object", items[0])
+	}
+	tagIDs, ok := first["tagIds"].([]any)
+	if !ok || len(tagIDs) != 2 {
+		t.Fatalf("tagIds=%v, want 2 items", first["tagIds"])
+	}
 }
 
 func TestHandleDouyinFavoriteUserRemove_IgnoresDBError(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
+
+	mock.ExpectExec(`DELETE FROM douyin_favorite_user_tag_map WHERE sec_user_id = \?`).
+		WithArgs("MS4wLjABAAAA_x").
+		WillReturnResult(sqlmock.NewResult(0, 0))
 
 	mock.ExpectExec(`DELETE FROM douyin_favorite_user WHERE sec_user_id = \?`).
 		WithArgs("MS4wLjABAAAA_x").
@@ -209,6 +242,10 @@ func TestHandleDouyinFavoriteAwemeAdd_Success(t *testing.T) {
 			sql.NullTime{Time: createTime, Valid: true},
 		))
 
+	mock.ExpectQuery(`SELECT tag_id\s+FROM douyin_favorite_aweme_tag_map`).
+		WithArgs("123456").
+		WillReturnRows(sqlmock.NewRows([]string{"tag_id"}).AddRow(int64(2)))
+
 	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
 
 	req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/add", map[string]any{
@@ -233,6 +270,13 @@ func TestHandleDouyinFavoriteAwemeAdd_Success(t *testing.T) {
 	}
 	if got, _ := resp["awemeId"].(string); got != "123456" {
 		t.Fatalf("awemeId=%q, want %q", got, "123456")
+	}
+	tagIDs, ok := resp["tagIds"].([]any)
+	if !ok || len(tagIDs) != 1 {
+		t.Fatalf("tagIds=%v, want 1 item", resp["tagIds"])
+	}
+	if got, _ := tagIDs[0].(float64); got != 2 {
+		t.Fatalf("tagIds[0]=%v, want %v", tagIDs[0], 2)
 	}
 }
 
@@ -260,6 +304,10 @@ func TestHandleDouyinFavoriteAwemeList_Success(t *testing.T) {
 			sql.NullTime{Time: createTime, Valid: true},
 		))
 
+	mock.ExpectQuery(`FROM douyin_favorite_aweme_tag_map`).
+		WillReturnRows(sqlmock.NewRows([]string{"aweme_id", "tag_id"}).
+			AddRow("123456", int64(2)))
+
 	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/favoriteAweme/list", nil)
@@ -279,11 +327,23 @@ func TestHandleDouyinFavoriteAwemeList_Success(t *testing.T) {
 	if !ok || len(items) != 1 {
 		t.Fatalf("items=%v, want 1 item", resp["items"])
 	}
+	first, ok := items[0].(map[string]any)
+	if !ok {
+		t.Fatalf("items[0]=%T, want object", items[0])
+	}
+	tagIDs, ok := first["tagIds"].([]any)
+	if !ok || len(tagIDs) != 1 {
+		t.Fatalf("tagIds=%v, want 1 item", first["tagIds"])
+	}
 }
 
 func TestHandleDouyinFavoriteAwemeRemove_IgnoresDBError(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
+
+	mock.ExpectExec(`DELETE FROM douyin_favorite_aweme_tag_map WHERE aweme_id = \?`).
+		WithArgs("123456").
+		WillReturnResult(sqlmock.NewResult(0, 0))
 
 	mock.ExpectExec(`DELETE FROM douyin_favorite_aweme WHERE aweme_id = \?`).
 		WithArgs("123456").

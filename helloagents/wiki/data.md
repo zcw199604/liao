@@ -284,6 +284,77 @@
 - `idx_dfa_updated_at (updated_at DESC)`
 - `idx_dfa_created_at (created_at DESC)`
 
+---
+
+### 1.12 `douyin_favorite_user_tag`（抖音用户收藏标签，全局）
+
+**用途**：用户收藏的“分类标签”定义表（全局共享，不按本地身份隔离）。  
+**创建位置**：`internal/app/schema.go`。  
+**实现**：`internal/app/douyin_favorite_tags.go`、`internal/app/douyin_favorite_tag_handlers.go`。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| id | BIGINT | PK, AUTO_INCREMENT | 标签ID |
+| name | VARCHAR(64) | NOT NULL, UNIQUE | 标签名称（全局唯一） |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+| updated_at | DATETIME | NOT NULL | 更新时间 |
+
+**索引**
+- `uk_dfut_name (name)`
+- `idx_dfut_updated_at (updated_at DESC)`
+
+---
+
+### 1.13 `douyin_favorite_user_tag_map`（抖音用户收藏标签映射，全局）
+
+**用途**：用户收藏与标签的多对多映射表；一条用户收藏可绑定多个标签。  
+**创建位置**：`internal/app/schema.go`。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| sec_user_id | VARCHAR(128) | PK(联合), NOT NULL | 抖音 `sec_user_id`（sec_uid） |
+| tag_id | BIGINT | PK(联合), NOT NULL | 标签ID |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+
+**索引**
+- `PRIMARY KEY (sec_user_id, tag_id)`
+- `idx_dfutm_tag_id (tag_id)`
+
+---
+
+### 1.14 `douyin_favorite_aweme_tag`（抖音作品收藏标签，全局）
+
+**用途**：作品收藏的“分类标签”定义表（全局共享）。与用户收藏标签体系互不影响。  
+**创建位置**：`internal/app/schema.go`。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| id | BIGINT | PK, AUTO_INCREMENT | 标签ID |
+| name | VARCHAR(64) | NOT NULL, UNIQUE | 标签名称（全局唯一） |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+| updated_at | DATETIME | NOT NULL | 更新时间 |
+
+**索引**
+- `uk_dfat_name (name)`
+- `idx_dfat_updated_at (updated_at DESC)`
+
+---
+
+### 1.15 `douyin_favorite_aweme_tag_map`（抖音作品收藏标签映射，全局）
+
+**用途**：作品收藏与标签的多对多映射表；一条作品收藏可绑定多个标签。  
+**创建位置**：`internal/app/schema.go`。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| aweme_id | VARCHAR(64) | PK(联合), NOT NULL | 作品 ID（aweme_id） |
+| tag_id | BIGINT | PK(联合), NOT NULL | 标签ID |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+
+**索引**
+- `PRIMARY KEY (aweme_id, tag_id)`
+- `idx_dfatm_tag_id (tag_id)`
+
 ## 2. 缓存（内存 / Redis）
 
 ### 2.1 用户信息缓存（UserInfoCacheService）

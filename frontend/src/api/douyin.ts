@@ -66,3 +66,43 @@ export const addDouyinFavoriteAweme = (data: {
 export const removeDouyinFavoriteAweme = (data: { awemeId: string }) => {
   return douyinRequest.post<any, any>('/douyin/favoriteAweme/remove', data)
 }
+
+export const listDouyinFavoriteUserTags = () => {
+  return douyinRequest.get<any, any>('/douyin/favoriteUser/tag/list')
+}
+
+export const addDouyinFavoriteUserTag = (data: { name: string }) => {
+  return douyinRequest.post<any, any>('/douyin/favoriteUser/tag/add', data)
+}
+
+export const updateDouyinFavoriteUserTag = (data: { id: number; name: string }) => {
+  return douyinRequest.post<any, any>('/douyin/favoriteUser/tag/update', data)
+}
+
+export const removeDouyinFavoriteUserTag = (data: { id: number }) => {
+  return douyinRequest.post<any, any>('/douyin/favoriteUser/tag/remove', data)
+}
+
+export const applyDouyinFavoriteUserTags = (data: { secUserIds: string[]; tagIds: number[]; mode?: 'set' | 'add' | 'remove' }) => {
+  return douyinRequest.post<any, any>('/douyin/favoriteUser/tag/apply', data)
+}
+
+export const listDouyinFavoriteAwemeTags = () => {
+  return douyinRequest.get<any, any>('/douyin/favoriteAweme/tag/list')
+}
+
+export const addDouyinFavoriteAwemeTag = (data: { name: string }) => {
+  return douyinRequest.post<any, any>('/douyin/favoriteAweme/tag/add', data)
+}
+
+export const updateDouyinFavoriteAwemeTag = (data: { id: number; name: string }) => {
+  return douyinRequest.post<any, any>('/douyin/favoriteAweme/tag/update', data)
+}
+
+export const removeDouyinFavoriteAwemeTag = (data: { id: number }) => {
+  return douyinRequest.post<any, any>('/douyin/favoriteAweme/tag/remove', data)
+}
+
+export const applyDouyinFavoriteAwemeTags = (data: { awemeIds: string[]; tagIds: number[]; mode?: 'set' | 'add' | 'remove' }) => {
+  return douyinRequest.post<any, any>('/douyin/favoriteAweme/tag/apply', data)
+}
