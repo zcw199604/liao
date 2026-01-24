@@ -3,6 +3,7 @@ package app
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -21,12 +22,14 @@ func TestHandleDouyinFavoriteUserTagList_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id",
 			"name",
+			"sort_order",
 			"cnt",
 			"created_at",
 			"updated_at",
 		}).AddRow(
 			int64(1),
 			"美食",
+			int64(0),
 			int64(2),
 			sql.NullTime{Time: createTime, Valid: true},
 			sql.NullTime{Time: createTime, Valid: true},
@@ -56,9 +59,13 @@ func TestHandleDouyinFavoriteUserTagAdd_Success(t *testing.T) {
 	defer cleanup()
 
 	createTime := time.Date(2026, 1, 24, 1, 2, 3, 0, time.Local)
+	mock.ExpectQuery(`SELECT MAX\(sort_order\) FROM douyin_favorite_user_tag`).
+		WillReturnRows(sqlmock.NewRows([]string{"max"}).AddRow(int64(0)))
+
 	mock.ExpectExec(`INSERT INTO douyin_favorite_user_tag`).
 		WithArgs(
 			"美食",
+			int64(1),
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 		).
@@ -69,12 +76,14 @@ func TestHandleDouyinFavoriteUserTagAdd_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id",
 			"name",
+			"sort_order",
 			"cnt",
 			"created_at",
 			"updated_at",
 		}).AddRow(
 			int64(7),
 			"美食",
+			int64(1),
 			int64(0),
 			sql.NullTime{Time: createTime, Valid: true},
 			sql.NullTime{Time: createTime, Valid: true},
@@ -104,9 +113,13 @@ func TestHandleDouyinFavoriteUserTagAdd_Duplicate(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
+	mock.ExpectQuery(`SELECT MAX\(sort_order\) FROM douyin_favorite_user_tag`).
+		WillReturnRows(sqlmock.NewRows([]string{"max"}).AddRow(int64(0)))
+
 	mock.ExpectExec(`INSERT INTO douyin_favorite_user_tag`).
 		WithArgs(
 			"美食",
+			int64(1),
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 		).
@@ -161,12 +174,14 @@ func TestHandleDouyinFavoriteUserTagUpdate_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id",
 			"name",
+			"sort_order",
 			"cnt",
 			"created_at",
 			"updated_at",
 		}).AddRow(
 			int64(1),
 			"美食2",
+			int64(0),
 			int64(0),
 			sql.NullTime{Time: createTime, Valid: true},
 			sql.NullTime{Time: updateTime, Valid: true},
@@ -321,6 +336,69 @@ func TestHandleDouyinFavoriteUserTagApply_Remove_Success(t *testing.T) {
 	}
 }
 
+func TestHandleDouyinFavoriteUserTagReorder_Success(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE douyin_favorite_user_tag SET sort_order = \? WHERE id = \?`).
+		WithArgs(int64(1), int64(2)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE douyin_favorite_user_tag SET sort_order = \? WHERE id = \?`).
+		WithArgs(int64(2), int64(1)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/tag/reorder", map[string]any{
+		"tagIds": []int64{2, 1},
+	})
+	rr := httptest.NewRecorder()
+
+	app.handleDouyinFavoriteUserTagReorder(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestHandleDouyinFavoriteUserTagReorder_EmptyTagIDs(t *testing.T) {
+	db, _, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/tag/reorder", map[string]any{
+		"tagIds": []int64{},
+	})
+	rr := httptest.NewRecorder()
+
+	app.handleDouyinFavoriteUserTagReorder(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestHandleDouyinFavoriteUserTagReorder_UpdateError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE douyin_favorite_user_tag SET sort_order = \? WHERE id = \?`).
+		WithArgs(int64(1), int64(2)).
+		WillReturnError(errors.New("exec fail"))
+	mock.ExpectRollback()
+
+	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/tag/reorder", map[string]any{
+		"tagIds": []int64{2},
+	})
+	rr := httptest.NewRecorder()
+
+	app.handleDouyinFavoriteUserTagReorder(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusInternalServerError)
+	}
+}
+
 func TestHandleDouyinFavoriteAwemeTagList_Success(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
@@ -330,12 +408,14 @@ func TestHandleDouyinFavoriteAwemeTagList_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id",
 			"name",
+			"sort_order",
 			"cnt",
 			"created_at",
 			"updated_at",
 		}).AddRow(
 			int64(1),
 			"教程",
+			int64(0),
 			int64(0),
 			sql.NullTime{Time: createTime, Valid: true},
 			sql.NullTime{Time: createTime, Valid: true},
@@ -370,12 +450,14 @@ func TestHandleDouyinFavoriteAwemeTagUpdate_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id",
 			"name",
+			"sort_order",
 			"cnt",
 			"created_at",
 			"updated_at",
 		}).AddRow(
 			int64(1),
 			"教程2",
+			int64(0),
 			int64(0),
 			sql.NullTime{Time: createTime, Valid: true},
 			sql.NullTime{Time: updateTime, Valid: true},
@@ -414,6 +496,28 @@ func TestHandleDouyinFavoriteAwemeTagRemove_Success(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	app.handleDouyinFavoriteAwemeTagRemove(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestHandleDouyinFavoriteAwemeTagReorder_Success(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE douyin_favorite_aweme_tag SET sort_order = \? WHERE id = \?`).
+		WithArgs(int64(1), int64(2)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/tag/reorder", map[string]any{
+		"tagIds": []int64{2},
+	})
+	rr := httptest.NewRecorder()
+
+	app.handleDouyinFavoriteAwemeTagReorder(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status=%d, want %d", rr.Code, http.StatusOK)
 	}

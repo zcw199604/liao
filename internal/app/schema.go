@@ -2,8 +2,16 @@ package app
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+
+	"github.com/go-sql-driver/mysql"
 )
+
+func isMySQLDuplicateColumn(err error) bool {
+	var myErr *mysql.MySQLError
+	return errors.As(err, &myErr) && myErr != nil && myErr.Number == 1060
+}
 
 func ensureSchema(db *sql.DB) error {
 	statements := []string{
@@ -63,6 +71,7 @@ func ensureSchema(db *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS douyin_favorite_user_tag (
 			id BIGINT AUTO_INCREMENT PRIMARY KEY,
 			name VARCHAR(64) NOT NULL COMMENT '标签名称（全局唯一）',
+			sort_order INT NOT NULL DEFAULT 0 COMMENT '展示顺序（越小越靠前）',
 			created_at DATETIME NOT NULL COMMENT '创建时间',
 			updated_at DATETIME NOT NULL COMMENT '更新时间',
 			UNIQUE KEY uk_dfut_name (name),
@@ -82,6 +91,7 @@ func ensureSchema(db *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS douyin_favorite_aweme_tag (
 			id BIGINT AUTO_INCREMENT PRIMARY KEY,
 			name VARCHAR(64) NOT NULL COMMENT '标签名称（全局唯一）',
+			sort_order INT NOT NULL DEFAULT 0 COMMENT '展示顺序（越小越靠前）',
 			created_at DATETIME NOT NULL COMMENT '创建时间',
 			updated_at DATETIME NOT NULL COMMENT '更新时间',
 			UNIQUE KEY uk_dfat_name (name),
@@ -231,6 +241,19 @@ func ensureSchema(db *sql.DB) error {
 	for _, stmt := range statements {
 		if _, err := db.Exec(stmt); err != nil {
 			return fmt.Errorf("初始化数据表失败: %w", err)
+		}
+	}
+
+	migrations := []string{
+		"ALTER TABLE douyin_favorite_user_tag ADD COLUMN sort_order INT NOT NULL DEFAULT 0 COMMENT '展示顺序（越小越靠前）'",
+		"ALTER TABLE douyin_favorite_aweme_tag ADD COLUMN sort_order INT NOT NULL DEFAULT 0 COMMENT '展示顺序（越小越靠前）'",
+	}
+	for _, stmt := range migrations {
+		if _, err := db.Exec(stmt); err != nil {
+			if isMySQLDuplicateColumn(err) {
+				continue
+			}
+			return fmt.Errorf("数据表迁移失败: %w", err)
 		}
 	}
 	return nil

@@ -103,6 +103,7 @@ func (a *App) buildRouter() http.Handler {
 			dr.Post("/favoriteUser/tag/update", a.handleDouyinFavoriteUserTagUpdate)
 			dr.Post("/favoriteUser/tag/remove", a.handleDouyinFavoriteUserTagRemove)
 			dr.Post("/favoriteUser/tag/apply", a.handleDouyinFavoriteUserTagApply)
+			dr.Post("/favoriteUser/tag/reorder", a.handleDouyinFavoriteUserTagReorder)
 			dr.Get("/favoriteAweme/list", a.handleDouyinFavoriteAwemeList)
 			dr.Post("/favoriteAweme/add", a.handleDouyinFavoriteAwemeAdd)
 			dr.Post("/favoriteAweme/remove", a.handleDouyinFavoriteAwemeRemove)
@@ -111,6 +112,7 @@ func (a *App) buildRouter() http.Handler {
 			dr.Post("/favoriteAweme/tag/update", a.handleDouyinFavoriteAwemeTagUpdate)
 			dr.Post("/favoriteAweme/tag/remove", a.handleDouyinFavoriteAwemeTagRemove)
 			dr.Post("/favoriteAweme/tag/apply", a.handleDouyinFavoriteAwemeTagApply)
+			dr.Post("/favoriteAweme/tag/reorder", a.handleDouyinFavoriteAwemeTagReorder)
 		})
 
 		// mtPhoto 相册

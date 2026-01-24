@@ -401,8 +401,8 @@
 	
 	                      <div class="min-w-0 flex-1">
 	                        <div class="flex items-start justify-between gap-2">
-	                          <div class="min-w-0">
-	                            <div class="text-white text-sm font-medium truncate">
+	                            <div class="min-w-0">
+	                            <div class="text-white text-sm font-medium whitespace-normal break-words">
 	                              {{ u.displayName || '（未命名用户）' }}
 	                            </div>
 	                            <div class="text-xs text-gray-500 font-mono truncate">
@@ -509,7 +509,7 @@
                       />
                     </div>
                     <div class="min-w-0 flex-1">
-                      <div class="text-white text-sm font-medium line-clamp-2">
+                      <div class="text-white text-sm font-medium whitespace-normal break-words">
                         {{ it.desc || '（无描述）' }}
                       </div>
                       <div class="text-xs text-gray-500 font-mono truncate mt-1">
@@ -889,6 +889,9 @@
             <div class="text-xs text-gray-500">
               标签全局共享；删除标签会从所有收藏条目移除（条目保留）。
             </div>
+            <div class="text-xs text-gray-500">
+              可拖拽左侧按钮调整展示顺序（自动保存）。
+            </div>
 
             <div class="flex items-center gap-2">
               <input
@@ -915,71 +918,86 @@
               暂无标签
             </div>
 
-            <div v-else class="space-y-2">
-              <div
-                v-for="t in (tagManagerKind === 'users' ? favoriteUserTags : favoriteAwemeTags)"
-                :key="`tag-manager-${tagManagerKind}-${t.id}`"
-                class="rounded-xl border border-gray-700 bg-black/20 p-3"
-              >
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0 flex-1">
-                    <template v-if="editingTagId === t.id">
-                      <input
-                        v-model="editingTagName"
-                        class="w-full bg-[#111113] border border-gray-700 rounded-xl px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 text-sm"
-                        placeholder="标签名称"
-                        :disabled="tagManagerSaving"
-                        @keyup.enter="saveEditTag"
-                      />
-                    </template>
-                    <template v-else>
-                      <div class="text-white text-sm font-medium truncate">
-                        {{ t.name }}
-                      </div>
-                    </template>
+            <draggable
+              v-else
+              v-model="tagManagerTags"
+              item-key="id"
+              handle=".tag-drag-handle"
+              :disabled="tagManagerSaving || editingTagId !== null"
+              class="space-y-2"
+              @end="saveTagManagerOrder"
+            >
+              <template #item="{ element: t }">
+                <div class="rounded-xl border border-gray-700 bg-black/20 p-3">
+                  <div class="flex items-start gap-3">
+                    <button
+                      class="tag-drag-handle w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a] flex-shrink-0 cursor-grab active:cursor-grabbing disabled:opacity-60 disabled:cursor-not-allowed"
+                      type="button"
+                      :disabled="tagManagerSaving || editingTagId !== null"
+                      title="拖拽排序"
+                    >
+                      <i class="fas fa-bars"></i>
+                    </button>
 
-                    <div class="text-xs text-gray-500 mt-1">
-                      {{ t.count }} 个{{ tagManagerKind === 'users' ? '用户' : '作品' }}
+                    <div class="min-w-0 flex-1">
+                      <template v-if="editingTagId === t.id">
+                        <input
+                          v-model="editingTagName"
+                          class="w-full bg-[#111113] border border-gray-700 rounded-xl px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 text-sm"
+                          placeholder="标签名称"
+                          :disabled="tagManagerSaving"
+                          @keyup.enter="saveEditTag"
+                        />
+                      </template>
+                      <template v-else>
+                        <div class="text-white text-sm font-medium truncate">
+                          {{ t.name }}
+                        </div>
+                      </template>
+
+                      <div class="text-xs text-gray-500 mt-1">
+                        {{ t.count }} 个{{ tagManagerKind === 'users' ? '用户' : '作品' }}
+                      </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                      <template v-if="editingTagId === t.id">
+                        <button
+                          class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                          :disabled="tagManagerSaving || !String(editingTagName || '').trim()"
+                          @click="saveEditTag"
+                        >
+                          保存
+                        </button>
+                        <button
+                          class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                          :disabled="tagManagerSaving"
+                          @click="cancelEditTag"
+                        >
+                          取消
+                        </button>
+                      </template>
+                      <template v-else>
+                        <button
+                          class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                          :disabled="tagManagerSaving"
+                          @click="startEditTag(t)"
+                        >
+                          重命名
+                        </button>
+                        <button
+                          class="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-300 rounded-xl border border-red-500/30 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                          :disabled="tagManagerSaving"
+                          @click="askDeleteTag(t)"
+                        >
+                          删除
+                        </button>
+                      </template>
                     </div>
                   </div>
-
-                  <div class="flex items-center gap-2 flex-shrink-0">
-                    <template v-if="editingTagId === t.id">
-                      <button
-                        class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
-                        :disabled="tagManagerSaving || !String(editingTagName || '').trim()"
-                        @click="saveEditTag"
-                      >
-                        保存
-                      </button>
-                      <button
-                        class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
-                        :disabled="tagManagerSaving"
-                        @click="cancelEditTag"
-                      >
-                        取消
-                      </button>
-                    </template>
-                    <template v-else>
-                      <button
-                        class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
-                        :disabled="tagManagerSaving"
-                        @click="startEditTag(t)"
-                      >
-                        重命名
-                      </button>
-                      <button
-                        class="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-300 rounded-xl border border-red-500/30 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
-                        :disabled="tagManagerSaving"
-                        @click="askDeleteTag(t)"
-                      >
-                        删除
-                      </button>
-                    </template>
-                  </div>
                 </div>
-              </div>
-            </div>
+              </template>
+            </draggable>
           </div>
 
           <div
@@ -1028,7 +1046,7 @@
 	          <div v-if="selectedFavoriteUser" class="px-5 pb-5 max-h-[75vh] overflow-y-auto no-scrollbar">
 	            <div class="flex items-start justify-between gap-3">
 	              <div class="min-w-0">
-	                <div class="text-white text-base font-semibold truncate">
+	                <div class="text-white text-base font-semibold whitespace-normal break-words">
 	                  {{ selectedFavoriteUser.displayName || '（未命名用户）' }}
 	                </div>
 	                <button
@@ -1205,18 +1223,19 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
+import draggable from 'vuedraggable'
 import { useDouyinStore } from '@/stores/douyin'
 import { useUserStore } from '@/stores/user'
-	import { useMediaStore } from '@/stores/media'
-	import { useSystemConfigStore } from '@/stores/systemConfig'
-	import { useToast } from '@/composables/useToast'
-	import MediaTile from '@/components/common/MediaTile.vue'
-	import MediaTileBadge from '@/components/common/MediaTileBadge.vue'
-	import MediaTileSelectMark from '@/components/common/MediaTileSelectMark.vue'
-	import { generateCookie } from '@/utils/cookie'
-	import * as douyinApi from '@/api/douyin'
-	import MediaPreview from '@/components/media/MediaPreview.vue'
-	import type { UploadedMedia } from '@/types'
+import { useMediaStore } from '@/stores/media'
+import { useSystemConfigStore } from '@/stores/systemConfig'
+import { useToast } from '@/composables/useToast'
+import MediaTile from '@/components/common/MediaTile.vue'
+import MediaTileBadge from '@/components/common/MediaTileBadge.vue'
+import MediaTileSelectMark from '@/components/common/MediaTileSelectMark.vue'
+import { generateCookie } from '@/utils/cookie'
+import * as douyinApi from '@/api/douyin'
+import MediaPreview from '@/components/media/MediaPreview.vue'
+import type { UploadedMedia } from '@/types'
 
 interface DouyinDetailItem {
   index: number
@@ -1296,6 +1315,7 @@ interface DouyinFavoriteAweme {
 interface DouyinFavoriteTag {
   id: number
   name: string
+  sortOrder?: number
   count: number
   createTime: string
   updateTime: string
@@ -1359,6 +1379,13 @@ const selectedFavoriteAwemeIds = reactive<Set<string>>(new Set())
 
 const tagManagerOpen = ref(false)
 const tagManagerKind = ref<'users' | 'awemes'>('users')
+const tagManagerTags = computed<DouyinFavoriteTag[]>({
+  get: () => (tagManagerKind.value === 'users' ? favoriteUserTags.value : favoriteAwemeTags.value),
+  set: (v) => {
+    if (tagManagerKind.value === 'users') favoriteUserTags.value = v
+    else favoriteAwemeTags.value = v
+  }
+})
 const tagManagerNameInput = ref('')
 const tagManagerSaving = ref(false)
 const tagManagerError = ref('')
@@ -2048,6 +2075,30 @@ const closeTagManager = () => {
   editingTagName.value = ''
   confirmDeleteTagOpen.value = false
   confirmDeleteTag.value = null
+}
+
+const saveTagManagerOrder = async () => {
+  if (tagManagerSaving.value) return
+  const tagIds = tagManagerTags.value
+    .map((t) => Number(t?.id))
+    .filter((n) => Number.isFinite(n) && n > 0)
+  if (tagIds.length === 0) return
+
+  tagManagerSaving.value = true
+  tagManagerError.value = ''
+  try {
+    if (tagManagerKind.value === 'users') {
+      await douyinApi.reorderDouyinFavoriteUserTags({ tagIds })
+    } else {
+      await douyinApi.reorderDouyinFavoriteAwemeTags({ tagIds })
+    }
+    show('已更新顺序')
+  } catch (e: any) {
+    console.error('保存标签顺序失败:', e)
+    tagManagerError.value = e?.response?.data?.error || e?.message || '保存失败'
+  } finally {
+    tagManagerSaving.value = false
+  }
 }
 
 const handleCreateTag = async () => {

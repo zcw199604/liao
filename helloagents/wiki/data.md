@@ -296,6 +296,7 @@
 |---|---|---|---|
 | id | BIGINT | PK, AUTO_INCREMENT | 标签ID |
 | name | VARCHAR(64) | NOT NULL, UNIQUE | 标签名称（全局唯一） |
+| sort_order | INT | NOT NULL, DEFAULT 0 | 展示顺序（越小越靠前） |
 | created_at | DATETIME | NOT NULL | 创建时间 |
 | updated_at | DATETIME | NOT NULL | 更新时间 |
 
@@ -331,6 +332,7 @@
 |---|---|---|---|
 | id | BIGINT | PK, AUTO_INCREMENT | 标签ID |
 | name | VARCHAR(64) | NOT NULL, UNIQUE | 标签名称（全局唯一） |
+| sort_order | INT | NOT NULL, DEFAULT 0 | 展示顺序（越小越靠前） |
 | created_at | DATETIME | NOT NULL | 创建时间 |
 | updated_at | DATETIME | NOT NULL | 更新时间 |
 

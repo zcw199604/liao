@@ -18,6 +18,7 @@ var (
 type DouyinFavoriteTag struct {
 	ID         int64  `json:"id"`
 	Name       string `json:"name"`
+	SortOrder  int64  `json:"sortOrder"`
 	Count      int64  `json:"count"`
 	CreateTime string `json:"createTime"`
 	UpdateTime string `json:"updateTime"`
@@ -66,11 +67,11 @@ func normalizeInt64List(in []int64) []int64 {
 
 func (s *DouyinFavoriteService) ListUserTags(ctx context.Context) ([]DouyinFavoriteTag, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT t.id, t.name, COUNT(m.sec_user_id) AS cnt, t.created_at, t.updated_at
+		SELECT t.id, t.name, t.sort_order, COUNT(m.sec_user_id) AS cnt, t.created_at, t.updated_at
 		FROM douyin_favorite_user_tag t
 		LEFT JOIN douyin_favorite_user_tag_map m ON m.tag_id = t.id
-		GROUP BY t.id, t.name, t.created_at, t.updated_at
-		ORDER BY t.updated_at DESC, t.id DESC
+		GROUP BY t.id, t.name, t.sort_order, t.created_at, t.updated_at
+		ORDER BY t.sort_order ASC, t.updated_at DESC, t.id DESC
 	`)
 	if err != nil {
 		return nil, err
@@ -81,7 +82,7 @@ func (s *DouyinFavoriteService) ListUserTags(ctx context.Context) ([]DouyinFavor
 	for rows.Next() {
 		var t DouyinFavoriteTag
 		var createdAt, updatedAt sql.NullTime
-		if err := rows.Scan(&t.ID, &t.Name, &t.Count, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.Name, &t.SortOrder, &t.Count, &createdAt, &updatedAt); err != nil {
 			return nil, err
 		}
 		t.CreateTime = formatNullLocalDateTimeISO(createdAt)
@@ -98,11 +99,21 @@ func (s *DouyinFavoriteService) ListUserTags(ctx context.Context) ([]DouyinFavor
 }
 
 func (s *DouyinFavoriteService) AddUserTag(ctx context.Context, name string) (*DouyinFavoriteTag, error) {
+	var maxSortOrder sql.NullInt64
+	if err := s.db.QueryRowContext(ctx, "SELECT MAX(sort_order) FROM douyin_favorite_user_tag").Scan(&maxSortOrder); err != nil {
+		return nil, err
+	}
+	nextSortOrder := int64(0)
+	if maxSortOrder.Valid {
+		nextSortOrder = maxSortOrder.Int64
+	}
+	nextSortOrder += 1
+
 	now := time.Now()
 	res, err := s.db.ExecContext(ctx, `
-		INSERT INTO douyin_favorite_user_tag (name, created_at, updated_at)
-		VALUES (?, ?, ?)
-	`, strings.TrimSpace(name), now, now)
+		INSERT INTO douyin_favorite_user_tag (name, sort_order, created_at, updated_at)
+		VALUES (?, ?, ?, ?)
+	`, strings.TrimSpace(name), nextSortOrder, now, now)
 	if err != nil {
 		if isMySQLDuplicateEntry(err) {
 			return nil, ErrDouyinFavoriteTagAlreadyExists
@@ -153,13 +164,13 @@ func (s *DouyinFavoriteService) findUserTagByID(ctx context.Context, id int64) (
 	var t DouyinFavoriteTag
 	var createdAt, updatedAt sql.NullTime
 	err := s.db.QueryRowContext(ctx, `
-		SELECT t.id, t.name,
+		SELECT t.id, t.name, t.sort_order,
 		       (SELECT COUNT(*) FROM douyin_favorite_user_tag_map m WHERE m.tag_id = t.id) AS cnt,
 		       t.created_at, t.updated_at
 		FROM douyin_favorite_user_tag t
 		WHERE t.id = ?
 		LIMIT 1
-	`, id).Scan(&t.ID, &t.Name, &t.Count, &createdAt, &updatedAt)
+	`, id).Scan(&t.ID, &t.Name, &t.SortOrder, &t.Count, &createdAt, &updatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -314,13 +325,34 @@ func (s *DouyinFavoriteService) listAllUserTagIDs(ctx context.Context) (map[stri
 	return out, nil
 }
 
+func (s *DouyinFavoriteService) ReorderUserTags(ctx context.Context, tagIDs []int64) error {
+	tagIDs = normalizeInt64List(tagIDs)
+	if len(tagIDs) == 0 {
+		return nil
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	for idx, id := range tagIDs {
+		if _, err := tx.ExecContext(ctx, "UPDATE douyin_favorite_user_tag SET sort_order = ? WHERE id = ?", int64(idx+1), id); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 func (s *DouyinFavoriteService) ListAwemeTags(ctx context.Context) ([]DouyinFavoriteTag, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT t.id, t.name, COUNT(m.aweme_id) AS cnt, t.created_at, t.updated_at
+		SELECT t.id, t.name, t.sort_order, COUNT(m.aweme_id) AS cnt, t.created_at, t.updated_at
 		FROM douyin_favorite_aweme_tag t
 		LEFT JOIN douyin_favorite_aweme_tag_map m ON m.tag_id = t.id
-		GROUP BY t.id, t.name, t.created_at, t.updated_at
-		ORDER BY t.updated_at DESC, t.id DESC
+		GROUP BY t.id, t.name, t.sort_order, t.created_at, t.updated_at
+		ORDER BY t.sort_order ASC, t.updated_at DESC, t.id DESC
 	`)
 	if err != nil {
 		return nil, err
@@ -331,7 +363,7 @@ func (s *DouyinFavoriteService) ListAwemeTags(ctx context.Context) ([]DouyinFavo
 	for rows.Next() {
 		var t DouyinFavoriteTag
 		var createdAt, updatedAt sql.NullTime
-		if err := rows.Scan(&t.ID, &t.Name, &t.Count, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.Name, &t.SortOrder, &t.Count, &createdAt, &updatedAt); err != nil {
 			return nil, err
 		}
 		t.CreateTime = formatNullLocalDateTimeISO(createdAt)
@@ -348,11 +380,21 @@ func (s *DouyinFavoriteService) ListAwemeTags(ctx context.Context) ([]DouyinFavo
 }
 
 func (s *DouyinFavoriteService) AddAwemeTag(ctx context.Context, name string) (*DouyinFavoriteTag, error) {
+	var maxSortOrder sql.NullInt64
+	if err := s.db.QueryRowContext(ctx, "SELECT MAX(sort_order) FROM douyin_favorite_aweme_tag").Scan(&maxSortOrder); err != nil {
+		return nil, err
+	}
+	nextSortOrder := int64(0)
+	if maxSortOrder.Valid {
+		nextSortOrder = maxSortOrder.Int64
+	}
+	nextSortOrder += 1
+
 	now := time.Now()
 	res, err := s.db.ExecContext(ctx, `
-		INSERT INTO douyin_favorite_aweme_tag (name, created_at, updated_at)
-		VALUES (?, ?, ?)
-	`, strings.TrimSpace(name), now, now)
+		INSERT INTO douyin_favorite_aweme_tag (name, sort_order, created_at, updated_at)
+		VALUES (?, ?, ?, ?)
+	`, strings.TrimSpace(name), nextSortOrder, now, now)
 	if err != nil {
 		if isMySQLDuplicateEntry(err) {
 			return nil, ErrDouyinFavoriteTagAlreadyExists
@@ -403,13 +445,13 @@ func (s *DouyinFavoriteService) findAwemeTagByID(ctx context.Context, id int64) 
 	var t DouyinFavoriteTag
 	var createdAt, updatedAt sql.NullTime
 	err := s.db.QueryRowContext(ctx, `
-		SELECT t.id, t.name,
+		SELECT t.id, t.name, t.sort_order,
 		       (SELECT COUNT(*) FROM douyin_favorite_aweme_tag_map m WHERE m.tag_id = t.id) AS cnt,
 		       t.created_at, t.updated_at
 		FROM douyin_favorite_aweme_tag t
 		WHERE t.id = ?
 		LIMIT 1
-	`, id).Scan(&t.ID, &t.Name, &t.Count, &createdAt, &updatedAt)
+	`, id).Scan(&t.ID, &t.Name, &t.SortOrder, &t.Count, &createdAt, &updatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -490,6 +532,27 @@ func (s *DouyinFavoriteService) ApplyAwemeTags(ctx context.Context, awemeIDs []s
 			}
 		}
 	}
+	return tx.Commit()
+}
+
+func (s *DouyinFavoriteService) ReorderAwemeTags(ctx context.Context, tagIDs []int64) error {
+	tagIDs = normalizeInt64List(tagIDs)
+	if len(tagIDs) == 0 {
+		return nil
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	for idx, id := range tagIDs {
+		if _, err := tx.ExecContext(ctx, "UPDATE douyin_favorite_aweme_tag SET sort_order = ? WHERE id = ?", int64(idx+1), id); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+	}
+
 	return tx.Commit()
 }
 

@@ -11,6 +11,19 @@ vi.mock('@/composables/useToast', () => ({
   })
 }))
 
+vi.mock('vuedraggable', () => ({
+  default: {
+    name: 'draggable',
+    props: ['modelValue', 'itemKey', 'disabled', 'handle'],
+    emits: ['update:modelValue', 'end'],
+    template: `<div data-testid="draggable">
+      <div v-for="(el, idx) in modelValue" :key="itemKey ? el[itemKey] : idx">
+        <slot name="item" :element="el" :index="idx"></slot>
+      </div>
+    </div>`
+  }
+}))
+
 vi.mock('@/api/douyin', async () => {
   const actual = await vi.importActual<any>('@/api/douyin')
   return {
@@ -23,10 +36,12 @@ vi.mock('@/api/douyin', async () => {
     updateDouyinFavoriteUserTag: vi.fn().mockResolvedValue({}),
     removeDouyinFavoriteUserTag: vi.fn().mockResolvedValue({ success: true }),
     applyDouyinFavoriteUserTags: vi.fn().mockResolvedValue({ success: true }),
+    reorderDouyinFavoriteUserTags: vi.fn().mockResolvedValue({ success: true }),
     addDouyinFavoriteAwemeTag: vi.fn().mockResolvedValue({}),
     updateDouyinFavoriteAwemeTag: vi.fn().mockResolvedValue({}),
     removeDouyinFavoriteAwemeTag: vi.fn().mockResolvedValue({ success: true }),
-    applyDouyinFavoriteAwemeTags: vi.fn().mockResolvedValue({ success: true })
+    applyDouyinFavoriteAwemeTags: vi.fn().mockResolvedValue({ success: true }),
+    reorderDouyinFavoriteAwemeTags: vi.fn().mockResolvedValue({ success: true })
   }
 })
 
@@ -361,5 +376,56 @@ describe('components/media/DouyinDownloadModal.vue', () => {
       mode: 'add'
     })
     expect(toastShow).toHaveBeenCalledWith('已批量添加标签')
+  })
+
+  it('reorders favorite user tags and persists order', async () => {
+    localStorage.setItem('douyin_auto_clipboard', '0')
+    localStorage.setItem('douyin_auto_resolve_clipboard', '0')
+
+    const tags = [
+      { id: 1, name: '美食', count: 0, createTime: 't', updateTime: 't' },
+      { id: 2, name: '教程', count: 0, createTime: 't', updateTime: 't' }
+    ]
+    ;(douyinApi.listDouyinFavoriteUsers as any).mockResolvedValue({ items: [] })
+    ;(douyinApi.listDouyinFavoriteAwemes as any).mockResolvedValue({ items: [] })
+    ;(douyinApi.listDouyinFavoriteUserTags as any).mockResolvedValue({ items: tags })
+    ;(douyinApi.listDouyinFavoriteAwemeTags as any).mockResolvedValue({ items: [] })
+    ;(douyinApi.reorderDouyinFavoriteUserTags as any).mockResolvedValue({ success: true })
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          MediaPreview: true,
+          MediaTile: true,
+          MediaTileBadge: true,
+          MediaTileSelectMark: true
+        }
+      }
+    })
+
+    const douyinStore = useDouyinStore()
+    douyinStore.showModal = true
+    await flushAsync()
+    await flushAsync()
+
+    await wrapper.findAll('button').find((btn) => btn.text().trim() === '收藏')!.trigger('click')
+    await flushAsync()
+
+    await wrapper.get('button[title="管理标签"]').trigger('click')
+    await flushAsync()
+
+    const drag = wrapper.findComponent({ name: 'draggable' })
+    expect(drag.exists()).toBe(true)
+    drag.vm.$emit('update:modelValue', [tags[1], tags[0]])
+    await flushAsync()
+    await (wrapper.vm as any).saveTagManagerOrder()
+
+    expect(douyinApi.reorderDouyinFavoriteUserTags).toHaveBeenCalledWith({ tagIds: [2, 1] })
+    expect(toastShow).toHaveBeenCalledWith('已更新顺序')
   })
 })

@@ -87,6 +87,10 @@ export const applyDouyinFavoriteUserTags = (data: { secUserIds: string[]; tagIds
   return douyinRequest.post<any, any>('/douyin/favoriteUser/tag/apply', data)
 }
 
+export const reorderDouyinFavoriteUserTags = (data: { tagIds: number[] }) => {
+  return douyinRequest.post<any, any>('/douyin/favoriteUser/tag/reorder', data)
+}
+
 export const listDouyinFavoriteAwemeTags = () => {
   return douyinRequest.get<any, any>('/douyin/favoriteAweme/tag/list')
 }
@@ -105,4 +109,8 @@ export const removeDouyinFavoriteAwemeTag = (data: { id: number }) => {
 
 export const applyDouyinFavoriteAwemeTags = (data: { awemeIds: string[]; tagIds: number[]; mode?: 'set' | 'add' | 'remove' }) => {
   return douyinRequest.post<any, any>('/douyin/favoriteAweme/tag/apply', data)
+}
+
+export const reorderDouyinFavoriteAwemeTags = (data: { tagIds: number[] }) => {
+  return douyinRequest.post<any, any>('/douyin/favoriteAweme/tag/reorder', data)
 }

@@ -20,6 +20,9 @@
 - 前端/后端：抖音收藏新增“分类标签”能力：用户收藏与作品收藏分别维护标签（名称、全局共享），支持按标签筛选、单条编辑、批量打标签与独立标签管理页（新建/重命名/删除）；收藏元素新增 `tagIds`；新增接口 `GET/POST /api/douyin/favoriteUser/tag/*`、`GET/POST /api/douyin/favoriteAweme/tag/*`；新增 MySQL 表 `douyin_favorite_user_tag`、`douyin_favorite_user_tag_map`、`douyin_favorite_aweme_tag`、`douyin_favorite_aweme_tag_map`。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`
+- 前端/后端：抖音收藏标签管理支持拖拽调整标签展示顺序并持久化；新增标签 `sort_order` 字段，并新增接口 `POST /api/douyin/favoriteUser/tag/reorder`、`POST /api/douyin/favoriteAweme/tag/reorder`。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
 - 前端：抖音下载“用户作品”预览支持跨作品画廊左右滑动切换，并在预览顶部展示作品名称（方案包：`helloagents/archive/2026-01/202601230536_feat-douyin-account-preview-gallery/`）。
 - 后端：新增超时配置环境变量：`UPSTREAM_HTTP_TIMEOUT_SECONDS`（上游 HTTP，秒，默认 60）、`TIKTOKDOWNLOADER_TIMEOUT_SECONDS`（抖音上游，秒，默认跟随 UPSTREAM）、`REDIS_TIMEOUT_SECONDS`（Redis 连接/读写，秒，默认 15）。
 - 增强聊天交互：会话列表左右滑切换“消息/收藏”、聊天页边缘右滑返回、侧边栏左滑关闭、长按菜单点击外关闭
@@ -78,6 +81,7 @@
 - 后端：`handleProbeVideo`（mtPhoto）移除不可达的 `item == nil` 分支，统一使用 `ResolveFilePath` 的错误信息返回。
 - 前端：将“抖音下载”入口移动到“图片管理”，并从聊天页上传菜单移除（从图片管理打开会自动关闭抽屉）。
 - 前端：移除“抖音下载”粘贴/自动读取剪贴板的内容识别限制；现在会直接填充剪贴板文本。
+- 前端：修复“抖音下载 → 收藏”列表名称被截断的问题：收藏用户名称与收藏作品标题改为多行展示，避免 `truncate/line-clamp` 导致显示不全。
 - 前端：修复“抖音下载”弹窗剪贴板相关单测在 `vue-tsc`/Docker 构建中因 `setImmediate` 类型缺失导致 `npm run build` 失败的问题（改用 `setTimeout`）。
 - 后端：修复 TikTokDownloader 上游在“暂无作品”场景返回 `data=[]` 导致解析失败；`POST /api/douyin/account` 将返回空 `items` 数组（`[]`）而非报错/`null`。
 - 后端：兼容 TikTokDownloader 上游 `POST /douyin/account` 返回 `data[]` 扁平字段（如 `type/downloads/static_cover/dynamic_cover`）；`POST /api/douyin/account` 将尽量为每个作品返回 `key/items/coverDownloadUrl`，减少前端点击作品时回退请求详情（Spinner）。

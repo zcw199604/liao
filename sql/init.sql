@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS douyin_favorite_aweme (
 CREATE TABLE IF NOT EXISTS douyin_favorite_user_tag (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(64) NOT NULL COMMENT '标签名称（全局唯一）',
+    sort_order INT NOT NULL DEFAULT 0 COMMENT '展示顺序（越小越靠前）',
     created_at DATETIME NOT NULL COMMENT '创建时间',
     updated_at DATETIME NOT NULL COMMENT '更新时间',
     UNIQUE KEY uk_dfut_name (name),
@@ -89,6 +90,7 @@ CREATE TABLE IF NOT EXISTS douyin_favorite_user_tag_map (
 CREATE TABLE IF NOT EXISTS douyin_favorite_aweme_tag (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(64) NOT NULL COMMENT '标签名称（全局唯一）',
+    sort_order INT NOT NULL DEFAULT 0 COMMENT '展示顺序（越小越靠前）',
     created_at DATETIME NOT NULL COMMENT '创建时间',
     updated_at DATETIME NOT NULL COMMENT '更新时间',
     UNIQUE KEY uk_dfat_name (name),

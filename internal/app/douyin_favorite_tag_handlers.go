@@ -32,6 +32,10 @@ type douyinFavoriteAwemeTagApplyRequest struct {
 	Mode     string   `json:"mode,omitempty"` // set/add/remove
 }
 
+type douyinFavoriteTagReorderRequest struct {
+	TagIDs []int64 `json:"tagIds"`
+}
+
 func (a *App) handleDouyinFavoriteUserTagList(w http.ResponseWriter, r *http.Request) {
 	if a == nil || a.douyinFavorite == nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "服务未初始化"})
@@ -167,6 +171,25 @@ func (a *App) handleDouyinFavoriteUserTagApply(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
 }
 
+func (a *App) handleDouyinFavoriteUserTagReorder(w http.ResponseWriter, r *http.Request) {
+	if a == nil || a.douyinFavorite == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "服务未初始化"})
+		return
+	}
+
+	var req douyinFavoriteTagReorderRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "请求解析失败"})
+		return
+	}
+
+	if err := a.douyinFavorite.ReorderUserTags(r.Context(), req.TagIDs); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "保存失败"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
 func (a *App) handleDouyinFavoriteAwemeTagList(w http.ResponseWriter, r *http.Request) {
 	if a == nil || a.douyinFavorite == nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "服务未初始化"})
@@ -274,6 +297,25 @@ func (a *App) handleDouyinFavoriteAwemeTagRemove(w http.ResponseWriter, r *http.
 
 	if err := a.douyinFavorite.RemoveAwemeTag(r.Context(), req.ID); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "删除失败"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+func (a *App) handleDouyinFavoriteAwemeTagReorder(w http.ResponseWriter, r *http.Request) {
+	if a == nil || a.douyinFavorite == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "服务未初始化"})
+		return
+	}
+
+	var req douyinFavoriteTagReorderRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "请求解析失败"})
+		return
+	}
+
+	if err := a.douyinFavorite.ReorderAwemeTags(r.Context(), req.TagIDs); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "保存失败"})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})

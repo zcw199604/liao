@@ -1178,11 +1178,11 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 > 约定：收藏元素的 `tagIds` 为空数组表示“未分类”。
 
 #### [GET] /api/douyin/favoriteUser/tag/list
-**描述**：获取“用户收藏标签”列表（附带 `count` 统计：被多少条用户收藏使用）。
+**描述**：获取“用户收藏标签”列表（附带 `count` 统计：被多少条用户收藏使用）。默认按 `sortOrder` 升序（越小越靠前）返回，`updateTime/id` 作为兜底排序。
 
 **响应（HTTP 200）**
 ```json
-{"items":[{"id":1,"name":"教程","count":12,"createTime":"2026-01-24T01:02:03","updateTime":"2026-01-24T01:02:03"}]}
+{"items":[{"id":1,"name":"教程","sortOrder":1,"count":12,"createTime":"2026-01-24T01:02:03","updateTime":"2026-01-24T01:02:03"}]}
 ```
 
 #### [POST] /api/douyin/favoriteUser/tag/add
@@ -1236,6 +1236,23 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 {"success":true}
 ```
 
+#### [POST] /api/douyin/favoriteUser/tag/reorder
+**描述**：调整“用户收藏标签”的展示顺序（持久化）。
+
+**请求（application/json）**
+```json
+{"tagIds":[2,1,3]}
+```
+
+**说明**
+- 传入数组顺序即为展示顺序（越靠前 `sortOrder` 越小）。
+- 建议传入“全量标签 ID 列表”，避免未包含的标签与已排序标签交错显示。
+
+**响应（HTTP 200）**
+```json
+{"success":true}
+```
+
 #### [GET] /api/douyin/favoriteAweme/list
 **描述**：获取已收藏的抖音作品列表（按更新时间倒序）。
 
@@ -1270,11 +1287,11 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 #### 抖音收藏标签（作品）
 
 #### [GET] /api/douyin/favoriteAweme/tag/list
-**描述**：获取“作品收藏标签”列表（附带 `count` 统计：被多少条作品收藏使用）。
+**描述**：获取“作品收藏标签”列表（附带 `count` 统计：被多少条作品收藏使用）。默认按 `sortOrder` 升序（越小越靠前）返回，`updateTime/id` 作为兜底排序。
 
 **响应（HTTP 200）**
 ```json
-{"items":[{"id":3,"name":"美食","count":9,"createTime":"2026-01-24T01:02:03","updateTime":"2026-01-24T01:02:03"}]}
+{"items":[{"id":3,"name":"美食","sortOrder":1,"count":9,"createTime":"2026-01-24T01:02:03","updateTime":"2026-01-24T01:02:03"}]}
 ```
 
 #### [POST] /api/douyin/favoriteAweme/tag/add
@@ -1323,6 +1340,22 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 {"success":true}
 ```
 
+#### [POST] /api/douyin/favoriteAweme/tag/reorder
+**描述**：调整“作品收藏标签”的展示顺序（持久化）。
+
+**请求（application/json）**
+```json
+{"tagIds":[2,1,3]}
+```
+
+**说明**
+- 传入数组顺序即为展示顺序（越靠前 `sortOrder` 越小）。
+- 建议传入“全量标签 ID 列表”，避免未包含的标签与已排序标签交错显示。
+
+**响应（HTTP 200）**
+```json
+{"success":true}
+```
 ## 5. 静态资源与 SPA 回退
 
 - Go（现行实现）：

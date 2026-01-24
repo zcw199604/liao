@@ -17,6 +17,11 @@ func TestEnsureSchema_Success(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 1))
 	}
 
+	mock.ExpectExec(`ALTER TABLE douyin_favorite_user_tag ADD COLUMN sort_order`).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`ALTER TABLE douyin_favorite_aweme_tag ADD COLUMN sort_order`).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
 	if err := ensureSchema(db); err != nil {
 		t.Fatalf("ensureSchema: %v", err)
 	}
