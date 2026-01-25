@@ -14,6 +14,9 @@
 - 测试：补充抖音收藏“分类标签”的后端接口与前端弹窗流程用例（更新/删除/打标签、筛选、标签管理、批量打标签）。
 - 前端/后端：对接 TikTokDownloader Web API，新增抖音作品“解析→预览→下载→导入上传”能力（入口：图片管理→抖音下载；支持视频/图集；下载文件名按作品标题；导入上传按 MD5 去重；弹窗交互增强：剪贴板预填/自动解析开关、多选批量下载/导入、文件大小探测（`HEAD /api/douyin/download`）、导入状态提示与一键打开上传菜单）。
 - 前端/后端：抖音下载新增“用户作品”模式：支持通过用户主页链接/分享文本拉取发布作品列表（分页加载），并可一键跳转到“作品解析”；同时移除 proxy 输入并为输入框增加显式清空按钮；新增接口 `POST /api/douyin/account`。
+- 后端：抖音下载 account 作品列表预览抽取优化：普通图集图片 URL 默认优先选择 WebP；实况（Live 图）图片优先选择 JPEG，并支持从 `images[].video.play_addr` 抽取实况短视频，避免被误判为纯图集。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
 - 前端/后端：抖音下载新增“收藏”能力：可收藏已解析的抖音用户（`sec_user_id`）与作品（`aweme_id`），提供收藏列表查看、取消收藏，并支持一键再次解析；新增接口 `GET/POST /api/douyin/favoriteUser/*`、`GET/POST /api/douyin/favoriteAweme/*`；新增 MySQL 表 `douyin_favorite_user`、`douyin_favorite_aweme`。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`

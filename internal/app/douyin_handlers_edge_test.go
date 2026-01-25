@@ -351,7 +351,7 @@ func TestExtractDouyinAccountVideoPlayURL(t *testing.T) {
 }
 
 func TestExtractDouyinAccountImageURLsAndDownloads(t *testing.T) {
-	if got := extractDouyinAccountImageURLs(map[string]any{}); got != nil {
+	if got := extractDouyinAccountImageURLs(map[string]any{}, true); got != nil {
 		t.Fatalf("got=%v", got)
 	}
 	item := map[string]any{
@@ -363,7 +363,7 @@ func TestExtractDouyinAccountImageURLsAndDownloads(t *testing.T) {
 			map[string]any{"downloadUrlList": []any{" https://b "}},
 		},
 	}
-	got := extractDouyinAccountImageURLs(item)
+	got := extractDouyinAccountImageURLs(item, true)
 	if len(got) != 4 || got[0] != "https://a" || got[1] != "https://a2" || got[2] != "https://b1" || got[3] != "https://b" {
 		t.Fatalf("got=%v", got)
 	}

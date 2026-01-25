@@ -475,6 +475,155 @@ func TestHandleDouyinAccount_Posts(t *testing.T) {
 	}
 }
 
+func TestHandleDouyinAccount_PreferWebPOverJPEG(t *testing.T) {
+	var upstream *httptest.Server
+	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/douyin/account":
+			w.Header().Set("Content-Type", "application/json")
+			payload := map[string]any{
+				"message": "获取数据成功！",
+				"data": map[string]any{
+					"cursor":   0,
+					"has_more": 0,
+					"aweme_list": []any{
+						map[string]any{
+							"aweme_id": "222",
+							"desc":     "作品2",
+							"images": []any{
+								map[string]any{
+									"url_list": []any{
+										upstream.URL + "/img.webp",
+										upstream.URL + "/img.jpeg",
+									},
+								},
+							},
+						},
+					},
+				},
+				"params": map[string]any{},
+				"time":   "2026-01-01",
+			}
+			_ = json.NewEncoder(w).Encode(payload)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	a := &App{
+		douyinDownloader: NewDouyinDownloaderService(upstream.URL, "", "", "", 60*time.Second),
+	}
+
+	body := bytes.NewBufferString(`{"input":"MS4wLjABAAAA_test_secuid","cookie":"","tab":"post","cursor":0,"count":18}`)
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/douyin/account", body)
+	rr := httptest.NewRecorder()
+	a.handleDouyinAccount(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("account status=%d, body=%s", rr.Code, rr.Body.String())
+	}
+
+	var resp douyinAccountResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal account response failed: %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("items len=%d, want 1", len(resp.Items))
+	}
+	if resp.Items[0].Type != "image" {
+		t.Fatalf("items[0].type=%q, want %q", resp.Items[0].Type, "image")
+	}
+	if len(resp.Items[0].Items) != 1 {
+		t.Fatalf("items[0].items len=%d, want 1", len(resp.Items[0].Items))
+	}
+	if got := resp.Items[0].Items[0].URL; got != upstream.URL+"/img.webp" {
+		t.Fatalf("items[0].items[0].url=%q, want %q", got, upstream.URL+"/img.webp")
+	}
+	if !strings.HasSuffix(resp.Items[0].Items[0].OriginalFilename, ".webp") {
+		t.Fatalf("items[0].items[0].originalFilename=%q should end with .webp", resp.Items[0].Items[0].OriginalFilename)
+	}
+}
+
+func TestHandleDouyinAccount_LivePhotoNestedVideoInImages(t *testing.T) {
+	var upstream *httptest.Server
+	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/douyin/account":
+			w.Header().Set("Content-Type", "application/json")
+			payload := map[string]any{
+				"message": "获取数据成功！",
+				"data": map[string]any{
+					"cursor":   0,
+					"has_more": 0,
+					"aweme_list": []any{
+						map[string]any{
+							"aweme_id": "333",
+							"desc":     "测试实况raw",
+							"images": []any{
+								map[string]any{
+									"url_list": []any{upstream.URL + "/live.webp", upstream.URL + "/live.jpeg"},
+									"video": map[string]any{
+										"play_addr": map[string]any{
+											"url_list": []any{upstream.URL + "/aweme/v1/play/?video_id=live1"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				"params": map[string]any{},
+				"time":   "2026-01-01",
+			}
+			_ = json.NewEncoder(w).Encode(payload)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	a := &App{
+		douyinDownloader: NewDouyinDownloaderService(upstream.URL, "", "", "", 60*time.Second),
+	}
+
+	body := bytes.NewBufferString(`{"input":"MS4wLjABAAAA_test_secuid","cookie":"","tab":"post","cursor":0,"count":18}`)
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/douyin/account", body)
+	rr := httptest.NewRecorder()
+	a.handleDouyinAccount(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("account status=%d, body=%s", rr.Code, rr.Body.String())
+	}
+
+	var resp douyinAccountResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal account response failed: %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("items len=%d, want 1", len(resp.Items))
+	}
+	if resp.Items[0].DetailID != "333" {
+		t.Fatalf("items[0].detailId=%q, want %q", resp.Items[0].DetailID, "333")
+	}
+	if resp.Items[0].Type != "video" {
+		t.Fatalf("items[0].type=%q, want %q", resp.Items[0].Type, "video")
+	}
+	if len(resp.Items[0].Items) != 2 {
+		t.Fatalf("items[0].items len=%d, want 2", len(resp.Items[0].Items))
+	}
+	if resp.Items[0].Items[0].Type != "image" {
+		t.Fatalf("items[0].items[0].type=%q, want %q", resp.Items[0].Items[0].Type, "image")
+	}
+	if got := resp.Items[0].Items[0].URL; got != upstream.URL+"/live.jpeg" {
+		t.Fatalf("items[0].items[0].url=%q, want %q", got, upstream.URL+"/live.jpeg")
+	}
+	if !strings.HasSuffix(resp.Items[0].Items[0].OriginalFilename, ".jpeg") {
+		t.Fatalf("items[0].items[0].originalFilename=%q should end with .jpeg", resp.Items[0].Items[0].OriginalFilename)
+	}
+	if resp.Items[0].Items[1].Type != "video" {
+		t.Fatalf("items[0].items[1].type=%q, want %q", resp.Items[0].Items[1].Type, "video")
+	}
+}
+
 func TestHandleDouyinAccount_Posts_FlatDataArray(t *testing.T) {
 	var upstream *httptest.Server
 	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

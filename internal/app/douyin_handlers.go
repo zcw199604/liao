@@ -116,12 +116,10 @@ func extractDouyinAccountCoverURL(item map[string]any) string {
 	// 1) video.cover.url_list[0]
 	if v, ok := item["video"].(map[string]any); ok {
 		if cover, ok := v["cover"].(map[string]any); ok {
-			if list, ok := cover["url_list"].([]any); ok {
-				if len(list) > 0 {
-					if u := strings.TrimSpace(asString(list[0])); u != "" {
-						return u
-					}
-				}
+			preferredExts := preferredDouyinImageExts(true)
+			urls := append(extractStringSlice(cover["url_list"]), extractStringSlice(cover["urlList"])...)
+			if u := pickPreferredURLFromSlice(urls, preferredExts); strings.TrimSpace(u) != "" {
+				return u
 			}
 		}
 	}
@@ -129,10 +127,8 @@ func extractDouyinAccountCoverURL(item map[string]any) string {
 	// 2) images[0].url_list[0]
 	if imgs, ok := item["images"].([]any); ok && len(imgs) > 0 {
 		if img0, ok := imgs[0].(map[string]any); ok {
-			if list, ok := img0["url_list"].([]any); ok && len(list) > 0 {
-				if u := strings.TrimSpace(asString(list[0])); u != "" {
-					return u
-				}
+			if u := strings.TrimSpace(pickPreferredDouyinImageURL(img0, true)); u != "" {
+				return u
 			}
 		}
 	}
@@ -163,9 +159,65 @@ func firstStringFromURLList(v any) string {
 	return strings.TrimSpace(list[0])
 }
 
+func preferredDouyinImageExts(preferWebP bool) []string {
+	if preferWebP {
+		return []string{".webp", ".jpeg", ".jpg"}
+	}
+	return []string{".jpeg", ".jpg", ".webp"}
+}
+
+func pickPreferredURLFromSlice(urls []string, preferredExts []string) string {
+	if len(urls) == 0 {
+		return ""
+	}
+
+	for _, ext := range preferredExts {
+		for _, raw := range urls {
+			u := strings.TrimSpace(raw)
+			if u == "" {
+				continue
+			}
+			if guessExtFromURL(u) == ext {
+				return u
+			}
+		}
+	}
+
+	for _, raw := range urls {
+		if u := strings.TrimSpace(raw); u != "" {
+			return u
+		}
+	}
+	return ""
+}
+
+func pickPreferredDouyinImageURL(image map[string]any, preferWebP bool) string {
+	if image == nil {
+		return ""
+	}
+
+	preferredExts := preferredDouyinImageExts(preferWebP)
+
+	primary := append(extractStringSlice(image["url_list"]), extractStringSlice(image["urlList"])...)
+	if u := pickPreferredURLFromSlice(primary, preferredExts); strings.TrimSpace(u) != "" {
+		return u
+	}
+
+	secondary := append(extractStringSlice(image["download_url_list"]), extractStringSlice(image["downloadUrlList"])...)
+	return pickPreferredURLFromSlice(secondary, preferredExts)
+}
+
 func extractDouyinAccountVideoPlayURL(item map[string]any) string {
 	v, ok := item["video"].(map[string]any)
 	if !ok || v == nil {
+		return ""
+	}
+
+	return extractDouyinVideoPlayURLFromVideoMap(v)
+}
+
+func extractDouyinVideoPlayURLFromVideoMap(v map[string]any) string {
+	if v == nil {
 		return ""
 	}
 
@@ -206,7 +258,41 @@ func extractDouyinAccountVideoPlayURL(item map[string]any) string {
 	return ""
 }
 
-func extractDouyinAccountImageURLs(item map[string]any) []string {
+func extractDouyinAccountLivePhotoVideoPlayURLs(item map[string]any) []string {
+	imgsAny, ok := item["images"].([]any)
+	if !ok || len(imgsAny) == 0 {
+		return nil
+	}
+
+	out := make([]string, 0, len(imgsAny))
+	for _, it := range imgsAny {
+		m, ok := it.(map[string]any)
+		if !ok || m == nil {
+			continue
+		}
+		v, ok := m["video"].(map[string]any)
+		if !ok || v == nil {
+			continue
+		}
+		u := strings.TrimSpace(extractDouyinVideoPlayURLFromVideoMap(v))
+		if u == "" || guessDouyinMediaTypeFromURL(u) != "video" {
+			continue
+		}
+		has := false
+		for _, existed := range out {
+			if strings.TrimSpace(existed) == u {
+				has = true
+				break
+			}
+		}
+		if !has {
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
+func extractDouyinAccountImageURLs(item map[string]any, preferWebP bool) []string {
 	imgsAny, ok := item["images"].([]any)
 	if !ok || len(imgsAny) == 0 {
 		return nil
@@ -219,19 +305,7 @@ func extractDouyinAccountImageURLs(item map[string]any) []string {
 			continue
 		}
 
-		if u := strings.TrimSpace(firstStringFromURLList(m["url_list"])); u != "" {
-			out = append(out, u)
-			continue
-		}
-		if u := strings.TrimSpace(firstStringFromURLList(m["urlList"])); u != "" {
-			out = append(out, u)
-			continue
-		}
-		if u := strings.TrimSpace(firstStringFromURLList(m["download_url_list"])); u != "" {
-			out = append(out, u)
-			continue
-		}
-		if u := strings.TrimSpace(firstStringFromURLList(m["downloadUrlList"])); u != "" {
+		if u := strings.TrimSpace(pickPreferredDouyinImageURL(m, preferWebP)); u != "" {
 			out = append(out, u)
 			continue
 		}
@@ -539,8 +613,30 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, secUserID string, dat
 		// best-effort：直接从 account 返回中抽取可预览资源，避免点击后再 /detail N 次。
 		downloads := []string(nil)
 		if itemType == "image" {
-			downloads = extractDouyinAccountImageURLs(m)
-			if typeLabel != "" && strings.Contains(typeLabel, "实况") {
+			nestedVideos := extractDouyinAccountLivePhotoVideoPlayURLs(m)
+			isLivePhoto := (typeLabel != "" && strings.Contains(typeLabel, "实况")) || len(nestedVideos) > 0
+
+			downloads = extractDouyinAccountImageURLs(m, !isLivePhoto)
+
+			if len(nestedVideos) > 0 {
+				for _, u := range nestedVideos {
+					has := false
+					for _, existed := range downloads {
+						if strings.TrimSpace(existed) == strings.TrimSpace(u) {
+							has = true
+							break
+						}
+					}
+					if !has {
+						downloads = append(downloads, u)
+					}
+				}
+			}
+
+			if isLivePhoto {
+				if typeLabel == "" {
+					typeLabel = "实况"
+				}
 				if u := extractDouyinAccountVideoPlayURL(m); u != "" {
 					has := false
 					for _, existed := range downloads {
