@@ -1159,29 +1159,10 @@
                 </div>
               </div>
 
-	            <div class="mt-4 grid grid-cols-2 gap-3">
-	              <div class="flex flex-col items-center p-3 bg-white/5 rounded-xl">
-	                <div class="text-lg font-bold text-gray-100">{{ formatDouyinCount(selectedFavoriteUser.followerCount) }}</div>
-	                <div class="text-[10px] text-gray-500 mt-1">粉丝</div>
-	              </div>
-	              <div class="flex flex-col items-center p-3 bg-white/5 rounded-xl">
-	                <div class="text-lg font-bold text-gray-100">{{ formatDouyinCount(selectedFavoriteUser.followingCount) }}</div>
-	                <div class="text-[10px] text-gray-500 mt-1">关注</div>
-	              </div>
-	              <div class="flex flex-col items-center p-3 bg-white/5 rounded-xl">
-	                <div class="text-lg font-bold text-gray-100">{{ formatDouyinCount(selectedFavoriteUser.awemeCount) }}</div>
-	                <div class="text-[10px] text-gray-500 mt-1">作品</div>
-	              </div>
-	              <div class="flex flex-col items-center p-3 bg-white/5 rounded-xl">
-	                <div class="text-lg font-bold text-gray-100">{{ formatDouyinCount(selectedFavoriteUser.totalFavorited) }}</div>
-	                <div class="text-[10px] text-gray-500 mt-1">获赞</div>
-	              </div>
-	            </div>
-
-	            <div v-if="selectedFavoriteUser.lastParsedAt || selectedFavoriteUser.lastParsedCount" class="mt-4 text-xs text-gray-500">
-	              <span v-if="selectedFavoriteUser.lastParsedAt">上次解析: {{ selectedFavoriteUser.lastParsedAt }}</span>
-	              <span v-if="selectedFavoriteUser.lastParsedCount"> · 作品: {{ selectedFavoriteUser.lastParsedCount }}</span>
-	            </div>
+		            <div v-if="selectedFavoriteUser.lastParsedAt || selectedFavoriteUser.lastParsedCount" class="mt-4 text-xs text-gray-500">
+		              <span v-if="selectedFavoriteUser.lastParsedAt">上次解析: {{ selectedFavoriteUser.lastParsedAt }}</span>
+		              <span v-if="selectedFavoriteUser.lastParsedCount"> · 作品: {{ selectedFavoriteUser.lastParsedCount }}</span>
+		            </div>
 
 	            <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
 	              <button
