@@ -1127,22 +1127,27 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 - 若上游未提供可用大小，`Content-Length` 可能缺失，前端会自动降级不展示大小。
 
 #### [GET] /api/douyin/livePhoto
-**描述**：生成 iOS 实况照片（Live Photo）下载包：将同一作品下的“静态图 + 动态短视频”写入相同 `ContentIdentifier` 并打包下载。
+**描述**：导出抖音“实况照片”（静态图 + 动态短视频）。支持两种输出格式：iOS Live Photo（ZIP：`.jpg` + `.mov` 配对）与 Motion Photo（单文件 `.jpg`，尾部附加 `.mp4` 并写入 XMP `GCamera:MicroVideoOffset`）。
 
 **请求（query）**
 | 参数 | 必填 | 说明 |
 |---|---|---|
+| format | 否 | `zip/jpg`，默认 `zip`。`zip`：iOS Live Photo；`jpg`：Motion Photo 单文件 |
 | key | 是 | `/api/douyin/detail` 或 `/api/douyin/account` 返回的缓存 key |
 | imageIndex | 是 | 静态图在 `downloads` 中的序号（对应 `/api/douyin/download?key=...&index=...` 的 index） |
 | videoIndex | 是 | 动态视频在 `downloads` 中的序号 |
 
 **响应（HTTP 200）**
-- `Content-Type: application/zip`
-- ZIP 内包含两个文件：`{title}.jpg` + `{title}.mov`（理论上可被 iPhone 相册识别为同一张 Live Photo）
+- `format=zip`：
+  - `Content-Type: application/zip`
+  - ZIP 内包含两个文件：`{title}.jpg` + `{title}.mov`（理论上可被 iPhone 相册识别为同一张 Live Photo）
+- `format=jpg`：
+  - `Content-Type: image/jpeg`
+  - 单文件 `{title}_live.jpg`：JPEG 末尾附加 MP4 数据，并在 XMP 写入 `GCamera:MicroVideo*` 元数据（更接近“动态照片/Motion Photo”容器）
 
 **备注**
 - 该接口需要登录（携带 `Authorization: Bearer ...`）。
-- 依赖系统命令：`ffmpeg`（转封装为 `.mov`）+ `exiftool`（写入 `ContentIdentifier` 元数据）。若服务器缺少依赖会返回错误。
+- 依赖系统命令：`ffmpeg`（转封装输出）。`format=zip` 额外依赖 `exiftool`（写入 Live Photo `ContentIdentifier` 元数据）；`format=jpg` 不依赖 `exiftool`。
 
 #### [POST] /api/douyin/import
 **描述**：将抖音媒体导入到本地 `./upload` 并上传到上游（成功后加入“已上传的文件”缓存）。按 MD5 去重复用已存在媒体记录。

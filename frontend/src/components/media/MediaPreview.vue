@@ -87,8 +87,9 @@
               <button
                 v-if="canDownloadLivePhoto"
                 class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition backdrop-blur-sm"
-                title="下载实况 (Live Photo)"
-                @click.stop="handleDownloadLivePhoto"
+                title="下载实况：点击导出 JPG；右键导出 ZIP（iOS Live Photo）"
+                @click.stop="handleDownloadLivePhoto('jpg')"
+                @contextmenu.prevent.stop="handleDownloadLivePhoto('zip')"
               >
                 <span class="text-[10px] font-bold tracking-wide">LIVE</span>
               </button>
@@ -1412,7 +1413,7 @@ const triggerDirectDownload = (href: string) => {
   link.remove()
 }
 
-const handleDownloadLivePhoto = async () => {
+const handleDownloadLivePhoto = async (format: 'jpg' | 'zip' = 'jpg') => {
   if (!isLivePhotoStill.value) return
   const ctx = currentMedia.value.context
   const key = String(ctx?.key || '').trim()
@@ -1420,7 +1421,7 @@ const handleDownloadLivePhoto = async () => {
   const videoIndex = Number(ctx?.liveVideoIndex)
   if (!key || !Number.isFinite(imageIndex) || !Number.isFinite(videoIndex)) return
 
-  const apiHref = `/api/douyin/livePhoto?key=${encodeURIComponent(key)}&imageIndex=${encodeURIComponent(String(imageIndex))}&videoIndex=${encodeURIComponent(String(videoIndex))}`
+  const apiHref = `/api/douyin/livePhoto?format=${encodeURIComponent(format)}&key=${encodeURIComponent(key)}&imageIndex=${encodeURIComponent(String(imageIndex))}&videoIndex=${encodeURIComponent(String(videoIndex))}`
   const token = localStorage.getItem('authToken')
   if (!token) {
     show('未登录或Token缺失')
@@ -1447,8 +1448,9 @@ const handleDownloadLivePhoto = async () => {
     const blob = await resp.blob()
     const cd = resp.headers.get('Content-Disposition') || ''
     const filenameFromHeader = getFilenameFromContentDisposition(cd)
-    const filename = filenameFromHeader || 'livephoto.zip'
-    triggerBlobDownload(blob, sanitizeFilename(filename) || 'livephoto.zip')
+    const fallbackName = format === 'zip' ? 'livephoto.zip' : 'live.jpg'
+    const filename = filenameFromHeader || fallbackName
+    triggerBlobDownload(blob, sanitizeFilename(filename) || fallbackName)
   } catch (e) {
     console.error('download live photo failed:', e)
     show('下载失败')

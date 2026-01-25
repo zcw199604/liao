@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net/http"
@@ -57,13 +58,27 @@ func (a *App) handleDouyinLivePhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	format := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("format")))
+	if format == "" {
+		format = "zip"
+	}
+	if format == "jpeg" {
+		format = "jpg"
+	}
+	if format != "zip" && format != "jpg" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "format 仅支持 zip/jpg"})
+		return
+	}
+
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "服务器缺少 ffmpeg，无法生成实况文件"})
 		return
 	}
-	if _, err := exec.LookPath("exiftool"); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "服务器缺少 exiftool，无法生成 iOS 实况文件"})
-		return
+	if format == "zip" {
+		if _, err := exec.LookPath("exiftool"); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "服务器缺少 exiftool，无法生成 iOS 实况文件"})
+			return
+		}
 	}
 
 	remoteImageURL := strings.TrimSpace(cached.Downloads[imgIdx])
@@ -104,18 +119,6 @@ func (a *App) handleDouyinLivePhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	motionPath := filepath.Join(tmpDir, "motion.mov")
-	if err := normalizeLivePhotoMotionVideo(ctx, rawVideoPath, vidContentType, motionPath); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "视频转码失败: " + err.Error()})
-		return
-	}
-
-	assetID := strings.ToUpper(uuid.NewString())
-	if err := tagLivePhotoAsset(ctx, stillPath, motionPath, assetID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "写入实况元数据失败: " + err.Error()})
-		return
-	}
-
 	base := sanitizeFilename(cached.Title)
 	if strings.TrimSpace(base) == "" {
 		base = strings.TrimSpace(cached.DetailID)
@@ -124,22 +127,66 @@ func (a *App) handleDouyinLivePhoto(w http.ResponseWriter, r *http.Request) {
 		base = "livephoto"
 	}
 
-	zipFilename := base + "_livephoto.zip"
+	if format == "zip" {
+		motionPath := filepath.Join(tmpDir, "motion.mov")
+		if err := normalizeLivePhotoMotionVideo(ctx, rawVideoPath, vidContentType, motionPath); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "视频转码失败: " + err.Error()})
+			return
+		}
 
-	// 处理完成后再开始写入响应，避免中途失败导致已输出不可恢复
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", buildAttachmentContentDisposition("livephoto.zip", zipFilename))
+		assetID := strings.ToUpper(uuid.NewString())
+		if err := tagLivePhotoAsset(ctx, stillPath, motionPath, assetID); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "写入实况元数据失败: " + err.Error()})
+			return
+		}
+
+		zipFilename := base + "_livephoto.zip"
+
+		// 处理完成后再开始写入响应，避免中途失败导致已输出不可恢复
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", buildAttachmentContentDisposition("livephoto.zip", zipFilename))
+		w.WriteHeader(http.StatusOK)
+
+		zw := zip.NewWriter(w)
+		defer func() { _ = zw.Close() }()
+
+		if err := zipFile(zw, stillPath, base+".jpg"); err != nil {
+			return
+		}
+		if err := zipFile(zw, motionPath, base+".mov"); err != nil {
+			return
+		}
+		return
+	}
+
+	motionMP4Path := filepath.Join(tmpDir, "motion.mp4")
+	if err := normalizeMotionPhotoMotionVideo(ctx, rawVideoPath, vidContentType, motionMP4Path); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "视频转码失败: " + err.Error()})
+		return
+	}
+
+	outPath := filepath.Join(tmpDir, "live.jpg")
+	if err := buildMotionPhotoJPG(stillPath, motionMP4Path, outPath); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "生成实况 JPG 失败: " + err.Error()})
+		return
+	}
+
+	f, err := os.Open(outPath)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "读取生成文件失败"})
+		return
+	}
+	defer f.Close()
+
+	if st, err := f.Stat(); err == nil && st != nil && st.Size() > 0 {
+		w.Header().Set("Content-Length", strconv.FormatInt(st.Size(), 10))
+	}
+
+	filename := base + "_live.jpg"
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Content-Disposition", buildAttachmentContentDisposition("live.jpg", filename))
 	w.WriteHeader(http.StatusOK)
-
-	zw := zip.NewWriter(w)
-	defer func() { _ = zw.Close() }()
-
-	if err := zipFile(zw, stillPath, base+".jpg"); err != nil {
-		return
-	}
-	if err := zipFile(zw, motionPath, base+".mov"); err != nil {
-		return
-	}
+	_, _ = io.Copy(w, f)
 }
 
 func parseOptionalInt(raw string) (*int, error) {
@@ -321,6 +368,14 @@ func tagLivePhotoAsset(ctx context.Context, stillPath, motionPath, assetID strin
 	return nil
 }
 
+func normalizeMotionPhotoMotionVideo(ctx context.Context, inputPath, contentType, outputMP4Path string) error {
+	contentType = strings.ToLower(strings.TrimSpace(contentType))
+	if strings.Contains(contentType, "video/mp4") || strings.HasSuffix(strings.ToLower(inputPath), ".mp4") {
+		return runCommand(ctx, "ffmpeg", []string{"-y", "-i", inputPath, "-c", "copy", "-movflags", "+faststart", "-f", "mp4", outputMP4Path})
+	}
+	return runCommand(ctx, "ffmpeg", []string{"-y", "-i", inputPath, "-c", "copy", "-movflags", "+faststart", "-f", "mp4", outputMP4Path})
+}
+
 func runCommand(ctx context.Context, name string, args []string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	var out bytes.Buffer
@@ -389,4 +444,100 @@ func zipFile(zw *zip.Writer, srcPath, zipName string) error {
 	}
 	_, err = io.Copy(w, f)
 	return err
+}
+
+func buildMotionPhotoJPG(stillJPGPath, motionMP4Path, outputPath string) error {
+	still, err := os.ReadFile(stillJPGPath)
+	if err != nil {
+		return err
+	}
+	mp4Info, err := os.Stat(motionMP4Path)
+	if err != nil {
+		return err
+	}
+	if mp4Info.Size() <= 0 {
+		return fmt.Errorf("motion mp4 为空")
+	}
+
+	seg, err := buildMotionPhotoXMPAPP1Segment(mp4Info.Size())
+	if err != nil {
+		return err
+	}
+	jpegWithXMP, err := injectJPEGSegmentAfterAPP0(still, seg)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return err
+	}
+	out, err := os.Create(outputPath)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = out.Close() }()
+
+	if _, err := out.Write(jpegWithXMP); err != nil {
+		return err
+	}
+
+	mp4, err := os.Open(motionMP4Path)
+	if err != nil {
+		return err
+	}
+	defer mp4.Close()
+	if _, err := io.Copy(out, mp4); err != nil {
+		return err
+	}
+	return out.Close()
+}
+
+func buildMotionPhotoXMPAPP1Segment(microVideoOffset int64) ([]byte, error) {
+	if microVideoOffset <= 0 {
+		return nil, fmt.Errorf("microVideoOffset 非法")
+	}
+
+	xmpXML := fmt.Sprintf(
+		"<x:xmpmeta xmlns:x=\"adobe:ns:meta/\" x:xmptk=\"Image::ExifTool\">"+
+			"<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">"+
+			"<rdf:Description rdf:about=\"\" xmlns:GCamera=\"http://ns.google.com/photos/1.0/camera/\" "+
+			"GCamera:MicroVideo=\"1\" GCamera:MicroVideoVersion=\"1\" "+
+			"GCamera:MicroVideoOffset=\"%d\" GCamera:MicroVideoPresentationTimestampUs=\"0\"/>"+
+			"</rdf:RDF></x:xmpmeta>",
+		microVideoOffset,
+	)
+
+	const xmpHeader = "http://ns.adobe.com/xap/1.0/\x00"
+	payload := append([]byte(xmpHeader), []byte(xmpXML)...)
+	if len(payload) > 0xFFFF-2 {
+		return nil, fmt.Errorf("XMP 过大")
+	}
+
+	// APP1: marker(2) + length(2) + payload；length 字段包含 length 自身(2)，不包含 marker。
+	length := len(payload) + 2
+	seg := make([]byte, 0, 2+2+len(payload))
+	seg = append(seg, 0xFF, 0xE1, byte(length>>8), byte(length))
+	seg = append(seg, payload...)
+	return seg, nil
+}
+
+func injectJPEGSegmentAfterAPP0(jpeg []byte, segment []byte) ([]byte, error) {
+	if len(jpeg) < 2 || jpeg[0] != 0xFF || jpeg[1] != 0xD8 {
+		return nil, fmt.Errorf("不是 JPEG")
+	}
+
+	insertAt := 2
+	if len(jpeg) >= 6 && jpeg[2] == 0xFF && jpeg[3] == 0xE0 {
+		n := int(binary.BigEndian.Uint16(jpeg[4:6]))
+		if n < 2 || 2+2+n > len(jpeg) {
+			return nil, fmt.Errorf("JPEG APP0 段非法")
+		}
+		insertAt = 2 + 2 + n
+	}
+
+	out := make([]byte, 0, len(jpeg)+len(segment))
+	out = append(out, jpeg[:insertAt]...)
+	out = append(out, segment...)
+	out = append(out, jpeg[insertAt:]...)
+	return out, nil
 }

@@ -65,8 +65,10 @@
 ### 1.2) iOS 实况下载（Live Photo）
 `GET /api/douyin/livePhoto`：
 - 将同一作品缓存 `key` 下的一张静态图（`imageIndex`）与一段短视频（`videoIndex`）打包为 iOS 实况照片所需文件对
-- 输出 ZIP 包：`{title}.jpg` + `{title}.mov`，并写入相同 `ContentIdentifier`
-- 依赖系统命令：`ffmpeg` + `exiftool`（若服务器缺少依赖会返回错误）
+- 支持 `format` 参数：
+  - `format=zip`（默认）：输出 ZIP 包：`{title}.jpg` + `{title}.mov`，并写入相同 `ContentIdentifier`（Apple Live Photo 配对）
+  - `format=jpg`：输出单文件 Motion Photo：`{title}_live.jpg`（JPEG 末尾附加 MP4，并写入 XMP `GCamera:MicroVideoOffset`）
+- 依赖系统命令：`ffmpeg`（两种格式都需要）；`format=zip` 额外依赖 `exiftool`
 
 ### 1.5) 用户作品列表
 `POST /api/douyin/account`：
