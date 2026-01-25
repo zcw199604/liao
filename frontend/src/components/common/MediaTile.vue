@@ -103,6 +103,10 @@ import { inferMediaTypeFromUrl } from '@/utils/media'
 
 type MediaType = 'image' | 'video' | 'file'
 
+// 全局图片尺寸缓存：URL -> aspectRatio
+// 用于虚拟滚动回滚时，避免图片再次加载导致的高度抖动
+const mediaSizeCache = new Map<string, number>()
+
 interface Props {
   src: string
   type?: MediaType | 'auto'
@@ -189,8 +193,22 @@ const topRightSlotClass = computed(() => (props.revealTopRight ? 'media-tile-rev
 const bottomLeftSlotClass = computed(() => (props.revealBottomLeft ? 'media-tile-reveal' : ''))
 const bottomRightSlotClass = computed(() => (props.revealBottomRight ? 'media-tile-reveal' : ''))
 
-const aspectStyle = computed(() => {
+// 获取有效的 aspectRatio：优先使用 props，其次使用缓存
+const effectiveAspectRatio = computed(() => {
+  // 1. 优先使用传入的 aspectRatio
   const r = props.aspectRatio
+  if (r && Number.isFinite(r) && r > 0) return r
+
+  // 2. 其次使用缓存的尺寸（虚拟滚动回滚时有效）
+  const cached = mediaSizeCache.get(props.src)
+  if (cached && Number.isFinite(cached) && cached > 0) return cached
+
+  // 3. 没有缓存则返回 undefined，由外层决定默认占位
+  return undefined
+})
+
+const aspectStyle = computed(() => {
+  const r = effectiveAspectRatio.value
   if (!r || !Number.isFinite(r) || r <= 0) return undefined
   return { aspectRatio: String(r) }
 })
@@ -269,6 +287,26 @@ const handleError = (e: Event) => {
 const handleLoaded = (e: Event) => {
   isLoaded.value = true
   hasError.value = false
+
+  // 缓存媒体尺寸，用于虚拟滚动回滚时避免再次抖动
+  const target = e.target as HTMLImageElement | HTMLVideoElement
+  if (target && props.src) {
+    let width = 0
+    let height = 0
+
+    if (target instanceof HTMLImageElement) {
+      width = target.naturalWidth
+      height = target.naturalHeight
+    } else if (target instanceof HTMLVideoElement) {
+      width = target.videoWidth
+      height = target.videoHeight
+    }
+
+    if (width > 0 && height > 0) {
+      mediaSizeCache.set(props.src, width / height)
+    }
+  }
+
   emit('load', e)
   emit('layout')
 }

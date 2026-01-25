@@ -32,7 +32,8 @@ const props = withDefaults(defineProps<Props>(), {
   alt: '',
   previewable: true,
   aspectRatio: undefined,
-  containerClass: 'min-h-[100px] min-w-[100px] max-w-full'
+  // 增大 min-height 预留空间，减少图片加载时的高度跳变（从 0->300px 变成 150->300px）
+  containerClass: 'min-h-[150px] min-w-[100px] max-w-full'
 })
 
 const emit = defineEmits<{

@@ -5,7 +5,7 @@
       v-bind="attrs"
       class="chat-area flex flex-col no-scrollbar"
       :items="renderItems"
-      :min-item-size="32"
+      :min-item-size="80"
       :prerender="20"
       key-field="key"
       @click="$emit('closeAllPanels')"
@@ -336,16 +336,14 @@ const renderItems = computed<RenderItem[]>(() => {
   return rows
 })
 
+// 精简 sizeDependencies：只保留真正影响消息高度的字段
+// 移除 sendStatus（只是图标变化）、imageUrl/videoUrl/fileUrl（URL 变化不影响高度，高度变化由 layout 事件处理）
 const getSizeDependencies = (row: RenderItem) => {
   if (row.kind === 'message') {
     const m = row.message
     return [
-      m.content,
-      m.sendStatus,
-      m.imageUrl,
-      m.videoUrl,
-      m.fileUrl,
-      m.segments?.length ?? 0
+      m.content,           // 文本内容变化影响高度
+      m.segments?.length ?? 0  // segments 数量变化影响高度
     ]
   }
   if (row.kind === 'loadMore') return [props.loadingMore, props.canLoadMore]
@@ -359,21 +357,9 @@ const getScrollerEl = (): HTMLElement | null => {
   return el || null
 }
 
-let scrollerResizeObserver: ResizeObserver | null = null
-const initScrollerResizeObserver = () => {
-  if (typeof ResizeObserver === 'undefined') return
-
-  const el = getScrollerEl()
-  if (!el) return
-
-  scrollerResizeObserver?.disconnect()
-  scrollerResizeObserver = new ResizeObserver(() => {
-    // 仅当用户本来就在底部时才维持贴底，避免打断用户阅读历史消息
-    if (!isAtBottom.value) return
-    scrollToBottom()
-  })
-  scrollerResizeObserver.observe(el)
-}
+// 移除 ResizeObserver 的自动 scrollToBottom 逻辑
+// 原因：图片加载导致容器高度变化时会频繁触发，与 handleMediaLayout 竞争造成抖动
+// 改为依赖 CSS overflow-anchor 和智能粘滞逻辑处理滚动位置
 
 // 检测滚动位置
 let scrollTimer: ReturnType<typeof setTimeout> | null = null
@@ -401,9 +387,28 @@ const scrollToBottom = (force = false) => {
   scheduleScrollToBottom(force ? 'smooth' : 'auto')
 }
 
+// 智能粘滞逻辑：实时检测滚动位置，只有用户在底部附近时才自动滚动
+// 使用 debounce 减少频繁调用，避免多张图片同时加载时的抖动
+let mediaLayoutTimer: ReturnType<typeof setTimeout> | null = null
+const MEDIA_LAYOUT_DEBOUNCE_MS = 150
+const STICK_TO_BOTTOM_THRESHOLD = 80 // 距离底部小于此值时认为用户在底部
+
 const handleMediaLayout = () => {
-  if (!isAtBottom.value) return
-  scrollToBottom()
+  if (mediaLayoutTimer) clearTimeout(mediaLayoutTimer)
+
+  mediaLayoutTimer = setTimeout(() => {
+    const el = getScrollerEl()
+    if (!el) return
+
+    // 实时计算距离底部的距离，不依赖可能过时的 isAtBottom 状态
+    const { scrollTop, scrollHeight, clientHeight } = el
+    const distanceToBottom = scrollHeight - scrollTop - clientHeight
+
+    // 只有用户本来就在底部附近时才自动滚动，避免打断用户浏览历史消息
+    if (distanceToBottom < STICK_TO_BOTTOM_THRESHOLD) {
+      scrollToBottom()
+    }
+  }, MEDIA_LAYOUT_DEBOUNCE_MS)
 }
 
 // 滚动到顶部（查看历史消息）
@@ -482,15 +487,12 @@ watch(
 onMounted(() => {
   scrollToBottom()
   isAtBottom.value = true
-
-  nextTick(() => {
-    initScrollerResizeObserver()
-  })
 })
 
 onUnmounted(() => {
-  scrollerResizeObserver?.disconnect()
-  scrollerResizeObserver = null
+  // 清理定时器
+  if (scrollTimer) clearTimeout(scrollTimer)
+  if (mediaLayoutTimer) clearTimeout(mediaLayoutTimer)
 })
 
 const getIsAtBottom = () => isAtBottom.value
