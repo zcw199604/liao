@@ -146,7 +146,43 @@ describe('components/media/DouyinDownloadModal.vue', () => {
     await pasteBtn!.trigger('click')
     await flushAsync()
 
-    expect(toastShow).toHaveBeenCalledWith('当前浏览器不支持读取剪贴板，请手动粘贴')
+    expect(toastShow).toHaveBeenCalledWith('当前浏览器不支持一键读取剪贴板，请长按输入框手动粘贴')
+  })
+
+  it('routes manual paste to account mode when clipboard text looks like a user input', async () => {
+    localStorage.setItem('douyin_auto_clipboard', '0')
+    localStorage.setItem('douyin_auto_resolve_clipboard', '0')
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          MediaPreview: true,
+          MediaTile: true,
+          MediaTileBadge: true,
+          MediaTileSelectMark: true
+        }
+      }
+    })
+
+    const douyinStore = useDouyinStore()
+    douyinStore.showModal = true
+    await nextTick()
+
+    const detailTextarea = wrapper.get('textarea')
+    await detailTextarea.trigger('paste', {
+      clipboardData: {
+        getData: (kind: string) => (kind === 'text/plain' ? 'MS4wLjABuser' : '')
+      }
+    })
+    await flushAsync()
+
+    const activeTextarea = wrapper.get('textarea')
+    expect(activeTextarea.attributes('placeholder')).toBe('粘贴抖音用户主页链接/分享文本/sec_uid')
   })
 
   it('auto-reads clipboard on open and fills any non-empty text', async () => {

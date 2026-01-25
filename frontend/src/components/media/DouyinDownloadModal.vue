@@ -69,6 +69,7 @@
               <textarea
                 ref="detailInputRef"
                 v-model="inputText"
+                @paste="handleInputPaste"
                 class="w-full min-h-[110px] bg-[#111113] border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
                 placeholder="粘贴抖音分享文本/短链/完整URL/作品ID"
               ></textarea>
@@ -85,6 +86,7 @@
               <textarea
                 ref="accountInputRef"
                 v-model="accountInput"
+                @paste="handleInputPaste"
                 class="w-full min-h-[110px] bg-[#111113] border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
                 placeholder="粘贴抖音用户主页链接/分享文本/sec_uid"
               ></textarea>
@@ -1634,11 +1636,26 @@ const focusActiveInput = async () => {
   el?.focus()
 }
 
+const handleInputPaste = async (e: ClipboardEvent) => {
+  const txt =
+    e.clipboardData?.getData('text/plain') ||
+    e.clipboardData?.getData('text') ||
+    ''
+  if (!String(txt || '').trim()) return
+
+  e.preventDefault()
+  applyInputText(txt)
+
+  if (autoResolveClipboard.value && !uiDisabled.value) {
+    await handlePrimaryAction()
+  }
+}
+
 const pasteFromClipboard = async () => {
   const readText = navigator.clipboard?.readText
   if (typeof readText !== 'function') {
     await focusActiveInput()
-    show('当前浏览器不支持读取剪贴板，请手动粘贴')
+    show('当前浏览器不支持一键读取剪贴板，请长按输入框手动粘贴')
     return
   }
 
@@ -1656,7 +1673,7 @@ const pasteFromClipboard = async () => {
   } catch (e) {
     console.warn('read clipboard failed:', e)
     await focusActiveInput()
-    show('无法读取剪贴板（可能需要浏览器授权或 https），请手动粘贴')
+    show('无法读取剪贴板（可能需要浏览器授权或 https），请长按输入框手动粘贴')
   }
 }
 

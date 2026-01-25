@@ -53,6 +53,7 @@
 **剪贴板兼容性说明**
 - 移动端/部分 WebView（如微信/抖音内置浏览器）可能不支持 `navigator.clipboard.readText/writeText`，或要求 HTTPS + 用户手势授权。
 - 弹窗“粘贴”在不支持读取剪贴板时会提示并聚焦输入框，需要用户长按手动粘贴。
+- 手动粘贴会触发输入识别（作品/用户），并在开启“读取后自动解析/获取”时自动执行解析流程。
 - 弹窗内的“复制”会优先使用 `navigator.clipboard.writeText`，失败时回退到 `document.execCommand('copy')`，以提升移动端兼容性。
 
 ## 核心流程
