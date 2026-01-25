@@ -4,7 +4,7 @@ import type { ApiResponse } from '@/types'
 
 const request = axios.create({
   baseURL: API_BASE,
-  timeout: 10000
+  timeout: 30000
 })
 
 // 抖音专用 Axios 实例（超时时间 65 秒，适配后端 60 秒超时）
