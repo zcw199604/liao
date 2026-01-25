@@ -3,7 +3,9 @@ package app
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -27,9 +29,12 @@ func TestHandleImportMtPhotoMedia_Success(t *testing.T) {
 		t.Fatalf("mkdir failed: %v", err)
 	}
 	srcAbs := filepath.Join(lspRoot, "tg", "a.jpg")
-	if err := os.WriteFile(srcAbs, []byte("fake-jpeg"), 0o644); err != nil {
+	srcBytes := []byte("fake-jpeg")
+	if err := os.WriteFile(srcAbs, srcBytes, 0o644); err != nil {
 		t.Fatalf("write file failed: %v", err)
 	}
+	sum := md5.Sum(srcBytes)
+	md5Value := hex.EncodeToString(sum[:])
 
 	// 2) mock mtPhoto：login + filesInMD5
 	mtSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -53,35 +58,28 @@ func TestHandleImportMtPhotoMedia_Success(t *testing.T) {
 	}))
 	t.Cleanup(mtSrv.Close)
 
-	// 3) mock upstream：接收 upload 并返回 OK
-	upSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/asmx/upload.asmx/ProcessRequest") {
-			http.NotFound(w, r)
-			return
-		}
-		_ = r.ParseMultipartForm(32 << 20)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"state": "OK",
-			"msg":   "remote-x.jpg",
-		})
-	}))
-	t.Cleanup(upSrv.Close)
-
-	upURL, _ := url.Parse(upSrv.URL)
-	upHost := upURL.Hostname()
-	upPort := upURL.Port()
-
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	// import handler 会先查重（user+md5）
-	mock.ExpectQuery(`(?s)FROM media_file\s+WHERE user_id = \? AND file_md5 = \?\s+ORDER BY id\s+LIMIT 1`).
-		WithArgs("u1", "md5-1").
+	// import handler 会先全局查重（MD5，不按 user_id 分桶），覆盖 local + douyin。
+	mock.ExpectQuery(`(?s)FROM media_file\s+WHERE file_md5 = \?\s+ORDER BY id\s+LIMIT 1`).
+		WithArgs(md5Value).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`(?s)FROM douyin_media_file\s+WHERE file_md5 = \?\s+ORDER BY id\s+LIMIT 1`).
+		WithArgs(md5Value).
+		WillReturnError(sql.ErrNoRows)
+
+	// 本地落盘后，会再按“实际文件 MD5”全局查重一次，避免重复写文件导致孤儿文件。
+	mock.ExpectQuery(`(?s)FROM media_file\s+WHERE file_md5 = \?\s+ORDER BY id\s+LIMIT 1`).
+		WithArgs(md5Value).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`(?s)FROM douyin_media_file\s+WHERE file_md5 = \?\s+ORDER BY id\s+LIMIT 1`).
+		WithArgs(md5Value).
 		WillReturnError(sql.ErrNoRows)
 
 	// SaveUploadRecord 内部也会查重一次
 	mock.ExpectQuery(`(?s)FROM media_file\s+WHERE user_id = \? AND file_md5 = \?\s+ORDER BY id\s+LIMIT 1`).
-		WithArgs("u1", "md5-1").
+		WithArgs("u1", md5Value).
 		WillReturnError(sql.ErrNoRows)
 
 	mock.ExpectExec(`INSERT INTO media_file`).
@@ -92,17 +90,14 @@ func TestHandleImportMtPhotoMedia_Success(t *testing.T) {
 
 	app := &App{
 		cfg:         config.Config{LspRoot: lspRoot},
-		httpClient:  mtSrv.Client(),
 		fileStorage: fileStorage,
-		imageServer: NewImageServerService(upHost, upPort),
-		imageCache:  NewImageCacheService(),
-		mediaUpload: NewMediaUploadService(db, 8080, fileStorage, NewImageServerService(upHost, upPort), mtSrv.Client()),
+		mediaUpload: NewMediaUploadService(db, 8080, fileStorage, nil, mtSrv.Client()),
 		mtPhoto:     NewMtPhotoService(mtSrv.URL, "u", "p", "", lspRoot, mtSrv.Client()),
 	}
 
 	form := url.Values{}
 	form.Set("userid", "u1")
-	form.Set("md5", "md5-1")
+	form.Set("md5", md5Value)
 	req := httptest.NewRequest(http.MethodPost, "http://api.local:8080/api/importMtPhotoMedia", bytes.NewReader([]byte(form.Encode())))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -120,8 +115,14 @@ func TestHandleImportMtPhotoMedia_Success(t *testing.T) {
 	if resp["state"] != "OK" {
 		t.Fatalf("state=%v, want OK", resp["state"])
 	}
-	if resp["msg"] != "remote-x.jpg" {
-		t.Fatalf("msg=%v, want remote-x.jpg", resp["msg"])
+	if resp["uploaded"] != false {
+		t.Fatalf("uploaded=%v, want false", resp["uploaded"])
+	}
+	if strings.TrimSpace(toString(resp["localPath"])) == "" {
+		t.Fatalf("localPath empty: %v", resp)
+	}
+	if strings.TrimSpace(toString(resp["localFilename"])) == "" {
+		t.Fatalf("localFilename empty: %v", resp)
 	}
 }
 
@@ -152,8 +153,11 @@ func TestHandleImportMtPhotoMedia_PathTraversalRejected(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`(?s)FROM media_file\s+WHERE user_id = \? AND file_md5 = \?\s+ORDER BY id\s+LIMIT 1`).
-		WithArgs("u1", "md5-1").
+	mock.ExpectQuery(`(?s)FROM media_file\s+WHERE file_md5 = \?\s+ORDER BY id\s+LIMIT 1`).
+		WithArgs("md5-1").
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`(?s)FROM douyin_media_file\s+WHERE file_md5 = \?\s+ORDER BY id\s+LIMIT 1`).
+		WithArgs("md5-1").
 		WillReturnError(sql.ErrNoRows)
 
 	fileStorage := NewFileStorageService(db)
@@ -161,11 +165,8 @@ func TestHandleImportMtPhotoMedia_PathTraversalRejected(t *testing.T) {
 
 	app := &App{
 		cfg:         config.Config{LspRoot: lspRoot},
-		httpClient:  mtSrv.Client(),
 		fileStorage: fileStorage,
-		imageServer: NewImageServerService("img-host", "9003"),
-		imageCache:  NewImageCacheService(),
-		mediaUpload: NewMediaUploadService(db, 8080, fileStorage, NewImageServerService("img-host", "9003"), mtSrv.Client()),
+		mediaUpload: NewMediaUploadService(db, 8080, fileStorage, nil, mtSrv.Client()),
 		mtPhoto:     NewMtPhotoService(mtSrv.URL, "u", "p", "", lspRoot, mtSrv.Client()),
 	}
 

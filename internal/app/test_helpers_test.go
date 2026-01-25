@@ -79,3 +79,13 @@ func newSQLMock(t *testing.T) (*sql.DB, sqlmock.Sqlmock, func()) {
 
 	return db, mock, cleanup
 }
+
+func mustNewSQLMockDB(t *testing.T) *sql.DB {
+	t.Helper()
+
+	db, _, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	return db
+}

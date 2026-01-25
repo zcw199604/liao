@@ -36,15 +36,8 @@ type DouyinUploadRecord struct {
 
 func (s *MediaUploadService) SaveDouyinUploadRecord(ctx context.Context, record DouyinUploadRecord) (*MediaUploadHistory, error) {
 	if strings.TrimSpace(record.FileMD5) != "" {
-		var (
-			existing *MediaUploadHistory
-			err      error
-		)
-		if strings.TrimSpace(record.SecUserID) != "" {
-			existing, err = s.findDouyinMediaFileBySecUserAndMD5(ctx, record.SecUserID, record.FileMD5)
-		} else {
-			existing, err = s.findDouyinMediaFileByUserAndMD5(ctx, record.UserID, record.FileMD5)
-		}
+		// 说明：抖音导入媒体库按 MD5 全局去重（不按 user_id/sec_user_id 分桶）。
+		existing, err := s.findDouyinMediaFileByMD5(ctx, record.FileMD5)
 		if err != nil {
 			return nil, err
 		}

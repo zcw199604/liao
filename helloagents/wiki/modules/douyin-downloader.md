@@ -5,14 +5,14 @@
 - 分享链接解析（短链/分享文本/URL/作品ID）
 - 作品详情抓取（视频/图集）
 - 下载到本地（以作品标题命名）
-- 可选导入上传到系统媒体库（并加入“已上传的文件”，用于发送）
+- 导入到本地媒体库（仅落盘 + 全局去重，不自动上传上游；需要发送时在“全站图片库/所有图片”中手动上传）
 
 ## 模块概述
 该模块由后端统一调用 TikTokDownloader Web API：
 - `/douyin/share`：将短链/分享文本解析为重定向后的完整链接
 - `/douyin/detail`：获取结构化作品详情（包含 `desc/type/downloads` 等字段）
 
-前端通过弹窗交互完成输入与配置，并复用现有 `MediaPreview` 完成预览、下载与导入上传。
+前端通过弹窗交互完成输入与配置，并复用现有 `MediaPreview` 完成预览、下载与导入。
 
 ## 入口与交互
 - 入口：侧边栏顶部菜单 → “图片管理” → “抖音下载”（打开弹窗）
@@ -21,9 +21,9 @@
     1) 粘贴分享文本/短链/URL/作品ID
     2)（可选）填写 `cookie`（仅本地保存）
     3) 点击“解析”获取作品资源列表（支持“多选模式”批量下载/导入，并展示逐项状态）
-    4) 点击资源进入预览（预览中可一键导入上传，导入成功后不强制关闭弹窗）：
+    4) 点击资源进入预览（预览中可一键导入到本地；导入成功后不强制关闭弹窗）：
        - “下载”：走 `/api/douyin/download` 获取下载流并以作品标题命名
-       - “上传”：走 `/api/douyin/import` 由后端下载并导入上传（MD5 去重）
+       - “上传”：走 `/api/douyin/import` 仅导入到本地（MD5 全局去重）；导入后需在“全站图片库/所有图片”中手动点击“上传此图片”上传到上游后发送
     5) 当作品资源同时包含图片+视频（如“实况照片”），预览画廊会合并全部资源，便于左右切换查看
        - 在“实况照片”中：静态图支持**长按播放**对应的实况短视频（松开停止），并提供“下载实况 (Live Photo)”按钮生成 iOS 可识别的实况文件对（ZIP：`.jpg` + `.mov`）
 
@@ -91,13 +91,13 @@
 `HEAD /api/douyin/download?key=...&index=...`：
 - 用于前端“最佳努力”探测 `Content-Length` 展示文件大小徽标（CDN 不支持 `HEAD` 时后端会回退 `Range: bytes=0-0`）。
 
-### 3) 导入上传（加入媒体库）
+### 3) 导入到本地（加入媒体库）
 `POST /api/douyin/import`：
 - 后端下载媒体 → 保存到 `./upload/douyin`（`douyin/images/YYYY/MM/DD` 或 `douyin/videos/YYYY/MM/DD`）→ 计算 MD5
-- 若全局已存在同 MD5 的媒体文件（`media_file` 或 `douyin_media_file`），则直接复用远端文件（避免重复写文件/重复上传），并补写 `douyin_media_file` 记录（包含 `sec_user_id/detail_id` 元信息，便于在“全站图片库”按抖音用户筛选；响应 `dedup=true`）
-- 若不存在，则按既有上传链路上传到上游图片服务器并写入 `douyin_media_file`（包含 `sec_user_id/detail_id` 元信息），最后加入“已上传的文件”缓存
+- 若全局已存在同 MD5 的媒体文件（`media_file` 或 `douyin_media_file`），则删除临时落盘文件并复用已有文件（响应 `dedup=true`，同时刷新 `update_time` 便于在“全站图片库”置顶）
+- 写入/更新 `douyin_media_file`（包含 `sec_user_id/detail_id` 元信息；`remote_url/remote_filename` 为空），响应返回 `localPath/localFilename` 与 `uploaded=false`
 
-> 说明：当未选择本地身份时，导入上传会使用 `userid=pre_identity` 作为兜底，不影响按抖音 `sec_user_id` 的筛选与归档。
+> 说明：当未选择本地身份时，导入会使用 `userid=pre_identity` 作为兜底，不影响按抖音 `sec_user_id` 的筛选与归档。
 
 ## 安全与约束
 - **不落库敏感信息**：抖音 `cookie` 不写入服务端存储；前端仅保存在 localStorage 并在请求中透传（页面填写优先）。
@@ -117,7 +117,7 @@
 
 ## 依赖
 - 外部服务：TikTokDownloader Web API（FastAPI）
-- 前端：`MediaPreview`（预览/下载/导入上传复用现有交互）
+- 前端：`MediaPreview`（预览/下载/导入复用现有交互）
 
 ## 测试
 - Go：`go test ./...`（包含 douyin handler 单测）

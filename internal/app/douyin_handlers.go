@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -1178,7 +1177,7 @@ func (a *App) writeDouyinDownloadHeaders(w http.ResponseWriter, cached *douyinCa
 }
 
 func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
-	if a == nil || a.douyinDownloader == nil || a.fileStorage == nil || a.mediaUpload == nil || a.imageServer == nil {
+	if a == nil || a.douyinDownloader == nil || a.fileStorage == nil || a.mediaUpload == nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "服务未初始化"})
 		return
 	}
@@ -1263,107 +1262,47 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 已导入过则直接复用：避免重复写文件导致孤儿文件
+	dedup := false
+	localFilename := filepath.Base(strings.TrimPrefix(localPath, "/"))
+	fileExtension := a.fileStorage.FileExtension(originalFilename)
 	if md5Value != "" {
 		if existing, err := a.mediaUpload.findStoredMediaFileByMD5(r.Context(), md5Value); err == nil && existing != nil && existing.File != nil {
 			_ = a.fileStorage.DeleteFile(localPath)
-			_, _ = a.mediaUpload.SaveDouyinUploadRecord(r.Context(), DouyinUploadRecord{
-				UserID:           userID,
-				SecUserID:        strings.TrimSpace(cached.SecUserID),
-				DetailID:         strings.TrimSpace(cached.DetailID),
-				OriginalFilename: originalFilename,
-				LocalFilename:    existing.File.LocalFilename,
-				RemoteFilename:   existing.File.RemoteFilename,
-				RemoteURL:        existing.File.RemoteURL,
-				LocalPath:        existing.File.LocalPath,
-				FileSize:         existing.File.FileSize,
-				FileType:         existing.File.FileType,
-				FileExtension:    existing.File.FileExtension,
-				FileMD5:          md5Value,
-			})
-			a.imageCache.AddImageToCache(userID, existing.File.LocalPath)
-
-			port := ""
-			if strings.HasPrefix(strings.ToLower(existing.File.FileType), "video/") || strings.EqualFold(existing.File.FileExtension, "mp4") {
-				port = "8006"
-			} else {
-				port = a.resolveImagePortByConfig(r.Context(), existing.File.RemoteFilename)
+			dedup = true
+			localPath = existing.File.LocalPath
+			if strings.TrimSpace(existing.File.LocalFilename) != "" {
+				localFilename = existing.File.LocalFilename
 			}
-
-			writeJSON(w, http.StatusOK, map[string]any{
-				"state":         "OK",
-				"msg":           existing.File.RemoteFilename,
-				"port":          port,
-				"localFilename": existing.File.LocalFilename,
-				"dedup":         true,
-			})
-			return
-		}
-	}
-
-	cookieData := defaultString(r.FormValue("cookieData"), "")
-	referer := defaultString(r.FormValue("referer"), "http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko")
-	userAgent := defaultString(r.FormValue("userAgent"), "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-
-	imgServerHost := a.imageServer.GetImgServerHost()
-	uploadURL := fmt.Sprintf("http://%s/asmx/upload.asmx/ProcessRequest?act=uploadImgRandom&userid=%s", imgServerHost, userID)
-
-	uploadAbs := filepath.Join(a.fileStorage.baseUploadAbs, filepath.FromSlash(strings.TrimPrefix(localPath, "/")))
-	respBody, err := a.uploadAbsPathToUpstream(r.Context(), uploadURL, imgServerHost, uploadAbs, originalFilename, cookieData, referer, userAgent)
-	if err != nil {
-		slog.Error("抖音导入上传失败", "error", err, "userId", userID, "localPath", localPath)
-		writeJSON(w, http.StatusInternalServerError, map[string]any{
-			"error":     "导入上传失败: " + err.Error(),
-			"localPath": localPath,
-		})
-		return
-	}
-
-	var parsed map[string]any
-	if err := json.Unmarshal([]byte(respBody), &parsed); err == nil {
-		if state, _ := parsed["state"].(string); state == "OK" {
-			if msg, ok := parsed["msg"].(string); ok && strings.TrimSpace(msg) != "" {
-				imgHostClean := strings.Split(imgServerHost, ":")[0]
-				availablePort := ""
-				if strings.HasPrefix(strings.ToLower(contentType), "video/") {
-					availablePort = "8006"
-				} else {
-					availablePort = a.resolveImagePortByConfig(r.Context(), msg)
-				}
-				imageURL := fmt.Sprintf("http://%s:%s/img/Upload/%s", imgHostClean, availablePort, msg)
-
-				localFilename := filepath.Base(strings.TrimPrefix(localPath, "/"))
-
-				_, _ = a.mediaUpload.SaveDouyinUploadRecord(r.Context(), DouyinUploadRecord{
-					UserID:           userID,
-					SecUserID:        strings.TrimSpace(cached.SecUserID),
-					DetailID:         strings.TrimSpace(cached.DetailID),
-					OriginalFilename: originalFilename,
-					LocalFilename:    localFilename,
-					RemoteFilename:   msg,
-					RemoteURL:        imageURL,
-					LocalPath:        localPath,
-					FileSize:         fileSize,
-					FileType:         contentType,
-					FileExtension:    a.fileStorage.FileExtension(originalFilename),
-					FileMD5:          md5Value,
-				})
-
-				a.imageCache.AddImageToCache(userID, localPath)
-
-				writeJSON(w, http.StatusOK, map[string]any{
-					"state":         "OK",
-					"msg":           msg,
-					"port":          availablePort,
-					"localFilename": localFilename,
-					"dedup":         false,
-				})
-				return
+			fileSize = existing.File.FileSize
+			contentType = existing.File.FileType
+			if strings.TrimSpace(existing.File.FileExtension) != "" {
+				fileExtension = existing.File.FileExtension
 			}
 		}
 	}
 
-	// 未增强：保持兼容
-	writeText(w, http.StatusOK, respBody)
+	_, _ = a.mediaUpload.SaveDouyinUploadRecord(r.Context(), DouyinUploadRecord{
+		UserID:           userID,
+		SecUserID:        strings.TrimSpace(cached.SecUserID),
+		DetailID:         strings.TrimSpace(cached.DetailID),
+		OriginalFilename: originalFilename,
+		LocalFilename:    localFilename,
+		RemoteFilename:   "",
+		RemoteURL:        "",
+		LocalPath:        localPath,
+		FileSize:         fileSize,
+		FileType:         contentType,
+		FileExtension:    fileExtension,
+		FileMD5:          md5Value,
+	})
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"state":         "OK",
+		"dedup":         dedup,
+		"uploaded":      false,
+		"localPath":     localPath,
+		"localFilename": localFilename,
+	})
 }
 
 func guessExtFromURL(raw string) string {

@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -12,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func (a *App) handleGetMtPhotoAlbums(w http.ResponseWriter, r *http.Request) {
@@ -172,7 +172,7 @@ func (a *App) handleResolveMtPhotoFilePath(w http.ResponseWriter, r *http.Reques
 }
 
 func (a *App) handleImportMtPhotoMedia(w http.ResponseWriter, r *http.Request) {
-	if a == nil || a.mtPhoto == nil || a.fileStorage == nil || a.mediaUpload == nil || a.imageServer == nil {
+	if a == nil || a.mtPhoto == nil || a.fileStorage == nil || a.mediaUpload == nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "服务未初始化"})
 		return
 	}
@@ -189,29 +189,24 @@ func (a *App) handleImportMtPhotoMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 已导入过则直接复用：避免重复写文件导致孤儿文件
-	if existing, err := a.mediaUpload.findMediaFileByUserAndMD5(r.Context(), userID, md5Value); err == nil && existing != nil {
-		a.imageCache.AddImageToCache(userID, existing.LocalPath)
-
-		port := ""
-		if strings.HasPrefix(strings.ToLower(existing.FileType), "video/") || strings.EqualFold(existing.FileExtension, "mp4") {
-			port = "8006"
-		} else {
-			port = a.resolveImagePortByConfig(r.Context(), existing.RemoteFilename)
+	// 已导入过则直接复用：按 MD5 全局去重（不按 user_id 分桶），并刷新 update_time 便于在“全站图片库”中置顶。
+	if existing, err := a.mediaUpload.findStoredMediaFileByMD5(r.Context(), md5Value); err == nil && existing != nil && existing.File != nil {
+		now := time.Now()
+		_ = a.mediaUpload.updateTimeByStoredMediaFile(r.Context(), existing, now)
+		existing.File.UpdateTime = now.Format("2006-01-02 15:04:05")
+		localFilename := existing.File.LocalFilename
+		if strings.TrimSpace(localFilename) == "" {
+			localFilename = filepath.Base(strings.TrimPrefix(existing.File.LocalPath, "/"))
 		}
-
 		writeJSON(w, http.StatusOK, map[string]any{
 			"state":         "OK",
-			"msg":           existing.RemoteFilename,
-			"port":          port,
-			"localFilename": existing.LocalFilename,
+			"dedup":         true,
+			"uploaded":      false,
+			"localPath":     existing.File.LocalPath,
+			"localFilename": localFilename,
 		})
 		return
 	}
-
-	cookieData := defaultString(r.FormValue("cookieData"), "")
-	referer := defaultString(r.FormValue("referer"), "http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko")
-	userAgent := defaultString(r.FormValue("userAgent"), "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
 	// 1) 通过 mtPhoto 查询本地文件路径
 	item, err := a.mtPhoto.ResolveFilePath(r.Context(), md5Value)
@@ -248,71 +243,57 @@ func (a *App) handleImportMtPhotoMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 已导入过则直接复用：避免重复写文件导致孤儿文件（优先使用本地计算的 MD5 做去重）
+	dedup := false
+	if strings.TrimSpace(computedMD5) != "" {
+		if existing, err := a.mediaUpload.findStoredMediaFileByMD5(r.Context(), computedMD5); err == nil && existing != nil && existing.File != nil {
+			_ = a.fileStorage.DeleteFile(localPath)
+			now := time.Now()
+			_ = a.mediaUpload.updateTimeByStoredMediaFile(r.Context(), existing, now)
+			existing.File.UpdateTime = now.Format("2006-01-02 15:04:05")
+			dedup = true
+
+			localFilename := existing.File.LocalFilename
+			if strings.TrimSpace(localFilename) == "" {
+				localFilename = filepath.Base(strings.TrimPrefix(existing.File.LocalPath, "/"))
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"state":         "OK",
+				"dedup":         true,
+				"uploaded":      false,
+				"localPath":     existing.File.LocalPath,
+				"localFilename": localFilename,
+			})
+			return
+		}
+	}
+
 	// 轻量一致性提示：不阻断，只打日志
 	if computedMD5 != "" && strings.EqualFold(computedMD5, md5Value) == false {
 		slog.Warn("mtPhoto md5 与本地文件 md5 不一致(继续导入)", "md5Input", md5Value, "md5Local", computedMD5)
 	}
 
-	// 4) 上传到上游
-	imgServerHost := a.imageServer.GetImgServerHost()
-	uploadURL := fmt.Sprintf("http://%s/asmx/upload.asmx/ProcessRequest?act=uploadImgRandom&userid=%s", imgServerHost, userID)
+	localFilename := filepath.Base(strings.TrimPrefix(localPath, "/"))
+	_, _ = a.mediaUpload.SaveUploadRecord(r.Context(), UploadRecord{
+		UserID:           userID,
+		OriginalFilename: originalFilename,
+		LocalFilename:    localFilename,
+		RemoteFilename:   "",
+		RemoteURL:        "",
+		LocalPath:        localPath,
+		FileSize:         fileSize,
+		FileType:         contentType,
+		FileExtension:    a.fileStorage.FileExtension(originalFilename),
+		FileMD5:          defaultString(strings.TrimSpace(computedMD5), md5Value),
+	})
 
-	uploadAbs := filepath.Join(a.fileStorage.baseUploadAbs, filepath.FromSlash(strings.TrimPrefix(localPath, "/")))
-	respBody, err := a.uploadAbsPathToUpstream(r.Context(), uploadURL, imgServerHost, uploadAbs, originalFilename, cookieData, referer, userAgent)
-	if err != nil {
-		slog.Error("导入上传失败", "error", err, "userId", userID, "localPath", localPath)
-		writeJSON(w, http.StatusInternalServerError, map[string]any{
-			"error":     "导入上传失败: " + err.Error(),
-			"localPath": localPath,
-		})
-		return
-	}
-
-	// 5) 解析并增强返回（对齐 /api/uploadMedia）
-	var parsed map[string]any
-	if err := json.Unmarshal([]byte(respBody), &parsed); err == nil {
-		if state, _ := parsed["state"].(string); state == "OK" {
-			if msg, ok := parsed["msg"].(string); ok && msg != "" {
-				imgHostClean := strings.Split(imgServerHost, ":")[0]
-				availablePort := ""
-				if strings.HasPrefix(strings.ToLower(contentType), "video/") {
-					availablePort = "8006"
-				} else {
-					availablePort = a.resolveImagePortByConfig(r.Context(), msg)
-				}
-				imageURL := fmt.Sprintf("http://%s:%s/img/Upload/%s", imgHostClean, availablePort, msg)
-
-				localFilename := filepath.Base(strings.TrimPrefix(localPath, "/"))
-
-				_, _ = a.mediaUpload.SaveUploadRecord(r.Context(), UploadRecord{
-					UserID:           userID,
-					OriginalFilename: originalFilename,
-					LocalFilename:    localFilename,
-					RemoteFilename:   msg,
-					RemoteURL:        imageURL,
-					LocalPath:        localPath,
-					FileSize:         fileSize,
-					FileType:         contentType,
-					FileExtension:    a.fileStorage.FileExtension(originalFilename),
-					FileMD5:          md5Value,
-				})
-
-				a.imageCache.AddImageToCache(userID, localPath)
-
-				enhanced := map[string]any{
-					"state":         "OK",
-					"msg":           msg,
-					"port":          availablePort,
-					"localFilename": localFilename,
-				}
-				writeJSON(w, http.StatusOK, enhanced)
-				return
-			}
-		}
-	}
-
-	// 未增强：保持兼容
-	writeText(w, http.StatusOK, respBody)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"state":         "OK",
+		"dedup":         dedup,
+		"uploaded":      false,
+		"localPath":     localPath,
+		"localFilename": localFilename,
+	})
 }
 
 func inferContentTypeFromFilename(filename string) string {

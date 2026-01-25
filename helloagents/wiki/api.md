@@ -832,16 +832,20 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 **请求参数**
 | 参数 | 必填 | 默认值 |
 |---|---|---|
-| userId | 否 | - |
 | page | 否 | `1` |
 | pageSize | 否 | `20` |
+| source | 否 | `all` |
+| douyinSecUserId | 否 | - |
+| userId | 否 | - |
 
 **处理逻辑**
-- `data`：`mediaUploadService.getAllUploadImagesWithDetails(page,pageSize,hostHeader)`
-  - **现状说明**：该实现按 `media_file.update_time DESC` 查询全表，不按 userId 过滤（userId 参数仅为兼容旧调用）
+- `data`：`mediaUploadService.GetAllUploadImagesWithDetailsBySource(page,pageSize,hostHeader,source,douyinSecUserId)`
+  - `source=local`：仅查询 `media_file`
+  - `source=douyin`：仅查询 `douyin_media_file`（可选 `douyinSecUserId` 过滤 `sec_user_id`）
+  - `source=all`：`media_file UNION ALL douyin_media_file`（对字符串列 `CONVERT(... USING utf8mb4) COLLATE utf8mb4_unicode_ci` 以避免 MySQL `UNION` collation 冲突）
   - 每条返回为 `MediaFileDTO`：`url/type/localFilename/originalFilename/fileSize/fileType/fileExtension/uploadTime/updateTime`
-- `total`：`mediaUploadService.getAllUploadImagesCount()`（全表 count）
-- `port`：通过 `detectAvailablePort(imageServerService.getImgServerHost())` 探测可用端口
+- `total`：`mediaUploadService.GetAllUploadImagesCountBySource(source,douyinSecUserId)`（`source=all` 时为两表 count 之和）
+- `port`：`resolveImagePortByConfig("")`（历史字段，保留给前端拼接上游 URL 的场景）
 
 **响应（HTTP 200）**
 ```json
@@ -1025,29 +1029,25 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 ```
 
 #### [POST] /api/importMtPhotoMedia
-**描述**：将 mtPhoto 媒体导入到本地 `./upload` 并上传到上游（成功后加入“已上传的文件”缓存）。
+**描述**：将 mtPhoto 媒体导入到本地 `./upload`（不自动上传到上游；按 MD5 全局去重）。
 
 **请求（application/x-www-form-urlencoded）**
 | 参数 | 必填 | 说明 |
 |---|---|---|
 | userid | 是 | 当前身份 ID |
 | md5 | 是 | 媒体 MD5 |
-| cookieData | 否 | 上游上传所需 cookie（前端 `generateCookie` 生成） |
-| referer | 否 | 上游上传所需 referer |
-| userAgent | 否 | 上游上传所需 UA |
+| cookieData | 否 | 历史参数（不再使用） |
+| referer | 否 | 历史参数（不再使用） |
+| userAgent | 否 | 历史参数（不再使用） |
 
 **响应（HTTP 200）**
 ```json
-{"state":"OK","msg":"remotePath","port":"9006","localFilename":"xxx.jpg"}
-```
-
-**失败响应（HTTP 500）**
-```json
-{"error":"...","localPath":"/images/2026/01/18/xxx.jpg"}
+{"state":"OK","dedup":false,"uploaded":false,"localPath":"/images/2026/01/18/xxx.jpg","localFilename":"xxx.jpg"}
 ```
 
 **备注**
 - 本地路径映射依赖：`LSP_ROOT`（默认 `/lsp`），并对 `/lsp/*` 做了路径遍历防护。
+- `dedup=true` 表示命中全局去重：复用已有记录并刷新 `update_time` 便于在“全站图片库”置顶。
 
 ---
 
@@ -1151,7 +1151,7 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 - 依赖系统命令：`ffmpeg`（转封装输出）。`format=zip` 额外依赖 `exiftool`（写入 Live Photo `ContentIdentifier` 元数据）；`format=jpg` 不依赖 `exiftool`。
 
 #### [POST] /api/douyin/import
-**描述**：将抖音媒体导入到本地 `./upload` 并上传到上游（成功后加入“已上传的文件”缓存）。按 MD5 去重复用已存在媒体记录。
+**描述**：将抖音媒体导入到本地 `./upload/douyin`（不自动上传到上游；按 MD5 全局去重）。
 
 **请求（application/x-www-form-urlencoded）**
 | 参数 | 必填 | 说明 |
@@ -1159,22 +1159,18 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 | userid | 是 | 当前身份 ID |
 | key | 是 | `/api/douyin/detail` 返回的缓存 key |
 | index | 是 | 资源序号 |
-| cookieData | 否 | 上游上传所需 cookie（前端 `generateCookie` 生成） |
-| referer | 否 | 上游上传所需 referer |
-| userAgent | 否 | 上游上传所需 UA |
+| cookieData | 否 | 历史参数（不再使用） |
+| referer | 否 | 历史参数（不再使用） |
+| userAgent | 否 | 历史参数（不再使用） |
 
 **响应（HTTP 200）**
 ```json
-{"state":"OK","msg":"remotePath","port":"9006","localFilename":"xxx.mp4","dedup":false}
-```
-
-**失败响应（HTTP 500）**
-```json
-{"error":"...","localPath":"/videos/2026/01/21/xxx.mp4"}
+{"state":"OK","dedup":false,"uploaded":false,"localPath":"/douyin/videos/2026/01/21/xxx.mp4","localFilename":"xxx.mp4"}
 ```
 
 **备注**
-- `dedup=true` 表示命中“当前用户 + MD5”去重：复用已存在媒体记录并删除临时落盘文件，不会重复上传到上游。
+- `dedup=true` 表示命中全局去重：复用已有记录并删除临时落盘文件。
+- 导入后需在聊天页“所有图片/全站图片库”中手动点击“上传此图片”上传到上游后发送。
 
 ---
 

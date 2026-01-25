@@ -164,11 +164,8 @@
 import { computed, ref } from 'vue'
 import { useMtPhotoStore, type MtPhotoMediaItem } from '@/stores/mtphoto'
 import { useUserStore } from '@/stores/user'
-import { useMediaStore } from '@/stores/media'
-import { useSystemConfigStore } from '@/stores/systemConfig'
 import { useToast } from '@/composables/useToast'
 import { useModalFullscreen } from '@/composables/useModalFullscreen'
-import { generateCookie } from '@/utils/cookie'
 import * as mtphotoApi from '@/api/mtphoto'
 	import MediaPreview from '@/components/media/MediaPreview.vue'
 	import InfiniteMediaGrid from '@/components/common/InfiniteMediaGrid.vue'
@@ -177,8 +174,6 @@ import * as mtphotoApi from '@/api/mtphoto'
 
 const mtPhotoStore = useMtPhotoStore()
 const userStore = useUserStore()
-const mediaStore = useMediaStore()
-const systemConfigStore = useSystemConfigStore()
 const { show } = useToast()
 
 const showPreview = ref(false)
@@ -339,45 +334,21 @@ const confirmImportUpload = async () => {
   }
   if (!previewMD5.value) return
 
-  if (!mediaStore.imgServer) {
-    await mediaStore.loadImgServer()
-  }
-  if (!mediaStore.imgServer) {
-    show('图片服务器地址未获取')
-    return
-  }
-
-  const cookieData = generateCookie(userStore.currentUser.id, userStore.currentUser.name)
-  const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
-  const userAgent = navigator.userAgent
-
   try {
     const res = await mtphotoApi.importMtPhotoMedia({
       userid: userStore.currentUser.id,
-      md5: previewMD5.value,
-      cookieData,
-      referer,
-      userAgent
+      md5: previewMD5.value
     })
 
-    if (res?.state === 'OK' && res.msg) {
-      const port = String(res.port || await systemConfigStore.resolveImagePort(res.msg, mediaStore.imgServer))
-      const remoteUrl = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
-
-      mediaStore.addUploadedMedia({
-        url: remoteUrl,
-        type: previewType.value === 'video' ? 'video' : 'image',
-        localFilename: res.localFilename
-      })
-
-      show('图片已加载，点击可发送')
+    if (res?.state === 'OK' && res.localPath) {
+      const dedup = !!res.dedup
+      show(dedup ? '已存在（去重复用）' : '已导入到本地（去“所有图片”里手动上传后发送）')
       showPreview.value = false
       mtPhotoStore.close()
-      mediaStore.requestOpenUploadMenu()
       return
     }
 
-    show(`导入失败: ${res?.msg || res?.error || '未知错误'}`)
+    show(`导入失败: ${res?.error || res?.msg || '未知错误'}`)
   } catch (e: any) {
     console.error('导入失败:', e)
     show('导入失败')

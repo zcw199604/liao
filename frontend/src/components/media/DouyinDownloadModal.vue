@@ -3168,17 +3168,9 @@ const previewUploadText = computed(() => {
   return `导入此${previewType.value === 'image' ? '图片' : (previewType.value === 'video' ? '视频' : '文件')}`
 })
 
-const ensureImgServer = async () => {
-  if (!mediaStore.imgServer) {
-    await mediaStore.loadImgServer()
-  }
-  return !!mediaStore.imgServer
-}
-
 const importIndex = async (idx: number) => {
   const key = String(previewContextKey.value || detail.value?.key || '').trim()
   if (!key) return { ok: false, dedup: false, error: '解析信息缺失' }
-  if (!await ensureImgServer()) return { ok: false, dedup: false, error: '图片服务器地址未获取' }
 
   const itemId = buildItemId(key, idx)
   const current = itemStateById[itemId]?.status
@@ -3207,25 +3199,10 @@ const importIndex = async (idx: number) => {
       userAgent
     })
 
-    if (res?.state === 'OK' && res.msg) {
-      const port = String(res.port || await systemConfigStore.resolveImagePort(res.msg, mediaStore.imgServer))
-      const remoteUrl = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
-      const inferredType =
-        (previewContextItems.value || []).find((i) => Number(i.index) === Number(idx))?.type ||
-        detail.value?.items?.find((i) => Number(i.index) === Number(idx))?.type ||
-        previewType.value
-
-      if (!mediaStore.uploadedMedia.some((m) => m.url === remoteUrl)) {
-        mediaStore.addUploadedMedia({
-          url: remoteUrl,
-          type: inferredType,
-          localFilename: res.localFilename
-        })
-      }
-
+    if (res?.state === 'OK' && res.localPath) {
       const dedup = !!res.dedup
       itemStateById[itemId] = { status: dedup ? 'exists' : 'imported' }
-      show(dedup ? '已存在（去重复用）' : '已导入上传（可在上传菜单发送）')
+      show(dedup ? '已存在（去重复用）' : '已导入到本地（去“所有图片”里手动上传后发送）')
       return { ok: true, dedup }
     }
 
