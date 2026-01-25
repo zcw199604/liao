@@ -88,6 +88,9 @@
 - 前端：将“抖音下载”入口移动到“图片管理”，并从聊天页上传菜单移除（从图片管理打开会自动关闭抽屉）。
 - 前端：移除“抖音下载”粘贴/自动读取剪贴板的内容识别限制；现在会直接填充剪贴板文本。
 - 前端：修复“抖音下载 → 收藏”列表名称被截断的问题：收藏用户名称与收藏作品标题改为多行展示，避免 `truncate/line-clamp` 导致显示不全。
+- 后端：抖音导入上传本地落盘目录调整为 `upload/douyin/images/YYYY/MM/DD` 与 `upload/douyin/videos/YYYY/MM/DD`，避免与本地上传混用。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
 - 前端：修复“抖音下载”弹窗剪贴板相关单测在 `vue-tsc`/Docker 构建中因 `setImmediate` 类型缺失导致 `npm run build` 失败的问题（改用 `setTimeout`）。
 - 后端：修复 TikTokDownloader 上游在“暂无作品”场景返回 `data=[]` 导致解析失败；`POST /api/douyin/account` 将返回空 `items` 数组（`[]`）而非报错/`null`。
 - 后端：兼容 TikTokDownloader 上游 `POST /douyin/account` 返回 `data[]` 扁平字段（如 `type/downloads/static_cover/dynamic_cover`）；`POST /api/douyin/account` 将尽量为每个作品返回 `key/items/coverDownloadUrl`，减少前端点击作品时回退请求详情（Spinner）。

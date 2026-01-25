@@ -276,6 +276,29 @@ func TestFileStorageService_SaveFileFromReader_ErrorsAndDefaults(t *testing.T) {
 	}
 }
 
+func TestFileStorageService_SaveFileFromReaderInSubdir(t *testing.T) {
+	svc := &FileStorageService{baseUploadAbs: t.TempDir()}
+
+	localPath, n, md5Value, err := svc.SaveFileFromReaderInSubdir("a.jpg", "image/jpeg", strings.NewReader("hello"), "douyin")
+	if err != nil {
+		t.Fatalf("SaveFileFromReaderInSubdir: %v", err)
+	}
+	if !strings.HasPrefix(localPath, "/douyin/images/") {
+		t.Fatalf("localPath=%q, want prefix %q", localPath, "/douyin/images/")
+	}
+	if n != 5 || md5Value == "" {
+		t.Fatalf("localPath=%q n=%d md5=%q", localPath, n, md5Value)
+	}
+
+	gotBytes, err := svc.ReadLocalFile(localPath)
+	if err != nil {
+		t.Fatalf("ReadLocalFile: %v", err)
+	}
+	if string(gotBytes) != "hello" {
+		t.Fatalf("ReadLocalFile content=%q, want %q", string(gotBytes), "hello")
+	}
+}
+
 func TestFileStorageService_DeleteAndRead_EdgeCases(t *testing.T) {
 	tempDir := t.TempDir()
 	svc := &FileStorageService{baseUploadAbs: tempDir}

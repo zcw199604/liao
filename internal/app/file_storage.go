@@ -200,6 +200,23 @@ func (s *FileStorageService) SaveTempVideoExtractInput(file *multipart.FileHeade
 // SaveFileFromReader 将 reader 内容保存到本地 upload 目录，并返回可对外访问的 localPath。
 // 说明：用于“导入外部系统本地文件”场景，避免必须构造 multipart.FileHeader。
 func (s *FileStorageService) SaveFileFromReader(originalFilename, contentType string, src io.Reader) (localPath string, fileSize int64, md5Value string, err error) {
+	storageDir := s.storageDirectory(s.CategoryFromContentType(contentType))
+	return s.saveFileFromReaderToDir(originalFilename, contentType, src, storageDir)
+}
+
+// SaveFileFromReaderInSubdir 将 reader 内容保存到本地 upload/{subdir} 目录，并返回可对外访问的 localPath。
+// 说明：用于区分不同来源的落盘目录（例如抖音导入：upload/douyin/...）。
+func (s *FileStorageService) SaveFileFromReaderInSubdir(originalFilename, contentType string, src io.Reader, subdir string) (localPath string, fileSize int64, md5Value string, err error) {
+	subdir = strings.TrimSpace(subdir)
+	if subdir == "" {
+		return s.SaveFileFromReader(originalFilename, contentType, src)
+	}
+
+	storageDir := s.storageDirectoryWithSubdir(s.CategoryFromContentType(contentType), subdir)
+	return s.saveFileFromReaderToDir(originalFilename, contentType, src, storageDir)
+}
+
+func (s *FileStorageService) saveFileFromReaderToDir(originalFilename, contentType string, src io.Reader, storageDir string) (localPath string, fileSize int64, md5Value string, err error) {
 	if src == nil {
 		return "", 0, "", fmt.Errorf("文件为空")
 	}
@@ -213,9 +230,7 @@ func (s *FileStorageService) SaveFileFromReader(originalFilename, contentType st
 		return "", 0, "", fmt.Errorf("contentType 为空")
 	}
 
-	category := s.CategoryFromContentType(contentType)
 	unique := s.generateUniqueFilename(originalFilename)
-	storageDir := s.storageDirectory(category)
 
 	if err := os.MkdirAll(storageDir, 0o755); err != nil {
 		return "", 0, "", fmt.Errorf("无法创建存储目录: %w", err)
@@ -242,6 +257,16 @@ func (s *FileStorageService) SaveFileFromReader(originalFilename, contentType st
 	rel = filepath.ToSlash(rel)
 
 	return "/" + rel, n, hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+func (s *FileStorageService) storageDirectoryWithSubdir(fileType, subdir string) string {
+	now := time.Now()
+	year := now.Format("2006")
+	month := now.Format("01")
+	day := now.Format("02")
+
+	dir := filepath.Join(s.baseUploadAbs, subdir, fileType+"s", year, month, day)
+	return dir
 }
 
 func (s *FileStorageService) DeleteFile(localPath string) bool {

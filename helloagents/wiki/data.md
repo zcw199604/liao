@@ -59,7 +59,7 @@
 | local_filename | TEXT/VARCHAR | NOT NULL | 本地存储文件名（basename） |
 | remote_filename | TEXT/VARCHAR | NOT NULL | 上游返回文件名（相对路径） |
 | remote_url | VARCHAR(500) | NOT NULL | 上游可访问 URL |
-| local_path | VARCHAR(500) | NOT NULL | 本地相对路径（以 `/images/...` 或 `/videos/...` 开头） |
+| local_path | VARCHAR(500) | NOT NULL | 本地相对路径（通常以 `/douyin/images/...` 或 `/douyin/videos/...` 开头；去重复用时可能为 `/images/...` 或 `/videos/...`） |
 | file_size | BIGINT | NOT NULL | 字节大小 |
 | file_type | VARCHAR(50) | NOT NULL | MIME |
 | file_extension | VARCHAR(10) | NOT NULL | 扩展名（不含点） |

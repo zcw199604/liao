@@ -93,7 +93,7 @@
 
 ### 3) 导入上传（加入媒体库）
 `POST /api/douyin/import`：
-- 后端下载媒体 → 保存到 `./upload` → 计算 MD5
+- 后端下载媒体 → 保存到 `./upload/douyin`（`douyin/images/YYYY/MM/DD` 或 `douyin/videos/YYYY/MM/DD`）→ 计算 MD5
 - 若全局已存在同 MD5 的媒体文件（`media_file` 或 `douyin_media_file`），则直接复用远端文件（避免重复写文件/重复上传），并补写 `douyin_media_file` 记录（包含 `sec_user_id/detail_id` 元信息，便于在“全站图片库”按抖音用户筛选；响应 `dedup=true`）
 - 若不存在，则按既有上传链路上传到上游图片服务器并写入 `douyin_media_file`（包含 `sec_user_id/detail_id` 元信息），最后加入“已上传的文件”缓存
 

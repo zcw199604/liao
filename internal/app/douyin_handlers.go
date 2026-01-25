@@ -1256,7 +1256,7 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 	ext := guessExtFromContentType(contentType)
 
 	originalFilename := buildDouyinOriginalFilename(cached.Title, cached.DetailID, index, len(cached.Downloads), ext)
-	localPath, fileSize, md5Value, err := a.fileStorage.SaveFileFromReader(originalFilename, contentType, downloadResp.Body)
+	localPath, fileSize, md5Value, err := a.fileStorage.SaveFileFromReaderInSubdir(originalFilename, contentType, downloadResp.Body, "douyin")
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "本地存储失败: " + err.Error()})
 		return
