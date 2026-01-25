@@ -19,6 +19,20 @@ import (
 	"github.com/google/uuid"
 )
 
+var motionPhotoEOIGapBytes = []byte{
+	0x05, 0xFA, 0x2F, 0x36, 0x00, 0x00, 0x00, 0x00,
+	0x44, 0xDC, 0x1C, 0x24, 0x3F, 0x8A, 0x0F, 0x86,
+	0x18, 0xB5, 0x81, 0xE1, 0x8F, 0x31, 0xBA, 0x62,
+}
+
+var motionPhotoJFIFAPP0Segment = []byte{
+	0xFF, 0xE0, 0x00, 0x10,
+	'J', 'F', 'I', 'F', 0x00,
+	0x01, 0x01, 0x00,
+	0x00, 0x01, 0x00, 0x01,
+	0x00, 0x00,
+}
+
 func (a *App) handleDouyinLivePhoto(w http.ResponseWriter, r *http.Request) {
 	if a == nil || a.douyinDownloader == nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "服务未初始化"})
@@ -119,10 +133,9 @@ func (a *App) handleDouyinLivePhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	base := sanitizeFilename(cached.Title)
-	if strings.TrimSpace(base) == "" {
-		base = strings.TrimSpace(cached.DetailID)
-	}
+	// Live Photo 导出：文件名尽量与普通图片下载一致（标题 + 序号），额外追加 `_live`。
+	baseJPGName := buildDouyinOriginalFilename(cached.Title, cached.DetailID, imgIdx, len(cached.Downloads), ".jpg")
+	base := strings.TrimSuffix(baseJPGName, ".jpg")
 	if strings.TrimSpace(base) == "" {
 		base = "livephoto"
 	}
@@ -140,11 +153,13 @@ func (a *App) handleDouyinLivePhoto(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		zipFilename := base + "_livephoto.zip"
+		zipFilename := base + "_live.zip"
+		zipFallback := buildDouyinFallbackFilename(cached.DetailID, imgIdx, len(cached.Downloads), ".zip")
+		zipFallback = strings.TrimSuffix(zipFallback, ".zip") + "_live.zip"
 
 		// 处理完成后再开始写入响应，避免中途失败导致已输出不可恢复
 		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", buildAttachmentContentDisposition("livephoto.zip", zipFilename))
+		w.Header().Set("Content-Disposition", buildAttachmentContentDisposition(zipFallback, zipFilename))
 		w.WriteHeader(http.StatusOK)
 
 		zw := zip.NewWriter(w)
@@ -183,8 +198,10 @@ func (a *App) handleDouyinLivePhoto(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filename := base + "_live.jpg"
+	fallback := buildDouyinFallbackFilename(cached.DetailID, imgIdx, len(cached.Downloads), ".jpg")
+	fallback = strings.TrimSuffix(fallback, ".jpg") + "_live.jpg"
 	w.Header().Set("Content-Type", "image/jpeg")
-	w.Header().Set("Content-Disposition", buildAttachmentContentDisposition("live.jpg", filename))
+	w.Header().Set("Content-Disposition", buildAttachmentContentDisposition(fallback, filename))
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.Copy(w, f)
 }
@@ -459,14 +476,40 @@ func buildMotionPhotoJPG(stillJPGPath, motionMP4Path, outputPath string) error {
 		return fmt.Errorf("motion mp4 为空")
 	}
 
-	seg, err := buildMotionPhotoXMPAPP1Segment(mp4Info.Size())
+	stillBodyOffset, err := findJPEGFirstDQTOffset(still)
 	if err != nil {
 		return err
 	}
-	jpegWithXMP, err := injectJPEGSegmentAfterAPP0(still, seg)
+	stillBody := still[stillBodyOffset:]
+	if len(stillBody) < 2 || !bytes.HasSuffix(stillBody, []byte{0xFF, 0xD9}) {
+		return fmt.Errorf("still jpg 非法（缺少 EOI）")
+	}
+
+	width, height, err := parseJPEGDimensions(still)
+	if err != nil {
+		// best-effort：仍然输出可用文件
+		width = 0
+		height = 0
+	}
+
+	exifSeg, err := buildMotionPhotoExifAPP1Segment(width, height)
 	if err != nil {
 		return err
 	}
+	xmpSeg, err := buildMotionPhotoXMPAPP1Segment(mp4Info.Size())
+	if err != nil {
+		return err
+	}
+
+	// 为提升 MIUI 相册对“动态照片”的识别概率：
+	// - JPEG 头部段顺序：APP1(Exif) → APP1(XMP) → APP0(JFIF)
+	// - EOI 与 MP4 之间插入固定 24 字节 gap（对齐常见导出形态）
+	jpegWithXMP := make([]byte, 0, 2+len(exifSeg)+len(xmpSeg)+len(motionPhotoJFIFAPP0Segment)+len(stillBody))
+	jpegWithXMP = append(jpegWithXMP, 0xFF, 0xD8) // SOI
+	jpegWithXMP = append(jpegWithXMP, exifSeg...)
+	jpegWithXMP = append(jpegWithXMP, xmpSeg...)
+	jpegWithXMP = append(jpegWithXMP, motionPhotoJFIFAPP0Segment...)
+	jpegWithXMP = append(jpegWithXMP, stillBody...)
 
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 		return err
@@ -478,6 +521,10 @@ func buildMotionPhotoJPG(stillJPGPath, motionMP4Path, outputPath string) error {
 	defer func() { _ = out.Close() }()
 
 	if _, err := out.Write(jpegWithXMP); err != nil {
+		return err
+	}
+
+	if _, err := out.Write(motionPhotoEOIGapBytes); err != nil {
 		return err
 	}
 
@@ -498,12 +545,16 @@ func buildMotionPhotoXMPAPP1Segment(microVideoOffset int64) ([]byte, error) {
 	}
 
 	xmpXML := fmt.Sprintf(
-		"<x:xmpmeta xmlns:x=\"adobe:ns:meta/\" x:xmptk=\"Image::ExifTool\">"+
-			"<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">"+
-			"<rdf:Description rdf:about=\"\" xmlns:GCamera=\"http://ns.google.com/photos/1.0/camera/\" "+
-			"GCamera:MicroVideo=\"1\" GCamera:MicroVideoVersion=\"1\" "+
-			"GCamera:MicroVideoOffset=\"%d\" GCamera:MicroVideoPresentationTimestampUs=\"0\"/>"+
-			"</rdf:RDF></x:xmpmeta>",
+		"<x:xmpmeta xmlns:x=\"adobe:ns:meta/\" x:xmptk=\"Adobe XMP Core 5.1.0-jc003\">\n"+
+			"  <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n"+
+			"    <rdf:Description rdf:about=\"\"\n"+
+			"        xmlns:GCamera=\"http://ns.google.com/photos/1.0/camera/\"\n"+
+			"      GCamera:MicroVideoVersion=\"1\"\n"+
+			"      GCamera:MicroVideo=\"1\"\n"+
+			"      GCamera:MicroVideoOffset=\"%d\"\n"+
+			"      GCamera:MicroVideoPresentationTimestampUs=\"0\"/>\n"+
+			"  </rdf:RDF>\n"+
+			"</x:xmpmeta>\n",
 		microVideoOffset,
 	)
 
@@ -540,4 +591,177 @@ func injectJPEGSegmentAfterAPP0(jpeg []byte, segment []byte) ([]byte, error) {
 	out = append(out, segment...)
 	out = append(out, jpeg[insertAt:]...)
 	return out, nil
+}
+
+func buildMotionPhotoExifAPP1Segment(width, height int) ([]byte, error) {
+	var w uint32
+	var h uint32
+	if width > 0 {
+		w = uint32(width)
+	}
+	if height > 0 {
+		h = uint32(height)
+	}
+
+	// 形态参考：常见 MIUI/微信导出。
+	// - Exif APP1 length=0x006a（含 length 字段）
+	// - TIFF big-endian
+	// - IFD0 4 entries: ImageWidth/ImageLength/ExifIFDPointer/Orientation
+	// - ExifIFD 2 entries: 0x9A01(BYTE=1), 0x9208(LONG=0)
+	payload := make([]byte, 0, 104)
+	payload = append(payload, []byte("Exif\x00\x00")...)
+
+	// TIFF header
+	payload = append(payload, 'M', 'M')               // big-endian
+	payload = append(payload, 0x00, 0x2A)             // magic 42
+	payload = append(payload, 0x00, 0x00, 0x00, 0x08) // IFD0 offset
+
+	// IFD0: 4 entries
+	payload = append(payload, 0x00, 0x04)
+	// 0x0100 ImageWidth LONG 1
+	payload = append(payload, 0x01, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01)
+	payload = append(payload, byte(w>>24), byte(w>>16), byte(w>>8), byte(w))
+	// 0x0101 ImageLength LONG 1
+	payload = append(payload, 0x01, 0x01, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01)
+	payload = append(payload, byte(h>>24), byte(h>>16), byte(h>>8), byte(h))
+	// 0x8769 ExifIFDPointer LONG 1 -> 0x3E (62)
+	payload = append(payload, 0x87, 0x69, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x3E)
+	// 0x0112 Orientation LONG 1 -> 0
+	payload = append(payload, 0x01, 0x12, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00)
+	// next IFD offset = 0
+	payload = append(payload, 0x00, 0x00, 0x00, 0x00)
+
+	// Exif IFD at offset 0x3E: 2 entries
+	payload = append(payload, 0x00, 0x02)
+	// 0x9A01 BYTE 1 -> 1
+	payload = append(payload, 0x9A, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00)
+	// 0x9208 LONG 1 -> 0
+	payload = append(payload, 0x92, 0x08, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00)
+	// next IFD offset = 0
+	payload = append(payload, 0x00, 0x00, 0x00, 0x00)
+
+	// padding to match common shape
+	for len(payload) < 104 {
+		payload = append(payload, 0x00)
+	}
+	if len(payload) != 104 {
+		return nil, fmt.Errorf("exif payload size=%d, want 104", len(payload))
+	}
+
+	// APP1: marker(2) + length(2) + payload；length 字段包含 length 自身(2)，不包含 marker。
+	length := len(payload) + 2
+	seg := make([]byte, 0, 2+2+len(payload))
+	seg = append(seg, 0xFF, 0xE1, byte(length>>8), byte(length))
+	seg = append(seg, payload...)
+	return seg, nil
+}
+
+func findJPEGFirstDQTOffset(jpeg []byte) (int, error) {
+	if len(jpeg) < 2 || jpeg[0] != 0xFF || jpeg[1] != 0xD8 {
+		return 0, fmt.Errorf("不是 JPEG")
+	}
+
+	i := 2
+	for i+1 < len(jpeg) {
+		if jpeg[i] != 0xFF {
+			return 0, fmt.Errorf("JPEG 段解析失败")
+		}
+		markerStart := i
+		for i < len(jpeg) && jpeg[i] == 0xFF {
+			i++
+		}
+		if i >= len(jpeg) {
+			return 0, fmt.Errorf("JPEG 段解析失败")
+		}
+		marker := jpeg[i]
+		i++
+
+		switch marker {
+		case 0xDB: // DQT
+			return markerStart, nil
+		case 0xDA: // SOS
+			return 0, fmt.Errorf("JPEG 未包含 DQT 段")
+		case 0xD9: // EOI
+			return 0, fmt.Errorf("JPEG 未包含 DQT 段")
+		case 0x01: // TEM
+			continue
+		}
+		if marker >= 0xD0 && marker <= 0xD7 { // RSTn
+			continue
+		}
+
+		if i+2 > len(jpeg) {
+			return 0, fmt.Errorf("JPEG 段解析失败")
+		}
+		n := int(binary.BigEndian.Uint16(jpeg[i : i+2]))
+		if n < 2 || i+n > len(jpeg) {
+			return 0, fmt.Errorf("JPEG 段解析失败")
+		}
+		i += n
+	}
+
+	return 0, fmt.Errorf("JPEG 未包含 DQT 段")
+}
+
+func parseJPEGDimensions(jpeg []byte) (width int, height int, err error) {
+	if len(jpeg) < 2 || jpeg[0] != 0xFF || jpeg[1] != 0xD8 {
+		return 0, 0, fmt.Errorf("不是 JPEG")
+	}
+
+	isSOF := func(marker byte) bool {
+		switch marker {
+		case 0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF:
+			return true
+		default:
+			return false
+		}
+	}
+
+	i := 2
+	for i+1 < len(jpeg) {
+		if jpeg[i] != 0xFF {
+			return 0, 0, fmt.Errorf("JPEG 段解析失败")
+		}
+		for i < len(jpeg) && jpeg[i] == 0xFF {
+			i++
+		}
+		if i >= len(jpeg) {
+			return 0, 0, fmt.Errorf("JPEG 段解析失败")
+		}
+		marker := jpeg[i]
+		i++
+
+		if marker == 0xDA { // SOS
+			return 0, 0, fmt.Errorf("JPEG 缺少 SOF 段")
+		}
+		if marker == 0xD9 { // EOI
+			return 0, 0, fmt.Errorf("JPEG 缺少 SOF 段")
+		}
+		if marker == 0x01 || (marker >= 0xD0 && marker <= 0xD7) {
+			continue
+		}
+
+		if i+2 > len(jpeg) {
+			return 0, 0, fmt.Errorf("JPEG 段解析失败")
+		}
+		n := int(binary.BigEndian.Uint16(jpeg[i : i+2]))
+		if n < 2 || i+n > len(jpeg) {
+			return 0, 0, fmt.Errorf("JPEG 段解析失败")
+		}
+		if isSOF(marker) {
+			if n < 7 {
+				return 0, 0, fmt.Errorf("JPEG SOF 段非法")
+			}
+			// len(2) + precision(1) + height(2) + width(2)
+			height = int(binary.BigEndian.Uint16(jpeg[i+3 : i+5]))
+			width = int(binary.BigEndian.Uint16(jpeg[i+5 : i+7]))
+			if width <= 0 || height <= 0 {
+				return 0, 0, fmt.Errorf("JPEG 尺寸非法")
+			}
+			return width, height, nil
+		}
+		i += n
+	}
+
+	return 0, 0, fmt.Errorf("JPEG 缺少 SOF 段")
 }

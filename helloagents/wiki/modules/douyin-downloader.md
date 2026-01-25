@@ -64,10 +64,10 @@
 
 ### 1.2) iOS 实况下载（Live Photo）
 `GET /api/douyin/livePhoto`：
-- 将同一作品缓存 `key` 下的一张静态图（`imageIndex`）与一段短视频（`videoIndex`）打包为 iOS 实况照片所需文件对
+- 将同一作品缓存 `key` 下的一张静态图（`imageIndex`）与一段短视频（`videoIndex`）打包导出为“实况照片”
 - 支持 `format` 参数：
-  - `format=zip`（默认）：输出 ZIP 包：`{title}.jpg` + `{title}.mov`，并写入相同 `ContentIdentifier`（Apple Live Photo 配对）
-  - `format=jpg`：输出单文件 Motion Photo：`{title}_live.jpg`（JPEG 末尾附加 MP4，并写入 XMP `GCamera:MicroVideoOffset`）
+  - `format=zip`（默认）：输出 ZIP 包：`{title_01_live}.zip`（文件名与普通图片下载一致并追加 `_live`）；ZIP 内包含 `{title_01}.jpg` + `{title_01}.mov`，并写入相同 `ContentIdentifier`（Apple Live Photo 配对）
+  - `format=jpg`：输出单文件 Motion Photo：`{title_01_live}.jpg`（JPEG 末尾附加 MP4，并写入 XMP `GCamera:MicroVideoOffset`）；为提升 MIUI 相册识别概率，JPEG 头部段顺序为 `APP1(Exif) → APP1(XMP) → APP0(JFIF)`，并在 `EOI` 与 MP4 之间插入 24 字节 gap
 - 依赖系统命令：`ffmpeg`（两种格式都需要）；`format=zip` 额外依赖 `exiftool`
 
 ### 1.5) 用户作品列表

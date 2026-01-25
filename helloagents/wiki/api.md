@@ -1140,10 +1140,11 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 **响应（HTTP 200）**
 - `format=zip`：
   - `Content-Type: application/zip`
-  - ZIP 内包含两个文件：`{title}.jpg` + `{title}.mov`（理论上可被 iPhone 相册识别为同一张 Live Photo）
+  - 下载文件名：`{title_01_live}.zip`（与普通图片下载一致并追加 `_live`）
+  - ZIP 内包含两个文件：`{title_01}.jpg` + `{title_01}.mov`（理论上可被 iPhone 相册识别为同一张 Live Photo）
 - `format=jpg`：
   - `Content-Type: image/jpeg`
-  - 单文件 `{title}_live.jpg`：JPEG 末尾附加 MP4 数据，并在 XMP 写入 `GCamera:MicroVideo*` 元数据（更接近“动态照片/Motion Photo”容器）
+  - 单文件 `{title_01_live}.jpg`：JPEG 末尾附加 MP4 数据，并在 XMP 写入 `GCamera:MicroVideo*` 元数据（更接近“动态照片/Motion Photo”容器）；为提升 MIUI 相册识别概率，JPEG 头部段顺序为 `APP1(Exif) → APP1(XMP) → APP0(JFIF)`，并在 `EOI` 与 MP4 之间插入 24 字节 gap
 
 **备注**
 - 该接口需要登录（携带 `Authorization: Bearer ...`）。

@@ -5,9 +5,9 @@
 - Auth: `helloagents/wiki/modules/auth.md`
 - Chat UI: `helloagents/wiki/modules/chat-ui.md`
 - Douyin Downloader: `helloagents/wiki/modules/douyin-downloader.md`
+- Douyin Live Photo: `helloagents/wiki/modules/douyin-livephoto.md`
 - Identity: `helloagents/wiki/modules/identity.md`
 - Media: `helloagents/wiki/modules/media.md`
 - MtPhoto: `helloagents/wiki/modules/mtphoto.md`
 - User History: `helloagents/wiki/modules/user-history.md`
 - WebSocket Proxy: `helloagents/wiki/modules/websocket-proxy.md`
-
