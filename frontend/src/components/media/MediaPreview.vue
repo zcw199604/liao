@@ -15,12 +15,12 @@
 	              </span>
 	              <span
 	                v-if="currentMedia.title"
-	                class="text-white/90 font-medium text-sm drop-shadow-md truncate max-w-[56vw] sm:max-w-[68vw]"
+	                class="text-white/90 font-medium text-sm drop-shadow-md truncate max-w-[30vw] sm:max-w-[40vw]"
 	                :title="currentMedia.title"
 	              >
 	                {{ currentMedia.title }}
 	              </span>
-	              <span v-if="currentMedia.type === 'image'" class="text-white/50 text-xs shadow-black/50 drop-shadow-md">
+	              <span v-if="currentMedia.type === 'image'" class="text-white/50 text-xs shadow-black/50 drop-shadow-md whitespace-nowrap">
 	                {{ scale > 1 ? '拖动查看 · 点击还原' : '点击放大' }}
 	              </span>
 	           </div>
