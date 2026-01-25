@@ -50,6 +50,11 @@
 - `douyin_auto_clipboard`：打开弹窗自动读取剪贴板（默认开启；写入 `1/0`）
 - `douyin_auto_resolve_clipboard`：读取剪贴板后自动解析（默认关闭；写入 `1/0`）
 
+**剪贴板兼容性说明**
+- 移动端/部分 WebView（如微信/抖音内置浏览器）可能不支持 `navigator.clipboard.readText/writeText`，或要求 HTTPS + 用户手势授权。
+- 弹窗“粘贴”在不支持读取剪贴板时会提示并聚焦输入框，需要用户长按手动粘贴。
+- 弹窗内的“复制”会优先使用 `navigator.clipboard.writeText`，失败时回退到 `document.execCommand('copy')`，以提升移动端兼容性。
+
 ## 核心流程
 ### 1) 解析与详情抓取
 `POST /api/douyin/detail`：

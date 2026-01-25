@@ -111,6 +111,44 @@ describe('components/media/DouyinDownloadModal.vue', () => {
     expect(toastShow).toHaveBeenCalledWith('已从剪贴板填充')
   })
 
+  it('shows a hint when clipboard readText is not supported', async () => {
+    localStorage.setItem('douyin_auto_clipboard', '0')
+    localStorage.setItem('douyin_auto_resolve_clipboard', '0')
+
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {}
+    })
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          MediaPreview: true,
+          MediaTile: true,
+          MediaTileBadge: true,
+          MediaTileSelectMark: true
+        }
+      }
+    })
+
+    const douyinStore = useDouyinStore()
+    douyinStore.showModal = true
+    await nextTick()
+
+    const pasteBtn = wrapper.findAll('button').find((btn) => btn.text().includes('粘贴'))
+    expect(pasteBtn).toBeTruthy()
+
+    await pasteBtn!.trigger('click')
+    await flushAsync()
+
+    expect(toastShow).toHaveBeenCalledWith('当前浏览器不支持读取剪贴板，请手动粘贴')
+  })
+
   it('auto-reads clipboard on open and fills any non-empty text', async () => {
     localStorage.setItem('douyin_auto_clipboard', '1')
     localStorage.setItem('douyin_auto_resolve_clipboard', '0')

@@ -226,6 +226,7 @@ import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import type { ChatMessage } from '@/types'
 import { formatTime } from '@/utils/time'
 import { parseEmoji } from '@/utils/string'
+import { copyToClipboard as copyTextToClipboard } from '@/utils/clipboard'
 import { emojiMap } from '@/constants/emoji'
 import { useUpload } from '@/composables/useUpload'
 import { useMessageStore } from '@/stores/message'
@@ -458,13 +459,8 @@ const downloadFile = (url: string) => {
 
 const copyToClipboard = async (text: string) => {
   if (!text) return
-  try {
-    await navigator.clipboard.writeText(text)
-    show('已复制')
-  } catch (err) {
-    console.error('复制失败:', err)
-    show('复制失败')
-  }
+  const ok = await copyTextToClipboard(text)
+  show(ok ? '已复制' : '复制失败')
 }
 
 watch(

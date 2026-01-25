@@ -67,6 +67,7 @@
 
             <div v-if="activeMode === 'detail'" class="relative">
               <textarea
+                ref="detailInputRef"
                 v-model="inputText"
                 class="w-full min-h-[110px] bg-[#111113] border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
                 placeholder="粘贴抖音分享文本/短链/完整URL/作品ID"
@@ -82,6 +83,7 @@
             </div>
             <div v-else-if="activeMode === 'account'" class="relative">
               <textarea
+                ref="accountInputRef"
                 v-model="accountInput"
                 class="w-full min-h-[110px] bg-[#111113] border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
                 placeholder="粘贴抖音用户主页链接/分享文本/sec_uid"
@@ -1284,7 +1286,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import draggable from 'vuedraggable'
 import { useDouyinStore } from '@/stores/douyin'
 import { useUserStore } from '@/stores/user'
@@ -1295,6 +1297,7 @@ import MediaTile from '@/components/common/MediaTile.vue'
 import MediaTileBadge from '@/components/common/MediaTileBadge.vue'
 import MediaTileSelectMark from '@/components/common/MediaTileSelectMark.vue'
 import { generateCookie } from '@/utils/cookie'
+import { copyToClipboard } from '@/utils/clipboard'
 import * as douyinApi from '@/api/douyin'
 import MediaPreview from '@/components/media/MediaPreview.vue'
 import type { UploadedMedia } from '@/types'
@@ -1393,6 +1396,8 @@ const activeMode = ref<'detail' | 'account' | 'favorites'>('detail')
 
 const inputText = ref('')
 const accountInput = ref('')
+const detailInputRef = ref<HTMLTextAreaElement | null>(null)
+const accountInputRef = ref<HTMLTextAreaElement | null>(null)
 const cookie = ref('')
 const showAdvanced = ref(false)
 const cookieHint = ref('')
@@ -1623,9 +1628,22 @@ const clearCookie = () => {
   show('已清除本地 Cookie')
 }
 
+const focusActiveInput = async () => {
+  await nextTick()
+  const el = activeMode.value === 'account' ? accountInputRef.value : detailInputRef.value
+  el?.focus()
+}
+
 const pasteFromClipboard = async () => {
+  const readText = navigator.clipboard?.readText
+  if (typeof readText !== 'function') {
+    await focusActiveInput()
+    show('当前浏览器不支持读取剪贴板，请手动粘贴')
+    return
+  }
+
   try {
-    const txt = await navigator.clipboard?.readText?.()
+    const txt = await readText.call(navigator.clipboard)
     if (!String(txt || '').trim()) {
       show('剪贴板为空')
       return
@@ -1637,7 +1655,8 @@ const pasteFromClipboard = async () => {
     }
   } catch (e) {
     console.warn('read clipboard failed:', e)
-    show('无法读取剪贴板（可能需要浏览器授权或 https）')
+    await focusActiveInput()
+    show('无法读取剪贴板（可能需要浏览器授权或 https），请手动粘贴')
   }
 }
 
@@ -1792,9 +1811,9 @@ watch(
       const hasInput = () => !!String(inputText.value || '').trim() || !!String(accountInput.value || '').trim()
       if (!hasInput() && douyinStore.draftInput) {
         applyInputText(douyinStore.draftInput)
-      } else if (!hasInput() && autoClipboard.value) {
+      } else if (!hasInput() && autoClipboard.value && typeof navigator.clipboard?.readText === 'function') {
         try {
-          const txt = await navigator.clipboard?.readText?.()
+          const txt = await navigator.clipboard.readText()
           if (String(txt || '').trim()) {
             applyInputText(txt)
             show('已从剪贴板读取')
@@ -2509,13 +2528,8 @@ const openBatchTagSheet = () => {
 const copyText = async (value: string, okMsg = '已复制') => {
   const v = String(value || '').trim()
   if (!v) return
-  try {
-    await navigator.clipboard?.writeText?.(v)
-    show(okMsg)
-  } catch (e) {
-    console.warn('copy failed:', e)
-    show('复制失败')
-  }
+  const ok = await copyToClipboard(v)
+  show(ok ? okMsg : '复制失败')
 }
 
 	const refreshSelectedFavoriteUser = async () => {
