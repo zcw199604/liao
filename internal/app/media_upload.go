@@ -461,10 +461,24 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 		rows, err = s.db.QueryContext(ctx, query, args...)
 	default:
 		rows, err = s.db.QueryContext(ctx, `(
-			SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time
+			SELECT
+				CONVERT(local_filename USING utf8mb4) COLLATE utf8mb4_unicode_ci AS local_filename,
+				CONVERT(original_filename USING utf8mb4) COLLATE utf8mb4_unicode_ci AS original_filename,
+				CONVERT(local_path USING utf8mb4) COLLATE utf8mb4_unicode_ci AS local_path,
+				file_size,
+				CONVERT(file_type USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_type,
+				CONVERT(file_extension USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_extension,
+				upload_time, update_time
 			FROM media_file
 		) UNION ALL (
-			SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time
+			SELECT
+				CONVERT(local_filename USING utf8mb4) COLLATE utf8mb4_unicode_ci AS local_filename,
+				CONVERT(original_filename USING utf8mb4) COLLATE utf8mb4_unicode_ci AS original_filename,
+				CONVERT(local_path USING utf8mb4) COLLATE utf8mb4_unicode_ci AS local_path,
+				file_size,
+				CONVERT(file_type USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_type,
+				CONVERT(file_extension USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_extension,
+				upload_time, update_time
 			FROM douyin_media_file
 		)
 		ORDER BY update_time DESC
