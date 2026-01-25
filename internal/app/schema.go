@@ -144,6 +144,34 @@ func ensureSchema(db *sql.DB) error {
 			INDEX idx_mf_local_path (local_path)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='媒体文件库'`,
 
+		// douyin_media_file（抖音导入媒体库）
+		`CREATE TABLE IF NOT EXISTS douyin_media_file (
+				id BIGINT AUTO_INCREMENT PRIMARY KEY,
+				user_id VARCHAR(32) NOT NULL COMMENT '导入时使用的 user_id（未选择身份时为 pre_identity）',
+				sec_user_id VARCHAR(128) NULL COMMENT '抖音 sec_user_id（sec_uid）',
+				detail_id VARCHAR(64) NULL COMMENT '作品ID（aweme_id/detail_id）',
+				original_filename TEXT NOT NULL,
+				local_filename TEXT NOT NULL,
+			remote_filename TEXT NOT NULL,
+			remote_url VARCHAR(500) NOT NULL,
+			local_path VARCHAR(500) NOT NULL,
+			file_size BIGINT NOT NULL,
+			file_type VARCHAR(50) NOT NULL,
+			file_extension VARCHAR(10) NOT NULL,
+			file_md5 VARCHAR(32) NULL,
+			upload_time DATETIME NOT NULL,
+			update_time DATETIME NULL,
+				created_at DATETIME NOT NULL,
+				INDEX idx_dmf_user_id (user_id),
+				INDEX idx_dmf_sec_user_id (sec_user_id),
+				INDEX idx_dmf_detail_id (detail_id),
+				INDEX idx_dmf_sec_user_md5 (sec_user_id, file_md5),
+				INDEX idx_dmf_user_md5 (user_id, file_md5),
+				INDEX idx_dmf_file_md5 (file_md5),
+				INDEX idx_dmf_update_time (update_time DESC),
+				INDEX idx_dmf_local_path (local_path)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音导入媒体文件库'`,
+
 		// media_send_log（发送日志）
 		`CREATE TABLE IF NOT EXISTS media_send_log (
 			id BIGINT AUTO_INCREMENT PRIMARY KEY,

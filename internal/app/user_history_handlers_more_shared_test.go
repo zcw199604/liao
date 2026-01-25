@@ -20,8 +20,10 @@ func (f *errMultipartFile) Read(p []byte) (int, error) { return 0, errors.New("r
 func (f *errMultipartFile) ReadAt(p []byte, off int64) (int, error) {
 	return f.r.ReadAt(p, off)
 }
-func (f *errMultipartFile) Seek(offset int64, whence int) (int64, error) { return f.r.Seek(offset, whence) }
-func (f *errMultipartFile) Close() error                                 { return nil }
+func (f *errMultipartFile) Seek(offset int64, whence int) (int64, error) {
+	return f.r.Seek(offset, whence)
+}
+func (f *errMultipartFile) Close() error { return nil }
 
 type errChatHistoryCache struct{}
 
@@ -29,4 +31,3 @@ func (e *errChatHistoryCache) SaveMessages(context.Context, string, []map[string
 func (e *errChatHistoryCache) GetMessages(context.Context, string, string, int) ([]map[string]any, error) {
 	return nil, errors.New("redis err")
 }
-

@@ -137,24 +137,24 @@ func (s *MediaUploadService) SaveUploadRecord(ctx context.Context, record Upload
 }
 
 func (s *MediaUploadService) RecordImageSend(ctx context.Context, remoteURL, fromUserID, toUserID, localFilename string) (*MediaUploadHistory, error) {
-	var original *MediaUploadHistory
+	var original *storedMediaFile
 
 	normalizedRemoteURL := strings.TrimSpace(remoteURL)
 
 	// 1) localFilename 优先（先限定 userId，再全局兜底）
 	if strings.TrimSpace(localFilename) != "" {
 		normalizedLocal := strings.TrimSpace(localFilename)
-		original, _ = s.findMediaFileByLocalFilename(ctx, normalizedLocal, fromUserID)
+		original, _ = s.findStoredMediaFileByLocalFilename(ctx, normalizedLocal, fromUserID)
 		if original == nil {
-			original, _ = s.findMediaFileByLocalFilename(ctx, normalizedLocal, "")
+			original, _ = s.findStoredMediaFileByLocalFilename(ctx, normalizedLocal, "")
 		}
 	}
 
 	// 2) remoteUrl 精确匹配
 	if original == nil && normalizedRemoteURL != "" {
-		original, _ = s.findMediaFileByRemoteURL(ctx, normalizedRemoteURL, fromUserID)
+		original, _ = s.findStoredMediaFileByRemoteURL(ctx, normalizedRemoteURL, fromUserID)
 		if original == nil {
-			original, _ = s.findMediaFileByRemoteURL(ctx, normalizedRemoteURL, "")
+			original, _ = s.findStoredMediaFileByRemoteURL(ctx, normalizedRemoteURL, "")
 		}
 	}
 
@@ -162,9 +162,9 @@ func (s *MediaUploadService) RecordImageSend(ctx context.Context, remoteURL, fro
 	if original == nil && normalizedRemoteURL != "" {
 		remoteFilename := extractRemoteFilenameFromURL(normalizedRemoteURL)
 		if remoteFilename != "" {
-			original, _ = s.findMediaFileByRemoteFilename(ctx, remoteFilename, fromUserID)
+			original, _ = s.findStoredMediaFileByRemoteFilename(ctx, remoteFilename, fromUserID)
 			if original == nil {
-				original, _ = s.findMediaFileByRemoteFilename(ctx, remoteFilename, "")
+				original, _ = s.findStoredMediaFileByRemoteFilename(ctx, remoteFilename, "")
 			}
 		}
 	}
@@ -173,14 +173,14 @@ func (s *MediaUploadService) RecordImageSend(ctx context.Context, remoteURL, fro
 	if original == nil && normalizedRemoteURL != "" {
 		filename := extractFilenameFromURL(normalizedRemoteURL)
 		if filename != "" {
-			original, _ = s.findMediaFileByRemoteFilename(ctx, filename, fromUserID)
+			original, _ = s.findStoredMediaFileByRemoteFilename(ctx, filename, fromUserID)
 			if original == nil {
-				original, _ = s.findMediaFileByRemoteFilename(ctx, filename, "")
+				original, _ = s.findStoredMediaFileByRemoteFilename(ctx, filename, "")
 			}
 		}
 	}
 
-	if original == nil {
+	if original == nil || original.File == nil {
 		return nil, nil
 	}
 
@@ -195,9 +195,9 @@ func (s *MediaUploadService) RecordImageSend(ctx context.Context, remoteURL, fro
 		if _, err := s.db.ExecContext(ctx, "UPDATE media_send_log SET send_time = ? WHERE id = ?", now, existingLog.ID); err != nil {
 			return nil, err
 		}
-		_, _ = s.db.ExecContext(ctx, "UPDATE media_file SET update_time = ? WHERE id = ?", now, original.ID)
+		_ = s.updateTimeByStoredMediaFile(ctx, original, now)
 
-		out := *original
+		out := *original.File
 		out.ToUserID = toUserID
 		out.SendTime = now.Format("2006-01-02 15:04:05")
 		out.RemoteURL = existingLog.RemoteURL
@@ -206,14 +206,14 @@ func (s *MediaUploadService) RecordImageSend(ctx context.Context, remoteURL, fro
 
 	res, err := s.db.ExecContext(ctx,
 		"INSERT INTO media_send_log (user_id, to_user_id, local_path, remote_url, send_time, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-		fromUserID, toUserID, original.LocalPath, remoteURL, now, now)
+		fromUserID, toUserID, original.File.LocalPath, remoteURL, now, now)
 	if err != nil {
 		return nil, err
 	}
 	_, _ = res.LastInsertId()
-	_, _ = s.db.ExecContext(ctx, "UPDATE media_file SET update_time = ? WHERE id = ?", now, original.ID)
+	_ = s.updateTimeByStoredMediaFile(ctx, original, now)
 
-	out := *original
+	out := *original.File
 	out.ToUserID = toUserID
 	out.SendTime = now.Format("2006-01-02 15:04:05")
 	out.RemoteURL = remoteURL
@@ -281,7 +281,11 @@ func (s *MediaUploadService) GetUserSentImages(ctx context.Context, fromUserID, 
 			return nil, err
 		}
 
-		file, _ := s.findMediaFileByLocalPath(ctx, localPath, fromUserID)
+		stored, _ := s.findStoredMediaFileByLocalPath(ctx, localPath, fromUserID)
+		var file *MediaUploadHistory
+		if stored != nil {
+			file = stored.File
+		}
 		if file == nil {
 			file = &MediaUploadHistory{}
 		}
@@ -351,7 +355,11 @@ func (s *MediaUploadService) ReuploadLocalFile(ctx context.Context, userID, loca
 		return "", fmt.Errorf("本地文件不存在: %s", localPath)
 	}
 
-	mediaFile, _ := s.findMediaFileByLocalPath(ctx, localPath, userID)
+	stored, _ := s.findStoredMediaFileByLocalPath(ctx, localPath, userID)
+	mediaFile := (*MediaUploadHistory)(nil)
+	if stored != nil {
+		mediaFile = stored.File
+	}
 	originalFilename := ""
 	if mediaFile != nil && strings.TrimSpace(mediaFile.OriginalFilename) != "" {
 		originalFilename = mediaFile.OriginalFilename
@@ -416,15 +424,52 @@ func (s *MediaUploadService) ReuploadLocalFile(ctx context.Context, userID, loca
 }
 
 func (s *MediaUploadService) GetAllUploadImagesWithDetails(ctx context.Context, page, pageSize int, hostHeader string) ([]MediaFileDTO, error) {
+	return s.GetAllUploadImagesWithDetailsBySource(ctx, page, pageSize, hostHeader, "all", "")
+}
+
+func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.Context, page, pageSize int, hostHeader string, source, douyinSecUserID string) ([]MediaFileDTO, error) {
 	if page < 1 {
 		page = 1
 	}
 	offset := (page - 1) * pageSize
 
-	rows, err := s.db.QueryContext(ctx, `SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time
-		FROM media_file
+	source = strings.TrimSpace(strings.ToLower(source))
+	if source == "" {
+		source = "all"
+	}
+
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	switch source {
+	case "local":
+		rows, err = s.db.QueryContext(ctx, `SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time
+			FROM media_file
+			ORDER BY update_time DESC
+			LIMIT ? OFFSET ?`, pageSize, offset)
+	case "douyin":
+		args := make([]any, 0, 3)
+		query := `SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time
+			FROM douyin_media_file`
+		if strings.TrimSpace(douyinSecUserID) != "" {
+			query += " WHERE sec_user_id = ?"
+			args = append(args, douyinSecUserID)
+		}
+		query += " ORDER BY update_time DESC LIMIT ? OFFSET ?"
+		args = append(args, pageSize, offset)
+		rows, err = s.db.QueryContext(ctx, query, args...)
+	default:
+		rows, err = s.db.QueryContext(ctx, `(
+			SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time
+			FROM media_file
+		) UNION ALL (
+			SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time
+			FROM douyin_media_file
+		)
 		ORDER BY update_time DESC
 		LIMIT ? OFFSET ?`, pageSize, offset)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -460,9 +505,41 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetails(ctx context.Context, 
 }
 
 func (s *MediaUploadService) GetAllUploadImagesCount(ctx context.Context) (int, error) {
-	var total int
-	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM media_file").Scan(&total)
-	return total, err
+	return s.GetAllUploadImagesCountBySource(ctx, "all", "")
+}
+
+func (s *MediaUploadService) GetAllUploadImagesCountBySource(ctx context.Context, source, douyinSecUserID string) (int, error) {
+	source = strings.TrimSpace(strings.ToLower(source))
+	if source == "" {
+		source = "all"
+	}
+
+	switch source {
+	case "local":
+		var total int
+		err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM media_file").Scan(&total)
+		return total, err
+	case "douyin":
+		args := make([]any, 0, 1)
+		query := "SELECT COUNT(*) FROM douyin_media_file"
+		if strings.TrimSpace(douyinSecUserID) != "" {
+			query += " WHERE sec_user_id = ?"
+			args = append(args, douyinSecUserID)
+		}
+		var total int
+		err := s.db.QueryRowContext(ctx, query, args...).Scan(&total)
+		return total, err
+	default:
+		var totalLocal int
+		if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM media_file").Scan(&totalLocal); err != nil {
+			return 0, err
+		}
+		var totalDouyin int
+		if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM douyin_media_file").Scan(&totalDouyin); err != nil {
+			return 0, err
+		}
+		return totalLocal + totalDouyin, nil
+	}
 }
 
 type DeleteResult struct {
@@ -477,14 +554,15 @@ func (s *MediaUploadService) DeleteMediaByPath(ctx context.Context, userID, loca
 	}
 
 	// 说明：全站图片库展示不按 userId 过滤，因此删除也不校验上传者归属（userID 参数仅用于兼容旧调用）。
-	file, err := s.findMediaFileByLocalPath(ctx, normalizedPath, "")
+	stored, err := s.findStoredMediaFileByLocalPath(ctx, normalizedPath, "")
 	if err != nil {
 		return DeleteResult{}, err
 	}
-	if file == nil {
+	if stored == nil || stored.File == nil {
 		return DeleteResult{}, ErrDeleteForbidden
 	}
 
+	file := stored.File
 	storedNormalized := normalizeUploadLocalPathInput(file.LocalPath)
 
 	candidateSet := make(map[string]struct{}, 8)
@@ -536,18 +614,26 @@ func (s *MediaUploadService) DeleteMediaByPath(ctx context.Context, userID, loca
 
 	deletedCount := 0
 	for _, p := range paths {
-		res, err := s.db.ExecContext(ctx, "DELETE FROM media_file WHERE local_path = ?", p)
+		var (
+			res sql.Result
+			err error
+		)
+		if stored.Source == mediaFileSourceDouyin {
+			res, err = s.db.ExecContext(ctx, "DELETE FROM douyin_media_file WHERE local_path = ?", p)
+		} else {
+			res, err = s.db.ExecContext(ctx, "DELETE FROM media_file WHERE local_path = ?", p)
+		}
 		if err != nil {
 			return DeleteResult{}, err
 		}
-		deletedCount64, _ := res.RowsAffected()
-		deletedCount += int(deletedCount64)
+		if n, _ := res.RowsAffected(); n > 0 {
+			deletedCount += int(n)
+		}
 	}
 
 	fileDeleted := false
 	if strings.TrimSpace(file.FileMD5) != "" {
-		var remaining int
-		if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM media_file WHERE file_md5 = ?", file.FileMD5).Scan(&remaining); err == nil {
+		if remaining, err := s.countAnyMediaFileByMD5(ctx, file.FileMD5); err == nil {
 			if remaining == 0 {
 				fileDeleted = s.fileStore.DeleteFile(storedNormalized)
 			}
@@ -829,12 +915,21 @@ func (s *MediaUploadService) findSendLog(ctx context.Context, remoteURL, fromUse
 }
 
 func (s *MediaUploadService) updateTimeByLocalPathIgnoreUser(ctx context.Context, localPath string, now time.Time) int {
+	updated := 0
+
 	res, err := s.db.ExecContext(ctx, "UPDATE media_file SET update_time = ? WHERE local_path = ?", now, localPath)
-	if err != nil {
-		return 0
+	if err == nil {
+		affected, _ := res.RowsAffected()
+		updated += int(affected)
 	}
-	affected, _ := res.RowsAffected()
-	return int(affected)
+
+	res2, err2 := s.db.ExecContext(ctx, "UPDATE douyin_media_file SET update_time = ? WHERE local_path = ?", now, localPath)
+	if err2 == nil {
+		affected, _ := res2.RowsAffected()
+		updated += int(affected)
+	}
+
+	return updated
 }
 
 func scanMediaFileHistoryRow(row *sql.Row) (*MediaUploadHistory, error) {

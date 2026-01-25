@@ -111,14 +111,14 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 
 			resultSize = len(list)
 
-				if enhanced, err := json.Marshal(list); err == nil {
-					writeText(w, http.StatusOK, string(enhanced))
-					return
-				}
+			if enhanced, err := json.Marshal(list); err == nil {
+				writeText(w, http.StatusOK, string(enhanced))
+				return
 			}
 		}
+	}
 
-		writeText(w, http.StatusOK, body)
+	writeText(w, http.StatusOK, body)
 }
 
 func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) {
@@ -210,14 +210,14 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 
 			resultSize = len(list)
 
-				if enhanced, err := json.Marshal(list); err == nil {
-					writeText(w, http.StatusOK, string(enhanced))
-					return
-				}
+			if enhanced, err := json.Marshal(list); err == nil {
+				writeText(w, http.StatusOK, string(enhanced))
+				return
 			}
 		}
+	}
 
-		writeText(w, http.StatusOK, body)
+	writeText(w, http.StatusOK, body)
 }
 
 func (a *App) handleReportReferrer(w http.ResponseWriter, r *http.Request) {

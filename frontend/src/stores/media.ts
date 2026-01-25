@@ -8,6 +8,8 @@ import { useSystemConfigStore } from '@/stores/systemConfig'
 export const useMediaStore = defineStore('media', () => {
   const uploadedMedia = ref<UploadedMedia[]>([])
   const allUploadImages = ref<UploadedMedia[]>([])
+  const allUploadSource = ref<'all' | 'local' | 'douyin'>('all')
+  const allUploadDouyinSecUserId = ref('')
   const allUploadTotal = ref(0)
   const allUploadPage = ref(1)
   const allUploadPageSize = ref(20)
@@ -73,7 +75,12 @@ export const useMediaStore = defineStore('media', () => {
   const loadAllUploadImages = async (page: number = 1) => {
     allUploadLoading.value = true
     try {
-      const res = await mediaApi.getAllUploadImages(page, allUploadPageSize.value)
+      const source = allUploadSource.value || 'all'
+      const douyinSecUserId = String(allUploadDouyinSecUserId.value || '').trim()
+      const res = await mediaApi.getAllUploadImages(page, allUploadPageSize.value, {
+        source,
+        douyinSecUserId: douyinSecUserId || undefined
+      })
       if (res && Array.isArray(res.data)) {
         // 后端现在返回MediaFileDTO对象数组，直接使用
         const newItems: UploadedMedia[] = res.data.map((item: any) => ({
@@ -123,6 +130,8 @@ export const useMediaStore = defineStore('media', () => {
   return {
     uploadedMedia,
     allUploadImages,
+    allUploadSource,
+    allUploadDouyinSecUserId,
     allUploadTotal,
     allUploadPage,
     allUploadPageSize,

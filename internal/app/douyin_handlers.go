@@ -492,7 +492,7 @@ func extractDouyinAccountUserMeta(secUserID string, data map[string]any) (displa
 	return displayName, signature, avatarURL, profileURL, followerCount, followingCount, awemeCount, totalFavorited
 }
 
-func extractDouyinAccountItems(s *DouyinDownloaderService, data map[string]any) []douyinAccountItem {
+func extractDouyinAccountItems(s *DouyinDownloaderService, secUserID string, data map[string]any) []douyinAccountItem {
 	if data == nil {
 		return nil
 	}
@@ -597,6 +597,7 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, data map[string]any) 
 		coverDownloadURL := ""
 		if s != nil && len(downloads) > 0 {
 			cached := &douyinCachedDetail{
+				SecUserID: secUserID,
 				DetailID:  id,
 				Title:     desc,
 				Type:      defaultString(typeLabel, map[string]string{"video": "视频", "image": "图集"}[displayType]),
@@ -712,7 +713,7 @@ func (a *App) handleDouyinAccount(w http.ResponseWriter, r *http.Request) {
 		hasMore = asBool(data["hasMore"])
 	}
 
-	items := extractDouyinAccountItems(a.douyinDownloader, data)
+	items := extractDouyinAccountItems(a.douyinDownloader, secUserID, data)
 	if items == nil {
 		items = []douyinAccountItem{}
 	}
@@ -1096,11 +1097,14 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := strings.TrimSpace(r.FormValue("userid"))
+	if userID == "" {
+		userID = "pre_identity"
+	}
 	key := strings.TrimSpace(r.FormValue("key"))
 	indexValue := strings.TrimSpace(r.FormValue("index"))
 	index, err := strconv.Atoi(indexValue)
-	if userID == "" || key == "" || indexValue == "" || err != nil || index < 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "userid/key/index 不能为空或非法"})
+	if key == "" || indexValue == "" || err != nil || index < 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "key/index 不能为空或非法"})
 		return
 	}
 
@@ -1164,22 +1168,36 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 
 	// 已导入过则直接复用：避免重复写文件导致孤儿文件
 	if md5Value != "" {
-		if existing, err := a.mediaUpload.findMediaFileByUserAndMD5(r.Context(), userID, md5Value); err == nil && existing != nil {
+		if existing, err := a.mediaUpload.findStoredMediaFileByMD5(r.Context(), md5Value); err == nil && existing != nil && existing.File != nil {
 			_ = a.fileStorage.DeleteFile(localPath)
-			a.imageCache.AddImageToCache(userID, existing.LocalPath)
+			_, _ = a.mediaUpload.SaveDouyinUploadRecord(r.Context(), DouyinUploadRecord{
+				UserID:           userID,
+				SecUserID:        strings.TrimSpace(cached.SecUserID),
+				DetailID:         strings.TrimSpace(cached.DetailID),
+				OriginalFilename: originalFilename,
+				LocalFilename:    existing.File.LocalFilename,
+				RemoteFilename:   existing.File.RemoteFilename,
+				RemoteURL:        existing.File.RemoteURL,
+				LocalPath:        existing.File.LocalPath,
+				FileSize:         existing.File.FileSize,
+				FileType:         existing.File.FileType,
+				FileExtension:    existing.File.FileExtension,
+				FileMD5:          md5Value,
+			})
+			a.imageCache.AddImageToCache(userID, existing.File.LocalPath)
 
 			port := ""
-			if strings.HasPrefix(strings.ToLower(existing.FileType), "video/") || strings.EqualFold(existing.FileExtension, "mp4") {
+			if strings.HasPrefix(strings.ToLower(existing.File.FileType), "video/") || strings.EqualFold(existing.File.FileExtension, "mp4") {
 				port = "8006"
 			} else {
-				port = a.resolveImagePortByConfig(r.Context(), existing.RemoteFilename)
+				port = a.resolveImagePortByConfig(r.Context(), existing.File.RemoteFilename)
 			}
 
 			writeJSON(w, http.StatusOK, map[string]any{
 				"state":         "OK",
-				"msg":           existing.RemoteFilename,
+				"msg":           existing.File.RemoteFilename,
 				"port":          port,
-				"localFilename": existing.LocalFilename,
+				"localFilename": existing.File.LocalFilename,
 				"dedup":         true,
 			})
 			return
@@ -1219,8 +1237,10 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 
 				localFilename := filepath.Base(strings.TrimPrefix(localPath, "/"))
 
-				_, _ = a.mediaUpload.SaveUploadRecord(r.Context(), UploadRecord{
+				_, _ = a.mediaUpload.SaveDouyinUploadRecord(r.Context(), DouyinUploadRecord{
 					UserID:           userID,
+					SecUserID:        strings.TrimSpace(cached.SecUserID),
+					DetailID:         strings.TrimSpace(cached.DetailID),
 					OriginalFilename: originalFilename,
 					LocalFilename:    localFilename,
 					RemoteFilename:   msg,

@@ -427,7 +427,7 @@ func TestExtractDouyinAccountItems(t *testing.T) {
 		},
 	}
 
-	items := extractDouyinAccountItems(s, data)
+	items := extractDouyinAccountItems(s, "sec1", data)
 	if len(items) != 4 {
 		t.Fatalf("len=%d items=%v", len(items), items)
 	}
@@ -444,24 +444,24 @@ func TestExtractDouyinAccountItems(t *testing.T) {
 		t.Fatalf("item3=%v", items[3])
 	}
 
-	noCache := extractDouyinAccountItems(nil, data)
+	noCache := extractDouyinAccountItems(nil, "", data)
 	if len(noCache) != 4 || noCache[0].Key != "" || len(noCache[0].Items) != 0 {
 		t.Fatalf("noCache=%v", noCache[0])
 	}
 }
 
 func TestExtractDouyinAccountItems_EarlyReturns(t *testing.T) {
-	if got := extractDouyinAccountItems(nil, nil); got != nil {
+	if got := extractDouyinAccountItems(nil, "", nil); got != nil {
 		t.Fatalf("expected nil")
 	}
-	if got := extractDouyinAccountItems(nil, map[string]any{"aweme_list": "x"}); got != nil {
+	if got := extractDouyinAccountItems(nil, "", map[string]any{"aweme_list": "x"}); got != nil {
 		t.Fatalf("expected nil")
 	}
-	if got := extractDouyinAccountItems(nil, map[string]any{"aweme_list": []any{}}); got != nil {
+	if got := extractDouyinAccountItems(nil, "", map[string]any{"aweme_list": []any{}}); got != nil {
 		t.Fatalf("expected nil")
 	}
 
-	items := extractDouyinAccountItems(nil, map[string]any{"aweme_list": []any{"not-a-map"}})
+	items := extractDouyinAccountItems(nil, "", map[string]any{"aweme_list": []any{"not-a-map"}})
 	if items == nil || len(items) != 0 {
 		t.Fatalf("items=%v", items)
 	}

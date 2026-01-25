@@ -335,8 +335,8 @@ func TestHandleDouyinImport_DedupExisting(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM media_file.*WHERE user_id = [?] AND file_md5 = [?].*LIMIT 1`).
-		WithArgs("u1", md5Value).
+	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM media_file.*WHERE file_md5 = [?].*LIMIT 1`).
+		WithArgs(md5Value).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "user_id", "original_filename", "local_filename", "remote_filename", "remote_url", "local_path",
 			"file_size", "file_type", "file_extension", "file_md5", "upload_time", "update_time",
@@ -344,6 +344,28 @@ func TestHandleDouyinImport_DedupExisting(t *testing.T) {
 			int64(1), "u1", "o.mp4", "l.mp4", "r.mp4", "http://x", "/videos/x.mp4",
 			int64(4), "video/mp4", "mp4", md5Value, time.Now(), time.Now(),
 		))
+	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM douyin_media_file.*WHERE user_id = [?] AND file_md5 = [?].*LIMIT 1`).
+		WithArgs("u1", md5Value).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec(`(?s)INSERT INTO douyin_media_file`).
+		WithArgs(
+			"u1",
+			sqlmock.AnyArg(),
+			"d",
+			"t.mp4",
+			"l.mp4",
+			"r.mp4",
+			"http://x",
+			"/videos/x.mp4",
+			int64(4),
+			"video/mp4",
+			"mp4",
+			md5Value,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+		).
+		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	uploadRoot := t.TempDir()
 
@@ -414,15 +436,20 @@ func TestHandleDouyinImport_UploadSuccessAndFallback(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM media_file.*WHERE user_id = [?] AND file_md5 = [?].*LIMIT 1`).
+	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM media_file.*WHERE file_md5 = [?].*LIMIT 1`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM douyin_media_file.*WHERE file_md5 = [?].*LIMIT 1`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM douyin_media_file.*WHERE user_id = [?] AND file_md5 = [?].*LIMIT 1`).
 		WithArgs("u1", sqlmock.AnyArg()).
 		WillReturnError(sql.ErrNoRows)
-	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM media_file.*WHERE user_id = [?] AND file_md5 = [?].*LIMIT 1`).
-		WithArgs("u1", sqlmock.AnyArg()).
-		WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec(`(?s)INSERT INTO media_file`).
+	mock.ExpectExec(`(?s)INSERT INTO douyin_media_file`).
 		WithArgs(
 			"u1",
+			sqlmock.AnyArg(),
+			"d",
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			"abc.jpg",
@@ -574,8 +601,8 @@ func TestHandleDouyinImport_DedupExisting_ImagePortByConfig(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM media_file.*WHERE user_id = [?] AND file_md5 = [?].*LIMIT 1`).
-		WithArgs("u1", md5Value).
+	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM media_file.*WHERE file_md5 = [?].*LIMIT 1`).
+		WithArgs(md5Value).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "user_id", "original_filename", "local_filename", "remote_filename", "remote_url", "local_path",
 			"file_size", "file_type", "file_extension", "file_md5", "upload_time", "update_time",
@@ -583,6 +610,28 @@ func TestHandleDouyinImport_DedupExisting_ImagePortByConfig(t *testing.T) {
 			int64(1), "u1", "o.jpg", "l.jpg", "r.jpg", "http://x", "/images/x.jpg",
 			int64(4), "image/jpeg", "jpg", md5Value, time.Now(), time.Now(),
 		))
+	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM douyin_media_file.*WHERE user_id = [?] AND file_md5 = [?].*LIMIT 1`).
+		WithArgs("u1", md5Value).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec(`(?s)INSERT INTO douyin_media_file`).
+		WithArgs(
+			"u1",
+			sqlmock.AnyArg(),
+			"d",
+			"t.jpg",
+			"l.jpg",
+			"r.jpg",
+			"http://x",
+			"/images/x.jpg",
+			int64(4),
+			"image/jpeg",
+			"jpg",
+			md5Value,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+		).
+		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	uploadRoot := t.TempDir()
 	app := &App{
@@ -650,15 +699,20 @@ func TestHandleDouyinImport_UploadSuccess_VideoPort8006(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM media_file.*WHERE user_id = [?] AND file_md5 = [?].*LIMIT 1`).
+	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM media_file.*WHERE file_md5 = [?].*LIMIT 1`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM douyin_media_file.*WHERE file_md5 = [?].*LIMIT 1`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM douyin_media_file.*WHERE user_id = [?] AND file_md5 = [?].*LIMIT 1`).
 		WithArgs("u1", sqlmock.AnyArg()).
 		WillReturnError(sql.ErrNoRows)
-	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM media_file.*WHERE user_id = [?] AND file_md5 = [?].*LIMIT 1`).
-		WithArgs("u1", sqlmock.AnyArg()).
-		WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec(`(?s)INSERT INTO media_file`).
+	mock.ExpectExec(`(?s)INSERT INTO douyin_media_file`).
 		WithArgs(
 			"u1",
+			sqlmock.AnyArg(),
+			"d",
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			"abc.mp4",
@@ -737,8 +791,11 @@ func TestHandleDouyinImport_JSONNotEnhanced_FallsBackToText(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM media_file.*WHERE user_id = [?] AND file_md5 = [?].*LIMIT 1`).
-		WithArgs("u1", sqlmock.AnyArg()).
+	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM media_file.*WHERE file_md5 = [?].*LIMIT 1`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`(?s)SELECT id, user_id, original_filename, local_filename, remote_filename, remote_url, local_path.*FROM douyin_media_file.*WHERE file_md5 = [?].*LIMIT 1`).
+		WithArgs(sqlmock.AnyArg()).
 		WillReturnError(sql.ErrNoRows)
 
 	uploadRoot := t.TempDir()

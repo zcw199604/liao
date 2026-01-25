@@ -234,4 +234,3 @@ func TestUploadAbsPathToUpstream_CoversBranches(t *testing.T) {
 		}
 	})
 }
-

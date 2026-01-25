@@ -80,7 +80,42 @@
 
 ---
 
-### 1.4 `media_send_log`（媒体发送日志）
+### 1.4 `douyin_media_file`（抖音导入媒体库：物理文件与元数据）
+
+**创建位置**：`internal/app/schema.go`（启动时 `CREATE TABLE IF NOT EXISTS`）  
+**SQL 来源**：`sql/init.sql`  
+**相关实现**：`internal/app/douyin_handlers.go`、`internal/app/media_upload.go`、`internal/app/media_history_handlers.go`  
+**用途**：记录“抖音下载 → 导入上传”产生的媒体文件记录。与 `media_file` 分离存储，并额外记录 `sec_user_id`（抖音用户）与 `detail_id`（作品ID），用于在“全站图片库”按抖音用户筛选。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| id | BIGINT | PK, AUTO_INCREMENT | 主键 |
+| user_id | VARCHAR(32) | NOT NULL | 导入时使用的 `user_id`（未选择身份时为 `pre_identity`） |
+| sec_user_id | VARCHAR(128) | 可空 | 抖音 sec_user_id（sec_uid） |
+| detail_id | VARCHAR(64) | 可空 | 作品ID（aweme_id/detail_id） |
+| original_filename | TEXT/VARCHAR | NOT NULL | 原始文件名（按作品标题 best-effort 生成） |
+| local_filename | TEXT/VARCHAR | NOT NULL | 本地存储文件名（basename） |
+| remote_filename | TEXT/VARCHAR | NOT NULL | 上游返回文件名（相对路径） |
+| remote_url | VARCHAR(500) | NOT NULL | 上游可访问 URL |
+| local_path | VARCHAR(500) | NOT NULL | 本地相对路径（以 `/images/...` 或 `/videos/...` 开头） |
+| file_size | BIGINT | NOT NULL | 字节大小 |
+| file_type | VARCHAR(50) | NOT NULL | MIME |
+| file_extension | VARCHAR(10) | NOT NULL | 扩展名（不含点） |
+| file_md5 | VARCHAR(32) | 可空 | MD5（用于去重） |
+| upload_time | DATETIME | NOT NULL | 首次导入上传时间 |
+| update_time | DATETIME | 可空 | 最后活跃时间（用于排序） |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+
+**索引（节选）**
+- `idx_dmf_user_id (user_id)`
+- `idx_dmf_sec_user_id (sec_user_id)`
+- `idx_dmf_detail_id (detail_id)`
+- `idx_dmf_sec_user_md5 (sec_user_id, file_md5)`
+- `idx_dmf_update_time (update_time DESC)`
+
+---
+
+### 1.5 `media_send_log`（媒体发送日志）
 
 **创建位置**：`internal/app/schema.go`（启动时 `CREATE TABLE IF NOT EXISTS`）  
 **相关实现**：`internal/app/media_upload.go`、`internal/app/media_history_handlers.go`  
@@ -103,7 +138,7 @@
 
 ---
 
-### 1.5 `media_upload_history`（历史遗留上传记录表）
+### 1.6 `media_upload_history`（历史遗留上传记录表）
 
 **SQL 来源**：`sql/init.sql`  
 **创建位置**：`internal/app/schema.go`（兜底建表；与 `sql/init.sql` 一致）  
@@ -134,7 +169,7 @@
 
 ---
 
-### 1.6 `image_hash`（本地图片哈希索引表）
+### 1.7 `image_hash`（本地图片哈希索引表）
 
 **用途**：存储本地图片的路径与哈希信息（MD5 + pHash），用于查重与相似图片检索（见 `/api/checkDuplicateMedia`）。  
 **创建位置**：`internal/app/schema.go`（启动时 `CREATE TABLE IF NOT EXISTS`；实际数据通常由外部扫描/入库流程写入）。
@@ -156,7 +191,7 @@
 
 ---
 
-### 1.7 `system_config`（系统全局配置表）
+### 1.8 `system_config`（系统全局配置表）
 
 **用途**：存储系统级全局配置（所有用户共用），以 Key-Value 形式落库，供前端 Settings 面板与后端逻辑读取。  
 **创建位置**：`internal/app/schema.go`（启动时 `CREATE TABLE IF NOT EXISTS`）。
@@ -175,7 +210,7 @@
 
 ---
 
-### 1.8 `video_extract_task`（视频抽帧任务表）
+### 1.9 `video_extract_task`（视频抽帧任务表）
 
 **用途**：记录视频抽帧任务的来源、参数、状态与进度信息；产物目录落在 `./upload/extract/{taskId}/frames/`，由前端“任务中心”分页预览。  
 **创建位置**：`internal/app/schema.go`（启动时 `CREATE TABLE IF NOT EXISTS`）。
@@ -217,7 +252,7 @@
 
 ---
 
-### 1.9 `video_extract_frame`（视频抽帧帧索引表）
+### 1.10 `video_extract_frame`（视频抽帧帧索引表）
 
 **用途**：记录每个任务生成的帧图文件列表，支持按 `seq` 增量分页返回（用于运行中实时预览）。  
 **创建位置**：`internal/app/schema.go`。
@@ -237,7 +272,7 @@
 
 ---
 
-### 1.10 `douyin_favorite_user`（抖音用户收藏，全局）
+### 1.11 `douyin_favorite_user`（抖音用户收藏，全局）
 
 **用途**：存储“已解析后手动收藏”的抖音用户（全局一份，不按本地身份隔离），用于前端收藏列表与一键再次解析。  
 **创建位置**：`internal/app/schema.go`（启动时 `CREATE TABLE IF NOT EXISTS`）。  
@@ -262,7 +297,7 @@
 
 ---
 
-### 1.11 `douyin_favorite_aweme`（抖音作品收藏，全局）
+### 1.12 `douyin_favorite_aweme`（抖音作品收藏，全局）
 
 **用途**：存储“已解析后手动收藏”的抖音作品（全局一份），用于前端收藏列表展示与一键再次解析。  
 **创建位置**：`internal/app/schema.go`（启动时 `CREATE TABLE IF NOT EXISTS`）。  
@@ -286,7 +321,7 @@
 
 ---
 
-### 1.12 `douyin_favorite_user_tag`（抖音用户收藏标签，全局）
+### 1.13 `douyin_favorite_user_tag`（抖音用户收藏标签，全局）
 
 **用途**：用户收藏的“分类标签”定义表（全局共享，不按本地身份隔离）。  
 **创建位置**：`internal/app/schema.go`。  
@@ -306,7 +341,7 @@
 
 ---
 
-### 1.13 `douyin_favorite_user_tag_map`（抖音用户收藏标签映射，全局）
+### 1.14 `douyin_favorite_user_tag_map`（抖音用户收藏标签映射，全局）
 
 **用途**：用户收藏与标签的多对多映射表；一条用户收藏可绑定多个标签。  
 **创建位置**：`internal/app/schema.go`。
@@ -323,7 +358,7 @@
 
 ---
 
-### 1.14 `douyin_favorite_aweme_tag`（抖音作品收藏标签，全局）
+### 1.15 `douyin_favorite_aweme_tag`（抖音作品收藏标签，全局）
 
 **用途**：作品收藏的“分类标签”定义表（全局共享）。与用户收藏标签体系互不影响。  
 **创建位置**：`internal/app/schema.go`。
@@ -342,7 +377,7 @@
 
 ---
 
-### 1.15 `douyin_favorite_aweme_tag_map`（抖音作品收藏标签映射，全局）
+### 1.16 `douyin_favorite_aweme_tag_map`（抖音作品收藏标签映射，全局）
 
 **用途**：作品收藏与标签的多对多映射表；一条作品收藏可绑定多个标签。  
 **创建位置**：`internal/app/schema.go`。

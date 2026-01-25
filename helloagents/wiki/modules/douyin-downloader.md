@@ -91,8 +91,10 @@
 ### 3) 导入上传（加入媒体库）
 `POST /api/douyin/import`：
 - 后端下载媒体 → 保存到 `./upload` → 计算 MD5
-- 若当前用户已存在同 MD5 的媒体记录，则直接复用（避免重复写文件/重复上传；响应 `dedup=true`）
-- 否则按既有上传链路上传到上游图片服务器并写入 `media_file`，最后加入“已上传的文件”缓存
+- 若全局已存在同 MD5 的媒体文件（`media_file` 或 `douyin_media_file`），则直接复用远端文件（避免重复写文件/重复上传），并补写 `douyin_media_file` 记录（包含 `sec_user_id/detail_id` 元信息，便于在“全站图片库”按抖音用户筛选；响应 `dedup=true`）
+- 若不存在，则按既有上传链路上传到上游图片服务器并写入 `douyin_media_file`（包含 `sec_user_id/detail_id` 元信息），最后加入“已上传的文件”缓存
+
+> 说明：当未选择本地身份时，导入上传会使用 `userid=pre_identity` 作为兜底，不影响按抖音 `sec_user_id` 的筛选与归档。
 
 ## 安全与约束
 - **不落库敏感信息**：抖音 `cookie` 不写入服务端存储；前端仅保存在 localStorage 并在请求中透传（页面填写优先）。

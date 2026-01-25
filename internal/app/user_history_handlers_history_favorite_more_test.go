@@ -234,4 +234,3 @@ func TestHandleGetFavoriteUserList_CoversRemainingBranches(t *testing.T) {
 		}
 	})
 }
-

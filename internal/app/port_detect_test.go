@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"net"
-	"sync"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )

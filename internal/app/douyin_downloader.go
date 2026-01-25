@@ -168,6 +168,7 @@ type DouyinDownloaderService struct {
 }
 
 type douyinCachedDetail struct {
+	SecUserID string
 	DetailID  string
 	Title     string
 	Type      string
@@ -386,6 +387,31 @@ func (s *DouyinDownloaderService) FetchDetail(ctx context.Context, detailID, coo
 		return nil, err
 	}
 
+	secUserID := strings.TrimSpace(asString(data["sec_user_id"]))
+	if secUserID == "" {
+		secUserID = strings.TrimSpace(asString(data["secUserId"]))
+	}
+	if secUserID == "" {
+		secUserID = strings.TrimSpace(asString(data["sec_uid"]))
+	}
+	if secUserID == "" {
+		secUserID = strings.TrimSpace(asString(data["secUid"]))
+	}
+	if secUserID == "" {
+		if author, ok := data["author"].(map[string]any); ok && author != nil {
+			secUserID = strings.TrimSpace(asString(author["sec_user_id"]))
+			if secUserID == "" {
+				secUserID = strings.TrimSpace(asString(author["secUserId"]))
+			}
+			if secUserID == "" {
+				secUserID = strings.TrimSpace(asString(author["sec_uid"]))
+			}
+			if secUserID == "" {
+				secUserID = strings.TrimSpace(asString(author["secUid"]))
+			}
+		}
+	}
+
 	title := strings.TrimSpace(asString(data["desc"]))
 	if title == "" {
 		title = detailID
@@ -408,6 +434,7 @@ func (s *DouyinDownloaderService) FetchDetail(ctx context.Context, detailID, coo
 	}
 
 	return &douyinCachedDetail{
+		SecUserID: secUserID,
 		DetailID:  detailID,
 		Title:     title,
 		Type:      typeValue,

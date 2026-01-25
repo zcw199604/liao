@@ -26,9 +26,13 @@ export const updateImgServerAddress = (server: string) => {
 }
 
 // 获取所有上传的图片（全站图片库，不按 userId 过滤）
-export const getAllUploadImages = (page: number, pageSize: number) => {
+export const getAllUploadImages = (
+  page: number,
+  pageSize: number,
+  opts?: { source?: 'all' | 'local' | 'douyin'; douyinSecUserId?: string }
+) => {
   return request.get<any, any>('/getAllUploadImages', {
-    params: { page, pageSize }
+    params: { page, pageSize, ...(opts || {}) }
   })
 }
 

@@ -667,7 +667,7 @@
                     </button>
                     <button
                       class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                      :disabled="batchImport.running || batchDownload.running || !userStore.currentUser"
+                      :disabled="batchImport.running || batchDownload.running"
                       @click="handleBatchImport"
                     >
                       {{ selectionMode ? '导入选中' : '导入全部' }}
@@ -1552,7 +1552,7 @@ const previewIndex = ref(0)
 const previewContextKey = ref('')
 const previewContextItems = ref<DouyinDetailItem[]>([])
 
-const canUpload = computed(() => !!userStore.currentUser)
+const canUpload = computed(() => true)
 
 	type ItemStatus = 'idle' | 'importing' | 'imported' | 'exists' | 'error'
 	type ItemState = { status: ItemStatus; message?: string }
@@ -3155,14 +3155,12 @@ const previewItemState = computed(() => {
 
 const previewUploadLoading = computed(() => previewItemState.value?.status === 'importing')
 const previewUploadDisabled = computed(() => {
-  if (!userStore.currentUser) return true
   const key = String(previewContextKey.value || detail.value?.key || '').trim()
   if (!key) return true
   const st = previewItemState.value?.status
   return st === 'importing' || st === 'imported' || st === 'exists'
 })
 const previewUploadText = computed(() => {
-  if (!userStore.currentUser) return ''
   const st = previewItemState.value?.status
   if (st === 'importing') return '导入中…'
   if (st === 'imported') return '已导入'
@@ -3178,10 +3176,6 @@ const ensureImgServer = async () => {
 }
 
 const importIndex = async (idx: number) => {
-  if (!userStore.currentUser) {
-    show('请先选择身份后再导入上传')
-    return { ok: false, dedup: false, error: '未选择身份' }
-  }
   const key = String(previewContextKey.value || detail.value?.key || '').trim()
   if (!key) return { ok: false, dedup: false, error: '解析信息缺失' }
   if (!await ensureImgServer()) return { ok: false, dedup: false, error: '图片服务器地址未获取' }
@@ -3197,13 +3191,15 @@ const importIndex = async (idx: number) => {
 
   itemStateById[itemId] = { status: 'importing' }
 
-  const cookieData = generateCookie(userStore.currentUser.id, userStore.currentUser.name)
+  const userId = userStore.currentUser?.id || 'pre_identity'
+  const nickname = userStore.currentUser?.name || 'pre_identity'
+  const cookieData = generateCookie(userId, nickname)
   const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
   const userAgent = navigator.userAgent
 
   try {
     const res = await douyinApi.importDouyinMedia({
-      userid: userStore.currentUser.id,
+      userid: userId,
       key,
       index: idx,
       cookieData,
@@ -3250,10 +3246,6 @@ const handleBatchImport = async () => {
     : detail.value.items.map((i) => Number(i.index))
 
   if (!targets.length) return
-  if (!userStore.currentUser) {
-    show('请先选择身份后再导入上传')
-    return
-  }
 
   batchImport.running = true
   batchImport.total = targets.length

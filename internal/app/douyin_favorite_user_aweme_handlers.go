@@ -212,7 +212,7 @@ func (a *App) handleDouyinFavoriteUserAwemePullLatest(w http.ResponseWriter, r *
 		return
 	}
 
-	accountItems := extractDouyinAccountItems(a.douyinDownloader, data)
+	accountItems := extractDouyinAccountItems(a.douyinDownloader, secUserID, data)
 	upserts := make([]DouyinFavoriteUserAwemeUpsert, 0, len(accountItems))
 	for _, it := range accountItems {
 		awemeID := strings.TrimSpace(it.DetailID)

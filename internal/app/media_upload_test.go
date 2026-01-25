@@ -114,6 +114,9 @@ func TestMediaUploadService_DeleteMediaByPath_Success(t *testing.T) {
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM media_file WHERE file_md5 = \?`).
 		WithArgs("md5").
 		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(0))
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM douyin_media_file WHERE file_md5 = \?`).
+		WithArgs("md5").
+		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(0))
 
 	got, err := svc.DeleteMediaByPath(context.Background(), "ignored", "http://example.com/upload"+localPath+"?x=1")
 	if err != nil {
@@ -183,6 +186,9 @@ func TestMediaUploadService_DeleteMediaByPath_FileMD5StillUsed_DoesNotDeleteFile
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM media_file WHERE file_md5 = \?`).
 		WithArgs("md5").
 		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(1))
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM douyin_media_file WHERE file_md5 = \?`).
+		WithArgs("md5").
+		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(0))
 
 	got, err := svc.DeleteMediaByPath(context.Background(), "ignored", localPath)
 	if err != nil {

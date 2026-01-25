@@ -47,12 +47,15 @@ func TestHandleGetAllUploadImages_Success(t *testing.T) {
 		sql.NullTime{Valid: false},
 	)
 
-	mock.ExpectQuery(`(?s)SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time\s+FROM media_file\s+ORDER BY update_time DESC\s+LIMIT \? OFFSET \?`).
+	mock.ExpectQuery(`(?s)FROM media_file.*UNION ALL.*FROM douyin_media_file.*ORDER BY update_time DESC.*LIMIT \? OFFSET \?`).
 		WithArgs(20, 0).
 		WillReturnRows(rows)
 
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM media_file`).
 		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(1))
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM douyin_media_file`).
+		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(0))
 
 	app := &App{
 		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
@@ -456,6 +459,9 @@ func TestHandleDeleteMedia_Success(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 1))
 	}
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM media_file WHERE file_md5 = \?`).
+		WithArgs("md5").
+		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(0))
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM douyin_media_file WHERE file_md5 = \?`).
 		WithArgs("md5").
 		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(0))
 
@@ -969,7 +975,7 @@ func TestHandleGetAllUploadImages_ListError(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`(?s)SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time\s+FROM media_file\s+ORDER BY update_time DESC\s+LIMIT \? OFFSET \?`).
+	mock.ExpectQuery(`(?s)FROM media_file.*UNION ALL.*FROM douyin_media_file.*ORDER BY update_time DESC.*LIMIT \? OFFSET \?`).
 		WithArgs(20, 0).
 		WillReturnError(context.DeadlineExceeded)
 
@@ -995,7 +1001,7 @@ func TestHandleGetAllUploadImages_CountError(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`(?s)SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time\s+FROM media_file\s+ORDER BY update_time DESC\s+LIMIT \? OFFSET \?`).
+	mock.ExpectQuery(`(?s)FROM media_file.*UNION ALL.*FROM douyin_media_file.*ORDER BY update_time DESC.*LIMIT \? OFFSET \?`).
 		WithArgs(20, 0).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"local_filename", "original_filename", "local_path", "file_size", "file_type", "file_extension", "upload_time", "update_time",

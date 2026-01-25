@@ -184,7 +184,7 @@ func TestMediaUploadService_GetAllUploadImagesWithDetails_PageLessThan1_UpdateTi
 	defer cleanup()
 
 	now := time.Now()
-	mock.ExpectQuery(`(?s)SELECT local_filename, original_filename, local_path.*FROM media_file.*LIMIT \? OFFSET \?`).
+	mock.ExpectQuery(`(?s)FROM media_file.*UNION ALL.*FROM douyin_media_file.*LIMIT \? OFFSET \?`).
 		WithArgs(1, 0).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"local_filename", "original_filename", "local_path", "file_size", "file_type", "file_extension", "upload_time", "update_time",
@@ -213,7 +213,7 @@ func TestMediaUploadService_GetAllUploadImagesWithDetails_QueryError(t *testing.
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`(?s)SELECT local_filename, original_filename, local_path.*FROM media_file.*LIMIT \? OFFSET \?`).
+	mock.ExpectQuery(`(?s)FROM media_file.*UNION ALL.*FROM douyin_media_file.*LIMIT \? OFFSET \?`).
 		WithArgs(1, 0).
 		WillReturnError(errors.New("query fail"))
 
@@ -227,7 +227,7 @@ func TestMediaUploadService_GetAllUploadImagesWithDetails_ScanError(t *testing.T
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`(?s)SELECT local_filename, original_filename, local_path.*FROM media_file.*LIMIT \? OFFSET \?`).
+	mock.ExpectQuery(`(?s)FROM media_file.*UNION ALL.*FROM douyin_media_file.*LIMIT \? OFFSET \?`).
 		WithArgs(1, 0).
 		WillReturnRows(sqlmock.NewRows([]string{"local_filename"}).AddRow("x"))
 

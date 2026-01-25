@@ -12,7 +12,7 @@ func TestEnsureSchema_Success(t *testing.T) {
 	defer cleanup()
 
 	// ensureSchema 内部固定有多条 CREATE TABLE IF NOT EXISTS ...
-	for i := 0; i < 16; i++ {
+	for i := 0; i < 17; i++ {
 		mock.ExpectExec(`CREATE TABLE IF NOT EXISTS`).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 	}

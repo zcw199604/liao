@@ -181,13 +181,15 @@ func (a *App) handleGetAllUploadImages(w http.ResponseWriter, r *http.Request) {
 	page := parseIntDefault(r.URL.Query().Get("page"), 1)
 	pageSize := parseIntDefault(r.URL.Query().Get("pageSize"), 20)
 	hostHeader := requestHostHeader(r)
+	source := strings.TrimSpace(r.URL.Query().Get("source"))
+	douyinSecUserID := strings.TrimSpace(r.URL.Query().Get("douyinSecUserId"))
 
-	list, err := a.mediaUpload.GetAllUploadImagesWithDetails(r.Context(), page, pageSize, hostHeader)
+	list, err := a.mediaUpload.GetAllUploadImagesWithDetailsBySource(r.Context(), page, pageSize, hostHeader, source, douyinSecUserID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return
 	}
-	total, err := a.mediaUpload.GetAllUploadImagesCount(r.Context())
+	total, err := a.mediaUpload.GetAllUploadImagesCountBySource(r.Context(), source, douyinSecUserID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return

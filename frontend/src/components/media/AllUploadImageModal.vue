@@ -22,6 +22,52 @@
               {{ mediaStore.managementMode ? '管理已上传图片' : '所有上传图片' }}
             </h3>
             <span class="text-xs text-gray-500 ml-2">(共 {{ mediaStore.allUploadTotal }} 个)</span>
+
+            <div class="flex items-center gap-1 ml-4 bg-[#27272a] border border-gray-700 rounded-lg p-1">
+              <button
+                @click="changeAllUploadSource('all')"
+                :class="mediaStore.allUploadSource === 'all' ? 'bg-gray-600 text-white' : 'text-gray-300 hover:text-white'"
+                class="px-2 py-1 text-xs rounded-md transition"
+              >
+                全部
+              </button>
+              <button
+                @click="changeAllUploadSource('local')"
+                :class="mediaStore.allUploadSource === 'local' ? 'bg-gray-600 text-white' : 'text-gray-300 hover:text-white'"
+                class="px-2 py-1 text-xs rounded-md transition"
+              >
+                本地
+              </button>
+              <button
+                @click="changeAllUploadSource('douyin')"
+                :class="mediaStore.allUploadSource === 'douyin' ? 'bg-gray-600 text-white' : 'text-gray-300 hover:text-white'"
+                class="px-2 py-1 text-xs rounded-md transition"
+              >
+                抖音
+              </button>
+            </div>
+
+            <div v-if="mediaStore.allUploadSource === 'douyin'" class="flex items-center gap-2 ml-3">
+              <input
+                v-model.trim="douyinSecUserIdInput"
+                @keyup.enter="applyDouyinSecUserFilter"
+                class="w-56 px-2 py-1 text-xs rounded-lg bg-[#0f0f12] border border-gray-700 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="抖音 sec_user_id（可选）"
+              />
+              <button
+                @click="applyDouyinSecUserFilter"
+                class="px-2 py-1 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+              >
+                筛选
+              </button>
+              <button
+                v-if="douyinSecUserIdInput"
+                @click="clearDouyinSecUserFilter"
+                class="px-2 py-1 text-xs rounded-lg bg-[#27272a] text-gray-200 hover:bg-[#333] transition"
+              >
+                清除
+              </button>
+            </div>
           </div>
 
           <div class="flex items-center gap-2">
@@ -210,6 +256,38 @@ const previewUrl = ref('')
 const previewType = ref<'image' | 'video' | 'file'>('image')
 const previewCanUpload = ref(false)
 const previewTarget = ref<UploadedMedia | null>(null)
+
+const douyinSecUserIdInput = ref(String(mediaStore.allUploadDouyinSecUserId || '').trim())
+
+const changeAllUploadSource = async (source: 'all' | 'local' | 'douyin') => {
+  if (mediaStore.allUploadSource === source) return
+  mediaStore.allUploadSource = source
+  mediaStore.selectionMode = false
+  mediaStore.selectedImages = []
+  if (source !== 'douyin') {
+    douyinSecUserIdInput.value = ''
+    mediaStore.allUploadDouyinSecUserId = ''
+  }
+  await mediaStore.loadAllUploadImages(1)
+}
+
+const applyDouyinSecUserFilter = async () => {
+  if (mediaStore.allUploadSource !== 'douyin') {
+    await changeAllUploadSource('douyin')
+  }
+  mediaStore.allUploadDouyinSecUserId = String(douyinSecUserIdInput.value || '').trim()
+  mediaStore.selectionMode = false
+  mediaStore.selectedImages = []
+  await mediaStore.loadAllUploadImages(1)
+}
+
+const clearDouyinSecUserFilter = async () => {
+  douyinSecUserIdInput.value = ''
+  mediaStore.allUploadDouyinSecUserId = ''
+  mediaStore.selectionMode = false
+  mediaStore.selectedImages = []
+  await mediaStore.loadAllUploadImages(1)
+}
 
 const close = () => {
   mediaStore.showAllUploadImageModal = false

@@ -310,6 +310,11 @@ func TestMediaUploadService_DeleteMediaByPath_NotFound(t *testing.T) {
 			WithArgs(sqlmock.AnyArg()).
 			WillReturnError(sql.ErrNoRows)
 	}
+	for i := 0; i < 3; i++ {
+		mock.ExpectQuery(`(?s)FROM douyin_media_file.*WHERE local_path = \?.*ORDER BY id LIMIT 1`).
+			WithArgs(sqlmock.AnyArg()).
+			WillReturnError(sql.ErrNoRows)
+	}
 
 	svc := &MediaUploadService{db: db}
 	if _, err := svc.DeleteMediaByPath(context.Background(), "u1", "/images/x.png"); err != ErrDeleteForbidden {

@@ -11,7 +11,7 @@
 ## 入口与交互
 - **聊天页上传菜单:** “所有上传图片”（浏览后发送）/“mtPhoto 相册”
 - **图片管理（Media）:** “所有上传图片”（管理/清理）/“mtPhoto 相册”/“图片查重”
-- **身份选择页（Identity）:** 登录后、选择身份前可打开“图片管理”使用上述入口；其中“导入上传/重新上传到上游”等需要身份信息的操作会提示并禁用
+- **身份选择页（Identity）:** 登录后、选择身份前可打开“图片管理”使用上述入口；其中“重新上传到上游”等需要身份信息的操作会提示并禁用；“抖音下载 → 导入上传”在未选择身份时可使用 `pre_identity` 兜底导入
 
 ## 规范
 
@@ -41,6 +41,7 @@
 ### 需求: 已上传图片浏览（布局切换/无限滚动）
 **模块:** Media
 “已上传的图片”（`AllUploadImageModal`）用于从“全站图片库”分页浏览素材并发送，前端要求：
+- 支持来源切换（`all/local/douyin`）；当选择 `douyin` 来源时支持按抖音 `sec_user_id` 过滤，并在切换/筛选时重置分页与选择状态
 - 支持瀑布流（masonry）与网格（grid）布局切换；为保证按时间排序时的视觉顺序，瀑布流采用“按行从左到右”的布局策略（行优先），并将用户选择持久化到 localStorage（`media_layout_mode`）
 - 支持弹窗“全屏/退出全屏”最大化浏览区域，并将全屏偏好持久化到 localStorage（`media_modal_fullscreen`）；快捷键 `F` 切换全屏，`Esc` 优先退出全屏，否则关闭弹窗（预览打开时由 `MediaPreview` 优先处理）
 - 支持无限滚动加载更多，复用 `InfiniteMediaGrid` 组件统一滚动/加载/空态/结束态逻辑
@@ -101,6 +102,12 @@
 ### [GET] /api/getAllUploadImages
 **描述:** 全站媒体库分页（返回 `data/total/page/pageSize/totalPages/port`）
 
+**Query 参数**
+- `page`：页码（默认 1）
+- `pageSize`：每页数量（默认 20）
+- `source`：数据来源（`all/local/douyin`，默认 `all`）
+- `douyinSecUserId`：抖音 `sec_user_id`（仅 `source=douyin` 时生效）
+
 ### [POST] /api/deleteMedia
 **描述:** 删除单个媒体（DB 记录 + 可能的物理文件删除）
 
@@ -113,6 +120,7 @@
 ## 数据模型
 详见 `helloagents/wiki/data.md`：
 - `media_file`
+- `douyin_media_file`
 - `media_send_log`
 - `media_upload_history`（历史遗留）
 - `image_hash`（图片哈希索引）

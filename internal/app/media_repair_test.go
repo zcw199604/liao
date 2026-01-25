@@ -703,7 +703,7 @@ func TestMediaUploadService_RepairMediaHistory_DedupByLocalPath_DryRunWarns(t *t
 
 	svc := &MediaUploadService{db: db}
 	res, err := svc.RepairMediaHistory(context.Background(), RepairMediaHistoryRequest{
-		Commit:                false,
+		Commit:                 false,
 		FixMissingMD5:          true,
 		DeduplicateByMD5:       true,
 		DeduplicateByLocalPath: true,
@@ -753,7 +753,7 @@ func TestMediaUploadService_RepairMediaHistory_DedupByLocalPath_NoProgressBreakW
 
 	svc := &MediaUploadService{db: db}
 	res, err := svc.RepairMediaHistory(context.Background(), RepairMediaHistoryRequest{
-		Commit:                true,
+		Commit:                 true,
 		FixMissingMD5:          true,
 		DeduplicateByMD5:       true,
 		DeduplicateByLocalPath: true,
