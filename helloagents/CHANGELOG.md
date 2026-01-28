@@ -164,6 +164,8 @@
 - 前端：优化消息列表贴底滚动实现，禁用 scroll anchoring，并避免多套滚动 API 混用导致的渲染抖动。
 - 前端：修复部分设备高度取整偏小导致的输入框遮挡最后一条消息（padding 计算改用 `ceil`，并在视口 `resize` 时刷新测量/贴底）。
 - 前端：新增主题切换（深色/浅色/跟随系统），并将主要页面/组件的硬编码暗色逐步迁移到语义化颜色 tokens（CSS 变量 + Tailwind 映射）；新增设置入口“系统设置→外观→主题”，并补充主题 store 单元测试（`liao-theme-preference`、首屏防闪烁脚本、`documentElement.classList` 同步）。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
 - 修复 `/api/getHistoryUserList` 在上游用户ID字段为 `UserID/userid` 时，未能填充 `lastMsg` / `lastTime` 的问题。
 - 修复上游返回的消息 `id/toid` 与 `myUserID` 不一致时，最后消息缓存会话Key无法命中导致 `lastMsg` / `lastTime` 缺失的问题。
 - 后端：补齐 Go 版 User History/鉴权关键日志，避免容器运行时仅有启动日志。
