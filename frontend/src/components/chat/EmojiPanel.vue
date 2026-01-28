@@ -1,8 +1,8 @@
 <template>
-  <div v-if="visible" class="bg-[#18181b]/60 backdrop-blur-md border-t border-white/5 p-4" @click.stop>
-    <div class="text-xs text-gray-500 mb-3 flex items-center justify-between">
+  <div v-if="visible" class="bg-surface/60 backdrop-blur-md border-t border-line p-4" @click.stop>
+    <div class="text-xs text-fg-subtle mb-3 flex items-center justify-between">
       <span><i class="fas fa-smile mr-1"></i>选择表情</span>
-      <button @click="$emit('update:visible', false)" class="text-white/40 hover:text-white/90 transition-colors">
+      <button @click="$emit('update:visible', false)" class="text-fg/40 hover:text-fg transition-colors">
         <i class="fas fa-times"></i>
       </button>
     </div>
@@ -13,10 +13,10 @@
         v-for="(emojiUrl, text) in emojiMap"
         :key="text"
         @click="handleSelect(text)"
-        class="flex flex-col items-center gap-1 p-3 hover:bg-[#27272a] rounded-xl cursor-pointer transition active:scale-95"
+        class="flex flex-col items-center gap-1 p-3 hover:bg-surface-3 rounded-xl cursor-pointer transition active:scale-95"
       >
         <img :src="emojiUrl" :alt="text" class="w-8 h-8" />
-        <span class="text-[10px] text-gray-500 text-center leading-tight">{{ text }}</span>
+        <span class="text-[10px] text-fg-subtle text-center leading-tight">{{ text }}</span>
       </div>
     </div>
   </div>

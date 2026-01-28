@@ -1,16 +1,16 @@
 <template>
-  <div class="h-full flex flex-col bg-[#1e1e24]">
+  <div class="h-full flex flex-col bg-surface">
      <!-- Header -->
-     <div class="p-4 border-b border-white/5 shrink-0">
-        <h2 class="text-lg font-bold text-white">全局收藏</h2>
-        <p class="text-xs text-gray-400">管理所有身份的收藏联系人</p>
+     <div class="p-4 border-b border-line shrink-0">
+        <h2 class="text-lg font-bold text-fg">全局收藏</h2>
+        <p class="text-xs text-fg-muted">管理所有身份的收藏联系人</p>
      </div>
 
      <!-- List -->
      <PullToRefresh :on-refresh="handleRefresh" class="flex-1 min-h-0">
         <div class="h-full overflow-y-auto p-4 custom-scrollbar">
            <div v-if="favoriteStore.loading && favoriteStore.allFavorites.length === 0" class="space-y-3 py-2">
-              <div v-for="i in 6" :key="'sk-fav-' + i" class="flex items-center justify-between p-3 bg-[#2d2d33] rounded-lg">
+              <div v-for="i in 6" :key="'sk-fav-' + i" class="flex items-center justify-between p-3 bg-surface-active rounded-lg border border-line">
                  <div class="flex items-center gap-3 overflow-hidden">
                     <Skeleton class="w-10 h-10 rounded-full" />
                     <div class="min-w-0">
@@ -22,7 +22,7 @@
               </div>
            </div>
            
-           <div v-else-if="Object.keys(favoriteStore.groupedFavorites).length === 0" class="flex flex-col items-center justify-center mt-20 text-gray-500">
+           <div v-else-if="Object.keys(favoriteStore.groupedFavorites).length === 0" class="flex flex-col items-center justify-center mt-20 text-fg-subtle">
               <i class="fas fa-star text-4xl mb-3 opacity-20"></i>
               <p>暂无收藏</p>
            </div>
@@ -30,35 +30,35 @@
            <div v-else class="space-y-6">
               <div v-for="(favs, identityId) in favoriteStore.groupedFavorites" :key="identityId" class="animate-in fade-in slide-in-from-bottom-2 duration-300">
                  <!-- Identity Header -->
-                 <div class="flex items-center gap-2 mb-2 px-2 sticky top-0 bg-[#1e1e24]/95 backdrop-blur-sm py-2 z-10">
+                 <div class="flex items-center gap-2 mb-2 px-2 sticky top-0 bg-surface/95 backdrop-blur-sm py-2 z-10">
                     <div class="w-1 h-4 bg-indigo-500 rounded-full"></div>
-                    <h3 class="text-sm font-bold text-gray-300">
+                    <h3 class="text-sm font-bold text-fg">
                        {{ getIdentityName(identityId) }}
                     </h3>
-                    <span class="text-xs text-gray-600 font-mono hidden sm:inline">({{ identityId.slice(0, 6) }}...)</span>
+                    <span class="text-xs text-fg-subtle font-mono hidden sm:inline">({{ identityId.slice(0, 6) }}...)</span>
                  </div>
    
                  <!-- Favorites Grid -->
                  <div class="grid grid-cols-1 gap-2">
-                    <div v-for="fav in favs" :key="fav.id" @click="openPreview(fav)" class="group flex items-center justify-between p-3 bg-[#2d2d33] hover:bg-[#35353d] rounded-lg border border-transparent hover:border-indigo-500/30 transition-all cursor-pointer">
+                    <div v-for="fav in favs" :key="fav.id" @click="openPreview(fav)" class="group flex items-center justify-between p-3 bg-surface-3 hover:bg-surface-hover rounded-lg border border-line hover:border-indigo-500/30 transition-all cursor-pointer">
                        <div class="flex items-center gap-3 overflow-hidden">
                           <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-lg">
                              {{ (fav.targetUserName || fav.targetUserId || '?').slice(0, 1).toUpperCase() }}
                           </div>
                           <div class="min-w-0">
-                             <div class="text-sm text-white font-medium truncate">{{ fav.targetUserName || '未知用户' }}</div>
-                             <div class="text-xs text-gray-500 truncate font-mono">{{ fav.targetUserId }}</div>
+                             <div class="text-sm text-fg font-medium truncate">{{ fav.targetUserName || '未知用户' }}</div>
+                             <div class="text-xs text-fg-subtle truncate font-mono">{{ fav.targetUserId }}</div>
                           </div>
                        </div>
    
                        <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button @click.stop="openPreview(fav)" class="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-indigo-400 transition" title="预览聊天">
+                          <button @click.stop="openPreview(fav)" class="w-8 h-8 flex items-center justify-center bg-surface/60 hover:bg-surface-hover rounded-lg text-fg-muted hover:text-indigo-500 transition border border-line" title="预览聊天">
                              <i class="fas fa-eye"></i>
                           </button>
-                          <button @click.stop="directSwitch(fav)" class="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-green-400 transition" title="切换并聊天">
+                          <button @click.stop="directSwitch(fav)" class="w-8 h-8 flex items-center justify-center bg-surface/60 hover:bg-surface-hover rounded-lg text-fg-muted hover:text-green-500 transition border border-line" title="切换并聊天">
                              <i class="fas fa-comment-dots"></i>
                           </button>
-                          <button @click.stop="confirmDelete(fav)" class="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-red-400 transition" title="取消收藏">
+                          <button @click.stop="confirmDelete(fav)" class="w-8 h-8 flex items-center justify-center bg-surface/60 hover:bg-surface-hover rounded-lg text-fg-muted hover:text-red-500 transition border border-line" title="取消收藏">
                              <i class="fas fa-trash-alt"></i>
                           </button>
                        </div>
@@ -81,11 +81,11 @@
 
      <!-- Delete Confirm Dialog -->
      <div v-if="showDeleteDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-        <div class="bg-[#2d2d33] rounded-xl p-6 w-full max-w-sm shadow-xl border border-white/10">
-           <h3 class="text-lg font-bold text-white mb-2">确认删除</h3>
-           <p class="text-gray-400 text-sm mb-6">确定要取消收藏该用户吗？</p>
+        <div class="bg-surface rounded-xl p-6 w-full max-w-sm shadow-xl border border-line">
+           <h3 class="text-lg font-bold text-fg mb-2">确认删除</h3>
+           <p class="text-fg-muted text-sm mb-6">确定要取消收藏该用户吗？</p>
            <div class="flex justify-end gap-3">
-              <button @click="showDeleteDialog = false" class="px-4 py-2 text-gray-400 hover:text-white text-sm">取消</button>
+              <button @click="showDeleteDialog = false" class="px-4 py-2 text-fg-muted hover:text-fg text-sm">取消</button>
               <button @click="executeDelete" class="px-4 py-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg text-sm">删除</button>
            </div>
         </div>

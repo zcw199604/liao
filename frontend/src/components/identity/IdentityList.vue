@@ -4,7 +4,7 @@
       v-for="identity in identities"
       :key="identity.id"
       @click="$emit('select', identity)"
-      class="identity-card flex items-center p-4 mb-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 cursor-pointer transition-colors"
+      class="identity-card flex items-center p-4 mb-3 bg-surface/70 hover:bg-surface/90 rounded-2xl border border-line cursor-pointer transition-colors"
     >
       <!-- 头像 -->
       <div
@@ -17,7 +17,7 @@
       <!-- 信息 -->
       <div class="ml-4 flex-1 min-w-0">
         <div class="flex items-center gap-2 mb-1">
-          <span class="font-bold text-lg text-white">{{ identity.name }}</span>
+          <span class="font-bold text-lg text-fg">{{ identity.name }}</span>
           <span
             class="px-2 py-0.5 text-xs rounded-full"
             :class="identity.sex === '男' ? 'bg-blue-500/20 text-blue-400' : 'bg-pink-500/20 text-pink-400'"
@@ -25,8 +25,8 @@
             {{ identity.sex }}
           </span>
         </div>
-        <p class="text-xs text-gray-500">ID: {{ identity.id.substring(0, 8) }}...</p>
-        <p v-if="identity.created_at || identity.createdAt" class="text-xs text-gray-600 mt-1">
+        <p class="text-xs text-fg-subtle">ID: {{ identity.id.substring(0, 8) }}...</p>
+        <p v-if="identity.created_at || identity.createdAt" class="text-xs text-fg-subtle mt-1">
           最后使用: {{ identity.created_at || identity.createdAt }}
         </p>
       </div>
@@ -39,12 +39,12 @@
         >
           <i class="fas fa-trash-alt text-sm"></i>
         </button>
-        <i class="fas fa-chevron-right text-white/20"></i>
+        <i class="fas fa-chevron-right text-fg/25"></i>
       </div>
     </div>
 
     <!-- 空状态 -->
-    <div v-if="identities.length === 0" class="flex flex-col items-center justify-center mt-20 text-gray-600">
+    <div v-if="identities.length === 0" class="flex flex-col items-center justify-center mt-20 text-fg-subtle">
       <i class="fas fa-user-plus text-5xl mb-4 opacity-50"></i>
       <p class="text-sm">还没有身份，点击上方按钮创建</p>
     </div>

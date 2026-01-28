@@ -1,10 +1,10 @@
 <template>
   <teleport to="body">
     <div v-if="visible" class="fixed inset-0 z-[70] bg-black/50" @click="close">
-      <div class="absolute right-0 top-0 bottom-0 w-80 bg-[#18181b] shadow-2xl overflow-y-auto" @click.stop>
+      <div class="absolute right-0 top-0 bottom-0 w-80 bg-surface shadow-2xl overflow-y-auto" @click.stop>
         <!-- 头部 -->
-        <div class="h-14 flex items-center justify-between px-4 border-b border-white/5 shrink-0">
-          <h2 class="text-lg font-bold text-white">
+        <div class="h-14 flex items-center justify-between px-4 border-b border-line shrink-0">
+          <h2 class="text-lg font-bold text-fg">
             {{ mode === 'identity' ? '身份信息' : mode === 'system' ? '系统设置' : mode === 'media' ? '图片管理' : '全局收藏' }}
           </h2>
           <div class="flex items-center gap-2">
@@ -26,7 +26,7 @@
             </button>
             <button
               @click="close"
-              class="w-10 h-10 flex items-center justify-center text-white/40 hover:text-white/90 transition-colors"
+              class="w-10 h-10 flex items-center justify-center text-fg/40 hover:text-fg transition-colors rounded-lg hover:bg-surface-2"
             >
               <i class="fas fa-times text-xl"></i>
             </button>
@@ -42,61 +42,61 @@
           </div>
 
           <div class="space-y-4">
-            <div class="bg-[#27272a] rounded-xl p-4">
-              <div class="text-xs text-gray-500 mb-2">用户名</div>
+            <div class="bg-surface-3 rounded-xl p-4">
+              <div class="text-xs text-fg-subtle mb-2">用户名</div>
               <input
                 v-if="editMode"
                 v-model="edit.name"
                 type="text"
-                class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-indigo-500 focus:outline-none"
+                class="w-full bg-surface text-fg px-3 py-2 rounded-lg border border-line-strong focus:border-indigo-500 focus:outline-none placeholder-fg-subtle"
                 placeholder="输入用户名"
               />
-              <div v-else class="text-base text-white font-medium">{{ currentUser?.name }}</div>
+              <div v-else class="text-base text-fg font-medium">{{ currentUser?.name }}</div>
             </div>
 
-            <div class="bg-[#27272a] rounded-xl p-4">
-              <div class="text-xs text-gray-500 mb-2">用户ID</div>
+            <div class="bg-surface-3 rounded-xl p-4">
+              <div class="text-xs text-fg-subtle mb-2">用户ID</div>
               <input
                 v-if="editMode"
                 v-model="edit.id"
                 type="text"
-                class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-indigo-500 focus:outline-none font-mono text-sm"
+                class="w-full bg-surface text-fg px-3 py-2 rounded-lg border border-line-strong focus:border-indigo-500 focus:outline-none font-mono text-sm placeholder-fg-subtle"
                 placeholder="输入用户ID"
               />
-              <div v-else class="text-base text-white font-mono text-sm break-all">{{ currentUser?.id }}</div>
+              <div v-else class="text-base text-fg font-mono text-sm break-all">{{ currentUser?.id }}</div>
             </div>
 
-            <div class="bg-[#27272a] rounded-xl p-4">
-              <div class="text-xs text-gray-500 mb-2">性别</div>
+            <div class="bg-surface-3 rounded-xl p-4">
+              <div class="text-xs text-fg-subtle mb-2">性别</div>
               <select
                 v-if="editMode"
                 v-model="edit.sex"
-                class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-indigo-500 focus:outline-none"
+                class="w-full bg-surface text-fg px-3 py-2 rounded-lg border border-line-strong focus:border-indigo-500 focus:outline-none"
               >
                 <option value="男">男</option>
                 <option value="女">女</option>
               </select>
-              <div v-else class="text-base text-white">{{ currentUser?.sex }}</div>
+              <div v-else class="text-base text-fg">{{ currentUser?.sex }}</div>
             </div>
 
-            <div class="bg-[#27272a] rounded-xl p-4">
-              <div class="text-xs text-gray-500 mb-1">IP地址</div>
-              <div class="text-base text-white">{{ currentUser?.ip }}</div>
+            <div class="bg-surface-3 rounded-xl p-4">
+              <div class="text-xs text-fg-subtle mb-1">IP地址</div>
+              <div class="text-base text-fg">{{ currentUser?.ip }}</div>
             </div>
 
-            <div class="bg-[#27272a] rounded-xl p-4">
-              <div class="text-xs text-gray-500 mb-1">地区</div>
-              <div class="text-base text-white">{{ currentUser?.area }}</div>
+            <div class="bg-surface-3 rounded-xl p-4">
+              <div class="text-xs text-fg-subtle mb-1">地区</div>
+              <div class="text-base text-fg">{{ currentUser?.area }}</div>
             </div>
 
-            <div class="bg-[#27272a] rounded-xl p-4">
-              <div class="text-xs text-gray-500 mb-1">Cookie（自动生成）</div>
-              <div class="text-xs text-gray-400 break-all font-mono leading-relaxed">{{ currentUser?.cookie }}</div>
+            <div class="bg-surface-3 rounded-xl p-4">
+              <div class="text-xs text-fg-subtle mb-1">Cookie（自动生成）</div>
+              <div class="text-xs text-fg-muted break-all font-mono leading-relaxed">{{ currentUser?.cookie }}</div>
             </div>
 
-            <div class="bg-[#27272a] rounded-xl p-4">
+            <div class="bg-surface-3 rounded-xl p-4">
               <div class="flex justify-between items-center">
-                <span class="text-sm text-gray-400">WebSocket 状态</span>
+                <span class="text-sm text-fg-muted">WebSocket 状态</span>
                 <div class="flex items-center gap-2">
                   <span class="w-2 h-2 rounded-full" :class="chatStore.wsConnected ? 'bg-green-500' : 'bg-red-500'"></span>
                   <span class="text-sm" :class="chatStore.wsConnected ? 'text-green-500' : 'text-red-500'">
@@ -123,8 +123,8 @@
         <!-- 图片管理 -->
         <div v-else-if="mode === 'media'" class="p-6 space-y-6">
           <!-- 媒体库 -->
-          <div class="bg-[#27272a] rounded-xl p-4">
-             <h3 class="text-white font-medium mb-3 flex items-center gap-2">
+          <div class="bg-surface-3 rounded-xl p-4">
+             <h3 class="text-fg font-medium mb-3 flex items-center gap-2">
                 <i class="fas fa-photo-video text-purple-400"></i>
                 <span>媒体库</span>
              </h3>

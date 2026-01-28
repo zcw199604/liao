@@ -7,7 +7,7 @@
     >
       <div
         :class="[
-          'bg-[#18181b] flex flex-col min-h-0 transition-all duration-200 ease-out',
+          'bg-surface flex flex-col min-h-0 transition-all duration-200 ease-out',
           isFullscreen
             ? 'w-full max-w-none h-full h-[100dvh] rounded-none shadow-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]'
             : 'w-[95%] max-w-[1600px] h-[90vh] h-[90dvh] rounded-2xl shadow-2xl'
@@ -15,11 +15,11 @@
         @click.stop
       >
         <!-- 头部 -->
-	        <div class="flex items-center justify-between px-6 py-4 border-b border-white/5">
+	        <div class="flex items-center justify-between px-6 py-4 border-b border-line">
 	          <div class="flex items-center gap-2 min-w-0">
             <button
               v-if="mtPhotoStore.view === 'album'"
-              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a] flex-shrink-0"
+              class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3 flex-shrink-0"
               @click="mtPhotoStore.backToAlbums"
               title="返回相册列表"
             >
@@ -27,10 +27,10 @@
             </button>
 
             <i class="fas fa-photo-video text-pink-400 flex-shrink-0"></i>
-            <h3 class="text-lg font-bold text-white truncate">
+            <h3 class="text-lg font-bold text-fg truncate">
               {{ titleText }}
             </h3>
-	            <span v-if="subTitleText" class="text-xs text-gray-500 ml-2 flex-shrink-0">
+	            <span v-if="subTitleText" class="text-xs text-fg-subtle ml-2 flex-shrink-0">
 	              {{ subTitleText }}
 	            </span>
 	          </div>
@@ -39,7 +39,7 @@
 	            <button
 	              v-if="mtPhotoStore.view === 'album'"
 	              @click="toggleLayout"
-	              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+	              class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
 	              :title="layoutMode === 'masonry' ? '切换到网格视图' : '切换到瀑布流视图'"
 	            >
 	              <i :class="layoutMode === 'masonry' ? 'fas fa-th' : 'fas fa-stream'"></i>
@@ -47,7 +47,7 @@
 
               <button
                 @click="toggleFullscreen"
-                class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+                class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
                 :title="isFullscreen ? '退出全屏' : '全屏'"
               >
                 <i :class="isFullscreen ? 'fas fa-compress' : 'fas fa-expand'"></i>
@@ -55,7 +55,7 @@
 
 	            <button
 	              @click="close"
-	              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+	              class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
 	            >
 	              <i class="fas fa-times"></i>
 	            </button>
@@ -63,13 +63,13 @@
 	        </div>
 
         <!-- 错误提示 -->
-        <div v-if="mtPhotoStore.lastError" class="px-6 py-3 text-xs text-red-400 border-b border-white/5">
+        <div v-if="mtPhotoStore.lastError" class="px-6 py-3 text-xs text-red-400 border-b border-line">
           {{ mtPhotoStore.lastError }}
         </div>
 
         <!-- 相册列表 -->
         <div v-if="mtPhotoStore.view === 'albums'" class="flex-1 overflow-y-auto p-2 no-scrollbar">
-          <div v-if="mtPhotoStore.albumsLoading" class="flex-1 flex items-center justify-center text-gray-500 text-sm">
+          <div v-if="mtPhotoStore.albumsLoading" class="flex-1 flex items-center justify-center text-fg-subtle text-sm">
             加载中...
           </div>
 
@@ -77,7 +77,7 @@
 	            <button
 	              v-for="album in mtPhotoStore.albums"
 	              :key="album.id"
-	              class="text-left rounded-xl overflow-hidden border border-white/10 hover:border-pink-500 transition-colors bg-[#111113]"
+	              class="text-left rounded-xl overflow-hidden border border-line-strong hover:border-pink-500 transition-colors bg-surface-deep"
 	              @click="mtPhotoStore.openAlbum(album)"
 	            >
 	              <div class="aspect-square bg-black/30 overflow-hidden">
@@ -88,18 +88,18 @@
 	                  class="w-full h-full"
 	                  :show-skeleton="false"
 	                />
-	                <div v-else class="w-full h-full flex items-center justify-center text-gray-500">
+	                <div v-else class="w-full h-full flex items-center justify-center text-fg-subtle">
 	                  <i class="fas fa-images text-3xl opacity-40"></i>
 	                </div>
 	              </div>
 	              <div class="p-3">
-                <div class="text-white font-medium text-sm truncate">{{ album.name }}</div>
-                <div class="text-xs text-gray-500 mt-1">{{ album.count ?? 0 }} 个</div>
+                <div class="text-fg font-medium text-sm truncate">{{ album.name }}</div>
+                <div class="text-xs text-fg-subtle mt-1">{{ album.count ?? 0 }} 个</div>
               </div>
             </button>
           </div>
 
-          <div v-else class="flex-1 flex items-center justify-center text-gray-500 text-sm">
+          <div v-else class="flex-1 flex items-center justify-center text-fg-subtle text-sm">
             暂无相册
           </div>
         </div>
@@ -119,7 +119,7 @@
 		            <MediaTile
 		              :src="getThumbUrl('h220', item.md5)"
 		              type="image"
-		              class="w-full rounded-xl overflow-hidden cursor-pointer border border-white/10 hover:border-pink-500 transition-colors bg-gray-800"
+		              class="w-full rounded-xl overflow-hidden cursor-pointer border border-line-strong hover:border-pink-500 transition-colors bg-surface-3"
 		              :class="layoutMode === 'grid' ? 'h-full' : ''"
 		              :aspect-ratio="layoutMode === 'masonry' && item.width && item.height ? (Number(item.width) / Number(item.height)) : undefined"
 		              :style="layoutMode === 'masonry' ? { contain: 'paint' } : {}"
@@ -135,7 +135,7 @@
 	          </template>
 
           <template #empty>
-            <div class="flex items-center justify-center text-gray-500 text-sm h-full">
+            <div class="flex items-center justify-center text-fg-subtle text-sm h-full">
               暂无媒体
             </div>
           </template>

@@ -2,6 +2,88 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    color-scheme: light;
+
+    /* light theme tokens (RGB channels) */
+    --canvas: 248 250 252;        /* slate-50 */
+    --surface: 255 255 255;       /* white */
+    --surface-2: 241 245 249;     /* slate-100 */
+    --surface-3: 226 232 240;     /* slate-200 */
+    --surface-deep: 241 245 249;  /* slate-100 */
+    --surface-hover: 226 232 240; /* slate-200 */
+    --surface-active: 203 213 225;/* slate-300 */
+
+    --fg: 15 23 42;               /* slate-900 */
+    --fg-muted: 51 65 85;         /* slate-700 */
+    --fg-subtle: 100 116 139;     /* slate-500 */
+
+    --line: 15 23 42;             /* slate-900 */
+    --line-a: 0.12;
+    --line-a-strong: 0.18;
+
+    --glass: 255 255 255;         /* white */
+    --glass-a: 0.75;
+    --glass-a-strong: 0.92;
+
+    --scrollbar: 15 23 42;        /* slate-900 */
+    --scrollbar-a: 0.18;
+    --scrollbar-a-hover: 0.28;
+
+    --spinner: 15 23 42;          /* slate-900 */
+
+    --bubble-other: 15 23 42;     /* slate-900 */
+    --bubble-other-a: 0.04;
+    --bubble-other-line-a: 0.08;
+    --bubble-other-text: 15 23 42;
+
+    --bubble-me-from: 79 70 229;  /* indigo-600 */
+    --bubble-me-to: 67 56 202;    /* indigo-700 */
+    --bubble-me-text: 255 255 255;
+  }
+
+  :root.dark {
+    color-scheme: dark;
+
+    /* dark theme tokens (RGB channels) */
+    --canvas: 15 15 19;           /* #0f0f13 */
+    --surface: 24 24 27;          /* #18181b */
+    --surface-2: 31 31 35;        /* #1f1f23 */
+    --surface-3: 39 39 42;        /* #27272a */
+    --surface-deep: 17 17 19;     /* #111113 */
+    --surface-hover: 63 63 70;    /* #3f3f46 */
+    --surface-active: 45 45 51;   /* #2d2d33 */
+
+    --fg: 244 244 245;            /* #f4f4f5 */
+    --fg-muted: 161 161 170;      /* #a1a1aa */
+    --fg-subtle: 113 113 122;     /* #71717a */
+
+    --line: 255 255 255;
+    --line-a: 0.08;
+    --line-a-strong: 0.12;
+
+    --glass: 24 24 27;            /* #18181b */
+    --glass-a: 0.6;
+    --glass-a-strong: 0.85;
+
+    --scrollbar: 255 255 255;
+    --scrollbar-a: 0.15;
+    --scrollbar-a-hover: 0.25;
+
+    --spinner: 244 244 245;
+
+    --bubble-other: 255 255 255;
+    --bubble-other-a: 0.06;
+    --bubble-other-line-a: 0.06;
+    --bubble-other-text: 244 244 245;
+
+    --bubble-me-from: 79 70 229;
+    --bubble-me-to: 67 56 202;
+    --bubble-me-text: 255 255 255;
+  }
+}
+
 @layer utilities {
     .animate-progress-indeterminate {
         animation: progress-indeterminate 1.5s infinite linear;
@@ -23,8 +105,8 @@
 
 /* 全局样式 - 恢复丢失的核心样式 */
 body {
-  background-color: #0f0f13; /* 恢复原背景色 */
-  color: #e0e0e0;
+  background-color: rgb(var(--canvas));
+  color: rgb(var(--fg));
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
@@ -80,7 +162,7 @@ html, body, #app {
   flex: 1;
   overflow-y: auto;
   padding: 15px;
-  background-color: #0f0f13;
+  background-color: rgb(var(--canvas));
 }
 
 /* 匹配按钮特效 */
@@ -114,9 +196,9 @@ html, body, #app {
   line-height: 1.5;
 }
 .msg-left {
-  background-color: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.92);
+  background-color: rgb(var(--bubble-other) / var(--bubble-other-a));
+  border: 1px solid rgb(var(--bubble-other) / var(--bubble-other-line-a));
+  color: rgb(var(--bubble-other-text));
   border-bottom-left-radius: 6px;
   align-self: flex-start;
   box-shadow:
@@ -124,8 +206,8 @@ html, body, #app {
     0 1px 2px rgba(0, 0, 0, 0.18);
 }
 .msg-right {
-  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
-  color: white;
+  background: linear-gradient(135deg, rgb(var(--bubble-me-from)) 0%, rgb(var(--bubble-me-to)) 100%);
+  color: rgb(var(--bubble-me-text));
   border-bottom-right-radius: 6px;
   align-self: flex-end;
   margin-left: auto;
@@ -138,7 +220,7 @@ html, body, #app {
 .radar-spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid #fff;
+  border: 2px solid rgb(var(--spinner));
   border-top-color: transparent;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -183,11 +265,11 @@ html, body, #app {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgb(var(--scrollbar) / var(--scrollbar-a));
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgb(var(--scrollbar) / var(--scrollbar-a-hover));
 }
 ::-webkit-scrollbar-corner {
   background: transparent;

@@ -20,7 +20,7 @@
                 :src="getMediaUrl(seg.url)"
                 type="image"
                 :fill="false"
-                class="inline-block rounded-lg bg-gray-900/50"
+                class="inline-block rounded-lg bg-surface-3/50"
                 :media-class="[
                   'max-w-full sm:max-w-sm',
                   'max-h-[40vh] min-h-[100px] min-w-[100px]'
@@ -64,19 +64,30 @@
 
             <div
               v-else-if="seg.kind === 'file'"
-              class="p-3 bg-white/10 rounded-lg flex items-center gap-3 min-w-[200px] max-w-sm cursor-pointer hover:bg-white/20 transition border border-white/10 group"
+              class="p-3 rounded-lg flex items-center gap-3 min-w-[200px] max-w-sm cursor-pointer transition border group"
+              :class="message.isSelf ? 'bg-white/10 hover:bg-white/20 border-white/10 text-white' : 'bg-surface-3/70 hover:bg-surface-hover border-line text-fg'"
               @click="downloadUrl(getMediaUrl(seg.url))"
             >
-              <div class="w-12 h-12 bg-gray-800 rounded-lg flex items-center justify-center text-indigo-400 shrink-0">
+              <div
+                class="w-12 h-12 rounded-lg flex items-center justify-center shrink-0"
+                :class="message.isSelf ? 'bg-gray-800 text-indigo-400' : 'bg-surface text-indigo-600 dark:text-indigo-400 border border-line'"
+              >
                 <i class="fas fa-file text-2xl"></i>
               </div>
               <div class="flex-1 overflow-hidden min-w-0">
-                <div class="text-sm truncate text-white/90 font-medium" :title="getFileNameFromUrl(getMediaUrl(seg.url))">
+                <div
+                  class="text-sm truncate font-medium"
+                  :class="message.isSelf ? 'text-white/90' : 'text-fg'"
+                  :title="getFileNameFromUrl(getMediaUrl(seg.url))"
+                >
                   {{ getFileNameFromUrl(getMediaUrl(seg.url)) }}
                 </div>
-                <div class="text-xs text-white/50 mt-0.5">点击下载</div>
+                <div class="text-xs mt-0.5" :class="message.isSelf ? 'text-white/50' : 'text-fg-muted'">点击下载</div>
               </div>
-              <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400 group-hover:bg-white/10 group-hover:text-white transition">
+              <div
+                class="w-8 h-8 rounded-full flex items-center justify-center transition"
+                :class="message.isSelf ? 'bg-white/5 text-gray-300 group-hover:bg-white/10 group-hover:text-white' : 'bg-surface/60 text-fg-muted group-hover:bg-surface-hover group-hover:text-fg border border-line'"
+              >
                 <i class="fas fa-download text-sm"></i>
               </div>
             </div>
@@ -94,7 +105,7 @@
             :src="imageUrl"
             type="image"
             :fill="false"
-            class="inline-block rounded-lg bg-gray-900/50"
+            class="inline-block rounded-lg bg-surface-3/50"
             :media-class="[
                'max-w-full sm:max-w-sm',
                'max-h-[40vh] min-h-[100px] min-w-[100px]'
@@ -133,15 +144,26 @@
         </div>
 
         <!-- 文件消息 -->
-        <div v-else-if="message.isFile" class="p-3 bg-white/10 rounded-lg flex items-center gap-3 min-w-[200px] max-w-sm cursor-pointer hover:bg-white/20 transition border border-white/10 group" @click="downloadFile">
-          <div class="w-12 h-12 bg-gray-800 rounded-lg flex items-center justify-center text-indigo-400 shrink-0">
+        <div
+          v-else-if="message.isFile"
+          class="p-3 rounded-lg flex items-center gap-3 min-w-[200px] max-w-sm cursor-pointer transition border group"
+          :class="message.isSelf ? 'bg-white/10 hover:bg-white/20 border-white/10 text-white' : 'bg-surface-3/70 hover:bg-surface-hover border-line text-fg'"
+          @click="downloadFile"
+        >
+          <div
+            class="w-12 h-12 rounded-lg flex items-center justify-center shrink-0"
+            :class="message.isSelf ? 'bg-gray-800 text-indigo-400' : 'bg-surface text-indigo-600 dark:text-indigo-400 border border-line'"
+          >
              <i class="fas fa-file text-2xl"></i>
           </div>
           <div class="flex-1 overflow-hidden min-w-0">
-             <div class="text-sm truncate text-white/90 font-medium" :title="fileName">{{ fileName }}</div>
-             <div class="text-xs text-white/50 mt-0.5">点击下载</div>
+             <div class="text-sm truncate font-medium" :class="message.isSelf ? 'text-white/90' : 'text-fg'" :title="fileName">{{ fileName }}</div>
+             <div class="text-xs mt-0.5" :class="message.isSelf ? 'text-white/50' : 'text-fg-muted'">点击下载</div>
           </div>
-          <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400 group-hover:bg-white/10 group-hover:text-white transition">
+          <div
+            class="w-8 h-8 rounded-full flex items-center justify-center transition"
+            :class="message.isSelf ? 'bg-white/5 text-gray-300 group-hover:bg-white/10 group-hover:text-white' : 'bg-surface/60 text-fg-muted group-hover:bg-surface-hover group-hover:text-fg border border-line'"
+          >
             <i class="fas fa-download text-sm"></i>
           </div>
         </div>

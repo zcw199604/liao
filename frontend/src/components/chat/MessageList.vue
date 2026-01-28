@@ -23,7 +23,7 @@
             <button
               @click="$emit('loadMore')"
               :disabled="loadingMore || !canLoadMore"
-              class="px-4 py-2 bg-[#27272a] text-gray-400 text-sm rounded-full active:bg-[#3a3a3f] disabled:opacity-50"
+              class="px-4 py-2 bg-surface-3 text-fg-muted text-sm rounded-full active:bg-surface-hover disabled:opacity-50 border border-line"
             >
               <span v-if="loadingMore">加载中...</span>
               <span v-else>{{ canLoadMore ? '查看历史消息' : '暂无更多历史消息' }}</span>
@@ -51,10 +51,10 @@
           >
             <!-- 昵称 + 时间 -->
             <div
-              class="text-xs text-gray-500 mb-1 flex items-center gap-2"
+              class="text-xs text-fg-subtle mb-1 flex items-center gap-2"
               :class="row.message.isSelf ? 'mr-1 justify-end' : 'ml-1'"
             >
-              <span v-if="row.message.fromuser?.nickname" class="font-medium">{{ row.message.fromuser.nickname }}</span>
+              <span v-if="row.message.fromuser?.nickname" class="font-medium text-fg-muted">{{ row.message.fromuser.nickname }}</span>
               <span v-if="row.message.time">{{ formatTime(row.message.time) }}</span>
             </div>
 
@@ -88,22 +88,30 @@
 
                     <div
                       v-else-if="seg.kind === 'file'"
-                      class="p-3 bg-white/10 rounded-lg flex items-center gap-3 min-w-[200px] max-w-sm cursor-pointer hover:bg-white/20 transition border border-white/10 group"
+                      class="p-3 rounded-lg flex items-center gap-3 min-w-[200px] max-w-sm cursor-pointer transition border group"
+                      :class="row.message.isSelf ? 'bg-white/10 hover:bg-white/20 border-white/10 text-white' : 'bg-surface-3/70 hover:bg-surface-hover border-line text-fg'"
                       @click="downloadFile(getMediaUrl(seg.url))"
                     >
-                      <div class="w-12 h-12 bg-gray-800 rounded-lg flex items-center justify-center text-indigo-400 shrink-0">
+                      <div
+                        class="w-12 h-12 rounded-lg flex items-center justify-center shrink-0"
+                        :class="row.message.isSelf ? 'bg-gray-800 text-indigo-400' : 'bg-surface text-indigo-600 dark:text-indigo-400 border border-line'"
+                      >
                         <i class="fas fa-file text-2xl"></i>
                       </div>
                       <div class="flex-1 overflow-hidden min-w-0">
                         <div
-                          class="text-sm truncate text-white/90 font-medium"
+                          class="text-sm truncate font-medium"
+                          :class="row.message.isSelf ? 'text-white/90' : 'text-fg'"
                           :title="getDownloadFileName(getMediaUrl(seg.url))"
                         >
                           {{ getDownloadFileName(getMediaUrl(seg.url)) }}
                         </div>
-                        <div class="text-xs text-white/50 mt-0.5">点击下载</div>
+                        <div class="text-xs mt-0.5" :class="row.message.isSelf ? 'text-white/50' : 'text-fg-muted'">点击下载</div>
                       </div>
-                      <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400 group-hover:bg-white/10 group-hover:text-white transition">
+                      <div
+                        class="w-8 h-8 rounded-full flex items-center justify-center transition"
+                        :class="row.message.isSelf ? 'bg-white/5 text-gray-300 group-hover:bg-white/10 group-hover:text-white' : 'bg-surface/60 text-fg-muted group-hover:bg-surface-hover group-hover:text-fg border border-line'"
+                      >
                         <i class="fas fa-download text-sm"></i>
                       </div>
                     </div>
@@ -143,22 +151,30 @@
                 <!-- 文件 -->
                 <div
                   v-else-if="row.message.isFile"
-                  class="p-3 bg-white/10 rounded-lg flex items-center gap-3 min-w-[200px] max-w-sm cursor-pointer hover:bg-white/20 transition border border-white/10 group"
+                  class="p-3 rounded-lg flex items-center gap-3 min-w-[200px] max-w-sm cursor-pointer transition border group"
+                  :class="row.message.isSelf ? 'bg-white/10 hover:bg-white/20 border-white/10 text-white' : 'bg-surface-3/70 hover:bg-surface-hover border-line text-fg'"
                   @click="downloadFile(getMediaUrl(row.message.fileUrl || row.message.content || ''))"
                 >
-                  <div class="w-12 h-12 bg-gray-800 rounded-lg flex items-center justify-center text-indigo-400 shrink-0">
+                  <div
+                    class="w-12 h-12 rounded-lg flex items-center justify-center shrink-0"
+                    :class="row.message.isSelf ? 'bg-gray-800 text-indigo-400' : 'bg-surface text-indigo-600 dark:text-indigo-400 border border-line'"
+                  >
                     <i class="fas fa-file text-2xl"></i>
                   </div>
                   <div class="flex-1 overflow-hidden min-w-0">
                     <div
-                      class="text-sm truncate text-white/90 font-medium"
+                      class="text-sm truncate font-medium"
+                      :class="row.message.isSelf ? 'text-white/90' : 'text-fg'"
                       :title="getDownloadFileName(getMediaUrl(row.message.fileUrl || row.message.content || ''))"
                     >
                       {{ getDownloadFileName(getMediaUrl(row.message.fileUrl || row.message.content || '')) }}
                     </div>
-                    <div class="text-xs text-white/50 mt-0.5">点击下载</div>
+                    <div class="text-xs mt-0.5" :class="row.message.isSelf ? 'text-white/50' : 'text-fg-muted'">点击下载</div>
                   </div>
-                  <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400 group-hover:bg-white/10 group-hover:text-white transition">
+                  <div
+                    class="w-8 h-8 rounded-full flex items-center justify-center transition"
+                    :class="row.message.isSelf ? 'bg-white/5 text-gray-300 group-hover:bg-white/10 group-hover:text-white' : 'bg-surface/60 text-fg-muted group-hover:bg-surface-hover group-hover:text-fg border border-line'"
+                  >
                     <i class="fas fa-download text-sm"></i>
                   </div>
                 </div>
@@ -172,7 +188,7 @@
               :class="row.message.isSelf ? 'justify-end mr-1' : 'ml-1'"
             >
               <template v-if="row.message.sendStatus === 'sending'">
-                <span class="text-white/50">发送中…</span>
+                <span class="text-fg/50">发送中…</span>
               </template>
               <template v-else>
                 <span class="text-red-400/90">发送失败</span>
@@ -189,11 +205,11 @@
           <!-- 正在输入提示 -->
           <div v-else-if="row.kind === 'typing'" class="flex w-full justify-start mb-3">
             <div class="msg-bubble msg-left flex items-center gap-2">
-              <span class="text-gray-400">正在输入</span>
+              <span class="text-fg-muted">正在输入</span>
               <div class="flex gap-1">
-                <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0s"></span>
-                <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
-                <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.4s"></span>
+                <span class="w-2 h-2 bg-fg-muted/70 rounded-full animate-bounce" style="animation-delay: 0s"></span>
+                <span class="w-2 h-2 bg-fg-muted/70 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+                <span class="w-2 h-2 bg-fg-muted/70 rounded-full animate-bounce" style="animation-delay: 0.4s"></span>
               </div>
             </div>
           </div>
@@ -206,9 +222,9 @@
       <button
         v-if="!isAtBottom || hasNewMessages"
         @click="scrollToBottom(true)"
-        class="fixed right-6 rounded-full shadow-xl flex items-center justify-center text-white transition-all z-10 overflow-hidden group"
+        class="fixed right-6 rounded-full shadow-xl flex items-center justify-center transition-all z-10 overflow-hidden group"
         :style="{ bottom: `${props.floatingBottomOffsetPx}px` }"
-        :class="hasNewMessages ? 'bg-indigo-600 hover:bg-indigo-700 px-4 py-2 gap-2 h-10 w-auto' : 'bg-[#27272a] hover:bg-[#3f3f46] w-10 h-10'"
+        :class="hasNewMessages ? 'bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 gap-2 h-10 w-auto' : 'bg-surface-3 hover:bg-surface-hover text-fg w-10 h-10 border border-line'"
         :title="hasNewMessages ? '有新消息' : '回到底部'"
       >
         <i class="fas fa-arrow-down text-sm transition-transform group-hover:translate-y-0.5"></i>

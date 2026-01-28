@@ -6,25 +6,25 @@
       @click="close"
     >
       <div
-        class="w-full max-w-4xl bg-[#18181b] rounded-2xl shadow-2xl overflow-hidden border border-white/10 flex flex-col max-h-[90vh]"
+        class="w-full max-w-4xl bg-surface rounded-2xl shadow-2xl overflow-hidden border border-line-strong flex flex-col max-h-[90vh]"
         @click.stop
       >
         <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-[#1f1f23]">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-line bg-surface-2">
           <div class="flex items-center gap-3 min-w-0">
             <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
               <i class="fas fa-film text-emerald-400"></i>
             </div>
             <div class="min-w-0">
-              <h3 class="text-lg font-bold text-white truncate">视频抽帧</h3>
-              <p class="text-xs text-gray-500 truncate">
+              <h3 class="text-lg font-bold text-fg truncate">视频抽帧</h3>
+              <p class="text-xs text-fg-subtle truncate">
                 {{ videoExtractStore.createSourceLabel || '选择一个视频后再创建任务' }}
               </p>
             </div>
           </div>
           <div class="flex items-center gap-2">
             <button
-              class="px-3 py-2 text-xs rounded-lg bg-white/10 hover:bg-white/15 text-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              class="px-3 py-2 text-xs rounded-lg bg-surface-3 hover:bg-surface-hover text-fg transition disabled:opacity-50 disabled:cursor-not-allowed border border-line"
               :disabled="!sourcePreviewMedia"
               @click="openSourcePreview"
               title="预览源视频（支持倍速与抓帧）"
@@ -33,7 +33,7 @@
               预览/抓帧
             </button>
             <button
-              class="px-3 py-2 text-xs rounded-lg bg-white/10 hover:bg-white/15 text-gray-200 transition"
+              class="px-3 py-2 text-xs rounded-lg bg-surface-3 hover:bg-surface-hover text-fg transition border border-line"
               :disabled="videoExtractStore.probeLoading"
               @click="refreshProbe"
               title="重新探测视频信息"
@@ -43,7 +43,7 @@
             </button>
             <button
               @click="close"
-              class="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white/90 transition-colors rounded-lg hover:bg-[#27272a]"
+              class="w-8 h-8 flex items-center justify-center text-fg/40 hover:text-fg transition-colors rounded-lg hover:bg-surface-3"
             >
               <i class="fas fa-times"></i>
             </button>
@@ -52,10 +52,10 @@
 
         <div class="flex-1 overflow-y-auto p-6 space-y-6">
           <!-- Probe summary -->
-          <div class="rounded-xl border border-white/5 bg-[#111113] p-4">
+          <div class="rounded-xl border border-line bg-surface-deep p-4">
             <div class="flex items-center justify-between gap-3">
-              <div class="text-sm text-gray-300 font-medium">视频信息</div>
-              <div v-if="videoExtractStore.probeLoading" class="text-xs text-gray-500 flex items-center gap-2">
+              <div class="text-sm text-fg font-medium">视频信息</div>
+              <div v-if="videoExtractStore.probeLoading" class="text-xs text-fg-subtle flex items-center gap-2">
                 <span class="w-3 h-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin"></span>
                 探测中...
               </div>
@@ -66,27 +66,27 @@
             </div>
 
             <div v-else class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div class="rounded-lg bg-[#18181b] border border-white/5 p-3">
-                <div class="text-[11px] text-gray-500 mb-1">宽 × 高</div>
-                <div class="text-sm text-white font-mono">
+              <div class="rounded-lg bg-surface border border-line p-3">
+                <div class="text-[11px] text-fg-subtle mb-1">宽 × 高</div>
+                <div class="text-sm text-fg font-mono">
                   {{ probe?.width || '-' }} × {{ probe?.height || '-' }}
                 </div>
               </div>
-              <div class="rounded-lg bg-[#18181b] border border-white/5 p-3">
-                <div class="text-[11px] text-gray-500 mb-1">时长</div>
-                <div class="text-sm text-white font-mono">
+              <div class="rounded-lg bg-surface border border-line p-3">
+                <div class="text-[11px] text-fg-subtle mb-1">时长</div>
+                <div class="text-sm text-fg font-mono">
                   {{ formatSec(probe?.durationSec) }}
                 </div>
               </div>
-              <div class="rounded-lg bg-[#18181b] border border-white/5 p-3">
-                <div class="text-[11px] text-gray-500 mb-1">平均 FPS</div>
-                <div class="text-sm text-white font-mono">
+              <div class="rounded-lg bg-surface border border-line p-3">
+                <div class="text-[11px] text-fg-subtle mb-1">平均 FPS</div>
+                <div class="text-sm text-fg font-mono">
                   {{ probe?.avgFps ? probe.avgFps.toFixed(2) : '-' }}
                 </div>
               </div>
-              <div class="rounded-lg bg-[#18181b] border border-white/5 p-3">
-                <div class="text-[11px] text-gray-500 mb-1">预计输出</div>
-                <div class="text-sm text-white font-mono">
+              <div class="rounded-lg bg-surface border border-line p-3">
+                <div class="text-[11px] text-fg-subtle mb-1">预计输出</div>
+                <div class="text-sm text-fg font-mono">
                   {{ estimateText }}
                 </div>
               </div>
@@ -97,7 +97,7 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="space-y-4">
               <div>
-                <label class="block text-sm text-gray-400 mb-2">模式</label>
+                <label class="block text-sm text-fg-muted mb-2">模式</label>
                 <div class="grid grid-cols-3 gap-2">
                   <button
                     type="button"
@@ -128,7 +128,7 @@
 
               <div v-if="mode === 'keyframe'" class="space-y-3">
                 <div>
-                  <label class="block text-sm text-gray-400 mb-2">关键帧策略</label>
+                  <label class="block text-sm text-fg-muted mb-2">关键帧策略</label>
                   <div class="grid grid-cols-2 gap-2">
                     <button type="button" class="px-3 py-2 rounded-lg border text-sm transition" :class="keyframeMode === 'iframe' ? activeBtn : idleBtn" @click="keyframeMode = 'iframe'">
                       I 帧
@@ -140,68 +140,68 @@
                 </div>
 
                 <div v-if="keyframeMode === 'scene'">
-                  <label class="block text-sm text-gray-400 mb-2">场景阈值 (0-1)</label>
+                  <label class="block text-sm text-fg-muted mb-2">场景阈值 (0-1)</label>
                   <input
                     v-model.number="sceneThreshold"
                     type="number"
                     min="0"
                     max="1"
                     step="0.01"
-                    class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-emerald-500 focus:outline-none"
+                    class="w-full bg-surface-deep text-fg px-3 py-2 rounded-lg border border-line-strong focus:border-emerald-500 focus:outline-none placeholder-fg-subtle"
                     placeholder="默认 0.30"
                   />
-                  <p class="text-xs text-gray-500 mt-1">数值越大越严格，通常 0.2~0.4</p>
+                  <p class="text-xs text-fg-subtle mt-1">数值越大越严格，通常 0.2~0.4</p>
                 </div>
               </div>
 
               <div v-if="mode === 'fps'">
-                <label class="block text-sm text-gray-400 mb-2">FPS</label>
+                <label class="block text-sm text-fg-muted mb-2">FPS</label>
                 <input
                   v-model.number="fps"
                   type="number"
                   min="0.01"
                   step="0.01"
-                  class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-emerald-500 focus:outline-none"
+                  class="w-full bg-surface-deep text-fg px-3 py-2 rounded-lg border border-line-strong focus:border-emerald-500 focus:outline-none placeholder-fg-subtle"
                   placeholder="例如 1 表示每秒 1 帧"
                 />
               </div>
 
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <label class="block text-sm text-gray-400 mb-2">起始秒</label>
+                  <label class="block text-sm text-fg-muted mb-2">起始秒</label>
                   <input
                     v-model.number="startSec"
                     type="number"
                     min="0"
                     step="0.01"
-                    class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-emerald-500 focus:outline-none"
+                    class="w-full bg-surface-deep text-fg px-3 py-2 rounded-lg border border-line-strong focus:border-emerald-500 focus:outline-none placeholder-fg-subtle"
                     placeholder="可空"
                   />
                 </div>
                 <div>
-                  <label class="block text-sm text-gray-400 mb-2">结束秒</label>
+                  <label class="block text-sm text-fg-muted mb-2">结束秒</label>
                   <input
                     v-model.number="endSec"
                     type="number"
                     min="0"
                     step="0.01"
-                    class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-emerald-500 focus:outline-none"
+                    class="w-full bg-surface-deep text-fg px-3 py-2 rounded-lg border border-line-strong focus:border-emerald-500 focus:outline-none placeholder-fg-subtle"
                     placeholder="可空"
                   />
                 </div>
               </div>
 
               <div>
-                <label class="block text-sm text-gray-400 mb-2">最大帧数上限</label>
+                <label class="block text-sm text-fg-muted mb-2">最大帧数上限</label>
                 <input
                   v-model.number="maxFrames"
                   type="number"
                   min="1"
                   step="1"
-                  class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-emerald-500 focus:outline-none"
+                  class="w-full bg-surface-deep text-fg px-3 py-2 rounded-lg border border-line-strong focus:border-emerald-500 focus:outline-none placeholder-fg-subtle"
                   placeholder="必填，例如 500"
                 />
-                <p class="text-xs mt-1" :class="riskLevel === 'high' ? 'text-red-400' : riskLevel === 'mid' ? 'text-amber-400' : 'text-gray-500'">
+                <p class="text-xs mt-1" :class="riskLevel === 'high' ? 'text-red-400' : riskLevel === 'mid' ? 'text-amber-400' : 'text-fg-subtle'">
                   {{ riskText }}
                 </p>
               </div>
@@ -209,7 +209,7 @@
 
             <div class="space-y-4">
               <div>
-                <label class="block text-sm text-gray-400 mb-2">输出格式</label>
+                <label class="block text-sm text-fg-muted mb-2">输出格式</label>
                 <div class="grid grid-cols-2 gap-2">
                   <button type="button" class="px-3 py-2 rounded-lg border text-sm transition" :class="outputFormat === 'jpg' ? activeBtn : idleBtn" @click="outputFormat = 'jpg'">
                     JPG
@@ -218,25 +218,25 @@
                     PNG
                   </button>
                 </div>
-                <p class="text-xs text-gray-500 mt-1">JPG 体积小；PNG 无损但体积更大</p>
+                <p class="text-xs text-fg-subtle mt-1">JPG 体积小；PNG 无损但体积更大</p>
               </div>
 
               <div v-if="outputFormat === 'jpg'">
-                <label class="block text-sm text-gray-400 mb-2">JPG 质量 (1-31)</label>
+                <label class="block text-sm text-fg-muted mb-2">JPG 质量 (1-31)</label>
                 <input
                   v-model.number="jpgQuality"
                   type="number"
                   min="1"
                   max="31"
                   step="1"
-                  class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-emerald-500 focus:outline-none"
+                  class="w-full bg-surface-deep text-fg px-3 py-2 rounded-lg border border-line-strong focus:border-emerald-500 focus:outline-none placeholder-fg-subtle"
                   placeholder="可空，建议 3~6（数值越小质量越高）"
                 />
               </div>
 
-              <div class="rounded-xl border border-white/5 bg-[#111113] p-4">
-                <div class="text-sm text-gray-300 font-medium mb-2">提交说明</div>
-                <ul class="text-xs text-gray-500 space-y-1 list-disc pl-4">
+              <div class="rounded-xl border border-line bg-surface-deep p-4">
+                <div class="text-sm text-fg font-medium mb-2">提交说明</div>
+                <ul class="text-xs text-fg-subtle space-y-1 list-disc pl-4">
                   <li>任务为异步执行，可在“任务中心”查看进度与预览。</li>
                   <li>达到 endSec / maxFrames 时会以“因限制暂停”状态结束，可继续追加抽帧。</li>
                   <li>运行中可随时终止，已生成的图片会保留在任务目录中。</li>
@@ -247,9 +247,9 @@
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-4 border-t border-white/5 bg-[#1f1f23] flex items-center justify-between gap-3">
+        <div class="px-6 py-4 border-t border-line bg-surface-2 flex items-center justify-between gap-3">
           <button
-            class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-gray-200 transition"
+            class="px-4 py-2 rounded-lg bg-surface-3 hover:bg-surface-hover text-fg transition border border-line"
             @click="close"
           >
             取消
@@ -360,8 +360,8 @@ const submitting = ref(false)
 
 const probe = computed<VideoProbeResult | null>(() => videoExtractStore.probe)
 
-const activeBtn = 'border-emerald-500 bg-emerald-500/10 text-emerald-300'
-const idleBtn = 'border-white/10 bg-[#111113] text-gray-300 hover:border-white/20'
+const activeBtn = 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+const idleBtn = 'border-line bg-surface-3 text-fg-muted hover:bg-surface-hover hover:text-fg'
 
 const formatSec = (sec?: number) => {
   if (!sec || sec <= 0) return '-'

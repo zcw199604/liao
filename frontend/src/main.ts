@@ -4,6 +4,7 @@ import router from './router'
 import './index.css'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import App from './App.vue'
+import { useThemeStore } from '@/stores/theme'
 
 const initAppHeightCssVar = () => {
   if (typeof window === 'undefined' || typeof document === 'undefined') return
@@ -39,6 +40,9 @@ initAppHeightCssVar()
 
 const app = createApp(App)
 
-app.use(createPinia())
+const pinia = createPinia()
+app.use(pinia)
 app.use(router)
+
+useThemeStore(pinia).init()
 app.mount('#app')

@@ -8,7 +8,7 @@
   >
     <template v-if="hasError">
       <slot name="error" :type="resolvedType" :src="src">
-        <div class="w-full h-full flex items-center justify-center text-gray-500 flex-col gap-2 p-4 select-none">
+        <div class="w-full h-full flex items-center justify-center text-fg-subtle flex-col gap-2 p-4 select-none">
           <i :class="errorIconClass"></i>
           <span class="text-xs">{{ errorText }}</span>
         </div>
@@ -50,7 +50,7 @@
         @error="handleError"
       ></video>
 
-      <div v-else-if="resolvedType === 'file'" class="w-full h-full flex items-center justify-center bg-gray-800 text-gray-400">
+      <div v-else-if="resolvedType === 'file'" class="w-full h-full flex items-center justify-center bg-surface-3 text-fg-muted border border-line">
         <slot name="file">
           <i class="fas fa-file text-2xl"></i>
         </slot>
@@ -196,7 +196,7 @@ const containerLoadingClass = computed(() => {
   if (resolvedType.value === 'file') return ''
   if (hasError.value) return ''
 
-  const base = 'bg-zinc-800/70'
+  const base = 'bg-surface-3/60'
   const loadingPulse = shouldLoad.value && !isLoaded.value && !props.showSkeleton ? ' animate-pulse' : ''
   return base + loadingPulse
 })

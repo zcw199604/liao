@@ -1,5 +1,5 @@
 <template>
-  <div class="relative overflow-hidden bg-gray-800" :class="containerClass">
+  <div class="relative overflow-hidden bg-surface-3" :class="containerClass">
     <img
       v-bind="$attrs"
       :src="src"
@@ -12,13 +12,13 @@
     />
     <div
       v-if="!loaded && !error"
-      class="absolute inset-0 flex items-center justify-center bg-[#27272a]"
+      class="absolute inset-0 flex items-center justify-center bg-surface-3"
     >
-      <i class="fas fa-image text-gray-700 text-2xl animate-pulse"></i>
+      <i class="fas fa-image text-fg/20 text-2xl animate-pulse"></i>
     </div>
     <div
         v-if="error"
-        class="absolute inset-0 flex items-center justify-center bg-[#27272a] text-gray-500"
+        class="absolute inset-0 flex items-center justify-center bg-surface-3 text-fg-subtle"
     >
         <i class="fas fa-exclamation-triangle"></i>
     </div>

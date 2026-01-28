@@ -1,19 +1,19 @@
 <template>
   <div v-if="visible" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="close">
-    <div class="bg-[#1e1e24] rounded-xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col overflow-hidden border border-white/5 animate-in fade-in zoom-in duration-200">
+    <div class="bg-surface-2 rounded-xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col overflow-hidden border border-line animate-in fade-in zoom-in duration-200">
       
       <!-- Header -->
-      <div class="px-6 py-4 border-b border-white/5 bg-[#2d2d33] flex items-center justify-between shrink-0">
+      <div class="px-6 py-4 border-b border-line bg-surface-active flex items-center justify-between shrink-0">
         <div>
-           <h3 class="font-bold text-lg text-white flex items-center gap-2">
+           <h3 class="font-bold text-lg text-fg flex items-center gap-2">
              <i class="fas fa-history text-indigo-400"></i>
              历史消息预览
            </h3>
-           <p class="text-xs text-gray-400 mt-1">
-             与 <span class="text-indigo-400 font-mono">{{ targetUserName || targetUserId }}</span> 的聊天记录
+           <p class="text-xs text-fg-muted mt-1">
+             与 <span class="text-indigo-600 dark:text-indigo-300 font-mono">{{ targetUserName || targetUserId }}</span> 的聊天记录
            </p>
         </div>
-        <button @click="close" class="text-white/40 hover:text-white/90 transition-colors w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10">
+        <button @click="close" class="text-fg/40 hover:text-fg transition-colors w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface/60">
           <i class="fas fa-times text-lg"></i>
         </button>
       </div>
@@ -22,24 +22,24 @@
       <div class="flex-1 overflow-y-auto p-4" ref="msgContainer">
          <div v-if="loading" class="flex flex-col items-center justify-center h-full gap-3">
             <div class="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-            <p class="text-xs text-gray-500">正在加载历史记录...</p>
+            <p class="text-xs text-fg-subtle">正在加载历史记录...</p>
          </div>
          
          <div v-else-if="error" class="flex flex-col items-center justify-center h-full text-red-400 gap-2">
             <i class="fas fa-exclamation-circle text-3xl"></i>
             <p>{{ error }}</p>
-            <p class="text-xs text-gray-500">请尝试重新登录该身份以刷新凭证</p>
+            <p class="text-xs text-fg-subtle">请尝试重新登录该身份以刷新凭证</p>
          </div>
 
-         <div v-else-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-gray-500">
+         <div v-else-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-fg-subtle">
             <i class="fas fa-comment-slash text-4xl mb-3 opacity-50"></i>
             <p>暂无聊天记录</p>
          </div>
 
          <template v-else>
             <div v-for="msg in messages" :key="msg.tid || msg.time" class="flex flex-col mb-4 w-full" :class="msg.isSelf ? 'items-end' : 'items-start'">
-               <div class="text-[10px] text-gray-500 mb-1 px-1 flex items-center gap-2">
-                 <span v-if="!msg.isSelf" class="font-medium text-gray-400">{{ msg.fromuser?.nickname }}</span>
+               <div class="text-[10px] text-fg-subtle mb-1 px-1 flex items-center gap-2">
+                 <span v-if="!msg.isSelf" class="font-medium text-fg-muted">{{ msg.fromuser?.nickname }}</span>
                  {{ formatTime(msg.time) }}
                </div>
                
@@ -52,7 +52,7 @@
 	                        <template v-else-if="seg.kind === 'image'">
 	                          <div 
 	                            v-if="failedImageIds.has(`${msg.tid || msg.time}|${idx}`)"
-	                            class="mt-1 rounded-lg bg-gray-800 h-[150px] w-[150px] flex items-center justify-center text-gray-500 flex-col gap-2 p-4 select-none"
+	                            class="mt-1 rounded-lg bg-surface-3 h-[150px] w-[150px] flex items-center justify-center text-fg-subtle flex-col gap-2 p-4 select-none border border-line"
 	                          >
 	                            <i class="fas fa-image-slash text-2xl"></i>
 	                            <span class="text-xs">图片加载失败</span>
@@ -62,7 +62,7 @@
 	                              :src="getMediaUrl(seg.url)"
 	                              type="image"
 	                              :fill="false"
-	                              class="inline-block rounded-lg max-w-full max-h-[300px] min-h-[100px] min-w-[100px] bg-gray-900/50"
+	                              class="inline-block rounded-lg max-w-full max-h-[300px] min-h-[100px] min-w-[100px] bg-surface-3/50"
 	                              :show-skeleton="false"
 	                              @error="handleImageError(msg, idx)"
 	                            />
@@ -81,7 +81,7 @@
 	                        </div>
 
 	                        <div v-else-if="seg.kind === 'file'" class="mt-1">
-	                          <a :href="getMediaUrl(seg.url)" target="_blank" rel="noopener" class="text-indigo-300 underline break-all">
+	                          <a :href="getMediaUrl(seg.url)" target="_blank" rel="noopener" class="text-indigo-600 dark:text-indigo-300 underline break-all">
 	                            {{ seg.path || '文件' }}
 	                          </a>
 	                        </div>
@@ -97,7 +97,7 @@
 	                    <template v-else-if="msg.isImage">
 	                      <div 
 	                        v-if="failedImageIds.has(`${msg.tid || msg.time}|-1`)"
-	                        class="mt-1 rounded-lg bg-gray-800 h-[150px] w-[150px] flex items-center justify-center text-gray-500 flex-col gap-2 p-4 select-none"
+	                        class="mt-1 rounded-lg bg-surface-3 h-[150px] w-[150px] flex items-center justify-center text-fg-subtle flex-col gap-2 p-4 select-none border border-line"
 	                      >
 	                        <i class="fas fa-image-slash text-2xl"></i>
 	                        <span class="text-xs">图片加载失败</span>
@@ -107,7 +107,7 @@
 	                          :src="getMediaUrl(msg.imageUrl || msg.content || '')"
 	                          type="image"
 	                          :fill="false"
-	                          class="inline-block rounded-lg max-w-full max-h-[300px] min-h-[100px] min-w-[100px] bg-gray-900/50"
+	                          class="inline-block rounded-lg max-w-full max-h-[300px] min-h-[100px] min-w-[100px] bg-surface-3/50"
 	                          :show-skeleton="false"
 	                          @error="handleImageError(msg, -1)"
 	                        />
@@ -128,7 +128,7 @@
 
 	                    <!-- 文件 -->
 	                    <div v-else-if="msg.isFile" class="mt-1">
-	                      <a :href="getMediaUrl(msg.fileUrl || msg.content || '')" target="_blank" rel="noopener" class="text-indigo-300 underline break-all">
+	                      <a :href="getMediaUrl(msg.fileUrl || msg.content || '')" target="_blank" rel="noopener" class="text-indigo-600 dark:text-indigo-300 underline break-all">
 	                        {{ msg.fileUrl || msg.content || '文件' }}
 	                      </a>
 	                    </div>
@@ -139,13 +139,13 @@
       </div>
 
       <!-- Footer -->
-      <div class="p-4 border-t border-white/5 bg-[#2d2d33] flex justify-between items-center shrink-0">
-        <span class="text-xs text-gray-500">
+      <div class="p-4 border-t border-line bg-surface-active flex justify-between items-center shrink-0">
+        <span class="text-xs text-fg-subtle">
            <i class="fas fa-info-circle mr-1"></i>
            当前为预览模式，无法发送消息
         </span>
         <div class="flex gap-3">
-          <button @click="close" class="px-4 py-2 text-white/40 hover:text-white/90 text-sm transition-colors">
+          <button @click="close" class="px-4 py-2 text-fg/40 hover:text-fg text-sm transition-colors">
             关闭
           </button>
           <button @click="switchToChat" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-indigo-600/20 flex items-center gap-2">

@@ -20,7 +20,7 @@
       </div>
 
       <!-- 匹配成功：显示用户信息 -->
-      <div v-else class="bg-[#18181b] rounded-2xl p-6 max-w-sm w-full mb-8">
+      <div v-else class="bg-surface rounded-2xl p-6 max-w-sm w-full mb-8">
         <div class="flex items-center gap-4 mb-4">
           <!-- 用户头像 -->
           <div :class="getColorClass(chatStore.currentMatchedUser.id)"
@@ -30,8 +30,8 @@
 
           <!-- 用户信息 -->
           <div class="flex-1 text-left">
-            <h3 class="text-xl font-bold text-white mb-1">{{ chatStore.currentMatchedUser.nickname }}</h3>
-            <div class="flex items-center gap-2 text-sm text-gray-400">
+            <h3 class="text-xl font-bold text-fg mb-1">{{ chatStore.currentMatchedUser.nickname }}</h3>
+            <div class="flex items-center gap-2 text-sm text-fg-muted">
               <span>{{ chatStore.currentMatchedUser.sex }}</span>
               <span>·</span>
               <span>{{ chatStore.currentMatchedUser.age }}岁</span>
@@ -54,7 +54,7 @@
         <button
           v-if="chatStore.continuousMatchConfig.total === 1"
           @click="handleContinueMatch"
-          class="w-full py-3 bg-gray-700 hover:bg-gray-600 rounded-xl text-white font-bold transition active:scale-95"
+          class="w-full py-3 bg-surface-3 hover:bg-surface-hover rounded-xl text-fg font-bold transition active:scale-95 border border-line"
         >
           <i class="fas fa-random mr-2"></i>
           继续匹配

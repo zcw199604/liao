@@ -1,22 +1,22 @@
 <template>
-  <div class="fixed inset-0 z-[200] bg-[#0f0f13] flex items-center justify-center">
+  <div class="fixed inset-0 z-[200] bg-canvas flex items-center justify-center">
     <div class="w-full max-w-md px-6">
       <!-- Logo/标题 -->
       <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold text-white mb-2">匿名匹配</h1>
-        <p class="text-gray-400 text-sm">请输入访问码以继续</p>
+        <h1 class="text-3xl font-bold text-fg mb-2">匿名匹配</h1>
+        <p class="text-fg-muted text-sm">请输入访问码以继续</p>
       </div>
 
       <!-- 登录表单 -->
-      <div class="bg-zinc-900/80 backdrop-blur-xl ring-1 ring-white/10 rounded-2xl p-8 shadow-2xl shadow-indigo-500/10">
+      <div class="bg-surface/80 backdrop-blur-xl ring-1 ring-line rounded-2xl p-8 shadow-2xl shadow-indigo-500/10">
         <div class="mb-6">
-          <label class="block text-gray-300 text-sm font-medium mb-2">访问码</label>
+          <label class="block text-fg-muted text-sm font-medium mb-2">访问码</label>
           <input
             v-model="accessCode"
             type="password"
             placeholder="请输入访问码"
             @keyup.enter="handleLogin"
-            class="w-full px-4 py-3 bg-white/5 text-white rounded-lg border border-white/10 focus:border-white/10 focus:ring-1 focus:ring-indigo-500/50 focus:bg-white/10 focus:outline-none transition"
+            class="w-full px-4 py-3 bg-surface-2 text-fg rounded-lg border border-line-strong focus:border-line-strong focus:ring-1 focus:ring-indigo-500/50 focus:bg-surface-hover focus:outline-none transition placeholder-fg-subtle"
             :disabled="loading"
             autofocus
           />

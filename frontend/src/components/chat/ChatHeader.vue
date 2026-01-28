@@ -1,11 +1,11 @@
 <template>
-  <div class="bg-[#18181b]/60 backdrop-blur-md border-b border-white/5 sticky top-0 z-20 px-4 py-2 shadow-sm">
+  <div class="bg-surface/60 backdrop-blur-md border-b border-line sticky top-0 z-20 px-4 py-2 shadow-sm">
     <div class="flex items-center justify-between mb-1">
       <div class="flex items-center">
         <!-- 侧边栏开关 -->
         <button
           @click="$emit('toggleSidebar')"
-          class="w-10 h-10 -ml-2 flex items-center justify-center text-white/60 hover:text-white/90 hover:bg-white/5 rounded-full transition mr-1"
+          class="w-10 h-10 -ml-2 flex items-center justify-center text-fg/70 hover:text-fg hover:bg-surface/60 rounded-full transition mr-1"
           aria-label="显示列表"
         >
           <i class="fas fa-bars text-lg"></i>
@@ -14,7 +14,7 @@
         <!-- 返回按钮 -->
         <button
           @click="$emit('back')"
-          class="w-10 h-10 flex items-center justify-center text-white/60 hover:text-white/90 hover:bg-white/5 rounded-full transition"
+          class="w-10 h-10 flex items-center justify-center text-fg/70 hover:text-fg hover:bg-surface/60 rounded-full transition"
           aria-label="返回"
         >
           <i class="fas fa-chevron-left text-lg"></i>
@@ -22,10 +22,10 @@
       </div>
       
       <div class="flex flex-col items-center">
-        <div class="font-bold text-base text-white leading-tight mb-0.5">{{ user?.nickname || '未知用户' }}</div>
+        <div class="font-bold text-base text-fg leading-tight mb-0.5">{{ user?.nickname || '未知用户' }}</div>
         
         <!-- 状态信息行 -->
-        <div class="flex items-center justify-center gap-2 text-[11px] text-white/50">
+        <div class="flex items-center justify-center gap-2 text-[11px] text-fg/60">
           <div class="flex items-center gap-1.5" :class="connected ? 'text-emerald-500' : 'text-rose-500'">
             <span
               class="relative inline-flex rounded-full h-2 w-2"
@@ -45,7 +45,7 @@
           
           <!-- 地址 -->
           <div v-if="user?.address && user.address !== '未知' && user.address !== '保密'" class="flex items-center gap-1">
-             <span class="text-white/20">|</span>
+             <span class="text-fg/25">|</span>
              <i class="fas fa-map-marker-alt text-[10px] opacity-60"></i>
              <span>{{ user.address }}</span>
           </div>
@@ -57,7 +57,7 @@
         <!-- 清空记录按钮 -->
         <button
           @click="$emit('clearAndReload')"
-          class="w-10 h-10 flex items-center justify-center text-white/40 hover:text-white/90 hover:bg-white/5 rounded-full transition"
+          class="w-10 h-10 flex items-center justify-center text-fg/40 hover:text-fg hover:bg-surface/60 rounded-full transition"
           title="清空并重新加载聊天记录"
         >
           <i class="fas fa-sync-alt text-sm"></i>
@@ -66,11 +66,11 @@
         <!-- 收藏按钮 -->
         <button
           @click="$emit('toggleFavorite')"
-          class="w-10 h-10 flex items-center justify-center hover:bg-white/5 rounded-full transition"
+          class="w-10 h-10 flex items-center justify-center hover:bg-surface/60 rounded-full transition"
         >
           <i
             class="text-lg transition-transform active:scale-125"
-            :class="user?.isFavorite ? 'fas fa-star text-yellow-500' : 'far fa-star text-white/40'"
+            :class="user?.isFavorite ? 'fas fa-star text-yellow-500' : 'far fa-star text-fg/40'"
           ></i>
         </button>
       </div>

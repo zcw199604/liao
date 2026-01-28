@@ -5,7 +5,7 @@
     :alt="alt"
     :aspect-ratio="effectiveAspectRatio"
     :show-skeleton="true"
-    class="rounded-lg bg-gray-900/50"
+    class="rounded-lg bg-surface-3/50"
     :class="containerClass"
     :controls="type === 'video'"
     @layout="emit('layout')"

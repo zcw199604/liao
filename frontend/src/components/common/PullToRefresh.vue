@@ -15,7 +15,7 @@
         opacity: Math.min(currentPull / threshold, 1)
       }"
     >
-      <div class="pb-3 flex items-center gap-2 text-gray-400 text-sm font-medium">
+      <div class="pb-3 flex items-center gap-2 text-fg-muted text-sm font-medium">
         <div v-if="status === 'refreshing'" class="flex items-center gap-2">
           <svg class="animate-spin h-4 w-4 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

@@ -1,9 +1,9 @@
 <template>
-  <div class="page-container bg-[#0f0f13]">
+  <div class="page-container bg-canvas">
     <!-- 顶部标题 -->
     <div class="pt-8 pb-4 px-4 text-center">
-      <h1 class="text-2xl font-bold text-white mb-2">选择身份</h1>
-      <p class="text-sm text-gray-400">选择一个身份开始聊天，或创建新身份</p>
+      <h1 class="text-2xl font-bold text-fg mb-2">选择身份</h1>
+      <p class="text-sm text-fg-muted">选择一个身份开始聊天，或创建新身份</p>
     </div>
 
     <!-- 操作按钮区 -->
@@ -17,7 +17,7 @@
       </button>
       <button
         @click="showCreateDialog = true"
-        class="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl font-medium border border-white/10 transition-colors"
+        class="flex-1 py-3 bg-surface-2 hover:bg-surface-hover text-fg rounded-xl font-medium border border-line transition-colors"
       >
         <i class="fas fa-plus mr-2"></i>创建身份
       </button>
@@ -27,7 +27,7 @@
     <div class="px-4 mb-4">
       <button
         @click="showMediaDrawer = true"
-        class="w-full py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl font-medium border border-white/10 transition-colors flex items-center justify-center gap-2"
+        class="w-full py-3 bg-surface-2 hover:bg-surface-hover text-fg rounded-xl font-medium border border-line transition-colors flex items-center justify-center gap-2"
       >
         <i class="fas fa-images text-purple-400"></i>
         <span>图片管理</span>
@@ -39,7 +39,7 @@
       <!-- 加载中 -->
       <div v-if="loading" class="flex flex-col items-center justify-center mt-20">
         <div class="radar-spinner"></div>
-        <p class="text-gray-500 text-sm mt-4">加载中...</p>
+        <p class="text-fg-subtle text-sm mt-4">加载中...</p>
       </div>
 
       <!-- 身份卡片列表 -->

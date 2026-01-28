@@ -9,9 +9,9 @@
       v-if="loading && items.length === 0"
       class="flex h-full items-center justify-center"
     >
-      <div class="text-center">
-        <div class="radar-spinner mx-auto mb-3"></div>
-        <p class="text-gray-500 text-sm">加载中...</p>
+        <div class="text-center">
+          <div class="radar-spinner mx-auto mb-3"></div>
+        <p class="text-fg-subtle text-sm">加载中...</p>
       </div>
     </div>
 
@@ -47,8 +47,8 @@
       </div>
 
       <!-- Load More / Finished -->
-      <div v-if="loading" class="flex justify-center py-6 text-gray-500 text-sm w-full">
-        <div class="flex items-center gap-2 bg-[#27272a] px-4 py-2 rounded-full shadow-lg">
+      <div v-if="loading" class="flex justify-center py-6 text-fg-subtle text-sm w-full">
+        <div class="flex items-center gap-2 bg-surface-3 px-4 py-2 rounded-full shadow-lg border border-line">
           <span class="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></span>
           <span>加载更多...</span>
         </div>
@@ -56,9 +56,9 @@
 
       <div
         v-else-if="finished"
-        class="flex justify-center py-8 text-gray-600 text-xs w-full"
+        class="flex justify-center py-8 text-fg-subtle text-xs w-full"
       >
-        <span class="px-3 py-1 bg-[#27272a]/50 rounded-full">
+        <span class="px-3 py-1 bg-surface-3/50 rounded-full border border-line">
            <slot name="finished-text">已加载全部 {{ total ? total + ' 个' : '' }}</slot>
         </span>
       </div>
@@ -67,7 +67,7 @@
     <!-- Empty -->
     <div v-else class="flex h-full items-center justify-center">
        <slot name="empty">
-          <div class="text-center text-gray-500">
+          <div class="text-center text-fg-subtle">
             <i class="fas fa-image text-5xl mb-4 opacity-30"></i>
             <p>暂无数据</p>
           </div>

@@ -1,7 +1,7 @@
 <template>
   <div 
     ref="pageRef" 
-    class="page-container bg-[#0f0f13] relative overflow-hidden"
+    class="page-container bg-canvas relative overflow-hidden"
     :style="{
       transform: `translateX(${pageTranslateX}px)`,
       transition: isPageAnimating ? swipeTransition : 'none'
@@ -12,7 +12,7 @@
       <div
         v-if="showSidebar"
         ref="sidebarRef"
-        class="absolute inset-y-0 left-0 w-[80%] max-w-sm z-50 shadow-2xl bg-[#0f0f13] border-r border-white/5"
+        class="absolute inset-y-0 left-0 w-[80%] max-w-sm z-50 shadow-2xl bg-canvas border-r border-line"
         :style="{
           transform: `translateX(${sidebarTranslateX}px)`,
           transition: isSidebarAnimating ? swipeTransition : 'none'
@@ -132,17 +132,17 @@
         class="fixed inset-0 z-[75] bg-black/70 flex items-center justify-center"
         @click="closeHistoryMediaModal"
       >
-        <div class="w-[90%] max-w-2xl h-[70vh] bg-[#18181b] rounded-2xl shadow-2xl flex flex-col" @click.stop>
-          <div class="flex items-center justify-between px-6 py-4 border-b border-white/5">
+        <div class="w-[90%] max-w-2xl h-[70vh] bg-surface rounded-2xl shadow-2xl flex flex-col" @click.stop>
+          <div class="flex items-center justify-between px-6 py-4 border-b border-line">
             <div class="flex items-center gap-2">
               <i class="fas fa-history text-green-500"></i>
-              <h3 class="text-lg font-bold text-white">
+              <h3 class="text-lg font-bold text-fg">
                 与 {{ chatStore.currentChatUser?.nickname }} 的聊天历史图片
               </h3>
             </div>
             <button
               @click="closeHistoryMediaModal"
-              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+              class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
             >
               <i class="fas fa-times"></i>
             </button>
@@ -151,7 +151,7 @@
           <div v-if="historyMediaLoading" class="flex-1 flex items-center justify-center">
             <div class="text-center">
               <div class="radar-spinner mx-auto mb-3"></div>
-              <p class="text-gray-500 text-sm">加载中...</p>
+              <p class="text-fg-subtle text-sm">加载中...</p>
             </div>
           </div>
 
@@ -162,7 +162,7 @@
                 :key="'history-media-' + idx"
                 :src="media.url"
                 :type="media.type"
-                class="aspect-square rounded-xl overflow-hidden cursor-pointer border-2 border-white/10 hover:border-green-500 hover:scale-105 transition-all"
+                class="aspect-square rounded-xl overflow-hidden cursor-pointer border-2 border-line-strong hover:border-green-500 hover:scale-105 transition-all"
                 :show-skeleton="false"
                 :indicator-size="'md'"
                 :muted="true"
@@ -176,13 +176,13 @@
           </div>
 
           <div v-else class="flex-1 flex items-center justify-center">
-            <div class="text-center text-gray-500">
+            <div class="text-center text-fg-subtle">
               <i class="fas fa-image text-5xl mb-4 opacity-30"></i>
               <p>暂无聊天历史图片</p>
             </div>
           </div>
 
-          <div class="px-6 py-4 border-t border-white/5 text-center text-xs text-gray-500">
+          <div class="px-6 py-4 border-t border-line text-center text-xs text-fg-subtle">
             点击图片/视频预览，在预览中可上传/重新上传，再在上方"已上传的文件"中点击发送
           </div>
         </div>

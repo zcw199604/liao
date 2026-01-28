@@ -7,7 +7,7 @@
     >
       <div
         :class="[
-          'bg-[#18181b] flex flex-col min-h-0 transition-all duration-200 ease-out',
+          'bg-surface flex flex-col min-h-0 transition-all duration-200 ease-out',
           isFullscreen
             ? 'w-full max-w-none h-full h-[100dvh] rounded-none shadow-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]'
             : 'w-[95%] max-w-[1600px] h-[90vh] h-[90dvh] rounded-2xl shadow-2xl'
@@ -15,32 +15,32 @@
         @click.stop
       >
         <!-- 头部 -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-white/5">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-line">
           <div class="flex items-center gap-2">
             <i class="fas fa-images" :class="mediaStore.managementMode ? 'text-purple-500' : 'text-blue-500'"></i>
-            <h3 class="text-lg font-bold text-white">
+            <h3 class="text-lg font-bold text-fg">
               {{ mediaStore.managementMode ? '管理已上传图片' : '所有上传图片' }}
             </h3>
-            <span class="text-xs text-gray-500 ml-2">(共 {{ mediaStore.allUploadTotal }} 个)</span>
+            <span class="text-xs text-fg-subtle ml-2">(共 {{ mediaStore.allUploadTotal }} 个)</span>
 
-            <div class="flex items-center gap-1 ml-4 bg-[#27272a] border border-white/10 rounded-lg p-1">
+            <div class="flex items-center gap-1 ml-4 bg-surface-3 border border-line-strong rounded-lg p-1">
               <button
                 @click="changeAllUploadSource('all')"
-                :class="mediaStore.allUploadSource === 'all' ? 'bg-gray-600 text-white' : 'text-gray-300 hover:text-white'"
+                :class="mediaStore.allUploadSource === 'all' ? 'bg-surface-hover text-fg' : 'text-fg-muted hover:text-fg'"
                 class="px-2 py-1 text-xs rounded-md transition"
               >
                 全部
               </button>
               <button
                 @click="changeAllUploadSource('local')"
-                :class="mediaStore.allUploadSource === 'local' ? 'bg-gray-600 text-white' : 'text-gray-300 hover:text-white'"
+                :class="mediaStore.allUploadSource === 'local' ? 'bg-surface-hover text-fg' : 'text-fg-muted hover:text-fg'"
                 class="px-2 py-1 text-xs rounded-md transition"
               >
                 本地
               </button>
               <button
                 @click="changeAllUploadSource('douyin')"
-                :class="mediaStore.allUploadSource === 'douyin' ? 'bg-gray-600 text-white' : 'text-gray-300 hover:text-white'"
+                :class="mediaStore.allUploadSource === 'douyin' ? 'bg-surface-hover text-fg' : 'text-fg-muted hover:text-fg'"
                 class="px-2 py-1 text-xs rounded-md transition"
               >
                 抖音
@@ -51,7 +51,7 @@
               <input
                 v-model.trim="douyinSecUserIdInput"
                 @keyup.enter="applyDouyinSecUserFilter"
-                class="w-56 px-2 py-1 text-xs rounded-lg bg-[#0f0f12] border border-white/10 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                class="w-56 px-2 py-1 text-xs rounded-lg bg-surface-deep border border-line-strong text-fg placeholder-fg-subtle focus:outline-none focus:ring-1 focus:ring-blue-500"
                 placeholder="抖音 sec_user_id（可选）"
               />
               <button
@@ -63,7 +63,7 @@
               <button
                 v-if="douyinSecUserIdInput"
                 @click="clearDouyinSecUserFilter"
-                class="px-2 py-1 text-xs rounded-lg bg-[#27272a] text-gray-200 hover:bg-[#333] transition"
+                class="px-2 py-1 text-xs rounded-lg bg-surface-3 text-fg hover:bg-surface-hover transition border border-line"
               >
                 清除
               </button>
@@ -83,7 +83,7 @@
 
             <button
               @click="toggleLayout"
-              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+              class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
               :title="layoutMode === 'masonry' ? '切换到网格视图' : '切换到瀑布流视图'"
             >
               <i :class="layoutMode === 'masonry' ? 'fas fa-th' : 'fas fa-stream'"></i>
@@ -91,7 +91,7 @@
 
             <button
               @click="toggleFullscreen"
-              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+              class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
               :title="isFullscreen ? '退出全屏' : '全屏'"
             >
               <i :class="isFullscreen ? 'fas fa-compress' : 'fas fa-expand'"></i>
@@ -99,7 +99,7 @@
 
             <button
               @click="close"
-              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+              class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
             >
               <i class="fas fa-times"></i>
             </button>
@@ -125,7 +125,7 @@
 	                :reveal-top-right="true"
 	                :fill="layoutMode === 'grid' || media.type === 'video'"
 	                :media-class="layoutMode === 'grid' ? '' : (media.type === 'image' ? 'w-full h-auto' : '')"
-	                class="rounded-xl overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] bg-[#27272a]"
+	                class="rounded-xl overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] bg-surface-3"
 	                :class="[
                   mediaStore.selectedImages.includes(media.url) ? 'transform scale-95 ring-2 ring-purple-500' : '',
                   deletingUrls.has(media.url) ? 'opacity-50' : 'hover:brightness-110',
@@ -162,7 +162,7 @@
           </template>
 
           <template #empty>
-            <div class="text-center text-gray-500">
+            <div class="text-center text-fg-subtle">
               <i class="fas fa-image text-5xl mb-4 opacity-30"></i>
               <p>暂无上传记录</p>
             </div>
@@ -174,11 +174,11 @@
         </InfiniteMediaGrid>
 
         <!-- 底部 -->
-        <div v-if="mediaStore.managementMode && mediaStore.selectionMode" class="px-6 py-4 border-t border-white/5">
+        <div v-if="mediaStore.managementMode && mediaStore.selectionMode" class="px-6 py-4 border-t border-line">
           <div class="flex items-center justify-between gap-3">
             <button
               @click="toggleSelectAll"
-              class="px-4 py-2 bg-[#27272a] text-white rounded-lg hover:bg-[#333] transition text-sm"
+              class="px-4 py-2 bg-surface-3 text-fg rounded-lg hover:bg-surface-hover transition text-sm border border-line"
             >
               {{ isAllSelected ? '取消全选' : '全选当前页' }}
             </button>
@@ -197,7 +197,7 @@
           </p>
         </div>
 
-        <div v-else class="px-6 py-4 border-t border-white/5 text-center text-xs text-gray-500">
+        <div v-else class="px-6 py-4 border-t border-line text-center text-xs text-fg-subtle">
           {{ mediaStore.managementMode ? '提示：点击图片预览，右上角可删除（桌面端悬停显示）' : '点击图片预览，在预览中可上传/重新上传，再在上方\"已上传的文件\"中点击发送' }}
         </div>
       </div>

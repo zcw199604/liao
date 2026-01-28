@@ -4,14 +4,14 @@
     class="fixed inset-0 z-[90] bg-black/40 backdrop-blur-sm flex items-center justify-center"
     @click="$emit('update:visible', false)"
   >
-    <div class="w-80 bg-zinc-900/90 ring-1 ring-white/10 rounded-2xl p-6 shadow-2xl" @click.stop>
+    <div class="w-80 bg-surface/90 ring-1 ring-line rounded-2xl p-6 shadow-2xl" @click.stop>
       <div class="text-center mb-4">
         <i class="fas fa-exclamation-triangle text-4xl text-yellow-500 mb-3"></i>
-        <h3 class="text-lg font-bold text-white mb-2">{{ title }}</h3>
-        <p class="text-sm text-gray-400">
+        <h3 class="text-lg font-bold text-fg mb-2">{{ title }}</h3>
+        <p class="text-sm text-fg-muted">
           <slot>{{ content }}</slot>
         </p>
-        <p v-if="showWarning" class="text-xs text-gray-500 mt-1">此操作无法撤销</p>
+        <p v-if="showWarning" class="text-xs text-fg-subtle mt-1">此操作无法撤销</p>
       </div>
 
       <!-- 按钮 -->
@@ -19,7 +19,7 @@
         <button
           v-if="showCancel"
           @click="handleCancel"
-          class="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white/70 rounded-xl border border-white/10 transition-colors"
+          class="flex-1 py-3 bg-surface-2 hover:bg-surface-hover text-fg rounded-xl border border-line transition-colors"
         >
           {{ cancelText }}
         </button>

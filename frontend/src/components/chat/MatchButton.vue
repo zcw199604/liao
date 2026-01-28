@@ -34,13 +34,13 @@
     <!-- 长按菜单 -->
     <div
       v-if="showMenu"
-      class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 bg-[#18181b] rounded-xl shadow-2xl border border-white/10 overflow-hidden"
+      class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 bg-surface rounded-xl shadow-2xl border border-line-strong overflow-hidden"
     >
       <button
         v-for="option in menuOptions"
         :key="option.count"
         @click="handleSelectCount(option.count)"
-        class="w-full px-6 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 transition"
+        class="w-full px-6 py-3 text-left hover:bg-surface-3 text-fg flex items-center gap-3 transition"
       >
         <i :class="option.icon" class="text-blue-400"></i>
         <span>连续匹配 {{ option.count }} 次</span>

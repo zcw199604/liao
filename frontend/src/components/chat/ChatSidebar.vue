@@ -1,12 +1,12 @@
 <template>
-  <div class="flex flex-col h-full bg-[#0f0f13] relative">
+  <div class="flex flex-col h-full bg-canvas relative">
     <!-- 顶部切换栏 -->
-    <div class="flex items-center justify-between pt-4 pb-2 px-4 bg-[#0f0f13] z-10 shrink-0">
+    <div class="flex items-center justify-between pt-4 pb-2 px-4 bg-canvas z-10 shrink-0">
       <!-- 左侧：菜单按钮（下拉） -->
       <div class="relative">
         <button
           @click.stop="handleToggleTopMenu"
-          class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white transition"
+          class="w-10 h-10 flex items-center justify-center text-fg-muted hover:text-fg transition"
         >
           <i class="fas fa-bars text-xl"></i>
         </button>
@@ -15,39 +15,39 @@
         <div
           v-if="showTopMenu"
           @click.stop
-          class="absolute left-0 top-12 w-48 bg-[#18181b] rounded-xl shadow-2xl border border-white/10 z-50"
+          class="absolute left-0 top-12 w-48 bg-surface rounded-xl shadow-2xl border border-line-strong z-50"
         >
           <button
             @click="handleOpenSettings"
-            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 rounded-t-xl transition"
+            class="w-full px-4 py-3 text-left hover:bg-surface-3 text-fg flex items-center gap-3 rounded-t-xl transition"
           >
             <i class="fas fa-user-edit text-blue-400"></i>
             <span>身份信息</span>
           </button>
           <button
             @click="handleOpenSystemSettings"
-            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-white/10 transition"
+            class="w-full px-4 py-3 text-left hover:bg-surface-3 text-fg flex items-center gap-3 border-t border-line-strong transition"
           >
-            <i class="fas fa-cog text-gray-400"></i>
+            <i class="fas fa-cog text-fg-muted"></i>
             <span>系统设置</span>
           </button>
           <button
             @click="handleOpenMediaManagement"
-            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-white/10 transition"
+            class="w-full px-4 py-3 text-left hover:bg-surface-3 text-fg flex items-center gap-3 border-t border-line-strong transition"
           >
             <i class="fas fa-images text-purple-400"></i>
             <span>图片管理</span>
           </button>
           <button
             @click="handleOpenFavorites"
-            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-white/10 transition"
+            class="w-full px-4 py-3 text-left hover:bg-surface-3 text-fg flex items-center gap-3 border-t border-line-strong transition"
           >
             <i class="fas fa-star text-yellow-500"></i>
             <span>全局收藏</span>
           </button>
           <button
             @click="handleSwitchIdentity"
-            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-white/10 rounded-b-xl transition"
+            class="w-full px-4 py-3 text-left hover:bg-surface-3 text-fg flex items-center gap-3 border-t border-line-strong rounded-b-xl transition"
           >
             <i class="fas fa-user-circle text-indigo-400"></i>
             <span>切换身份</span>
@@ -56,17 +56,17 @@
       </div>
 
       <!-- 中间：切换栏 -->
-      <div class="flex bg-[#1f1f22] p-1 rounded-full">
+      <div class="flex bg-surface-2 p-1 rounded-full border border-line">
         <button
           @click="handleTabSwitch('history')"
-          :class="chatStore.activeTab === 'history' ? 'bg-[#2d2d33] text-white shadow-md' : 'text-gray-500'"
+          :class="chatStore.activeTab === 'history' ? 'bg-surface-active text-fg shadow-md' : 'text-fg-subtle'"
           class="px-6 py-1.5 rounded-full text-sm font-medium transition-all duration-300"
         >
           消息
         </button>
         <button
           @click="handleTabSwitch('favorite')"
-          :class="chatStore.activeTab === 'favorite' ? 'bg-[#2d2d33] text-white shadow-md' : 'text-gray-500'"
+          :class="chatStore.activeTab === 'favorite' ? 'bg-surface-active text-fg shadow-md' : 'text-fg-subtle'"
           class="px-6 py-1.5 rounded-full text-sm font-medium transition-all duration-300"
         >
           收藏
@@ -80,7 +80,7 @@
     </div>
 
     <!-- 加载状态指示器 (用于 Tab 切换刷新时的反馈) -->
-    <div v-if="isRefreshing" class="h-0.5 w-full bg-[#18181b] overflow-hidden shrink-0">
+    <div v-if="isRefreshing" class="h-0.5 w-full bg-surface overflow-hidden shrink-0">
        <div class="h-full bg-blue-500 animate-progress-indeterminate"></div>
     </div>
 
@@ -97,7 +97,7 @@
 	      >
 	        <!-- 骨架屏：首次加载用户列表时占位，减少跳动 -->
 	        <template v-if="isInitialLoadingUsers && (!chatStore.displayList || chatStore.displayList.length === 0)">
-	          <div v-for="i in 8" :key="'sk-user-' + i" class="flex items-center p-4 mb-3 bg-[#18181b] rounded-2xl">
+	          <div v-for="i in 8" :key="'sk-user-' + i" class="flex items-center p-4 mb-3 bg-surface rounded-2xl">
 	            <Skeleton class="w-12 h-12 rounded-xl" />
 	            <div class="ml-4 flex-1 min-w-0">
 	              <Skeleton class="h-4 w-28 rounded" />
@@ -121,7 +121,7 @@
 	            @mouseup="endLongPress"
 	            @mouseleave="cancelLongPress"
 	            @contextmenu.prevent="handleContextMenu(user, $event)"
-	            class="flex items-center p-4 mb-3 bg-[#18181b] rounded-2xl active:scale-[0.98] transition-transform duration-100 cursor-pointer select-none"
+	            class="flex items-center p-4 mb-3 bg-surface rounded-2xl active:scale-[0.98] transition-transform duration-100 cursor-pointer select-none"
 	            :class="{ 'border border-blue-500/30': currentUserId === user.id }"
 	          >
 	            <!-- 纯色块代替头像 -->
@@ -136,7 +136,7 @@
 	            <div class="ml-4 flex-1 min-w-0">
 	              <div class="flex justify-between items-baseline mb-1">
 	                <div class="flex items-center gap-2 truncate">
-	                  <span class="font-bold text-base text-white truncate">{{ user.nickname }}</span>
+	                  <span class="font-bold text-base text-fg truncate">{{ user.nickname }}</span>
 	                  <!-- 性别年龄标签 -->
 	                  <span 
 	                    v-if="user.sex !== '未知' || (user.age && user.age !== '0')"
@@ -148,16 +148,16 @@
 	                    <span v-if="user.age && user.age !== '0'">{{ user.age }}</span>
 	                  </span>
 	                </div>
-	                <span class="text-xs text-gray-500 shrink-0 ml-2">{{ formatTime(user.lastTime || '') }}</span>
+	                <span class="text-xs text-fg-subtle shrink-0 ml-2">{{ formatTime(user.lastTime || '') }}</span>
 	              </div>
 	              
 	              <div class="flex justify-between items-center">
 	                <div class="flex items-center gap-2 min-w-0 flex-1">
 	                   <!-- 地址显示 (如果有) -->
-	                   <span v-if="user.address && user.address !== '未知' && user.address !== '保密'" class="px-1.5 py-0.5 bg-gray-700/50 rounded text-[10px] text-gray-400 truncate max-w-[80px]">
+	                   <span v-if="user.address && user.address !== '未知' && user.address !== '保密'" class="px-1.5 py-0.5 bg-surface-3/70 rounded text-[10px] text-fg-muted truncate max-w-[80px]">
 	                     {{ user.address }}
 	                   </span>
-	                   <p class="text-sm text-gray-400 truncate flex-1">{{ user.lastMsg }}</p>
+	                   <p class="text-sm text-fg-muted truncate flex-1">{{ user.lastMsg }}</p>
 	                </div>
 	                <!-- 收藏标识 -->
 	                <i v-if="user.isFavorite && chatStore.activeTab === 'history'" class="fas fa-star text-xs text-yellow-500 ml-2 shrink-0"></i>
@@ -178,7 +178,7 @@
 	          <!-- 空状态提示 -->
 	          <div
 	            v-if="(!chatStore.displayList || chatStore.displayList.length === 0) && !isInitialLoadingUsers"
-	            class="flex flex-col items-center justify-center mt-20 text-gray-600"
+	            class="flex flex-col items-center justify-center mt-20 text-fg-subtle"
 	          >
 	            <i class="far fa-comments text-5xl mb-4 opacity-50"></i>
 	            <p class="text-sm">暂无{{ chatStore.activeTab === 'history' ? '消息' : '收藏' }}</p>
@@ -190,28 +190,28 @@
     <!-- 上下文菜单 (长按/右键触发) -->
     <div
       v-if="showContextMenu && contextMenuUser"
-      class="fixed z-50 w-32 bg-[#27272a] rounded-lg shadow-xl border border-white/10 overflow-hidden"
+      class="fixed z-50 w-32 bg-surface-3 rounded-lg shadow-xl border border-line-strong overflow-hidden"
       :style="{ top: contextMenuPos.y + 'px', left: contextMenuPos.x + 'px' }"
       @click.stop
     >
       <button
         @click="handleCheckOnlineStatus(contextMenuUser!)"
-        class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#3f3f46] hover:text-white flex items-center gap-2 transition border-b border-white/10"
+        class="w-full px-4 py-2 text-left text-sm text-fg-muted hover:bg-surface-hover hover:text-fg flex items-center gap-2 transition border-b border-line-strong"
       >
         <i class="fas fa-signal text-xs text-green-500"></i>
         <span>在线记录</span>
       </button>
       <button
         @click="handleToggleGlobalFavorite(contextMenuUser!)"
-        class="w-full px-4 py-2 text-left text-sm hover:bg-[#3f3f46] hover:text-white flex items-center gap-2 transition border-b border-white/10"
-        :class="isGlobalFavorite(contextMenuUser!) ? 'text-yellow-500' : 'text-gray-300'"
+        class="w-full px-4 py-2 text-left text-sm hover:bg-surface-hover hover:text-fg flex items-center gap-2 transition border-b border-line-strong"
+        :class="isGlobalFavorite(contextMenuUser!) ? 'text-yellow-500' : 'text-fg-muted'"
       >
         <i class="fas fa-star text-xs"></i>
         <span>{{ isGlobalFavorite(contextMenuUser!) ? '取消全局收藏' : '全局收藏' }}</span>
       </button>
       <button
         @click="confirmDeleteUser(contextMenuUser!)"
-        class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-[#3f3f46] hover:text-red-300 flex items-center gap-2 transition"
+        class="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-surface-hover hover:text-red-400 flex items-center gap-2 transition"
       >
         <i class="fas fa-trash-alt text-xs"></i>
         <span>删除会话</span>
@@ -252,12 +252,12 @@
     >
       <div class="text-center py-4 space-y-3">
         <div class="flex items-center justify-center gap-2">
-           <div class="text-gray-400">当前状态:</div>
-           <div :class="onlineStatusData.isOnline ? 'text-green-500 font-bold' : 'text-gray-500 font-bold'">
+           <div class="text-fg-muted">当前状态:</div>
+           <div :class="onlineStatusData.isOnline ? 'text-green-500 font-bold' : 'text-fg-subtle font-bold'">
              {{ onlineStatusData.isOnline ? '在线' : '离线' }}
            </div>
         </div>
-        <div class="text-sm text-gray-500">
+        <div class="text-sm text-fg-subtle">
           最近登录: {{ onlineStatusData.lastTime || '未知' }}
         </div>
       </div>

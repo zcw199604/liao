@@ -6,15 +6,15 @@
       @click="close"
     >
       <div
-        class="w-full md:max-w-6xl h-[100dvh] md:h-[88vh] bg-[#18181b] rounded-none md:rounded-2xl shadow-2xl flex flex-col overflow-hidden border-0 md:border border-white/10 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] md:pt-0 md:pb-0"
+        class="w-full md:max-w-6xl h-[100dvh] md:h-[88vh] bg-surface rounded-none md:rounded-2xl shadow-2xl flex flex-col overflow-hidden border-0 md:border border-line-strong pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] md:pt-0 md:pb-0"
         @click.stop
       >
         <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-[#1f1f23]">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-line bg-surface-2">
           <div class="flex items-center gap-3 min-w-0">
             <button
               v-if="isMobile && mobilePane === 'detail'"
-              class="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white/90 transition-colors rounded-lg hover:bg-[#27272a]"
+              class="w-8 h-8 flex items-center justify-center text-fg/40 hover:text-fg transition-colors rounded-lg hover:bg-surface-3"
               @click="backToList"
               title="返回任务列表"
             >
@@ -24,15 +24,15 @@
               <i class="fas fa-tasks text-purple-400"></i>
             </div>
             <div class="min-w-0">
-              <h3 class="text-lg font-bold text-white truncate">抽帧任务中心</h3>
-              <p class="text-xs text-gray-500 truncate">
+              <h3 class="text-lg font-bold text-fg truncate">抽帧任务中心</h3>
+              <p class="text-xs text-fg-subtle truncate">
                 {{ videoExtractStore.polling ? '实时刷新中' : '可刷新查看最新状态' }}
               </p>
             </div>
           </div>
           <div class="flex items-center gap-2">
             <button
-              class="px-3 py-2 text-xs rounded-lg bg-white/10 hover:bg-white/15 text-gray-200 transition"
+              class="px-3 py-2 text-xs rounded-lg bg-surface-3 hover:bg-surface-hover text-fg transition border border-line"
               :disabled="videoExtractStore.listLoading"
               @click="refresh"
               title="刷新任务列表"
@@ -42,7 +42,7 @@
             </button>
             <button
               @click="close"
-              class="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white/90 transition-colors rounded-lg hover:bg-[#27272a]"
+              class="w-8 h-8 flex items-center justify-center text-fg/40 hover:text-fg transition-colors rounded-lg hover:bg-surface-3"
             >
               <i class="fas fa-times"></i>
             </button>
@@ -52,12 +52,12 @@
         <div class="flex flex-1 overflow-hidden">
           <!-- Left: task list -->
           <div
-            class="w-full md:w-[360px] bg-[#1f1f23] border-r border-white/5 flex flex-col overflow-hidden"
+            class="w-full md:w-[360px] bg-surface-2 border-r border-line flex flex-col overflow-hidden"
             :class="isMobile && mobilePane === 'detail' ? 'hidden' : ''"
           >
-            <div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+            <div class="px-4 py-3 border-b border-line flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <div class="text-sm text-gray-300 font-medium">任务列表</div>
+                <div class="text-sm text-fg font-medium">任务列表</div>
                 <button
                   class="px-2.5 py-1.5 text-[11px] rounded-lg bg-purple-600 hover:bg-purple-500 text-white transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                   :disabled="uploading"
@@ -69,29 +69,29 @@
                   <span class="hidden sm:inline">{{ uploading ? '上传中' : '上传' }}</span>
                 </button>
               </div>
-              <div class="text-xs text-gray-500">{{ videoExtractStore.listTotal }} 个</div>
+              <div class="text-xs text-fg-subtle">{{ videoExtractStore.listTotal }} 个</div>
             </div>
 
             <input ref="uploadInputRef" type="file" class="hidden" @change="handleUploadInputChange" />
 
             <div class="flex-1 overflow-y-auto no-scrollbar">
-              <div v-if="videoExtractStore.listLoading && videoExtractStore.tasks.length === 0" class="p-6 text-center text-gray-500 text-sm">
+              <div v-if="videoExtractStore.listLoading && videoExtractStore.tasks.length === 0" class="p-6 text-center text-fg-subtle text-sm">
                 加载中...
               </div>
 
               <button
                 v-for="t in videoExtractStore.tasks"
                 :key="t.taskId"
-                class="w-full text-left px-4 py-3 border-b border-white/5 hover:bg-[#27272a] transition-colors"
-                :class="t.taskId === videoExtractStore.selectedTaskId ? 'bg-[#27272a]' : ''"
+                class="w-full text-left px-4 py-3 border-b border-line hover:bg-surface-3 transition-colors"
+                :class="t.taskId === videoExtractStore.selectedTaskId ? 'bg-surface-3' : ''"
                 @click="openDetail(t.taskId)"
               >
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
-                    <div class="text-sm text-white font-medium truncate">
+                    <div class="text-sm text-fg font-medium truncate">
                       {{ formatTaskTitle(t) }}
                     </div>
-                    <div class="mt-1 text-xs text-gray-500 truncate">
+                    <div class="mt-1 text-xs text-fg-subtle truncate">
                       {{ formatTaskSub(t) }}
                     </div>
                   </div>
@@ -101,10 +101,10 @@
                 </div>
 
                 <div class="mt-2 flex items-center justify-between gap-2">
-                  <div class="text-[11px] text-gray-500 font-mono">
+                  <div class="text-[11px] text-fg-subtle font-mono">
                     {{ t.framesExtracted }} / {{ t.maxFrames }}
                   </div>
-                  <div class="text-[11px] text-gray-500 font-mono">
+                  <div class="text-[11px] text-fg-subtle font-mono">
                     {{ formatPercent(progressPercent(t)) }}
                   </div>
                 </div>
@@ -114,7 +114,7 @@
                 </div>
               </button>
 
-              <div v-if="!videoExtractStore.listLoading && videoExtractStore.tasks.length === 0" class="p-6 text-center text-gray-500 text-sm">
+              <div v-if="!videoExtractStore.listLoading && videoExtractStore.tasks.length === 0" class="p-6 text-center text-fg-subtle text-sm">
                 暂无任务
               </div>
             </div>
@@ -122,21 +122,21 @@
 
           <!-- Right: detail -->
           <div class="flex-1 flex flex-col overflow-hidden" :class="isMobile && mobilePane === 'list' ? 'hidden' : ''">
-            <div v-if="!videoExtractStore.selectedTaskId" class="flex-1 flex items-center justify-center text-gray-600">
+            <div v-if="!videoExtractStore.selectedTaskId" class="flex-1 flex items-center justify-center text-fg-subtle">
               <div class="text-center">
                 <i class="fas fa-hand-pointer text-4xl mb-3 opacity-30"></i>
                 <div class="text-sm">选择一个任务查看详情</div>
               </div>
             </div>
 
-            <div v-else-if="videoExtractStore.detailLoading && !videoExtractStore.selectedTask" class="flex-1 flex items-center justify-center text-gray-600">
+            <div v-else-if="videoExtractStore.detailLoading && !videoExtractStore.selectedTask" class="flex-1 flex items-center justify-center text-fg-subtle">
               <div class="text-center">
                 <span class="w-6 h-6 border-2 border-gray-500 border-t-transparent rounded-full animate-spin inline-block mb-3"></span>
                 <div class="text-sm">加载任务详情...</div>
               </div>
             </div>
 
-            <div v-else-if="!videoExtractStore.selectedTask" class="flex-1 flex items-center justify-center text-gray-600">
+            <div v-else-if="!videoExtractStore.selectedTask" class="flex-1 flex items-center justify-center text-fg-subtle">
               <div class="text-center">
                 <i class="fas fa-exclamation-circle text-4xl mb-3 opacity-30"></i>
                 <div class="text-sm">任务不存在或已删除</div>
@@ -144,13 +144,13 @@
             </div>
 
             <div v-else class="flex-1 flex flex-col overflow-hidden">
-              <div class="px-6 py-4 border-b border-white/5 bg-[#18181b] max-h-[46vh] overflow-y-auto no-scrollbar md:max-h-none md:overflow-visible">
+              <div class="px-6 py-4 border-b border-line bg-surface max-h-[46vh] overflow-y-auto no-scrollbar md:max-h-none md:overflow-visible">
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
-                    <div class="text-base text-white font-bold truncate">
+                    <div class="text-base text-fg font-bold truncate">
                       {{ formatTaskTitle(videoExtractStore.selectedTask) }}
                     </div>
-                    <div class="mt-1 text-xs text-gray-500 font-mono break-all">
+                    <div class="mt-1 text-xs text-fg-subtle font-mono break-all">
                       taskId: {{ videoExtractStore.selectedTask.taskId }}
                     </div>
                   </div>
@@ -158,7 +158,7 @@
                   <div class="flex items-center gap-2">
                     <button
                       v-if="canPreviewSourceVideo(videoExtractStore.selectedTask)"
-                      class="px-3 py-2 text-xs rounded-lg bg-white/10 hover:bg-white/15 text-gray-200 transition"
+                      class="px-3 py-2 text-xs rounded-lg bg-surface-3 hover:bg-surface-hover text-fg transition border border-line"
                       @click="openSourcePreview(videoExtractStore.selectedTask)"
                       title="预览源视频（支持倍速与抓帧）"
                     >
@@ -184,41 +184,41 @@
                 </div>
 
                 <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div class="rounded-lg bg-[#111113] border border-white/5 p-3">
-                    <div class="text-[11px] text-gray-500 mb-1">状态</div>
-                    <div class="text-sm text-white">{{ statusText(videoExtractStore.selectedTask.status) }}</div>
+                  <div class="rounded-lg bg-surface-deep border border-line p-3">
+                    <div class="text-[11px] text-fg-subtle mb-1">状态</div>
+                    <div class="text-sm text-fg">{{ statusText(videoExtractStore.selectedTask.status) }}</div>
                   </div>
-                  <div class="rounded-lg bg-[#111113] border border-white/5 p-3">
-                    <div class="text-[11px] text-gray-500 mb-1">模式</div>
-                    <div class="text-sm text-white">{{ modeText(videoExtractStore.selectedTask) }}</div>
+                  <div class="rounded-lg bg-surface-deep border border-line p-3">
+                    <div class="text-[11px] text-fg-subtle mb-1">模式</div>
+                    <div class="text-sm text-fg">{{ modeText(videoExtractStore.selectedTask) }}</div>
                   </div>
-                  <div class="rounded-lg bg-[#111113] border border-white/5 p-3">
-                    <div class="text-[11px] text-gray-500 mb-1">帧数</div>
-                    <div class="text-sm text-white font-mono">
+                  <div class="rounded-lg bg-surface-deep border border-line p-3">
+                    <div class="text-[11px] text-fg-subtle mb-1">帧数</div>
+                    <div class="text-sm text-fg font-mono">
                       {{ videoExtractStore.selectedTask.framesExtracted }} / {{ videoExtractStore.selectedTask.maxFrames }}
                     </div>
                   </div>
-                  <div class="rounded-lg bg-[#111113] border border-white/5 p-3">
-                    <div class="text-[11px] text-gray-500 mb-1">宽 × 高</div>
-                    <div class="text-sm text-white font-mono">
+                  <div class="rounded-lg bg-surface-deep border border-line p-3">
+                    <div class="text-[11px] text-fg-subtle mb-1">宽 × 高</div>
+                    <div class="text-sm text-fg font-mono">
                       {{ videoExtractStore.selectedTask.videoWidth }} × {{ videoExtractStore.selectedTask.videoHeight }}
                     </div>
                   </div>
                 </div>
 
                 <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div class="rounded-lg bg-[#111113] border border-white/5 p-3">
-                    <div class="text-[11px] text-gray-500 mb-1">限制摘要</div>
-                    <div class="text-xs text-gray-300">
+                  <div class="rounded-lg bg-surface-deep border border-line p-3">
+                    <div class="text-[11px] text-fg-subtle mb-1">限制摘要</div>
+                    <div class="text-xs text-fg-muted">
                       {{ limitText(videoExtractStore.selectedTask) }}
                     </div>
                   </div>
-                  <div class="rounded-lg bg-[#111113] border border-white/5 p-3">
-                    <div class="text-[11px] text-gray-500 mb-1">输出目录</div>
-                    <div class="text-xs text-gray-300 font-mono break-all">
+                  <div class="rounded-lg bg-surface-deep border border-line p-3">
+                    <div class="text-[11px] text-fg-subtle mb-1">输出目录</div>
+                    <div class="text-xs text-fg-muted font-mono break-all">
                       {{ videoExtractStore.selectedTask.outputDirLocalPath }}
                     </div>
-                    <div v-if="videoExtractStore.selectedTask.outputDirUrl" class="mt-1 text-[11px] text-gray-500 break-all">
+                    <div v-if="videoExtractStore.selectedTask.outputDirUrl" class="mt-1 text-[11px] text-fg-subtle break-all">
                       {{ videoExtractStore.selectedTask.outputDirUrl }}
                     </div>
                   </div>
@@ -229,47 +229,47 @@
                 </div>
 
                 <div class="mt-3">
-                  <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                  <div class="flex items-center justify-between text-xs text-fg-subtle mb-1">
                     <span>进度</span>
                     <span class="font-mono">{{ formatPercent(progressPercent(videoExtractStore.selectedTask)) }}</span>
                   </div>
                   <div class="h-2 bg-black/30 rounded-full overflow-hidden">
                     <div class="h-full bg-purple-500/70" :style="{ width: `${progressPercent(videoExtractStore.selectedTask)}%` }"></div>
                   </div>
-                  <div class="mt-2 flex items-center justify-between text-[11px] text-gray-500 font-mono">
+                  <div class="mt-2 flex items-center justify-between text-[11px] text-fg-subtle font-mono">
                     <span>{{ formatCursor(videoExtractStore.selectedTask) }}</span>
                     <span v-if="videoExtractStore.selectedTask.runtime?.speed">speed={{ videoExtractStore.selectedTask.runtime.speed }}</span>
                   </div>
                 </div>
 
                 <!-- Continue section -->
-                <div v-if="canContinue(videoExtractStore.selectedTask)" class="mt-4 rounded-xl border border-white/5 bg-[#111113] p-4">
+                <div v-if="canContinue(videoExtractStore.selectedTask)" class="mt-4 rounded-xl border border-line bg-surface-deep p-4">
                   <div class="flex items-center justify-between gap-3">
-                    <div class="text-sm text-gray-200 font-medium">继续抽帧</div>
+                    <div class="text-sm text-fg font-medium">继续抽帧</div>
                     <span class="text-[11px] px-2 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
                       {{ videoExtractStore.selectedTask.status === 'PAUSED_LIMIT' ? '因限制暂停' : '已终止' }}
                     </span>
                   </div>
                   <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
-                      <label class="block text-xs text-gray-500 mb-1">新的 endSec（可空）</label>
+                      <label class="block text-xs text-fg-subtle mb-1">新的 endSec（可空）</label>
                       <input
                         v-model.number="continueEndSec"
                         type="number"
                         min="0"
                         step="0.01"
-                        class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-purple-500 focus:outline-none text-sm"
+                        class="w-full bg-surface text-fg px-3 py-2 rounded-lg border border-line-strong focus:border-purple-500 focus:outline-none text-sm placeholder-fg-subtle"
                         placeholder="不修改则留空"
                       />
                     </div>
                     <div>
-                      <label class="block text-xs text-gray-500 mb-1">新的 maxFrames（可空）</label>
+                      <label class="block text-xs text-fg-subtle mb-1">新的 maxFrames（可空）</label>
                       <input
                         v-model.number="continueMaxFrames"
                         type="number"
                         min="1"
                         step="1"
-                        class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-purple-500 focus:outline-none text-sm"
+                        class="w-full bg-surface text-fg px-3 py-2 rounded-lg border border-line-strong focus:border-purple-500 focus:outline-none text-sm placeholder-fg-subtle"
                         placeholder="不修改则留空"
                       />
                     </div>
@@ -283,7 +283,7 @@
                       </button>
                     </div>
                   </div>
-                  <p class="mt-2 text-[11px] text-gray-500">
+                  <p class="mt-2 text-[11px] text-fg-subtle">
                     提示：maxFrames 不能小于已输出帧数；endSec 必须大于 startSec。
                   </p>
                 </div>
@@ -292,14 +292,14 @@
               <!-- Content: frames + logs -->
               <div class="flex-1 flex overflow-hidden">
                 <div class="flex-1 flex flex-col overflow-hidden">
-                  <div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+                  <div class="px-4 py-3 border-b border-line flex items-center justify-between">
                     <div class="flex items-center gap-2">
-                      <span class="text-sm text-gray-300 font-medium">帧图预览</span>
-                      <span class="text-xs text-gray-500 font-mono">{{ videoExtractStore.frames.items.length }} 张</span>
+                      <span class="text-sm text-fg font-medium">帧图预览</span>
+                      <span class="text-xs text-fg-subtle font-mono">{{ videoExtractStore.frames.items.length }} 张</span>
                     </div>
                     <div class="flex items-center gap-2">
                       <button
-                        class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+                        class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
                         @click="toggleLayout"
                         :title="layoutMode === 'masonry' ? '切换到网格视图' : '切换到瀑布流视图'"
                       >
@@ -316,7 +316,7 @@
                     >
                       <div class="text-center">
                         <div class="radar-spinner mx-auto mb-3"></div>
-                        <p class="text-gray-500 text-sm">加载中...</p>
+                        <p class="text-fg-subtle text-sm">加载中...</p>
                       </div>
                     </div>
 
@@ -340,7 +340,7 @@
 	                          <MediaTile
 	                            :src="item.url"
 	                            type="image"
-	                            class="w-full h-full rounded-xl overflow-hidden cursor-pointer border border-white/10 hover:border-purple-500 transition-colors bg-gray-800"
+	                            class="w-full h-full rounded-xl overflow-hidden cursor-pointer border border-line-strong hover:border-purple-500 transition-colors bg-surface-3"
 	                            :show-skeleton="false"
 	                            @click="openPreview(item)"
 	                          />
@@ -348,20 +348,20 @@
 	                      </template>
 
                       <template #empty>
-                        <div class="flex items-center justify-center text-gray-500 text-sm h-full">
+                        <div class="flex items-center justify-center text-fg-subtle text-sm h-full">
                           暂无帧图
                         </div>
                       </template>
 
                       <template #after>
-                        <div v-if="videoExtractStore.detailLoading" class="flex justify-center py-6 text-gray-500 text-sm w-full">
-                          <div class="flex items-center gap-2 bg-[#27272a] px-4 py-2 rounded-full shadow-lg">
+                        <div v-if="videoExtractStore.detailLoading" class="flex justify-center py-6 text-fg-subtle text-sm w-full">
+                          <div class="flex items-center gap-2 bg-surface-3 px-4 py-2 rounded-full shadow-lg border border-line">
                             <span class="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></span>
                             <span>加载更多...</span>
                           </div>
                         </div>
-                        <div v-else-if="!videoExtractStore.frames.hasMore && videoExtractStore.frames.items.length > 0" class="flex justify-center py-8 text-gray-600 text-xs w-full">
-                          <span class="px-3 py-1 bg-[#27272a]/50 rounded-full">已加载全部</span>
+                        <div v-else-if="!videoExtractStore.frames.hasMore && videoExtractStore.frames.items.length > 0" class="flex justify-center py-8 text-fg-subtle text-xs w-full">
+                          <span class="px-3 py-1 bg-surface-3/50 rounded-full border border-line">已加载全部</span>
                         </div>
                       </template>
                     </RecycleScroller>
@@ -380,14 +380,14 @@
 	                        <MediaTile
 	                          :src="item.url"
 	                          type="image"
-	                          class="w-full h-full rounded-xl overflow-hidden cursor-pointer border border-white/10 hover:border-purple-500 transition-colors bg-gray-800"
+	                          class="w-full h-full rounded-xl overflow-hidden cursor-pointer border border-line-strong hover:border-purple-500 transition-colors bg-surface-3"
 	                          :show-skeleton="false"
 	                          @click="openPreview(item)"
 	                        />
 	                      </template>
 
                       <template #empty>
-                        <div class="flex items-center justify-center text-gray-500 text-sm h-full">
+                        <div class="flex items-center justify-center text-fg-subtle text-sm h-full">
                           暂无帧图
                         </div>
                       </template>
@@ -399,16 +399,16 @@
                   </div>
                 </div>
 
-                <div class="w-[360px] hidden lg:flex flex-col border-l border-white/5 bg-[#1f1f23] overflow-hidden">
-                  <div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">
-                    <div class="text-sm text-gray-300 font-medium">实时日志</div>
-                    <div class="text-xs text-gray-500 font-mono">{{ (videoExtractStore.selectedTask.runtime?.logs || []).length }}</div>
+                <div class="w-[360px] hidden lg:flex flex-col border-l border-line bg-surface-2 overflow-hidden">
+                  <div class="px-4 py-3 border-b border-line flex items-center justify-between">
+                    <div class="text-sm text-fg font-medium">实时日志</div>
+                    <div class="text-xs text-fg-subtle font-mono">{{ (videoExtractStore.selectedTask.runtime?.logs || []).length }}</div>
                   </div>
                   <div class="flex-1 overflow-y-auto no-scrollbar p-3">
-                    <div v-if="!videoExtractStore.selectedTask.runtime?.logs?.length" class="text-xs text-gray-500 text-center mt-6">
+                    <div v-if="!videoExtractStore.selectedTask.runtime?.logs?.length" class="text-xs text-fg-subtle text-center mt-6">
                       暂无日志
                     </div>
-                    <div v-else class="space-y-1 font-mono text-[11px] text-gray-400">
+                    <div v-else class="space-y-1 font-mono text-[11px] text-fg-muted">
                       <div v-for="(line, idx) in videoExtractStore.selectedTask.runtime.logs" :key="idx" class="break-all">
                         {{ line }}
                       </div>
@@ -629,17 +629,17 @@ const statusText = (status: string) => {
 const statusBadgeClass = (status: string) => {
   switch (status) {
     case 'RUNNING':
-      return 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+      return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
     case 'PAUSED_LIMIT':
-      return 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+      return 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
     case 'PAUSED_USER':
-      return 'bg-gray-500/15 text-gray-300 border border-gray-500/30'
+      return 'bg-gray-500/15 text-gray-700 dark:text-gray-300 border border-gray-500/30'
     case 'FAILED':
-      return 'bg-red-500/15 text-red-300 border border-red-500/30'
+      return 'bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30'
     case 'FINISHED':
-      return 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
+      return 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30'
     default:
-      return 'bg-white/10 text-gray-200 border border-white/10'
+      return 'bg-surface-3/50 text-fg-muted border border-line'
   }
 }
 
