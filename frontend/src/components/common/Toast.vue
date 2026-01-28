@@ -3,7 +3,7 @@
     <transition name="fade">
       <div
         v-if="visible"
-        class="fixed top-16 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 bg-[#27272a] text-white text-sm rounded-full shadow-lg"
+        class="fixed top-16 left-1/2 -translate-x-1/2 z-[300] px-4 py-2 bg-zinc-800/90 backdrop-blur-md border border-white/10 text-white/90 text-sm rounded-full shadow-lg shadow-black/50"
       >
         {{ message }}
       </div>

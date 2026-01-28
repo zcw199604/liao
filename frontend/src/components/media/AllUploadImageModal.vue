@@ -15,7 +15,7 @@
         @click.stop
       >
         <!-- 头部 -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-white/5">
           <div class="flex items-center gap-2">
             <i class="fas fa-images" :class="mediaStore.managementMode ? 'text-purple-500' : 'text-blue-500'"></i>
             <h3 class="text-lg font-bold text-white">
@@ -23,7 +23,7 @@
             </h3>
             <span class="text-xs text-gray-500 ml-2">(共 {{ mediaStore.allUploadTotal }} 个)</span>
 
-            <div class="flex items-center gap-1 ml-4 bg-[#27272a] border border-gray-700 rounded-lg p-1">
+            <div class="flex items-center gap-1 ml-4 bg-[#27272a] border border-white/10 rounded-lg p-1">
               <button
                 @click="changeAllUploadSource('all')"
                 :class="mediaStore.allUploadSource === 'all' ? 'bg-gray-600 text-white' : 'text-gray-300 hover:text-white'"
@@ -51,7 +51,7 @@
               <input
                 v-model.trim="douyinSecUserIdInput"
                 @keyup.enter="applyDouyinSecUserFilter"
-                class="w-56 px-2 py-1 text-xs rounded-lg bg-[#0f0f12] border border-gray-700 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                class="w-56 px-2 py-1 text-xs rounded-lg bg-[#0f0f12] border border-white/10 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 placeholder="抖音 sec_user_id（可选）"
               />
               <button
@@ -174,7 +174,7 @@
         </InfiniteMediaGrid>
 
         <!-- 底部 -->
-        <div v-if="mediaStore.managementMode && mediaStore.selectionMode" class="px-6 py-4 border-t border-gray-800">
+        <div v-if="mediaStore.managementMode && mediaStore.selectionMode" class="px-6 py-4 border-t border-white/5">
           <div class="flex items-center justify-between gap-3">
             <button
               @click="toggleSelectAll"
@@ -197,7 +197,7 @@
           </p>
         </div>
 
-        <div v-else class="px-6 py-4 border-t border-gray-800 text-center text-xs text-gray-500">
+        <div v-else class="px-6 py-4 border-t border-white/5 text-center text-xs text-gray-500">
           {{ mediaStore.managementMode ? '提示：点击图片预览，右上角可删除（桌面端悬停显示）' : '点击图片预览，在预览中可上传/重新上传，再在上方\"已上传的文件\"中点击发送' }}
         </div>
       </div>

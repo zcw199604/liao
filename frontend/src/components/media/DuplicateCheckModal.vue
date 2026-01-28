@@ -6,11 +6,11 @@
       @click="close"
     >
       <div 
-        class="w-full max-w-5xl h-[85vh] bg-[#18181b] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-700" 
+        class="w-full max-w-5xl h-[85vh] bg-[#18181b] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-white/10" 
         @click.stop
       >
         <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-[#1f1f23]">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-[#1f1f23]">
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
               <i class="fas fa-search text-blue-400"></i>
@@ -27,13 +27,13 @@
 
         <div class="flex flex-1 overflow-hidden flex-col md:flex-row">
           <!-- Left Panel: Input & Settings -->
-          <div class="w-full md:w-1/3 md:min-w-[320px] bg-[#1f1f23] flex flex-col border-b md:border-b-0 md:border-r border-gray-800 p-6 overflow-y-auto shrink-0">
+          <div class="w-full md:w-1/3 md:min-w-[320px] bg-[#1f1f23] flex flex-col border-b md:border-b-0 md:border-r border-white/5 p-6 overflow-y-auto shrink-0">
             
             <!-- File Upload -->
             <div class="mb-6">
               <label class="block text-sm font-medium text-gray-400 mb-2">待检测文件</label>
               <div
-                class="relative w-full aspect-square md:aspect-square h-48 md:h-auto rounded-xl border-2 border-dashed border-gray-700 hover:border-blue-500 transition-colors bg-[#18181b] flex flex-col items-center justify-center overflow-hidden cursor-pointer group"
+                class="relative w-full aspect-square md:aspect-square h-48 md:h-auto rounded-xl border-2 border-dashed border-white/10 hover:border-blue-500 transition-colors bg-[#18181b] flex flex-col items-center justify-center overflow-hidden cursor-pointer group"
                 @click="triggerFileSelect"
                 @drop.prevent="handleDrop"
                 @dragover.prevent
@@ -140,7 +140,7 @@
             <!-- Results List -->
             <div v-if="result" class="flex-1 flex flex-col h-full overflow-hidden">
               <!-- Result Header -->
-              <div class="px-6 py-4 bg-[#1f1f23]/50 border-b border-gray-800 shrink-0">
+              <div class="px-6 py-4 bg-[#1f1f23]/50 border-b border-white/5 shrink-0">
                 <div class="flex items-center gap-3">
                   <div 
                     class="px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider"
@@ -166,7 +166,7 @@
                 <div 
                   v-for="(item, idx) in (result.items || [])" 
                   :key="item.id"
-                  class="bg-[#1f1f23] rounded-xl p-3 flex gap-4 hover:bg-[#27272a] transition border border-transparent hover:border-gray-700 group"
+                  class="bg-[#1f1f23] rounded-xl p-3 flex gap-4 hover:bg-[#27272a] transition border border-transparent hover:border-white/10 group"
                 >
                   <!-- Thumb -->
                   <div

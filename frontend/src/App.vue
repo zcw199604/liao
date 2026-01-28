@@ -37,7 +37,7 @@ html, body, #app {
 /* 路由过渡动画 */
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .fade-enter-from,

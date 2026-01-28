@@ -1,8 +1,8 @@
 <template>
-  <div v-if="visible" class="bg-[#1a1a1d] border-t border-gray-800 p-4" @click.stop>
+  <div v-if="visible" class="bg-[#18181b]/60 backdrop-blur-md border-t border-white/5 p-4" @click.stop>
     <div class="text-xs text-gray-500 mb-3 flex items-center justify-between">
       <span><i class="fas fa-smile mr-1"></i>选择表情</span>
-      <button @click="$emit('update:visible', false)" class="text-gray-400 hover:text-white">
+      <button @click="$emit('update:visible', false)" class="text-white/40 hover:text-white/90 transition-colors">
         <i class="fas fa-times"></i>
       </button>
     </div>

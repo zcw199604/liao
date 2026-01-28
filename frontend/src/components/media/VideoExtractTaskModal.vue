@@ -6,15 +6,15 @@
       @click="close"
     >
       <div
-        class="w-full md:max-w-6xl h-[100dvh] md:h-[88vh] bg-[#18181b] rounded-none md:rounded-2xl shadow-2xl flex flex-col overflow-hidden border-0 md:border border-gray-700 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] md:pt-0 md:pb-0"
+        class="w-full md:max-w-6xl h-[100dvh] md:h-[88vh] bg-[#18181b] rounded-none md:rounded-2xl shadow-2xl flex flex-col overflow-hidden border-0 md:border border-white/10 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] md:pt-0 md:pb-0"
         @click.stop
       >
         <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-[#1f1f23]">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-[#1f1f23]">
           <div class="flex items-center gap-3 min-w-0">
             <button
               v-if="isMobile && mobilePane === 'detail'"
-              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+              class="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white/90 transition-colors rounded-lg hover:bg-[#27272a]"
               @click="backToList"
               title="返回任务列表"
             >
@@ -42,7 +42,7 @@
             </button>
             <button
               @click="close"
-              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+              class="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white/90 transition-colors rounded-lg hover:bg-[#27272a]"
             >
               <i class="fas fa-times"></i>
             </button>
@@ -52,10 +52,10 @@
         <div class="flex flex-1 overflow-hidden">
           <!-- Left: task list -->
           <div
-            class="w-full md:w-[360px] bg-[#1f1f23] border-r border-gray-800 flex flex-col overflow-hidden"
+            class="w-full md:w-[360px] bg-[#1f1f23] border-r border-white/5 flex flex-col overflow-hidden"
             :class="isMobile && mobilePane === 'detail' ? 'hidden' : ''"
           >
-            <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+            <div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <div class="text-sm text-gray-300 font-medium">任务列表</div>
                 <button
@@ -82,7 +82,7 @@
               <button
                 v-for="t in videoExtractStore.tasks"
                 :key="t.taskId"
-                class="w-full text-left px-4 py-3 border-b border-gray-800 hover:bg-[#27272a] transition"
+                class="w-full text-left px-4 py-3 border-b border-white/5 hover:bg-[#27272a] transition-colors"
                 :class="t.taskId === videoExtractStore.selectedTaskId ? 'bg-[#27272a]' : ''"
                 @click="openDetail(t.taskId)"
               >
@@ -144,7 +144,7 @@
             </div>
 
             <div v-else class="flex-1 flex flex-col overflow-hidden">
-              <div class="px-6 py-4 border-b border-gray-800 bg-[#18181b] max-h-[46vh] overflow-y-auto no-scrollbar md:max-h-none md:overflow-visible">
+              <div class="px-6 py-4 border-b border-white/5 bg-[#18181b] max-h-[46vh] overflow-y-auto no-scrollbar md:max-h-none md:overflow-visible">
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
                     <div class="text-base text-white font-bold truncate">
@@ -184,21 +184,21 @@
                 </div>
 
                 <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div class="rounded-lg bg-[#111113] border border-gray-800 p-3">
+                  <div class="rounded-lg bg-[#111113] border border-white/5 p-3">
                     <div class="text-[11px] text-gray-500 mb-1">状态</div>
                     <div class="text-sm text-white">{{ statusText(videoExtractStore.selectedTask.status) }}</div>
                   </div>
-                  <div class="rounded-lg bg-[#111113] border border-gray-800 p-3">
+                  <div class="rounded-lg bg-[#111113] border border-white/5 p-3">
                     <div class="text-[11px] text-gray-500 mb-1">模式</div>
                     <div class="text-sm text-white">{{ modeText(videoExtractStore.selectedTask) }}</div>
                   </div>
-                  <div class="rounded-lg bg-[#111113] border border-gray-800 p-3">
+                  <div class="rounded-lg bg-[#111113] border border-white/5 p-3">
                     <div class="text-[11px] text-gray-500 mb-1">帧数</div>
                     <div class="text-sm text-white font-mono">
                       {{ videoExtractStore.selectedTask.framesExtracted }} / {{ videoExtractStore.selectedTask.maxFrames }}
                     </div>
                   </div>
-                  <div class="rounded-lg bg-[#111113] border border-gray-800 p-3">
+                  <div class="rounded-lg bg-[#111113] border border-white/5 p-3">
                     <div class="text-[11px] text-gray-500 mb-1">宽 × 高</div>
                     <div class="text-sm text-white font-mono">
                       {{ videoExtractStore.selectedTask.videoWidth }} × {{ videoExtractStore.selectedTask.videoHeight }}
@@ -207,13 +207,13 @@
                 </div>
 
                 <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div class="rounded-lg bg-[#111113] border border-gray-800 p-3">
+                  <div class="rounded-lg bg-[#111113] border border-white/5 p-3">
                     <div class="text-[11px] text-gray-500 mb-1">限制摘要</div>
                     <div class="text-xs text-gray-300">
                       {{ limitText(videoExtractStore.selectedTask) }}
                     </div>
                   </div>
-                  <div class="rounded-lg bg-[#111113] border border-gray-800 p-3">
+                  <div class="rounded-lg bg-[#111113] border border-white/5 p-3">
                     <div class="text-[11px] text-gray-500 mb-1">输出目录</div>
                     <div class="text-xs text-gray-300 font-mono break-all">
                       {{ videoExtractStore.selectedTask.outputDirLocalPath }}
@@ -243,7 +243,7 @@
                 </div>
 
                 <!-- Continue section -->
-                <div v-if="canContinue(videoExtractStore.selectedTask)" class="mt-4 rounded-xl border border-gray-800 bg-[#111113] p-4">
+                <div v-if="canContinue(videoExtractStore.selectedTask)" class="mt-4 rounded-xl border border-white/5 bg-[#111113] p-4">
                   <div class="flex items-center justify-between gap-3">
                     <div class="text-sm text-gray-200 font-medium">继续抽帧</div>
                     <span class="text-[11px] px-2 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
@@ -258,7 +258,7 @@
                         type="number"
                         min="0"
                         step="0.01"
-                        class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none text-sm"
+                        class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-purple-500 focus:outline-none text-sm"
                         placeholder="不修改则留空"
                       />
                     </div>
@@ -269,7 +269,7 @@
                         type="number"
                         min="1"
                         step="1"
-                        class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none text-sm"
+                        class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-purple-500 focus:outline-none text-sm"
                         placeholder="不修改则留空"
                       />
                     </div>
@@ -292,7 +292,7 @@
               <!-- Content: frames + logs -->
               <div class="flex-1 flex overflow-hidden">
                 <div class="flex-1 flex flex-col overflow-hidden">
-                  <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                  <div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">
                     <div class="flex items-center gap-2">
                       <span class="text-sm text-gray-300 font-medium">帧图预览</span>
                       <span class="text-xs text-gray-500 font-mono">{{ videoExtractStore.frames.items.length }} 张</span>
@@ -340,7 +340,7 @@
 	                          <MediaTile
 	                            :src="item.url"
 	                            type="image"
-	                            class="w-full h-full rounded-xl overflow-hidden cursor-pointer border border-gray-700 hover:border-purple-500 transition bg-gray-800"
+	                            class="w-full h-full rounded-xl overflow-hidden cursor-pointer border border-white/10 hover:border-purple-500 transition-colors bg-gray-800"
 	                            :show-skeleton="false"
 	                            @click="openPreview(item)"
 	                          />
@@ -380,7 +380,7 @@
 	                        <MediaTile
 	                          :src="item.url"
 	                          type="image"
-	                          class="w-full h-full rounded-xl overflow-hidden cursor-pointer border border-gray-700 hover:border-purple-500 transition bg-gray-800"
+	                          class="w-full h-full rounded-xl overflow-hidden cursor-pointer border border-white/10 hover:border-purple-500 transition-colors bg-gray-800"
 	                          :show-skeleton="false"
 	                          @click="openPreview(item)"
 	                        />
@@ -399,8 +399,8 @@
                   </div>
                 </div>
 
-                <div class="w-[360px] hidden lg:flex flex-col border-l border-gray-800 bg-[#1f1f23] overflow-hidden">
-                  <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                <div class="w-[360px] hidden lg:flex flex-col border-l border-white/5 bg-[#1f1f23] overflow-hidden">
+                  <div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">
                     <div class="text-sm text-gray-300 font-medium">实时日志</div>
                     <div class="text-xs text-gray-500 font-mono">{{ (videoExtractStore.selectedTask.runtime?.logs || []).length }}</div>
                   </div>

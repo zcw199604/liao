@@ -2,6 +2,7 @@
   <div
     ref="rootRef"
     class="relative overflow-hidden select-none group"
+    :class="containerLoadingClass"
     :style="aspectStyle"
     @click="handleClick"
   >
@@ -54,8 +55,6 @@
           <i class="fas fa-file text-2xl"></i>
         </slot>
       </div>
-
-      <Skeleton v-else-if="showSkeleton" class="w-full h-full" />
 
       <div
         v-if="hoverOverlay && resolvedType !== 'file'"
@@ -147,7 +146,7 @@ const props = withDefaults(defineProps<Props>(), {
   fill: true,
   lazy: true,
   aspectRatio: undefined,
-  showSkeleton: false,
+  showSkeleton: true,
   hoverOverlay: false,
   mediaClass: '',
   indicatorSize: 'md',
@@ -192,6 +191,15 @@ const topLeftSlotClass = computed(() => (props.revealTopLeft ? 'media-tile-revea
 const topRightSlotClass = computed(() => (props.revealTopRight ? 'media-tile-reveal' : ''))
 const bottomLeftSlotClass = computed(() => (props.revealBottomLeft ? 'media-tile-reveal' : ''))
 const bottomRightSlotClass = computed(() => (props.revealBottomRight ? 'media-tile-reveal' : ''))
+
+const containerLoadingClass = computed(() => {
+  if (resolvedType.value === 'file') return ''
+  if (hasError.value) return ''
+
+  const base = 'bg-zinc-800/70'
+  const loadingPulse = shouldLoad.value && !isLoaded.value && !props.showSkeleton ? ' animate-pulse' : ''
+  return base + loadingPulse
+})
 
 // 获取有效的 aspectRatio：优先使用 props，其次使用缓存
 const effectiveAspectRatio = computed(() => {

@@ -4,7 +4,7 @@
       v-for="identity in identities"
       :key="identity.id"
       @click="$emit('select', identity)"
-      class="identity-card flex items-center p-4 mb-3 bg-[#18181b] rounded-2xl border border-transparent cursor-pointer"
+      class="identity-card flex items-center p-4 mb-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 cursor-pointer transition-colors"
     >
       <!-- 头像 -->
       <div
@@ -39,7 +39,7 @@
         >
           <i class="fas fa-trash-alt text-sm"></i>
         </button>
-        <i class="fas fa-chevron-right text-gray-600"></i>
+        <i class="fas fa-chevron-right text-white/20"></i>
       </div>
     </div>
 

@@ -3,7 +3,7 @@
     <div v-if="visible" class="fixed inset-0 z-[70] bg-black/50" @click="close">
       <div class="absolute right-0 top-0 bottom-0 w-80 bg-[#18181b] shadow-2xl overflow-y-auto" @click.stop>
         <!-- 头部 -->
-        <div class="h-14 flex items-center justify-between px-4 border-b border-gray-800 shrink-0">
+        <div class="h-14 flex items-center justify-between px-4 border-b border-white/5 shrink-0">
           <h2 class="text-lg font-bold text-white">
             {{ mode === 'identity' ? '身份信息' : mode === 'system' ? '系统设置' : mode === 'media' ? '图片管理' : '全局收藏' }}
           </h2>
@@ -26,7 +26,7 @@
             </button>
             <button
               @click="close"
-              class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white"
+              class="w-10 h-10 flex items-center justify-center text-white/40 hover:text-white/90 transition-colors"
             >
               <i class="fas fa-times text-xl"></i>
             </button>
@@ -48,7 +48,7 @@
                 v-if="editMode"
                 v-model="edit.name"
                 type="text"
-                class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none"
+                class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-indigo-500 focus:outline-none"
                 placeholder="输入用户名"
               />
               <div v-else class="text-base text-white font-medium">{{ currentUser?.name }}</div>
@@ -60,7 +60,7 @@
                 v-if="editMode"
                 v-model="edit.id"
                 type="text"
-                class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono text-sm"
+                class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-indigo-500 focus:outline-none font-mono text-sm"
                 placeholder="输入用户ID"
               />
               <div v-else class="text-base text-white font-mono text-sm break-all">{{ currentUser?.id }}</div>
@@ -71,7 +71,7 @@
               <select
                 v-if="editMode"
                 v-model="edit.sex"
-                class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none"
+                class="w-full bg-[#18181b] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-indigo-500 focus:outline-none"
               >
                 <option value="男">男</option>
                 <option value="女">女</option>

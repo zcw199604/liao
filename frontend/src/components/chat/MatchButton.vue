@@ -34,7 +34,7 @@
     <!-- 长按菜单 -->
     <div
       v-if="showMenu"
-      class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 bg-[#18181b] rounded-xl shadow-2xl border border-gray-700 overflow-hidden"
+      class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 bg-[#18181b] rounded-xl shadow-2xl border border-white/10 overflow-hidden"
     >
       <button
         v-for="option in menuOptions"

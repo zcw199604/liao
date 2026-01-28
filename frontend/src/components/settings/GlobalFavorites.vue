@@ -1,7 +1,7 @@
 <template>
   <div class="h-full flex flex-col bg-[#1e1e24]">
      <!-- Header -->
-     <div class="p-4 border-b border-gray-800 shrink-0">
+     <div class="p-4 border-b border-white/5 shrink-0">
         <h2 class="text-lg font-bold text-white">全局收藏</h2>
         <p class="text-xs text-gray-400">管理所有身份的收藏联系人</p>
      </div>
@@ -81,7 +81,7 @@
 
      <!-- Delete Confirm Dialog -->
      <div v-if="showDeleteDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-        <div class="bg-[#2d2d33] rounded-xl p-6 w-full max-w-sm shadow-xl border border-gray-700">
+        <div class="bg-[#2d2d33] rounded-xl p-6 w-full max-w-sm shadow-xl border border-white/10">
            <h3 class="text-lg font-bold text-white mb-2">确认删除</h3>
            <p class="text-gray-400 text-sm mb-6">确定要取消收藏该用户吗？</p>
            <div class="flex justify-end gap-3">

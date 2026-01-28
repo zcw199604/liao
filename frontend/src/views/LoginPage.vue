@@ -8,7 +8,7 @@
       </div>
 
       <!-- 登录表单 -->
-      <div class="bg-[#1a1a1f] rounded-2xl p-8 shadow-xl">
+      <div class="bg-zinc-900/80 backdrop-blur-xl ring-1 ring-white/10 rounded-2xl p-8 shadow-2xl shadow-indigo-500/10">
         <div class="mb-6">
           <label class="block text-gray-300 text-sm font-medium mb-2">访问码</label>
           <input
@@ -16,7 +16,7 @@
             type="password"
             placeholder="请输入访问码"
             @keyup.enter="handleLogin"
-            class="w-full px-4 py-3 bg-[#27272a] text-white rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none transition"
+            class="w-full px-4 py-3 bg-white/5 text-white rounded-lg border border-white/10 focus:border-white/10 focus:ring-1 focus:ring-indigo-500/50 focus:bg-white/10 focus:outline-none transition"
             :disabled="loading"
             autofocus
           />
@@ -25,7 +25,7 @@
         <button
           @click="handleLogin"
           :disabled="loading || !accessCode"
-          class="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-indigo-500/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]"
         >
           <span v-if="!loading">登录</span>
           <span v-else class="flex items-center justify-center">

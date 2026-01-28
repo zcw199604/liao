@@ -99,7 +99,7 @@ const close = () => emit('update:visible', false)
 
 <style scoped>
 .detail-item {
-  @apply border-b border-gray-800 pb-3;
+  @apply border-b border-white/5 pb-3;
 }
 .detail-item:last-child {
   @apply border-b-0;

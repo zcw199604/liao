@@ -15,7 +15,7 @@
         <div
           v-if="showTopMenu"
           @click.stop
-          class="absolute left-0 top-12 w-48 bg-[#18181b] rounded-xl shadow-2xl border border-gray-700 z-50"
+          class="absolute left-0 top-12 w-48 bg-[#18181b] rounded-xl shadow-2xl border border-white/10 z-50"
         >
           <button
             @click="handleOpenSettings"
@@ -26,28 +26,28 @@
           </button>
           <button
             @click="handleOpenSystemSettings"
-            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-gray-700 transition"
+            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-white/10 transition"
           >
             <i class="fas fa-cog text-gray-400"></i>
             <span>系统设置</span>
           </button>
           <button
             @click="handleOpenMediaManagement"
-            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-gray-700 transition"
+            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-white/10 transition"
           >
             <i class="fas fa-images text-purple-400"></i>
             <span>图片管理</span>
           </button>
           <button
             @click="handleOpenFavorites"
-            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-gray-700 transition"
+            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-white/10 transition"
           >
             <i class="fas fa-star text-yellow-500"></i>
             <span>全局收藏</span>
           </button>
           <button
             @click="handleSwitchIdentity"
-            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-gray-700 rounded-b-xl transition"
+            class="w-full px-4 py-3 text-left hover:bg-[#27272a] text-white flex items-center gap-3 border-t border-white/10 rounded-b-xl transition"
           >
             <i class="fas fa-user-circle text-indigo-400"></i>
             <span>切换身份</span>
@@ -190,20 +190,20 @@
     <!-- 上下文菜单 (长按/右键触发) -->
     <div
       v-if="showContextMenu && contextMenuUser"
-      class="fixed z-50 w-32 bg-[#27272a] rounded-lg shadow-xl border border-gray-700 overflow-hidden"
+      class="fixed z-50 w-32 bg-[#27272a] rounded-lg shadow-xl border border-white/10 overflow-hidden"
       :style="{ top: contextMenuPos.y + 'px', left: contextMenuPos.x + 'px' }"
       @click.stop
     >
       <button
         @click="handleCheckOnlineStatus(contextMenuUser!)"
-        class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#3f3f46] hover:text-white flex items-center gap-2 transition border-b border-gray-700"
+        class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#3f3f46] hover:text-white flex items-center gap-2 transition border-b border-white/10"
       >
         <i class="fas fa-signal text-xs text-green-500"></i>
         <span>在线记录</span>
       </button>
       <button
         @click="handleToggleGlobalFavorite(contextMenuUser!)"
-        class="w-full px-4 py-2 text-left text-sm hover:bg-[#3f3f46] hover:text-white flex items-center gap-2 transition border-b border-gray-700"
+        class="w-full px-4 py-2 text-left text-sm hover:bg-[#3f3f46] hover:text-white flex items-center gap-2 transition border-b border-white/10"
         :class="isGlobalFavorite(contextMenuUser!) ? 'text-yellow-500' : 'text-gray-300'"
       >
         <i class="fas fa-star text-xs"></i>

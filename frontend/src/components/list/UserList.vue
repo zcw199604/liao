@@ -4,7 +4,7 @@
       v-for="user in users"
       :key="user.id"
       @click="$emit('select', user)"
-      class="flex items-center gap-3 p-4 bg-[#1a1a1f] hover:bg-[#27272a] rounded-xl cursor-pointer transition border border-gray-800"
+      class="flex items-center gap-3 p-4 bg-[#1a1a1f] hover:bg-[#27272a] rounded-xl cursor-pointer transition-colors border border-white/5"
     >
       <!-- 头像 -->
       <div :class="`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${getColorClass(user.id)}`">

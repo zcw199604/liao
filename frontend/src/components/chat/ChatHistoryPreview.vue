@@ -1,9 +1,9 @@
 <template>
   <div v-if="visible" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="close">
-    <div class="bg-[#1e1e24] rounded-xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col overflow-hidden border border-gray-800 animate-in fade-in zoom-in duration-200">
+    <div class="bg-[#1e1e24] rounded-xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col overflow-hidden border border-white/5 animate-in fade-in zoom-in duration-200">
       
       <!-- Header -->
-      <div class="px-6 py-4 border-b border-gray-800 bg-[#2d2d33] flex items-center justify-between shrink-0">
+      <div class="px-6 py-4 border-b border-white/5 bg-[#2d2d33] flex items-center justify-between shrink-0">
         <div>
            <h3 class="font-bold text-lg text-white flex items-center gap-2">
              <i class="fas fa-history text-indigo-400"></i>
@@ -13,7 +13,7 @@
              与 <span class="text-indigo-400 font-mono">{{ targetUserName || targetUserId }}</span> 的聊天记录
            </p>
         </div>
-        <button @click="close" class="text-gray-400 hover:text-white transition w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10">
+        <button @click="close" class="text-white/40 hover:text-white/90 transition-colors w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10">
           <i class="fas fa-times text-lg"></i>
         </button>
       </div>
@@ -139,13 +139,13 @@
       </div>
 
       <!-- Footer -->
-      <div class="p-4 border-t border-gray-800 bg-[#2d2d33] flex justify-between items-center shrink-0">
+      <div class="p-4 border-t border-white/5 bg-[#2d2d33] flex justify-between items-center shrink-0">
         <span class="text-xs text-gray-500">
            <i class="fas fa-info-circle mr-1"></i>
            当前为预览模式，无法发送消息
         </span>
         <div class="flex gap-3">
-          <button @click="close" class="px-4 py-2 text-gray-400 hover:text-white text-sm transition">
+          <button @click="close" class="px-4 py-2 text-white/40 hover:text-white/90 text-sm transition-colors">
             关闭
           </button>
           <button @click="switchToChat" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-indigo-600/20 flex items-center gap-2">

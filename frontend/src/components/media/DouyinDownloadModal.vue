@@ -10,7 +10,7 @@
         @click.stop
       >
         <!-- 头部 -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-white/5">
           <div class="flex items-center gap-2 min-w-0">
             <i class="fas fa-cloud-download-alt text-emerald-400 flex-shrink-0"></i>
             <h3 class="text-lg font-bold text-white truncate">抖音下载</h3>
@@ -29,7 +29,7 @@
             <div class="flex items-center gap-2">
               <button
                 class="px-4 py-2 rounded-xl border transition text-sm"
-                :class="activeMode === 'detail' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                :class="activeMode === 'detail' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-white/10 text-gray-200 hover:bg-gray-700'"
                 :disabled="uiDisabled"
                 @click="switchMode('detail')"
               >
@@ -37,7 +37,7 @@
               </button>
               <button
                 class="px-4 py-2 rounded-xl border transition text-sm"
-                :class="activeMode === 'account' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                :class="activeMode === 'account' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-white/10 text-gray-200 hover:bg-gray-700'"
                 :disabled="uiDisabled"
                 @click="switchMode('account')"
               >
@@ -45,7 +45,7 @@
               </button>
               <button
                 class="px-4 py-2 rounded-xl border transition text-sm"
-                :class="activeMode === 'favorites' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                :class="activeMode === 'favorites' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-white/10 text-gray-200 hover:bg-gray-700'"
                 :disabled="uiDisabled"
                 @click="switchMode('favorites')"
               >
@@ -70,7 +70,7 @@
                 ref="detailInputRef"
                 v-model="inputText"
                 @paste="handleInputPaste"
-                class="w-full min-h-[110px] bg-[#111113] border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
+                class="w-full min-h-[110px] bg-[#111113] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
                 placeholder="粘贴抖音分享文本/短链/完整URL/作品ID"
               ></textarea>
               <button
@@ -87,7 +87,7 @@
                 ref="accountInputRef"
                 v-model="accountInput"
                 @paste="handleInputPaste"
-                class="w-full min-h-[110px] bg-[#111113] border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
+                class="w-full min-h-[110px] bg-[#111113] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
                 placeholder="粘贴抖音用户主页链接/分享文本/sec_uid"
               ></textarea>
               <button
@@ -102,14 +102,14 @@
 
             <div class="flex flex-col sm:flex-row gap-2">
               <button
-                class="px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition"
+                class="px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition"
                 @click="showAdvanced = !showAdvanced"
               >
                 {{ showAdvanced ? '隐藏 Cookie' : '填写 Cookie' }}
               </button>
               <button
                 v-if="showAdvanced && cookie"
-                class="px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition"
+                class="px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition"
                 @click="clearCookie"
                 title="清除本地保存的 Cookie"
               >
@@ -122,7 +122,7 @@
                 v-model="cookie"
                 :class="[
                   'w-full min-h-[90px] bg-[#111113] border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500',
-                  highlightConfig ? 'border-red-500' : 'border-gray-700'
+                  highlightConfig ? 'border-red-500' : 'border-white/10'
                 ]"
                 placeholder="抖音 Cookie（可选；仅本地保存，不会写入服务端）"
               ></textarea>
@@ -145,14 +145,14 @@
                 </template>
               </button>
               <button
-                class="px-5 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition"
+                class="px-5 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition"
                 :disabled="uiDisabled"
                 @click="pasteFromClipboard"
               >
                 粘贴
               </button>
               <button
-                class="px-5 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition"
+                class="px-5 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition"
                 :disabled="uiDisabled"
                 @click="handleClear"
               >
@@ -192,7 +192,7 @@
                   sec_user_id: <span class="font-mono text-gray-300">{{ accountSecUserId }}</span>
                 </div>
                 <button
-                  class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs flex items-center gap-2 flex-shrink-0"
+                  class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs flex items-center gap-2 flex-shrink-0"
                   :disabled="uiDisabled"
                   @click="toggleFavoriteCurrentUser"
                   title="收藏/取消收藏该用户"
@@ -209,7 +209,7 @@
                   </div>
                   <button
                     v-if="accountHasMore"
-                    class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs"
+                    class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs"
                     :disabled="accountLoading"
                     @click="handleFetchMoreAccount"
                   >
@@ -221,7 +221,7 @@
                   <button
                     v-for="item in accountItems"
                     :key="`douyin-account-${item.detailId}`"
-                    class="rounded-xl overflow-hidden border border-gray-700 hover:border-emerald-500 transition bg-black/20 text-left relative group"
+                    class="rounded-xl overflow-hidden border border-white/10 hover:border-emerald-500 transition-colors bg-black/20 text-left relative group"
                     @click="openAccountItem(item)"
                     :disabled="accountItemLoading.has(item.detailId)"
                     :title="item.desc || item.detailId"
@@ -279,7 +279,7 @@
                   <div class="flex items-center gap-2">
                     <button
                       class="px-3 py-2 rounded-xl border transition text-xs"
-                      :class="favoritesTab === 'users' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                      :class="favoritesTab === 'users' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-white/10 text-gray-200 hover:bg-gray-700'"
                       :disabled="favoritesLoading"
                       @click="setFavoritesTab('users')"
                     >
@@ -287,7 +287,7 @@
                     </button>
                     <button
                       class="px-3 py-2 rounded-xl border transition text-xs"
-                      :class="favoritesTab === 'awemes' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                      :class="favoritesTab === 'awemes' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-white/10 text-gray-200 hover:bg-gray-700'"
                       :disabled="favoritesLoading"
                       @click="setFavoritesTab('awemes')"
                     >
@@ -297,7 +297,7 @@
 
                   <div class="flex items-center gap-2">
                     <button
-                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs"
+                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs"
                       :disabled="favoritesLoading || uiDisabled"
                       @click="toggleFavoritesSelectionMode"
                       title="批量选择"
@@ -305,7 +305,7 @@
                       {{ favoritesSelectionMode ? '完成' : '批量' }}
                     </button>
                     <button
-                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs"
+                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs"
                       :disabled="favoritesLoading"
                       @click="refreshFavorites"
                     >
@@ -318,7 +318,7 @@
                   <div class="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar">
                     <button
                       class="px-3 py-1.5 rounded-full border transition text-xs whitespace-nowrap"
-                      :class="currentFavoriteTagFilter === null ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                      :class="currentFavoriteTagFilter === null ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-white/10 text-gray-200 hover:bg-gray-700'"
                       :disabled="favoritesLoading"
                       @click="setCurrentFavoriteTagFilterValue(null)"
                     >
@@ -326,7 +326,7 @@
                     </button>
                     <button
                       class="px-3 py-1.5 rounded-full border transition text-xs whitespace-nowrap"
-                      :class="currentFavoriteTagFilter === -1 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                      :class="currentFavoriteTagFilter === -1 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-white/10 text-gray-200 hover:bg-gray-700'"
                       :disabled="favoritesLoading"
                       @click="setCurrentFavoriteTagFilterValue(-1)"
                     >
@@ -336,7 +336,7 @@
                       v-for="t in currentFavoriteTags"
                       :key="`douyin-fav-tag-${favoritesTab}-${t.id}`"
                       class="px-3 py-1.5 rounded-full border transition text-xs max-w-[140px] truncate"
-                      :class="currentFavoriteTagFilter === t.id ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                      :class="currentFavoriteTagFilter === t.id ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-white/10 text-gray-200 hover:bg-gray-700'"
                       :disabled="favoritesLoading"
                       @click="setCurrentFavoriteTagFilterValue(t.id)"
                       :title="t.name"
@@ -346,7 +346,7 @@
                   </div>
 
                   <button
-                    class="w-10 h-10 flex items-center justify-center bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    class="w-10 h-10 flex items-center justify-center bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition disabled:opacity-60 disabled:cursor-not-allowed"
                     :disabled="favoritesLoading || uiDisabled"
                     @click="openTagManager(favoritesTab)"
                     title="管理标签"
@@ -373,7 +373,7 @@
 	                    v-for="u in filteredFavoriteUsers"
 	                    :key="u.secUserId"
 	                    class="rounded-xl border bg-black/20 p-3 active:bg-white/5 transition"
-                      :class="favoritesSelectionMode && selectedFavoriteUserIds.has(String(u.secUserId || '').trim()) ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'border-gray-700'"
+                      :class="favoritesSelectionMode && selectedFavoriteUserIds.has(String(u.secUserId || '').trim()) ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'border-white/10'"
 	                    role="button"
 	                    @click="favoritesSelectionMode ? toggleSelectFavoriteUser(u.secUserId) : openFavoriteUserDetail(u)"
 	                  >
@@ -389,7 +389,7 @@
                             ></i>
                           </div>
                         </div>
-	                      <div class="w-12 h-12 rounded-full overflow-hidden bg-[#111113] border border-gray-700 flex-shrink-0">
+	                      <div class="w-12 h-12 rounded-full overflow-hidden bg-[#111113] border border-white/10 flex-shrink-0">
 	                        <img
 	                          v-if="u.avatarUrl && !favoriteUserAvatarError.has(u.secUserId)"
 	                          :src="u.avatarUrl"
@@ -463,7 +463,7 @@
 	                                再次解析
 	                              </button>
 	                              <button
-	                                class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+	                                class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
 	                                :disabled="uiDisabled"
 	                                @click.stop="removeFavoriteUser(u.secUserId)"
 	                              >
@@ -487,7 +487,7 @@
                     v-for="it in filteredFavoriteAwemes"
                     :key="it.awemeId"
                     class="rounded-xl border bg-black/20 p-3 flex gap-3 active:bg-white/5 transition"
-                    :class="favoritesSelectionMode && selectedFavoriteAwemeIds.has(String(it.awemeId || '').trim()) ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'border-gray-700'"
+                    :class="favoritesSelectionMode && selectedFavoriteAwemeIds.has(String(it.awemeId || '').trim()) ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'border-white/10'"
                     role="button"
                     @click="favoritesSelectionMode ? toggleSelectFavoriteAweme(it.awemeId) : null"
                   >
@@ -539,7 +539,7 @@
 
                       <div v-if="!favoritesSelectionMode" class="flex flex-col gap-2 mt-2 sm:flex-row sm:items-center">
                         <button
-                          class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                          class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
                           :disabled="uiDisabled"
                           @click.stop="openTagSheet({ kind: 'awemes', mode: 'single', targetIds: [it.awemeId], presetTagIds: it.tagIds || [] })"
                         >
@@ -553,7 +553,7 @@
                           解析
                         </button>
                         <button
-                          class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                          class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
                           :disabled="uiDisabled"
                           @click.stop="removeFavoriteAweme(it.awemeId)"
                         >
@@ -567,7 +567,7 @@
 
               <div
                 v-if="favoritesSelectionMode"
-                class="sticky bottom-0 z-10 mt-4 pt-3 pb-2 bg-[#18181b] border-t border-gray-800"
+                class="sticky bottom-0 z-10 mt-4 pt-3 pb-2 bg-[#18181b] border-t border-white/5"
               >
                 <div class="flex items-center justify-between gap-3">
                   <div class="text-xs text-gray-400">
@@ -582,7 +582,7 @@
                       打标签
                     </button>
                     <button
-                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
                       :disabled="uiDisabled"
                       @click="toggleFavoritesSelectionMode"
                     >
@@ -610,7 +610,7 @@
 
                 <div class="flex items-center gap-2 flex-shrink-0">
                   <button
-                    class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs flex items-center gap-2"
+                    class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs flex items-center gap-2"
                     :disabled="uiDisabled"
                     @click="toggleFavoriteCurrentDetail"
                     title="收藏/取消收藏该作品"
@@ -621,7 +621,7 @@
 
                   <button
                     v-if="userStore.currentUser"
-                    class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs flex items-center gap-2"
+                    class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs flex items-center gap-2"
                     @click="openUploadMenu"
                     title="打开聊天页上传菜单"
                   >
@@ -635,7 +635,7 @@
                 <div class="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
                   <div class="flex flex-wrap items-center gap-2 text-xs text-gray-400">
                     <button
-                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition"
+                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition"
                       @click="toggleSelectionMode"
                       :disabled="batchImport.running || batchDownload.running"
                     >
@@ -644,7 +644,7 @@
                     <span v-if="selectionMode">已选 {{ selectedCount }} / {{ detail.items.length }}</span>
                     <button
                       v-if="selectionMode"
-                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition"
+                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition"
                       @click="selectAll"
                       :disabled="batchImport.running || batchDownload.running"
                     >
@@ -652,7 +652,7 @@
                     </button>
                     <button
                       v-if="selectionMode"
-                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition"
+                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition"
                       @click="clearSelection"
                       :disabled="batchImport.running || batchDownload.running"
                     >
@@ -662,7 +662,7 @@
 
                   <div class="flex flex-wrap gap-2">
                     <button
-                      class="px-4 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                      class="px-4 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                       :disabled="batchDownload.running || batchImport.running"
                       @click="handleBatchDownload"
                       title="浏览器可能会提示允许多个文件下载"
@@ -683,7 +683,7 @@
                   <div class="text-xs text-gray-400">
                     下载中：{{ batchDownload.done }} / {{ batchDownload.total }}
                   </div>
-                  <div class="h-2 bg-[#111113] rounded-full overflow-hidden border border-gray-800">
+                  <div class="h-2 bg-[#111113] rounded-full overflow-hidden border border-white/5">
                     <div class="h-full bg-indigo-500/70" :style="{ width: `${batchDownloadPercent}%` }"></div>
                   </div>
                 </div>
@@ -692,7 +692,7 @@
                   <div class="text-xs text-gray-400">
                     导入中：{{ batchImport.done }} / {{ batchImport.total }}
                   </div>
-                  <div class="h-2 bg-[#111113] rounded-full overflow-hidden border border-gray-800">
+                  <div class="h-2 bg-[#111113] rounded-full overflow-hidden border border-white/5">
                     <div class="h-full bg-emerald-500/70" :style="{ width: `${batchImportPercent}%` }"></div>
                   </div>
                 </div>
@@ -702,7 +702,7 @@
                 <button
                   v-for="item in detail.items"
                   :key="`douyin-item-${item.index}`"
-                  class="aspect-square rounded-xl overflow-hidden border border-gray-700 transition relative bg-black/20"
+                  class="aspect-square rounded-xl overflow-hidden border border-white/10 transition relative bg-black/20"
 	                  :class="[
 	                    selectionMode && isSelected(item.index) ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'hover:border-emerald-500',
 	                    getItemState(detail.key, item.index)?.status === 'error' ? 'border-red-500' : ''
@@ -830,7 +830,7 @@
                   v-for="t in (tagSheetKind === 'users' ? favoriteUserTags : favoriteAwemeTags)"
                   :key="`tag-sheet-${tagSheetKind}-${t.id}`"
                   class="px-3 py-2 rounded-full border transition text-xs max-w-[160px] truncate"
-                  :class="tagSheetSelectedTagIds.has(t.id) ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-gray-700 text-gray-200 hover:bg-gray-700'"
+                  :class="tagSheetSelectedTagIds.has(t.id) ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-white/10 text-gray-200 hover:bg-gray-700'"
                   @click="toggleTagInSheet(t.id)"
                   :title="t.name"
                 >
@@ -840,7 +840,7 @@
 
               <div class="mt-5 flex items-center justify-between gap-3">
                 <button
-                  class="px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  class="px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   :disabled="tagSheetApplying"
                   @click="openTagManager(tagSheetKind); closeTagSheet()"
                 >
@@ -865,7 +865,7 @@
           class="fixed inset-0 z-[90] bg-[#18181b] flex flex-col"
           @click.stop
         >
-          <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+          <div class="flex items-center justify-between px-6 py-4 border-b border-white/5">
             <button
               class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
               type="button"
@@ -900,7 +900,7 @@
             <div class="flex items-center gap-2">
               <input
                 v-model="tagManagerNameInput"
-                class="flex-1 bg-[#111113] border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
+                class="flex-1 bg-[#111113] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
                 placeholder="新建标签名称（仅名称）"
                 :disabled="tagManagerSaving"
                 @keyup.enter="handleCreateTag"
@@ -932,7 +932,7 @@
               @end="saveTagManagerOrder"
             >
               <template #item="{ element: t }">
-                <div class="rounded-xl border border-gray-700 bg-black/20 p-3">
+                <div class="rounded-xl border border-white/10 bg-black/20 p-3">
                   <div class="flex items-start gap-3">
                     <button
                       class="tag-drag-handle w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a] flex-shrink-0 cursor-grab active:cursor-grabbing disabled:opacity-60 disabled:cursor-not-allowed"
@@ -947,7 +947,7 @@
                       <template v-if="editingTagId === t.id">
                         <input
                           v-model="editingTagName"
-                          class="w-full bg-[#111113] border border-gray-700 rounded-xl px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 text-sm"
+                          class="w-full bg-[#111113] border border-white/10 rounded-xl px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 text-sm"
                           placeholder="标签名称"
                           :disabled="tagManagerSaving"
                           @keyup.enter="saveEditTag"
@@ -974,7 +974,7 @@
                           保存
                         </button>
                         <button
-                          class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                          class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
                           :disabled="tagManagerSaving"
                           @click="cancelEditTag"
                         >
@@ -983,7 +983,7 @@
                       </template>
                       <template v-else>
                         <button
-                          class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                          class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
                           :disabled="tagManagerSaving"
                           @click="startEditTag(t)"
                         >
@@ -1018,7 +1018,7 @@
               </div>
               <div class="mt-5 flex items-center gap-2">
                 <button
-                  class="flex-1 px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  class="flex-1 px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   :disabled="tagManagerSaving"
                   @click="cancelDeleteTag"
                 >
@@ -1079,7 +1079,7 @@
 	            </div>
 
 	            <div class="mt-4 flex items-start gap-4">
-	              <div class="relative w-20 h-20 rounded-full overflow-hidden bg-[#111113] border border-gray-700 flex-shrink-0">
+	              <div class="relative w-20 h-20 rounded-full overflow-hidden bg-[#111113] border border-white/10 flex-shrink-0">
 	                <img
 	                  v-if="selectedFavoriteUser.avatarUrl && !favoriteUserAvatarError.has(selectedFavoriteUser.secUserId)"
 	                  :src="selectedFavoriteUser.avatarUrl"
@@ -1178,7 +1178,7 @@
 	                再次解析作品
 	              </button>
 		              <button
-		                class="flex-1 px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-gray-700 transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+		                class="flex-1 px-4 py-3 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
 		                type="button"
 		                :disabled="uiDisabled"
 		                @click="removeFavoriteUser(selectedFavoriteUser.secUserId)"
@@ -1211,7 +1211,7 @@
 		                <button
 		                  v-for="item in favoriteUserWorks"
 		                  :key="`douyin-favorite-user-aweme-${favoriteUserDetailId}-${item.detailId}`"
-		                  class="rounded-xl overflow-hidden border border-gray-700 hover:border-emerald-500 transition bg-black/20 text-left relative group"
+		                  class="rounded-xl overflow-hidden border border-white/10 hover:border-emerald-500 transition-colors bg-black/20 text-left relative group"
 		                  type="button"
 		                  :disabled="favoriteUserWorkLoading.has(item.detailId)"
 		                  @click="openFavoriteUserWork(item)"

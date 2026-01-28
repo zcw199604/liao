@@ -6,11 +6,11 @@
       @click="close"
     >
       <div
-        class="w-full max-w-4xl bg-[#18181b] rounded-2xl shadow-2xl overflow-hidden border border-gray-700 flex flex-col max-h-[90vh]"
+        class="w-full max-w-4xl bg-[#18181b] rounded-2xl shadow-2xl overflow-hidden border border-white/10 flex flex-col max-h-[90vh]"
         @click.stop
       >
         <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-[#1f1f23]">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-[#1f1f23]">
           <div class="flex items-center gap-3 min-w-0">
             <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
               <i class="fas fa-film text-emerald-400"></i>
@@ -43,7 +43,7 @@
             </button>
             <button
               @click="close"
-              class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+              class="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white/90 transition-colors rounded-lg hover:bg-[#27272a]"
             >
               <i class="fas fa-times"></i>
             </button>
@@ -52,7 +52,7 @@
 
         <div class="flex-1 overflow-y-auto p-6 space-y-6">
           <!-- Probe summary -->
-          <div class="rounded-xl border border-gray-800 bg-[#111113] p-4">
+          <div class="rounded-xl border border-white/5 bg-[#111113] p-4">
             <div class="flex items-center justify-between gap-3">
               <div class="text-sm text-gray-300 font-medium">视频信息</div>
               <div v-if="videoExtractStore.probeLoading" class="text-xs text-gray-500 flex items-center gap-2">
@@ -66,25 +66,25 @@
             </div>
 
             <div v-else class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div class="rounded-lg bg-[#18181b] border border-gray-800 p-3">
+              <div class="rounded-lg bg-[#18181b] border border-white/5 p-3">
                 <div class="text-[11px] text-gray-500 mb-1">宽 × 高</div>
                 <div class="text-sm text-white font-mono">
                   {{ probe?.width || '-' }} × {{ probe?.height || '-' }}
                 </div>
               </div>
-              <div class="rounded-lg bg-[#18181b] border border-gray-800 p-3">
+              <div class="rounded-lg bg-[#18181b] border border-white/5 p-3">
                 <div class="text-[11px] text-gray-500 mb-1">时长</div>
                 <div class="text-sm text-white font-mono">
                   {{ formatSec(probe?.durationSec) }}
                 </div>
               </div>
-              <div class="rounded-lg bg-[#18181b] border border-gray-800 p-3">
+              <div class="rounded-lg bg-[#18181b] border border-white/5 p-3">
                 <div class="text-[11px] text-gray-500 mb-1">平均 FPS</div>
                 <div class="text-sm text-white font-mono">
                   {{ probe?.avgFps ? probe.avgFps.toFixed(2) : '-' }}
                 </div>
               </div>
-              <div class="rounded-lg bg-[#18181b] border border-gray-800 p-3">
+              <div class="rounded-lg bg-[#18181b] border border-white/5 p-3">
                 <div class="text-[11px] text-gray-500 mb-1">预计输出</div>
                 <div class="text-sm text-white font-mono">
                   {{ estimateText }}
@@ -147,7 +147,7 @@
                     min="0"
                     max="1"
                     step="0.01"
-                    class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none"
+                    class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-emerald-500 focus:outline-none"
                     placeholder="默认 0.30"
                   />
                   <p class="text-xs text-gray-500 mt-1">数值越大越严格，通常 0.2~0.4</p>
@@ -161,7 +161,7 @@
                   type="number"
                   min="0.01"
                   step="0.01"
-                  class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none"
+                  class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-emerald-500 focus:outline-none"
                   placeholder="例如 1 表示每秒 1 帧"
                 />
               </div>
@@ -174,7 +174,7 @@
                     type="number"
                     min="0"
                     step="0.01"
-                    class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none"
+                    class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-emerald-500 focus:outline-none"
                     placeholder="可空"
                   />
                 </div>
@@ -185,7 +185,7 @@
                     type="number"
                     min="0"
                     step="0.01"
-                    class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none"
+                    class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-emerald-500 focus:outline-none"
                     placeholder="可空"
                   />
                 </div>
@@ -198,7 +198,7 @@
                   type="number"
                   min="1"
                   step="1"
-                  class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none"
+                  class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-emerald-500 focus:outline-none"
                   placeholder="必填，例如 500"
                 />
                 <p class="text-xs mt-1" :class="riskLevel === 'high' ? 'text-red-400' : riskLevel === 'mid' ? 'text-amber-400' : 'text-gray-500'">
@@ -229,12 +229,12 @@
                   min="1"
                   max="31"
                   step="1"
-                  class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none"
+                  class="w-full bg-[#111113] text-white px-3 py-2 rounded-lg border border-white/10 focus:border-emerald-500 focus:outline-none"
                   placeholder="可空，建议 3~6（数值越小质量越高）"
                 />
               </div>
 
-              <div class="rounded-xl border border-gray-800 bg-[#111113] p-4">
+              <div class="rounded-xl border border-white/5 bg-[#111113] p-4">
                 <div class="text-sm text-gray-300 font-medium mb-2">提交说明</div>
                 <ul class="text-xs text-gray-500 space-y-1 list-disc pl-4">
                   <li>任务为异步执行，可在“任务中心”查看进度与预览。</li>
@@ -247,7 +247,7 @@
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-4 border-t border-gray-800 bg-[#1f1f23] flex items-center justify-between gap-3">
+        <div class="px-6 py-4 border-t border-white/5 bg-[#1f1f23] flex items-center justify-between gap-3">
           <button
             class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-gray-200 transition"
             @click="close"
@@ -361,7 +361,7 @@ const submitting = ref(false)
 const probe = computed<VideoProbeResult | null>(() => videoExtractStore.probe)
 
 const activeBtn = 'border-emerald-500 bg-emerald-500/10 text-emerald-300'
-const idleBtn = 'border-gray-700 bg-[#111113] text-gray-300 hover:border-gray-500'
+const idleBtn = 'border-white/10 bg-[#111113] text-gray-300 hover:border-white/20'
 
 const formatSec = (sec?: number) => {
   if (!sec || sec <= 0) return '-'

@@ -15,7 +15,7 @@
         @click.stop
       >
         <!-- 头部 -->
-	        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+	        <div class="flex items-center justify-between px-6 py-4 border-b border-white/5">
 	          <div class="flex items-center gap-2 min-w-0">
             <button
               v-if="mtPhotoStore.view === 'album'"
@@ -63,7 +63,7 @@
 	        </div>
 
         <!-- 错误提示 -->
-        <div v-if="mtPhotoStore.lastError" class="px-6 py-3 text-xs text-red-400 border-b border-gray-800">
+        <div v-if="mtPhotoStore.lastError" class="px-6 py-3 text-xs text-red-400 border-b border-white/5">
           {{ mtPhotoStore.lastError }}
         </div>
 
@@ -77,7 +77,7 @@
 	            <button
 	              v-for="album in mtPhotoStore.albums"
 	              :key="album.id"
-	              class="text-left rounded-xl overflow-hidden border border-gray-700 hover:border-pink-500 transition bg-[#111113]"
+	              class="text-left rounded-xl overflow-hidden border border-white/10 hover:border-pink-500 transition-colors bg-[#111113]"
 	              @click="mtPhotoStore.openAlbum(album)"
 	            >
 	              <div class="aspect-square bg-black/30 overflow-hidden">
@@ -119,7 +119,7 @@
 		            <MediaTile
 		              :src="getThumbUrl('h220', item.md5)"
 		              type="image"
-		              class="w-full rounded-xl overflow-hidden cursor-pointer border border-gray-700 hover:border-pink-500 transition bg-gray-800"
+		              class="w-full rounded-xl overflow-hidden cursor-pointer border border-white/10 hover:border-pink-500 transition-colors bg-gray-800"
 		              :class="layoutMode === 'grid' ? 'h-full' : ''"
 		              :aspect-ratio="layoutMode === 'masonry' && item.width && item.height ? (Number(item.width) / Number(item.height)) : undefined"
 		              :style="layoutMode === 'masonry' ? { contain: 'paint' } : {}"

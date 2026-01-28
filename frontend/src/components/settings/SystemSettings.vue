@@ -88,7 +88,7 @@
             <span class="text-gray-400">模式（全局共用）</span>
             <select
               v-model="draftMode"
-              class="bg-[#27272a] text-white text-sm rounded-lg px-2 py-1 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              class="bg-[#27272a] text-white text-sm rounded-lg px-2 py-1 border border-white/10 focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
               <option value="fixed">固定</option>
               <option value="probe">可用端口探测</option>
@@ -102,7 +102,7 @@
               v-model="draftFixedPort"
               type="number"
               inputmode="numeric"
-              class="w-24 bg-[#27272a] text-white text-sm rounded-lg px-2 py-1 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-right"
+              class="w-24 bg-[#27272a] text-white text-sm rounded-lg px-2 py-1 border border-white/10 focus:outline-none focus:ring-2 focus:ring-purple-500 text-right"
               placeholder="9006"
             />
           </div>
@@ -113,7 +113,7 @@
               v-model.number="draftRealMinBytes"
               type="number"
               inputmode="numeric"
-              class="w-24 bg-[#27272a] text-white text-sm rounded-lg px-2 py-1 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-right"
+              class="w-24 bg-[#27272a] text-white text-sm rounded-lg px-2 py-1 border border-white/10 focus:outline-none focus:ring-2 focus:ring-purple-500 text-right"
               placeholder="2048"
               min="256"
               max="65536"

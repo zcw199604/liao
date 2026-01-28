@@ -11,13 +11,13 @@
       <button
         @click="handleQuickCreate"
         :disabled="loading"
-        class="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium shadow-lg disabled:opacity-50"
+        class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-medium shadow-lg shadow-indigo-500/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] disabled:opacity-50 transition-colors"
       >
         <i class="fas fa-bolt mr-2"></i>快速进入
       </button>
       <button
         @click="showCreateDialog = true"
-        class="flex-1 py-3 bg-[#27272a] text-white rounded-xl font-medium border border-gray-700"
+        class="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl font-medium border border-white/10 transition-colors"
       >
         <i class="fas fa-plus mr-2"></i>创建身份
       </button>
@@ -27,7 +27,7 @@
     <div class="px-4 mb-4">
       <button
         @click="showMediaDrawer = true"
-        class="w-full py-3 bg-[#27272a] text-white rounded-xl font-medium border border-gray-700 hover:bg-[#333] transition flex items-center justify-center gap-2"
+        class="w-full py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl font-medium border border-white/10 transition-colors flex items-center justify-center gap-2"
       >
         <i class="fas fa-images text-purple-400"></i>
         <span>图片管理</span>

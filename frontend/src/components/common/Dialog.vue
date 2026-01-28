@@ -1,10 +1,10 @@
 <template>
   <div
     v-if="visible"
-    class="fixed inset-0 z-[90] bg-black/60 flex items-center justify-center"
+    class="fixed inset-0 z-[90] bg-black/40 backdrop-blur-sm flex items-center justify-center"
     @click="$emit('update:visible', false)"
   >
-    <div class="w-80 bg-[#18181b] rounded-2xl p-6 shadow-2xl" @click.stop>
+    <div class="w-80 bg-zinc-900/90 ring-1 ring-white/10 rounded-2xl p-6 shadow-2xl" @click.stop>
       <div class="text-center mb-4">
         <i class="fas fa-exclamation-triangle text-4xl text-yellow-500 mb-3"></i>
         <h3 class="text-lg font-bold text-white mb-2">{{ title }}</h3>
@@ -19,7 +19,7 @@
         <button
           v-if="showCancel"
           @click="handleCancel"
-          class="flex-1 py-3 bg-[#27272a] text-gray-400 rounded-xl border border-gray-700"
+          class="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white/70 rounded-xl border border-white/10 transition-colors"
         >
           {{ cancelText }}
         </button>

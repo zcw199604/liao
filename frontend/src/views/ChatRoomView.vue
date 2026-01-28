@@ -12,7 +12,7 @@
       <div
         v-if="showSidebar"
         ref="sidebarRef"
-        class="absolute inset-y-0 left-0 w-[80%] max-w-sm z-50 shadow-2xl bg-[#0f0f13] border-r border-gray-800"
+        class="absolute inset-y-0 left-0 w-[80%] max-w-sm z-50 shadow-2xl bg-[#0f0f13] border-r border-white/5"
         :style="{
           transform: `translateX(${sidebarTranslateX}px)`,
           transition: isSidebarAnimating ? swipeTransition : 'none'
@@ -133,7 +133,7 @@
         @click="closeHistoryMediaModal"
       >
         <div class="w-[90%] max-w-2xl h-[70vh] bg-[#18181b] rounded-2xl shadow-2xl flex flex-col" @click.stop>
-          <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+          <div class="flex items-center justify-between px-6 py-4 border-b border-white/5">
             <div class="flex items-center gap-2">
               <i class="fas fa-history text-green-500"></i>
               <h3 class="text-lg font-bold text-white">
@@ -162,7 +162,7 @@
                 :key="'history-media-' + idx"
                 :src="media.url"
                 :type="media.type"
-                class="aspect-square rounded-xl overflow-hidden cursor-pointer border-2 border-gray-700 hover:border-green-500 hover:scale-105 transition-all"
+                class="aspect-square rounded-xl overflow-hidden cursor-pointer border-2 border-white/10 hover:border-green-500 hover:scale-105 transition-all"
                 :show-skeleton="false"
                 :indicator-size="'md'"
                 :muted="true"
@@ -182,7 +182,7 @@
             </div>
           </div>
 
-          <div class="px-6 py-4 border-t border-gray-800 text-center text-xs text-gray-500">
+          <div class="px-6 py-4 border-t border-white/5 text-center text-xs text-gray-500">
             点击图片/视频预览，在预览中可上传/重新上传，再在上方"已上传的文件"中点击发送
           </div>
         </div>

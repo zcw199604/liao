@@ -1,11 +1,11 @@
 <template>
-  <div class="bg-[#18181b]/90 backdrop-blur-md border-b border-gray-800 sticky top-0 z-20 px-4 py-2 shadow-sm">
+  <div class="bg-[#18181b]/60 backdrop-blur-md border-b border-white/5 sticky top-0 z-20 px-4 py-2 shadow-sm">
     <div class="flex items-center justify-between mb-1">
       <div class="flex items-center">
         <!-- 侧边栏开关 -->
         <button
           @click="$emit('toggleSidebar')"
-          class="w-10 h-10 -ml-2 flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/5 rounded-full transition mr-1"
+          class="w-10 h-10 -ml-2 flex items-center justify-center text-white/60 hover:text-white/90 hover:bg-white/5 rounded-full transition mr-1"
           aria-label="显示列表"
         >
           <i class="fas fa-bars text-lg"></i>
@@ -14,7 +14,7 @@
         <!-- 返回按钮 -->
         <button
           @click="$emit('back')"
-          class="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/5 rounded-full transition"
+          class="w-10 h-10 flex items-center justify-center text-white/60 hover:text-white/90 hover:bg-white/5 rounded-full transition"
           aria-label="返回"
         >
           <i class="fas fa-chevron-left text-lg"></i>
@@ -25,26 +25,28 @@
         <div class="font-bold text-base text-white leading-tight mb-0.5">{{ user?.nickname || '未知用户' }}</div>
         
         <!-- 状态信息行 -->
-        <div class="flex items-center justify-center gap-2 text-[11px] text-gray-400">
+        <div class="flex items-center justify-center gap-2 text-[11px] text-white/50">
           <div class="flex items-center gap-1.5" :class="connected ? 'text-emerald-500' : 'text-rose-500'">
-            <span class="relative flex h-2 w-2">
-              <span v-if="connected" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2 w-2" :class="connected ? 'bg-emerald-500' : 'bg-rose-500'"></span>
-            </span>
+            <span
+              class="relative inline-flex rounded-full h-2 w-2"
+              :class="connected
+                ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.55)]'
+                : 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.35)]'"
+            ></span>
             <span>{{ connected ? '在线' : '离线' }}</span>
           </div>
 
           <!-- 性别年龄 -->
           <div v-if="user?.sex && user.sex !== '未知'" class="flex items-center gap-1 px-1.5 py-0.5 rounded"
              :class="user.sex === '男' ? 'bg-blue-500/10 text-blue-400' : (user.sex === '女' ? 'bg-pink-500/10 text-pink-400' : 'bg-gray-700/50')">
-            <i :class="user.sex === '男' ? 'fas fa-mars' : (user.sex === '女' ? 'fas fa-venus' : 'fas fa-genderless')"></i>
+            <i class="opacity-60" :class="user.sex === '男' ? 'fas fa-mars' : (user.sex === '女' ? 'fas fa-venus' : 'fas fa-genderless')"></i>
             <span v-if="user.age && user.age !== '0'">{{ user.age }}</span>
           </div>
           
           <!-- 地址 -->
           <div v-if="user?.address && user.address !== '未知' && user.address !== '保密'" class="flex items-center gap-1">
-             <span class="text-gray-600">|</span>
-             <i class="fas fa-map-marker-alt text-[10px]"></i>
+             <span class="text-white/20">|</span>
+             <i class="fas fa-map-marker-alt text-[10px] opacity-60"></i>
              <span>{{ user.address }}</span>
           </div>
         </div>
@@ -55,7 +57,7 @@
         <!-- 清空记录按钮 -->
         <button
           @click="$emit('clearAndReload')"
-          class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/5 rounded-full transition"
+          class="w-10 h-10 flex items-center justify-center text-white/40 hover:text-white/90 hover:bg-white/5 rounded-full transition"
           title="清空并重新加载聊天记录"
         >
           <i class="fas fa-sync-alt text-sm"></i>
@@ -68,7 +70,7 @@
         >
           <i
             class="text-lg transition-transform active:scale-125"
-            :class="user?.isFavorite ? 'fas fa-star text-yellow-500' : 'far fa-star text-gray-400'"
+            :class="user?.isFavorite ? 'fas fa-star text-yellow-500' : 'far fa-star text-white/40'"
           ></i>
         </button>
       </div>
