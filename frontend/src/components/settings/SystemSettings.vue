@@ -10,7 +10,7 @@
       </div>
 
       <div class="bg-surface rounded-lg p-3">
-        <div class="flex items-center justify-between gap-3">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div class="min-w-0">
             <div class="text-sm text-fg font-medium">主题</div>
             <div class="text-xs text-fg-muted mt-0.5">
@@ -20,10 +20,10 @@
             </div>
           </div>
 
-          <div class="shrink-0 flex items-center gap-1 bg-surface-2 p-1 rounded-xl border border-line">
+          <div class="w-full sm:w-auto grid grid-cols-3 gap-1 bg-surface-2 p-1 rounded-xl border border-line sm:flex sm:items-center">
             <button
               type="button"
-              class="px-2.5 py-1.5 text-xs rounded-lg transition flex items-center gap-1"
+              class="w-full sm:w-auto px-2.5 py-1.5 text-xs rounded-lg transition flex items-center justify-center gap-1 whitespace-nowrap"
               :class="themeStore.preference === 'auto' ? 'bg-indigo-600 text-white shadow-sm' : 'text-fg-muted hover:text-fg hover:bg-surface-hover'"
               :aria-pressed="themeStore.preference === 'auto'"
               @click="themeStore.setPreference('auto')"
@@ -34,7 +34,7 @@
             </button>
             <button
               type="button"
-              class="px-2.5 py-1.5 text-xs rounded-lg transition flex items-center gap-1"
+              class="w-full sm:w-auto px-2.5 py-1.5 text-xs rounded-lg transition flex items-center justify-center gap-1 whitespace-nowrap"
               :class="themeStore.preference === 'light' ? 'bg-indigo-600 text-white shadow-sm' : 'text-fg-muted hover:text-fg hover:bg-surface-hover'"
               :aria-pressed="themeStore.preference === 'light'"
               @click="themeStore.setPreference('light')"
@@ -45,7 +45,7 @@
             </button>
             <button
               type="button"
-              class="px-2.5 py-1.5 text-xs rounded-lg transition flex items-center gap-1"
+              class="w-full sm:w-auto px-2.5 py-1.5 text-xs rounded-lg transition flex items-center justify-center gap-1 whitespace-nowrap"
               :class="themeStore.preference === 'dark' ? 'bg-indigo-600 text-white shadow-sm' : 'text-fg-muted hover:text-fg hover:bg-surface-hover'"
               :aria-pressed="themeStore.preference === 'dark'"
               @click="themeStore.setPreference('dark')"

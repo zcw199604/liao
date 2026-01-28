@@ -166,6 +166,7 @@
 - 前端：新增主题切换（深色/浅色/跟随系统），并将主要页面/组件的硬编码暗色逐步迁移到语义化颜色 tokens（CSS 变量 + Tailwind 映射）；新增设置入口“系统设置→外观→主题”，并补充主题 store 单元测试（`liao-theme-preference`、首屏防闪烁脚本、`documentElement.classList` 同步）。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`
+- 前端：修复移动端“系统设置→外观→主题”切换按钮文字因压缩换行导致竖排显示（小屏改为三列栅格 + `whitespace-nowrap`）。
 - 修复 `/api/getHistoryUserList` 在上游用户ID字段为 `UserID/userid` 时，未能填充 `lastMsg` / `lastTime` 的问题。
 - 修复上游返回的消息 `id/toid` 与 `myUserID` 不一致时，最后消息缓存会话Key无法命中导致 `lastMsg` / `lastTime` 缺失的问题。
 - 后端：补齐 Go 版 User History/鉴权关键日志，避免容器运行时仅有启动日志。
