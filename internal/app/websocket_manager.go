@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -569,10 +570,20 @@ func (c *UpstreamWebSocketClient) flushPending() {
 }
 
 func (c *UpstreamWebSocketClient) onMessage(message string) {
+	// 记录收到的上游消息（截断过长消息以避免日志过大）
+	logMessage := message
+	if len(logMessage) > 500 {
+		logMessage = logMessage[:500] + "...(截断)"
+	}
+	slog.Debug("收到上游WS消息", "userID", c.userID, "message", logMessage)
+
 	var node map[string]any
 	if err := json.Unmarshal([]byte(message), &node); err == nil {
 		code := toInt(node["code"])
+		slog.Debug("解析上游消息", "userID", c.userID, "code", code)
+
 		if code == -3 && toBool(node["forceout"]) {
+			slog.Warn("收到forceout消息", "userID", c.userID, "message", logMessage)
 			if c.manager != nil {
 				c.manager.HandleForceout(c.userID, message)
 			}
@@ -581,6 +592,7 @@ func (c *UpstreamWebSocketClient) onMessage(message string) {
 
 		if code == 15 {
 			target := strings.TrimSpace(toString(node["sel_userid"]))
+			slog.Debug("收到用户信息消息(code=15)", "userID", c.userID, "targetUserID", target)
 			if target != "" && c.manager != nil && c.manager.cache != nil {
 				c.manager.cache.SaveUserInfo(CachedUserInfo{
 					UserID:   target,
@@ -604,6 +616,13 @@ func (c *UpstreamWebSocketClient) onMessage(message string) {
 			if msgType == "" {
 				msgType = "text"
 			}
+
+			// 记录聊天消息（截断内容以避免日志过大）
+			logContent := content
+			if len(logContent) > 100 {
+				logContent = logContent[:100] + "...(截断)"
+			}
+			slog.Info("收到聊天消息(code=7)", "userID", c.userID, "fromUserID", fromUserID, "toUserID", toUserID, "msgType", msgType, "tid", tid, "content", logContent)
 
 			if fromUserID != "" && toUserID != "" && content != "" && tm != "" && c.manager != nil && c.manager.cache != nil {
 				last := CachedLastMessage{
@@ -681,6 +700,7 @@ func (c *UpstreamWebSocketClient) onMessage(message string) {
 	}
 
 	if c.manager != nil {
+		slog.Debug("广播上游消息到下游", "userID", c.userID)
 		c.manager.BroadcastToDownstream(c.userID, message)
 	}
 }
