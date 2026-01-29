@@ -443,4 +443,131 @@ describe('components/chat/MatchButton.vue', () => {
 
     wrapper.unmount()
   })
+
+  it('short press does not show toast when startContinuousMatch returns false', async () => {
+    vi.useFakeTimers()
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const chatStore = useChatStore()
+    chatStore.isMatching = false
+
+    startContinuousMatchMock.mockReturnValue(false)
+
+    const wrapper = mount(MatchButton, { global: { plugins: [pinia] } })
+    const button = wrapper.get('button')
+    await button.trigger('mousedown')
+    await button.trigger('mouseup')
+
+    expect(startContinuousMatchMock).toHaveBeenCalledWith(1)
+    expect(toastShow).not.toHaveBeenCalledWith('正在匹配...')
+
+    wrapper.unmount()
+  })
+
+  it('mouseleave cancels long press timer and does not open menu', async () => {
+    vi.useFakeTimers()
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const chatStore = useChatStore()
+    chatStore.isMatching = false
+
+    const wrapper = mount(MatchButton, { global: { plugins: [pinia] } })
+    const button = wrapper.get('button')
+
+    await button.trigger('mousedown')
+    await button.trigger('mouseleave')
+    vi.advanceTimersByTime(300)
+    await nextTick()
+
+    expect(wrapper.text()).not.toContain('连续匹配 3 次')
+    expect(startContinuousMatchMock).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('touch events support short press and cancel long press', async () => {
+    vi.useFakeTimers()
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const chatStore = useChatStore()
+    chatStore.isMatching = false
+
+    startContinuousMatchMock.mockReturnValue(true)
+
+    const wrapper = mount(MatchButton, { global: { plugins: [pinia] } })
+    const button = wrapper.get('button')
+
+    await button.trigger('touchstart')
+    await button.trigger('touchend')
+
+    expect(startContinuousMatchMock).toHaveBeenCalledWith(1)
+    expect(toastShow).toHaveBeenCalledWith('正在匹配...')
+
+    // long press opened then cancelled via touchcancel
+    startContinuousMatchMock.mockClear()
+    toastShow.mockClear()
+
+    await button.trigger('touchstart')
+    await button.trigger('touchcancel')
+    vi.advanceTimersByTime(300)
+    await nextTick()
+
+    expect(wrapper.text()).not.toContain('连续匹配 3 次')
+    expect(startContinuousMatchMock).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('renders continuous match cancel label and progress when enabled and total>1', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const chatStore = useChatStore()
+    chatStore.isMatching = true
+    chatStore.continuousMatchConfig.enabled = true
+    chatStore.continuousMatchConfig.total = 3
+    chatStore.continuousMatchConfig.current = 2
+
+    const wrapper = mount(MatchButton, { global: { plugins: [pinia] } })
+    expect(wrapper.text()).toContain('取消连续匹配')
+    expect(wrapper.text()).toContain('第 2/3 次')
+
+    await wrapper.get('button').trigger('click')
+    expect(cancelMatchMock).toHaveBeenCalledOnce()
+    expect(toastShow).toHaveBeenCalledWith('已取消匹配')
+
+    wrapper.unmount()
+  })
+
+  it('long press menu hides and does not toast when startContinuousMatch fails', async () => {
+    vi.useFakeTimers()
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const chatStore = useChatStore()
+    chatStore.isMatching = false
+
+    startContinuousMatchMock.mockReturnValue(false)
+
+    const wrapper = mount(MatchButton, { global: { plugins: [pinia] } })
+
+    const button = wrapper.get('button')
+    await button.trigger('mousedown')
+    vi.advanceTimersByTime(300)
+    await nextTick()
+
+    const option = wrapper
+      .findAll('button')
+      .find(btn => btn.text().includes('连续匹配 5 次'))
+    expect(option).toBeTruthy()
+    await option!.trigger('click')
+
+    expect(startContinuousMatchMock).toHaveBeenCalledWith(5)
+    expect(toastShow).not.toHaveBeenCalledWith('开始连续匹配 5 次...')
+    expect(wrapper.text()).not.toContain('连续匹配 5 次')
+
+    wrapper.unmount()
+  })
 })

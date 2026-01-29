@@ -157,6 +157,13 @@ describe('components/common/MediaTileSelectMark.vue', () => {
     await wrapper2.trigger('click')
     expect(wrapper2.emitted('click')).toHaveLength(1)
     expect(wrapper2.find('i.fa-check').exists()).toBe(true)
+
+    // default branches: size=md + tone=indigo
+    const wrapper3 = mount(MediaTileSelectMark, {
+      props: { checked: true, interactive: true }
+    })
+    expect(wrapper3.classes()).toContain('w-10')
+    expect(wrapper3.html()).toContain('bg-indigo-500/80')
   })
 })
 
@@ -183,37 +190,80 @@ describe('components/identity/IdentityList.vue', () => {
 
 describe('components/chat/ChatMedia.vue', () => {
   it('emits preview when previewable and defaults aspect ratio by type', async () => {
+    const MediaTileStub = {
+      name: 'MediaTile',
+      props: ['src', 'type', 'aspectRatio', 'alt', 'showSkeleton', 'controls'],
+      emits: ['click', 'layout'],
+      template: `<button data-testid="tile" @click="$emit('click')"></button>`
+    }
     const wrapper = mount(ChatMedia, {
       props: { type: 'image', src: 'x', previewable: true },
       global: {
         stubs: {
-          MediaTile: {
-            props: ['src', 'type', 'aspectRatio', 'alt', 'showSkeleton', 'controls'],
-            emits: ['click', 'layout'],
-            template: `<button data-testid="tile" @click="$emit('click')"></button>`
-          }
+          MediaTile: MediaTileStub
         }
       }
     })
 
     await wrapper.get('[data-testid="tile"]').trigger('click')
     expect(wrapper.emitted('preview')?.[0]).toEqual(['x', 'image'])
+
+    expect(wrapper.getComponent({ name: 'MediaTile' }).props('aspectRatio')).toBeCloseTo(4 / 3)
   })
 
   it('does not emit preview when previewable=false', async () => {
+    const MediaTileStub = {
+      name: 'MediaTile',
+      props: ['src', 'type', 'aspectRatio', 'alt', 'showSkeleton', 'controls'],
+      template: `<button data-testid="tile"></button>`
+    }
     const wrapper = mount(ChatMedia, {
       props: { type: 'video', src: 'v', previewable: false },
       global: {
         stubs: {
-          MediaTile: {
-            template: `<button data-testid="tile"></button>`
-          }
+          MediaTile: MediaTileStub
         }
       }
     })
 
     await wrapper.get('[data-testid="tile"]').trigger('click')
     expect(wrapper.emitted('preview')).toBeUndefined()
+
+    // invalid aspectRatio falls back to 16/9 for video
+    expect(wrapper.getComponent({ name: 'MediaTile' }).props('aspectRatio')).toBeCloseTo(16 / 9)
+    expect(wrapper.getComponent({ name: 'MediaTile' }).props('controls')).toBe(true)
+  })
+
+  it('uses provided aspectRatio when valid and falls back for invalid values', () => {
+    const MediaTileStub = {
+      name: 'MediaTile',
+      props: ['aspectRatio'],
+      template: `<div></div>`
+    }
+
+    const wrapper = mount(ChatMedia, {
+      props: { type: 'image', src: 'x', aspectRatio: 2 },
+      global: { stubs: { MediaTile: MediaTileStub } }
+    })
+    expect(wrapper.getComponent({ name: 'MediaTile' }).props('aspectRatio')).toBe(2)
+
+    const wrapper2 = mount(ChatMedia, {
+      props: { type: 'image', src: 'x', aspectRatio: 0 },
+      global: { stubs: { MediaTile: MediaTileStub } }
+    })
+    expect(wrapper2.getComponent({ name: 'MediaTile' }).props('aspectRatio')).toBeCloseTo(4 / 3)
+
+    const wrapper3 = mount(ChatMedia, {
+      props: { type: 'video', src: 'x', aspectRatio: Infinity },
+      global: { stubs: { MediaTile: MediaTileStub } }
+    })
+    expect(wrapper3.getComponent({ name: 'MediaTile' }).props('aspectRatio')).toBeCloseTo(16 / 9)
+
+    const wrapper4 = mount(ChatMedia, {
+      props: { type: 'video', src: 'x', aspectRatio: -1 },
+      global: { stubs: { MediaTile: MediaTileStub } }
+    })
+    expect(wrapper4.getComponent({ name: 'MediaTile' }).props('aspectRatio')).toBeCloseTo(16 / 9)
   })
 })
 
