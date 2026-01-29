@@ -202,12 +202,22 @@
     <!-- 批量删除底栏 -->
     <div v-if="selectionMode" class="shrink-0 px-4 py-3 border-t border-line bg-canvas">
       <div class="flex items-center justify-between gap-3">
-        <button
-          @click="toggleSelectAll"
-          class="px-4 py-2 bg-surface-3 text-fg rounded-lg hover:bg-surface-hover transition text-sm border border-line"
-        >
-          {{ isAllSelected ? '取消全选' : '全选当前列表' }}
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            @click="toggleSelectAll"
+            class="px-4 py-2 bg-surface-3 text-fg rounded-lg hover:bg-surface-hover transition text-sm border border-line"
+          >
+            {{ isAllSelected ? '取消全选' : '全选当前列表' }}
+          </button>
+
+          <button
+            @click="openDaySelector"
+            class="px-4 py-2 bg-surface-3 text-fg rounded-lg hover:bg-surface-hover transition text-sm border border-line flex items-center gap-2"
+          >
+            <i class="fas fa-calendar-alt text-xs text-purple-400"></i>
+            <span>按天...</span>
+          </button>
+        </div>
 
         <div class="flex items-center gap-2">
           <button
@@ -259,13 +269,6 @@
         <span>多选删除</span>
       </button>
       <button
-        @click="handleOpenDayBulkDelete(contextMenuUser!)"
-        class="w-full px-4 py-2 text-left text-sm text-fg-muted hover:bg-surface-hover hover:text-fg flex items-center gap-2 transition border-b border-line-strong"
-      >
-        <i class="fas fa-calendar-alt text-xs text-purple-400"></i>
-        <span>按天删除</span>
-      </button>
-      <button
         @click="confirmDeleteUser(contextMenuUser!)"
         class="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-surface-hover hover:text-red-400 flex items-center gap-2 transition"
       >
@@ -310,8 +313,7 @@
       v-model:visible="showDayBulkDeleteModal"
       :items="dayDeleteItems"
       :preselect-key="dayDeletePreselectKey"
-      :loading="dayDeleteLoading"
-      @confirm="executeDayBulkDelete"
+      @confirm="applyDaySelection"
     />
 
     <!-- 在线状态弹窗 -->
@@ -406,6 +408,7 @@ const handleEnterSelectionMode = (preselect?: User) => {
   closeContextMenu()
   showTopMenu.value = false
   selectionMode.value = true
+  dayDeletePreselectKey.value = preselect ? getDayKeyFromLastTime(preselect.lastTime || '') : undefined
   if (preselect && !isSelected(preselect.id)) {
     selectedUserIds.value = [preselect.id, ...selectedUserIds.value]
   }
@@ -415,6 +418,8 @@ const exitSelectionMode = () => {
   selectionMode.value = false
   selectedUserIds.value = []
   showBatchDeleteDialog.value = false
+  showDayBulkDeleteModal.value = false
+  dayDeletePreselectKey.value = undefined
 }
 
 const toggleSelection = (userId: string) => {
@@ -442,7 +447,6 @@ const confirmBatchDelete = () => {
 // 按天批量删除（从当前列表按 lastTime 分组）
 const showDayBulkDeleteModal = ref(false)
 const dayDeletePreselectKey = ref<string | undefined>(undefined)
-const dayDeleteLoading = ref(false)
 
 const parseLastTimeToDate = (timeStr: string): Date | null => {
   const raw = (timeStr || '').trim()
@@ -513,6 +517,27 @@ const dayDeleteItems = computed(() => {
   })
   return items
 })
+
+const openDaySelector = () => {
+  showDayBulkDeleteModal.value = true
+}
+
+const applyDaySelection = (dayKeys: string[]) => {
+  const keySet = new Set(dayKeys)
+  const ids: string[] = []
+  for (const user of chatStore.displayList || []) {
+    const key = getDayKeyFromLastTime(user.lastTime || '')
+    if (keySet.has(key)) ids.push(user.id)
+  }
+
+  selectedUserIds.value = ids
+  showDayBulkDeleteModal.value = false
+  if (ids.length === 0) {
+    show('没有可选会话')
+  } else {
+    show(`已选中 ${ids.length} 个会话`)
+  }
+}
 
 // 列表偏移量 (用于跟手滑动)
 const listTranslateX = ref(0)
@@ -743,70 +768,6 @@ const handleToggleGlobalFavorite = async (user: User) => {
   } else {
     await favoriteStore.addFavorite(userStore.currentUser.id, user.id, user.nickname || user.name)
     show('已加入全局收藏')
-  }
-}
-
-const handleOpenDayBulkDelete = (user: User) => {
-  closeContextMenu()
-  showTopMenu.value = false
-  dayDeletePreselectKey.value = getDayKeyFromLastTime(user.lastTime || '')
-  showDayBulkDeleteModal.value = true
-}
-
-const executeDayBulkDelete = async (dayKeys: string[]) => {
-  if (!userStore.currentUser) return
-
-  const userIds = new Set<string>()
-  for (const key of dayKeys) {
-    for (const id of dayDeleteGroupMap.value.get(key) || []) {
-      userIds.add(id)
-    }
-  }
-
-  const ids = Array.from(userIds)
-  if (ids.length === 0) {
-    show('没有可删除的会话')
-    return
-  }
-
-  dayDeleteLoading.value = true
-  try {
-    const myUserId = userStore.currentUser.id
-    const batchSize = 200
-    const failed = new Set<string>()
-
-    for (let i = 0; i < ids.length; i += batchSize) {
-      const chunk = ids.slice(i, i + batchSize)
-      try {
-        const res: any = await batchDeleteUsers(myUserId, chunk)
-        if (!res || res.code !== 0) {
-          chunk.forEach(id => failed.add(id))
-          continue
-        }
-
-        const items: any[] = Array.isArray(res?.data?.failedItems) ? res.data.failedItems : []
-        items.forEach(item => {
-          const id = String(item?.userToId || '').trim()
-          if (!id) return
-          failed.add(id)
-        })
-      } catch {
-        chunk.forEach(id => failed.add(id))
-      }
-    }
-
-    const successIds = ids.filter(id => !failed.has(id))
-    successIds.forEach(id => chatStore.removeUser(id))
-
-    if (failed.size === 0) {
-      show(`已删除 ${successIds.length} 个会话`)
-      showDayBulkDeleteModal.value = false
-      dayDeletePreselectKey.value = undefined
-    } else {
-      show(`已删除 ${successIds.length} 个，失败 ${failed.size} 个`)
-    }
-  } finally {
-    dayDeleteLoading.value = false
   }
 }
 

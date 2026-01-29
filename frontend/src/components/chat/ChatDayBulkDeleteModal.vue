@@ -9,12 +9,11 @@
       <div class="flex items-center justify-between px-5 py-4 border-b border-line">
         <div class="flex items-center gap-2">
           <i class="fas fa-calendar-alt text-blue-400"></i>
-          <h3 class="text-base font-bold text-fg">按天批量删除</h3>
+          <h3 class="text-base font-bold text-fg">按天选择会话</h3>
         </div>
         <button
           @click="handleClose"
           class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
-          :disabled="loading"
           aria-label="close"
         >
           <i class="fas fa-times"></i>
@@ -25,7 +24,7 @@
       <div class="p-4 max-h-[60vh] overflow-y-auto no-scrollbar">
         <div v-if="items.length === 0" class="text-center text-fg-subtle py-10">
           <i class="fas fa-calendar-times text-4xl mb-3 opacity-30"></i>
-          <p class="text-sm">暂无可删除的日期</p>
+          <p class="text-sm">暂无可选择的日期</p>
         </div>
 
         <div v-else class="space-y-2">
@@ -34,7 +33,6 @@
             :key="item.key"
             @click="toggle(item.key)"
             class="w-full flex items-center gap-3 px-3 py-3 rounded-xl border border-line bg-surface-2 hover:bg-surface-hover transition text-left"
-            :disabled="loading"
           >
             <div
               class="w-6 h-6 rounded-full border border-line-strong flex items-center justify-center shrink-0"
@@ -49,8 +47,6 @@
             <div class="text-xs text-fg-muted shrink-0">{{ item.count }}</div>
           </button>
         </div>
-
-        <p class="text-xs text-fg-subtle mt-3">提示：删除后无法撤销</p>
       </div>
 
       <!-- Footer -->
@@ -58,7 +54,7 @@
         <button
           @click="toggleAll"
           class="px-3 py-2 bg-surface-3 text-fg rounded-lg hover:bg-surface-hover transition text-sm border border-line"
-          :disabled="loading || items.length === 0"
+          :disabled="items.length === 0"
         >
           {{ isAllSelected ? '取消全选' : '全选' }}
         </button>
@@ -67,23 +63,18 @@
           <button
             @click="handleClose"
             class="px-3 py-2 bg-surface-3 text-fg rounded-lg hover:bg-surface-hover transition text-sm border border-line"
-            :disabled="loading"
           >
             取消
           </button>
           <button
             @click="handleConfirm"
-            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            :disabled="loading || selectedKeys.length === 0"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            :disabled="selectedKeys.length === 0"
           >
-            <i class="fas fa-trash"></i>
-            <span>删除 ({{ selectedKeys.length }})</span>
+            <i class="fas fa-check"></i>
+            <span>选中会话 ({{ selectedTotalCount }})</span>
           </button>
         </div>
-      </div>
-
-      <div v-if="loading" class="absolute inset-0 bg-black/20 flex items-center justify-center">
-        <div class="text-sm text-white">处理中...</div>
       </div>
     </div>
   </div>
@@ -103,11 +94,9 @@ const props = withDefaults(
     visible: boolean
     items: Item[]
     preselectKey?: string
-    loading?: boolean
   }>(),
   {
-    items: () => [],
-    loading: false
+    items: () => []
   }
 )
 
@@ -137,8 +126,15 @@ const isAllSelected = computed(() => {
   return selectedKeys.value.length === props.items.length
 })
 
+const selectedTotalCount = computed(() => {
+  const selected = new Set(selectedKeys.value)
+  return props.items.reduce((sum, item) => {
+    if (!selected.has(item.key)) return sum
+    return sum + (item.count || 0)
+  }, 0)
+})
+
 const toggle = (key: string) => {
-  if (props.loading) return
   if (isSelected(key)) {
     selectedKeys.value = selectedKeys.value.filter(k => k !== key)
     return
@@ -147,7 +143,6 @@ const toggle = (key: string) => {
 }
 
 const toggleAll = () => {
-  if (props.loading) return
   if (isAllSelected.value) {
     selectedKeys.value = []
     return
@@ -156,14 +151,12 @@ const toggleAll = () => {
 }
 
 const handleClose = () => {
-  if (props.loading) return
   emit('update:visible', false)
 }
 
 const handleConfirm = () => {
-  if (props.loading) return
   if (selectedKeys.value.length === 0) return
   emit('confirm', [...selectedKeys.value])
+  emit('update:visible', false)
 }
 </script>
-
