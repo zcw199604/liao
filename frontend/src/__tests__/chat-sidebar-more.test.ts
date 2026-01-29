@@ -38,7 +38,8 @@ vi.mock('@/composables/useInteraction', async () => {
 })
 
 vi.mock('@/api/chat', () => ({
-  deleteUser: vi.fn()
+  deleteUser: vi.fn(),
+  batchDeleteUsers: vi.fn()
 }))
 
 vi.mock('@/api/favorite', () => ({
