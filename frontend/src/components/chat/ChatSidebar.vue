@@ -277,11 +277,11 @@
       </button>
     </div>
 
-    <!-- 匹配按钮 -->
-    <MatchButton />
+    <!-- 匹配按钮：选择模式下隐藏，避免遮挡底部批量操作栏 -->
+    <MatchButton v-if="!selectionMode" />
 
-    <!-- 匹配蒙层 -->
-    <MatchOverlay />
+    <!-- 匹配蒙层：选择模式下隐藏 -->
+    <MatchOverlay v-if="!selectionMode" />
 
     <Toast />
 
