@@ -13,7 +13,7 @@ describe('constants/colors', () => {
   })
 
   it('falls back when computed color class is missing', () => {
-    const original = colorClasses[0]
+    const original = colorClasses[0] ?? 'bg-color-1'
     colorClasses[0] = '' as any
     try {
       expect(getColorClass('ab')).toBe('bg-color-1')

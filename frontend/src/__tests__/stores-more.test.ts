@@ -506,7 +506,7 @@ describe('stores/videoExtract', () => {
   })
 
   it('openCreateFromMedia selects mtPhoto source when md5 and /lsp url are present', async () => {
-    vi.mocked(videoExtractApi.probeVideo).mockResolvedValue({ code: 0, data: { duration: 10 } } as any)
+    vi.mocked(videoExtractApi.probeVideo).mockResolvedValue({ code: 0, data: { durationSec: 10, width: 1, height: 1 } } as any)
     const store = useVideoExtractStore()
 
     const ok = await store.openCreateFromMedia({ type: 'video', url: '/lsp/a', md5: 'm1' } as any, 'u1')
@@ -514,7 +514,7 @@ describe('stores/videoExtract', () => {
     expect(store.createSource?.sourceType).toBe('mtPhoto')
     expect(store.createSource?.md5).toBe('m1')
     expect(store.showCreateModal).toBe(true)
-    expect(store.probe?.duration).toBe(10)
+    expect(store.probe?.durationSec).toBe(10)
   })
 
   it('openCreateFromMedia selects upload source and uses originalFilename as label', async () => {
