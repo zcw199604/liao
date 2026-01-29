@@ -502,6 +502,79 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
     }
   })
 
+  it('overlay controls cancel pending single-tap toggle (no unexpected play/pause flip)', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 0, 1, 0, 0, 0))
+
+    try {
+      const wrapper = mount(MediaPreview, {
+        props: {
+          visible: true,
+          url: '/upload/videos/2026/01/a.mp4',
+          type: 'video',
+          mediaList: [{ url: '/upload/videos/2026/01/a.mp4', type: 'video' }]
+        },
+        global: { stubs: { teleport: true } }
+      })
+      await flushAsync()
+
+      const videoWrapperEl = wrapper.get('.media-preview-video-wrapper').element as HTMLElement
+      const video = wrapper.get('video').element as HTMLVideoElement
+      const vm = wrapper.vm as any
+
+      let paused = true
+      Object.defineProperty(video, 'paused', { configurable: true, get: () => paused })
+      Object.defineProperty(video, 'ended', { configurable: true, get: () => false })
+      Object.defineProperty(video, 'duration', { configurable: true, value: 100 })
+      Object.defineProperty(video, 'currentTime', { configurable: true, writable: true, value: 5 })
+
+      video.play = vi.fn().mockImplementation(async () => {
+        paused = false
+      })
+      video.pause = vi.fn().mockImplementation(() => {
+        paused = true
+      })
+
+      const makeEvent = (pointerId: number, clientX: number, clientY: number) =>
+        ({
+          pointerId,
+          clientX,
+          clientY,
+          button: 0,
+          cancelable: true,
+          preventDefault: vi.fn(),
+          target: null,
+          currentTarget: videoWrapperEl
+        } as any)
+
+      // Case 1: Playing -> tap schedules pause, but user hits overlay pause quickly -> should only pause once.
+      paused = false
+      vm.handleVideoPointerDown(makeEvent(1, 10, 10))
+      vm.handleVideoPointerUp(makeEvent(1, 10, 10))
+      vm.handleOverlayTogglePlay()
+      await flushAsync()
+      await vi.advanceTimersByTimeAsync(300)
+      await flushAsync()
+      expect(video.pause).toHaveBeenCalledTimes(1)
+      expect(paused).toBe(true)
+
+      // Case 2: Paused -> tap would schedule play, but user seeks quickly -> should stay paused and just change time.
+      paused = true
+      ;(video.currentTime as any) = 5
+      vm.handleVideoPointerDown(makeEvent(2, 10, 10))
+      vm.handleVideoPointerUp(makeEvent(2, 10, 10))
+      vm.handleOverlaySeek(1)
+      await flushAsync()
+      await vi.advanceTimersByTimeAsync(300)
+      await flushAsync()
+      expect(video.play).toHaveBeenCalledTimes(0)
+      expect(paused).toBe(true)
+      expect(video.currentTime).toBe(6)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('live photo download handles missing token and error response (zip via contextmenu)', async () => {
     if (!(globalThis as any).PointerEvent) {
       ;(globalThis as any).PointerEvent = MouseEvent as any

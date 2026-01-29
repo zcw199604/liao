@@ -722,11 +722,16 @@ const toggleVideoPlay = async () => {
 }
 
 const handleOverlayTogglePlay = () => {
+  // If the user taps the video to show the overlay and then clicks a control quickly,
+  // cancel the pending single-tap toggle to avoid flipping state twice.
+  clearTapState()
   showOverlayWithAutoHide()
   void toggleVideoPlay()
 }
 
 const handleOverlaySeek = (deltaSec: number) => {
+  // Cancel pending single-tap toggle; seeking should not implicitly flip play/pause.
+  clearTapState()
   showOverlayWithAutoHide()
   const video = videoRef.value
   if (!video) return
@@ -831,11 +836,35 @@ const handleVideoTap = (e: PointerEvent) => {
   tapCount = 1
   // 立即给出可见反馈（浮层），播放/暂停动作延迟到窗口结束
   showOverlayWithAutoHide()
+
+  // Capture the intent at tap time; don't toggle based on the later state (race with overlay controls).
+  const shouldPlay = (() => {
+    const video = videoRef.value
+    if (!video) return false
+    return video.paused || video.ended
+  })()
   if (tapTimer) clearTimeout(tapTimer)
   tapTimer = setTimeout(() => {
     tapTimer = null
     tapCount = 0
-    void toggleVideoPlay()
+    void (async () => {
+      const video = videoRef.value
+      if (!video) return
+      try {
+        if (shouldPlay) {
+          if (plyrInstance) await (plyrInstance.play() as any)
+          else await video.play()
+        } else {
+          if (plyrInstance) plyrInstance.pause()
+          else video.pause()
+        }
+      } catch (e) {
+        console.warn('tap play/pause failed:', e)
+        if (shouldPlay) show('播放失败，请点击控制栏播放')
+      } finally {
+        syncVideoPlayState()
+      }
+    })()
   }, DOUBLE_TAP_WINDOW_MS)
 }
 
