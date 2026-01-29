@@ -16,4 +16,4 @@ export const SWIPE_RESET_DURATION_MS = 300
 
 // 上下文菜单尺寸
 export const CONTEXT_MENU_WIDTH = 128
-export const CONTEXT_MENU_HEIGHT = 120
+export const CONTEXT_MENU_HEIGHT = 160

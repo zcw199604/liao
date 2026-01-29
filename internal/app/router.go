@@ -135,6 +135,7 @@ func (a *App) buildRouter() http.Handler {
 
 		// System（依赖 WebSocket 管理器，在后续阶段补齐实现）
 		api.Post("/deleteUpstreamUser", a.handleDeleteUpstreamUser)
+		api.Post("/batchDeleteUpstreamUsers", a.handleBatchDeleteUpstreamUsers)
 		api.Get("/getConnectionStats", a.handleGetConnectionStats)
 		api.Post("/disconnectAllConnections", a.handleDisconnectAllConnections)
 		api.Get("/getForceoutUserCount", a.handleGetForceoutUserCount)

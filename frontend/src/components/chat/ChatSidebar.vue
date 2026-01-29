@@ -46,6 +46,13 @@
             <span>全局收藏</span>
           </button>
           <button
+            @click="handleEnterSelectionMode()"
+            class="w-full px-4 py-3 text-left hover:bg-surface-3 text-red-500 flex items-center gap-3 border-t border-line-strong transition"
+          >
+            <i class="fas fa-check-square text-red-500"></i>
+            <span>批量删除</span>
+          </button>
+          <button
             @click="handleSwitchIdentity"
             class="w-full px-4 py-3 text-left hover:bg-surface-3 text-fg flex items-center gap-3 border-t border-line-strong rounded-b-xl transition"
           >
@@ -122,8 +129,20 @@
 	            @mouseleave="cancelLongPress"
 	            @contextmenu.prevent="handleContextMenu(user, $event)"
 	            class="flex items-center p-4 mb-3 bg-surface rounded-2xl active:scale-[0.98] transition-transform duration-100 cursor-pointer select-none"
-	            :class="{ 'border border-blue-500/30': currentUserId === user.id }"
+	            :class="[
+	              { 'border border-blue-500/30': currentUserId === user.id && !selectionMode },
+	              selectionMode && isSelected(user.id) ? 'ring-2 ring-blue-500/30 border border-blue-500/30' : ''
+	            ]"
 	          >
+	            <!-- 多选标记 -->
+	            <div
+	              v-if="selectionMode"
+	              class="w-6 h-6 rounded-full border border-line-strong flex items-center justify-center shrink-0 mr-3"
+	              :class="isSelected(user.id) ? 'bg-blue-600 border-blue-500 text-white' : 'bg-surface-3 text-fg-muted'"
+	            >
+	              <i v-if="isSelected(user.id)" class="fas fa-check text-xs"></i>
+	            </div>
+
 	            <!-- 纯色块代替头像 -->
 	            <div
 	              :class="getColorClass(user.id)"
@@ -187,6 +206,36 @@
 	      </div>
 	    </PullToRefresh>
 
+    <!-- 批量删除底栏 -->
+    <div v-if="selectionMode" class="shrink-0 px-4 py-3 border-t border-line bg-canvas">
+      <div class="flex items-center justify-between gap-3">
+        <button
+          @click="toggleSelectAll"
+          class="px-4 py-2 bg-surface-3 text-fg rounded-lg hover:bg-surface-hover transition text-sm border border-line"
+        >
+          {{ isAllSelected ? '取消全选' : '全选当前列表' }}
+        </button>
+
+        <div class="flex items-center gap-2">
+          <button
+            @click="exitSelectionMode"
+            class="px-3 py-2 bg-surface-3 text-fg rounded-lg hover:bg-surface-hover transition text-sm border border-line"
+          >
+            取消
+          </button>
+
+          <button
+            @click="confirmBatchDelete"
+            :disabled="selectedUserIds.length === 0"
+            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <i class="fas fa-trash"></i>
+            <span>删除 ({{ selectedUserIds.length }})</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 上下文菜单 (长按/右键触发) -->
     <div
       v-if="showContextMenu && contextMenuUser"
@@ -208,6 +257,13 @@
       >
         <i class="fas fa-star text-xs"></i>
         <span>{{ isGlobalFavorite(contextMenuUser!) ? '取消全局收藏' : '全局收藏' }}</span>
+      </button>
+      <button
+        @click="handleEnterSelectionMode(contextMenuUser!)"
+        class="w-full px-4 py-2 text-left text-sm text-fg-muted hover:bg-surface-hover hover:text-fg flex items-center gap-2 transition border-b border-line-strong"
+      >
+        <i class="fas fa-check-square text-xs text-blue-500"></i>
+        <span>多选删除</span>
       </button>
       <button
         @click="confirmDeleteUser(contextMenuUser!)"
@@ -242,6 +298,14 @@
       @confirm="executeDeleteUser"
     />
 
+    <Dialog
+      v-model:visible="showBatchDeleteDialog"
+      title="批量删除会话"
+      :content="`确定要删除选中的 ${selectedUserIds.length} 个会话吗？`"
+      show-warning
+      @confirm="executeBatchDelete"
+    />
+
     <!-- 在线状态弹窗 -->
     <Dialog
       v-model:visible="showOnlineStatusDialog"
@@ -266,7 +330,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
@@ -288,7 +352,7 @@ import Dialog from '@/components/common/Dialog.vue'
 	import MatchOverlay from '@/components/chat/MatchOverlay.vue'
 import DraggableBadge from '@/components/common/DraggableBadge.vue'
 import type { User } from '@/types'
-import { deleteUser } from '@/api/chat'
+import { deleteUser, batchDeleteUsers } from '@/api/chat'
 
 const props = defineProps<{
   currentUserId?: string // 当前选中的用户ID（用于高亮）
@@ -317,6 +381,54 @@ const showDeleteUserDialog = ref(false)
 	const listAreaRef = ref<HTMLElement | null>(null)
 const isRefreshing = ref(false)
 	const isInitialLoadingUsers = ref(false)
+
+// 批量删除（多选）状态
+const selectionMode = ref(false)
+const selectedUserIds = ref<string[]>([])
+const showBatchDeleteDialog = ref(false)
+
+const isSelected = (userId: string) => selectedUserIds.value.includes(userId)
+const isAllSelected = computed(() => {
+  const total = chatStore.displayList?.length || 0
+  return total > 0 && selectedUserIds.value.length === total
+})
+
+const handleEnterSelectionMode = (preselect?: User) => {
+  closeContextMenu()
+  showTopMenu.value = false
+  selectionMode.value = true
+  if (preselect && !isSelected(preselect.id)) {
+    selectedUserIds.value = [preselect.id, ...selectedUserIds.value]
+  }
+}
+
+const exitSelectionMode = () => {
+  selectionMode.value = false
+  selectedUserIds.value = []
+  showBatchDeleteDialog.value = false
+}
+
+const toggleSelection = (userId: string) => {
+  if (isSelected(userId)) {
+    selectedUserIds.value = selectedUserIds.value.filter(id => id !== userId)
+    return
+  }
+  selectedUserIds.value = [...selectedUserIds.value, userId]
+}
+
+const toggleSelectAll = () => {
+  const ids = (chatStore.displayList || []).map(u => u.id)
+  if (selectedUserIds.value.length === ids.length) {
+    selectedUserIds.value = []
+    return
+  }
+  selectedUserIds.value = ids
+}
+
+const confirmBatchDelete = () => {
+  if (selectedUserIds.value.length === 0) return
+  showBatchDeleteDialog.value = true
+}
 
 // 列表偏移量 (用于跟手滑动)
 const listTranslateX = ref(0)
@@ -385,6 +497,7 @@ const refreshCurrentTab = async () => {
 
 // 长按/右键菜单逻辑
 const startLongPress = (user: User, event: MouseEvent | TouchEvent) => {
+  if (selectionMode.value) return
   isLongPressHandled = false
   
   // 记录点击位置
@@ -438,6 +551,7 @@ const cancelLongPress = () => {
 }
 
 const handleContextMenu = (user: User, event: MouseEvent) => {
+  if (selectionMode.value) return
   // PC端右键直接触发
   cancelLongPress() // 清除长按定时器，避免冲突
   isLongPressHandled = true // 标记为已处理，阻止点击进入
@@ -464,6 +578,7 @@ const { isSwiping } = useSwipeAction(listAreaRef, {
   threshold: TAB_SWIPE_THRESHOLD,
   passive: true, // 保持滚动流畅，但在横滑判定后需要注意
   onSwipeProgress: (deltaX, deltaY) => {
+    if (selectionMode.value) return
     if (showContextMenu.value) return // 菜单打开时不滑动
 
     // 如用户在回弹过程中再次滑动，立即取消回弹动画，确保跟手
@@ -489,6 +604,7 @@ const { isSwiping } = useSwipeAction(listAreaRef, {
     listTranslateX.value = move
   },
   onSwipeEnd: (direction) => {
+    if (selectionMode.value) return
     if (showContextMenu.value) {
       closeContextMenu()
       return
@@ -504,6 +620,7 @@ const { isSwiping } = useSwipeAction(listAreaRef, {
     }
   },
   onSwipeFinish: (_deltaX, _deltaY, _isTriggered) => {
+    if (selectionMode.value) return
     if (showContextMenu.value) {
       // 菜单打开时不允许横滑，避免依赖其它路径来复位位移：这里直接收敛到 0，且不做动画
       if (resetTranslateTimer !== null) {
@@ -585,6 +702,10 @@ const handleToggleTopMenu = () => {
 
 // 处理tab切换
 const handleTabSwitch = async (tab: 'history' | 'favorite') => {
+  if (selectionMode.value) {
+    show('请先退出选择模式')
+    return
+  }
   closeContextMenu()
   if (chatStore.activeTab === tab) {
     await refreshCurrentTab()
@@ -606,6 +727,11 @@ const handleClearUnread = (user: User) => {
 }
 
 const handleClick = (user: User, event?: MouseEvent) => {
+  if (selectionMode.value) {
+    toggleSelection(user.id)
+    event?.stopPropagation()
+    return
+  }
   if (isLongPressHandled) {
     isLongPressHandled = false
     event?.stopPropagation()
@@ -614,6 +740,56 @@ const handleClick = (user: User, event?: MouseEvent) => {
   }
   chatStore.listScrollTop = listAreaRef.value?.scrollTop || 0
   emit('select', user)
+}
+
+const executeBatchDelete = async () => {
+  if (!userStore.currentUser) return
+
+  const myUserId = userStore.currentUser.id
+  const ids = [...selectedUserIds.value]
+  if (ids.length === 0) return
+
+  const batchSize = 200
+  const failed = new Set<string>()
+  const failedReasons = new Map<string, string>()
+
+  try {
+    // 前端分批，避免 payload 过大/单次请求过慢。
+    for (let i = 0; i < ids.length; i += batchSize) {
+      const chunk = ids.slice(i, i + batchSize)
+      try {
+        const res: any = await batchDeleteUsers(myUserId, chunk)
+        if (!res || res.code !== 0) {
+          chunk.forEach(id => failed.add(id))
+          continue
+        }
+
+        const items: any[] = res.data?.failedItems || []
+        items.forEach(item => {
+          const id = String(item.userToId || '').trim()
+          if (!id) return
+          failed.add(id)
+          const reason = item.reason ? String(item.reason) : ''
+          if (reason) failedReasons.set(id, reason)
+        })
+      } catch (e) {
+        chunk.forEach(id => failed.add(id))
+      }
+    }
+
+    const successIds = ids.filter(id => !failed.has(id))
+    successIds.forEach(id => chatStore.removeUser(id))
+
+    if (failed.size === 0) {
+      show(`已删除 ${successIds.length} 个会话`)
+      exitSelectionMode()
+    } else {
+      selectedUserIds.value = ids.filter(id => failed.has(id))
+      show(`已删除 ${successIds.length} 个，失败 ${failed.size} 个`)
+    }
+  } finally {
+    showBatchDeleteDialog.value = false
+  }
 }
 
 const handleOpenSettings = () => {

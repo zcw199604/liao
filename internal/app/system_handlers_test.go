@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -207,6 +209,121 @@ func TestHandleDeleteUpstreamUser_DoError(t *testing.T) {
 	got := decodeJSONBody(t, rec.Body)
 	if int(got["code"].(float64)) != -1 {
 		t.Fatalf("code=%v, want -1", got["code"])
+	}
+}
+
+func TestHandleBatchDeleteUpstreamUsers_ValidatesParams(t *testing.T) {
+	a := &App{}
+
+	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/batchDeleteUpstreamUsers", strings.NewReader(`{}`))
+	rec := httptest.NewRecorder()
+	a.handleBatchDeleteUpstreamUsers(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", rec.Code)
+	}
+
+	req2 := httptest.NewRequest(http.MethodPost, "http://api.local/api/batchDeleteUpstreamUsers", strings.NewReader(`{"myUserId":"1","userToIds":[]}`))
+	rec2 := httptest.NewRecorder()
+	a.handleBatchDeleteUpstreamUsers(rec2, req2)
+	if rec2.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", rec2.Code)
+	}
+}
+
+func TestHandleBatchDeleteUpstreamUsers_UsesHTTPClientAndDedupes(t *testing.T) {
+	call := 0
+	want := []string{"2", "3"}
+	a := &App{
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				call++
+				b, _ := io.ReadAll(r.Body)
+				_ = r.Body.Close()
+				values, _ := url.ParseQuery(string(b))
+				if values.Get("myUserID") != "1" {
+					t.Fatalf("myUserID=%q, want %q", values.Get("myUserID"), "1")
+				}
+				if got := values.Get("UserToID"); got != want[call-1] {
+					t.Fatalf("UserToID=%q, want %q", got, want[call-1])
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(bytes.NewBufferString("OK")),
+					Request:    r,
+				}, nil
+			}),
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/batchDeleteUpstreamUsers",
+		strings.NewReader(`{"myUserId":"1","userToIds":["2","3","2","  "]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	a.handleBatchDeleteUpstreamUsers(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d, want 200", rec.Code)
+	}
+	got := decodeJSONBody(t, rec.Body)
+	if int(got["code"].(float64)) != 0 {
+		t.Fatalf("code=%v, want 0", got["code"])
+	}
+	data := got["data"].(map[string]any)
+	if int(data["successCount"].(float64)) != 2 {
+		t.Fatalf("successCount=%v, want 2", data["successCount"])
+	}
+	if int(data["failCount"].(float64)) != 0 {
+		t.Fatalf("failCount=%v, want 0", data["failCount"])
+	}
+	if call != 2 {
+		t.Fatalf("http calls=%d, want 2", call)
+	}
+}
+
+func TestHandleBatchDeleteUpstreamUsers_PartialFailure(t *testing.T) {
+	a := &App{
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				b, _ := io.ReadAll(r.Body)
+				_ = r.Body.Close()
+				values, _ := url.ParseQuery(string(b))
+				if values.Get("UserToID") == "3" {
+					return nil, io.ErrUnexpectedEOF
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(bytes.NewBufferString("OK")),
+					Request:    r,
+				}, nil
+			}),
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/batchDeleteUpstreamUsers",
+		strings.NewReader(`{"myUserId":"1","userToIds":["2","3"]}`))
+	rec := httptest.NewRecorder()
+	a.handleBatchDeleteUpstreamUsers(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d, want 200", rec.Code)
+	}
+	got := decodeJSONBody(t, rec.Body)
+	data := got["data"].(map[string]any)
+	if int(data["successCount"].(float64)) != 1 {
+		t.Fatalf("successCount=%v, want 1", data["successCount"])
+	}
+	if int(data["failCount"].(float64)) != 1 {
+		t.Fatalf("failCount=%v, want 1", data["failCount"])
+	}
+	failed := data["failedItems"].([]any)
+	if len(failed) != 1 {
+		t.Fatalf("failedItems len=%d, want 1", len(failed))
+	}
+	first := failed[0].(map[string]any)
+	if first["userToId"].(string) != "3" {
+		t.Fatalf("failed userToId=%v, want %q", first["userToId"], "3")
 	}
 }
 

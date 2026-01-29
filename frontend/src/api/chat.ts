@@ -133,3 +133,8 @@ export const deleteUser = (myUserId: string, userToId: string) => {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
   })
 }
+
+// 批量删除上游用户（JSON）
+export const batchDeleteUsers = (myUserId: string, userToIds: string[]) => {
+  return request.post<any, ApiResponse>('/batchDeleteUpstreamUsers', { myUserId, userToIds })
+}
