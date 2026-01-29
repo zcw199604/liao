@@ -28,6 +28,7 @@ describe('utils/string', () => {
       '[ok]': '/emoji/ok.png'
     }
 
+    expect(parseEmoji('', emojiMap)).toBe('')
     const html = parseEmoji('hi :) [ok] :)', emojiMap)
 
     expect(html).toContain('src="/emoji/smile.png"')

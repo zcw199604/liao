@@ -9,6 +9,8 @@
 ### 新增
 - 知识库：新增外部参考文档《TikTokDownloader Web API（FastAPI）整理》（`helloagents/wiki/external/tiktokdownloader-web-api.md`）。
 - 知识库：补充《TikTokDownloader Web API 调用指南与 SDK 草稿》（`helloagents/wiki/external/tiktokdownloader-web-api-sdk.md`）。
+- 测试：前端 Vitest 启用覆盖率报告（新增 devDependency `@vitest/coverage-v8`）。
+- 测试：补齐前端单元测试分支覆盖率，确保全局阈值 `branches >= 70%` 通过（当前 `70.7%`）。
 - 测试：补齐后端 Identity/Favorite/Douyin/MediaUpload 关键边界用例，并扩展前端 `messageSegments` 异常输入与预览兜底测试（方案包：`helloagents/archive/2026-01/202601220044_tests-boundary-cases/`）。
 - 测试：新增前端“抖音下载”弹窗剪贴板粘贴/打开时自动读取的单元测试。
 - 测试：补充抖音收藏“分类标签”的后端接口与前端弹窗流程用例（更新/删除/打标签、筛选、标签管理、批量打标签）。

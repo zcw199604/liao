@@ -44,7 +44,10 @@ vi.mock('@/api/douyin', async () => {
     updateDouyinFavoriteAwemeTag: vi.fn().mockResolvedValue({}),
     removeDouyinFavoriteAwemeTag: vi.fn().mockResolvedValue({ success: true }),
     applyDouyinFavoriteAwemeTags: vi.fn().mockResolvedValue({ success: true }),
-    reorderDouyinFavoriteAwemeTags: vi.fn().mockResolvedValue({ success: true })
+    reorderDouyinFavoriteAwemeTags: vi.fn().mockResolvedValue({ success: true }),
+    getDouyinDetail: vi.fn(),
+    importDouyinMedia: vi.fn(),
+    addDouyinFavoriteAweme: vi.fn().mockResolvedValue({})
   }
 })
 
@@ -504,5 +507,191 @@ describe('components/media/DouyinDownloadModal.vue', () => {
 
     expect(douyinApi.reorderDouyinFavoriteUserTags).toHaveBeenCalledWith({ tagIds: [2, 1] })
     expect(toastShow).toHaveBeenCalledWith('已更新顺序')
+  })
+
+  it('handleResolve shows hint for empty input and switches to account mode for user input', async () => {
+    localStorage.setItem('douyin_auto_clipboard', '0')
+    localStorage.setItem('douyin_auto_resolve_clipboard', '0')
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: { teleport: true, MediaPreview: true, MediaTile: true, MediaTileBadge: true, MediaTileSelectMark: true }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    vm.inputText = ''
+    await vm.handleResolve()
+    expect(toastShow).toHaveBeenCalledWith('请输入抖音分享文本/链接/作品ID')
+
+    vm.inputText = 'MS4wLjABuser'
+    await vm.handleResolve()
+    expect(toastShow).toHaveBeenCalledWith('识别到用户主页链接，请切换到“用户作品”')
+    expect(vm.activeMode).toBe('account')
+    expect(vm.accountInput).toBe('MS4wLjABuser')
+  })
+
+  it('handleResolve populates detail and updates favorite aweme when already favorited', async () => {
+    const originalFetch = (globalThis as any).fetch
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: { get: (k: string) => (k === 'Content-Length' ? '2048' : k === 'Content-Type' ? 'image/jpeg' : '') }
+    } as any)
+    ;(globalThis as any).fetch = fetchMock
+
+    localStorage.setItem('authToken', 't')
+    localStorage.setItem('douyin_auto_clipboard', '0')
+    localStorage.setItem('douyin_auto_resolve_clipboard', '0')
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: { teleport: true, MediaPreview: true, MediaTile: true, MediaTileBadge: true, MediaTileSelectMark: true }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    // mark as already favorited
+    vm.favoriteAwemes = [{ awemeId: 'a1', createTime: 't', updateTime: 't' }]
+
+    ;(douyinApi.getDouyinDetail as any).mockResolvedValue({
+      key: 'k1',
+      detailId: 'a1',
+      type: '图集',
+      title: 'T',
+      items: [
+        { index: 0, type: 'image', url: 'u', downloadUrl: '/api/douyin/download?key=k1&index=0', originalFilename: 'a.jpg' }
+      ]
+    })
+    ;(douyinApi.addDouyinFavoriteAweme as any).mockResolvedValue({ awemeId: 'a1', createTime: 't', updateTime: 't' })
+
+    vm.inputText = 'a1'
+    await vm.handleResolve()
+    expect(vm.detail?.key).toBe('k1')
+    expect(douyinApi.addDouyinFavoriteAweme).toHaveBeenCalled()
+
+    // run prefetch explicitly for determinism
+    await vm.prefetchMetas('k1', vm.detail.items)
+    expect(fetchMock).toHaveBeenCalled()
+    expect(vm.getItemMeta('k1', 0)?.size).toBe(2048)
+
+    localStorage.removeItem('authToken')
+    ;(globalThis as any).fetch = originalFetch
+  })
+
+  it('handleResolve highlights cookie config when cookie-related error happens', async () => {
+    localStorage.setItem('douyin_auto_clipboard', '0')
+    localStorage.setItem('douyin_auto_resolve_clipboard', '0')
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: { teleport: true, MediaPreview: true, MediaTile: true, MediaTileBadge: true, MediaTileSelectMark: true }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    ;(douyinApi.getDouyinDetail as any).mockRejectedValue(new Error('cookie invalid'))
+    vm.inputText = 'a1'
+    await vm.handleResolve()
+    expect(vm.showAdvanced).toBe(true)
+    expect(vm.highlightConfig).toBe(true)
+    expect(String(vm.cookieHint || '')).toContain('Cookie')
+  })
+
+  it('batch import and download update counters and show summary', async () => {
+    vi.useFakeTimers()
+    const originalFetch = (globalThis as any).fetch
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: (k: string) => (k === 'Content-Disposition' ? "attachment; filename*=UTF-8''a.jpg" : '') },
+        blob: async () => new Blob(['x'], { type: 'image/jpeg' })
+      } as any)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        json: async () => ({ error: 'forbidden' })
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => '' },
+        blob: async () => new Blob(['x'], { type: 'image/jpeg' })
+      } as any)
+    ;(globalThis as any).fetch = fetchMock
+
+    const originalCreateObjectURL = (URL as any).createObjectURL
+    const originalRevokeObjectURL = (URL as any).revokeObjectURL
+    if (!(URL as any).createObjectURL) {
+      Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn().mockReturnValue('blob:mock') })
+    }
+    if (!(URL as any).revokeObjectURL) {
+      Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    }
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    localStorage.setItem('authToken', 't')
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: { teleport: true, MediaPreview: true, MediaTile: true, MediaTileBadge: true, MediaTileSelectMark: true }
+      }
+    })
+
+    const vm = wrapper.vm as any
+    vm.detail = {
+      key: 'k1',
+      detailId: 'a1',
+      type: '图集',
+      title: 'T',
+      items: [
+        { index: 0, type: 'image', url: 'u0', downloadUrl: '/api/douyin/download?key=k1&index=0', originalFilename: 'a.jpg' },
+        { index: 1, type: 'image', url: 'u1', downloadUrl: '/api/douyin/download?key=k1&index=1', originalFilename: 'b.jpg' },
+        { index: 2, type: 'image', url: 'u2', downloadUrl: '/api/douyin/download?key=k1&index=2', originalFilename: 'c.jpg' }
+      ]
+    }
+
+    ;(douyinApi.importDouyinMedia as any)
+      .mockResolvedValueOnce({ state: 'OK', localPath: '/tmp/a.jpg', localFilename: 'a.jpg', dedup: false })
+      .mockResolvedValueOnce({ state: 'OK', localPath: '/tmp/b.jpg', localFilename: 'b.jpg', dedup: true })
+      .mockResolvedValueOnce({ state: 'FAIL', error: 'x' })
+
+    vm.selectionMode = true
+    vm.selectedIndices = new Set([0, 1])
+    await vm.handleBatchImport()
+    expect(vm.batchImport.done).toBe(2)
+    expect(vm.batchImport.success).toBe(2)
+
+    vm.selectionMode = false
+    vm.selectedIndices = new Set()
+    await vm.handleBatchDownload()
+    expect(confirmSpy).toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalled()
+    expect(clickSpy).toHaveBeenCalled()
+
+    localStorage.removeItem('authToken')
+    confirmSpy.mockRestore()
+    clickSpy.mockRestore()
+    ;(globalThis as any).fetch = originalFetch
+    ;(URL as any).createObjectURL = originalCreateObjectURL
+    ;(URL as any).revokeObjectURL = originalRevokeObjectURL
+    vi.useRealTimers()
   })
 })

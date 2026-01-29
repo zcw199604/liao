@@ -23,6 +23,9 @@ describe('utils/cookie', () => {
 
   it('parseCookie returns userid and nickname', () => {
     expect(parseCookie('u1_Alice_1_abcd12')).toEqual({ userid: 'u1', nickname: 'Alice' })
+    // empty userid / nickname branches
+    expect(parseCookie('_Nick_1_abcd12')).toEqual({ userid: '', nickname: 'Nick' })
+    expect(parseCookie('u1__1_abcd12')).toEqual({ userid: 'u1', nickname: '' })
     expect(parseCookie('bad')).toBeNull()
   })
 })
@@ -73,4 +76,3 @@ describe('utils/media', () => {
     expect(inferMediaTypeFromUrl('')).toBe('file')
   })
 })
-

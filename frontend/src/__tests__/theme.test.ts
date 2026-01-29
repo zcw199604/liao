@@ -111,4 +111,85 @@ describe('stores/theme', () => {
     expect(theme.resolved).toBe('light')
     expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
+
+  it('init(): ignores subsequent calls once initialized', () => {
+    const listeners: Array<(event: any) => void> = []
+    const mql: any = {
+      matches: false,
+      media: '(prefers-color-scheme: dark)',
+      onchange: null,
+      addEventListener: (_type: string, listener: (event: any) => void) => {
+        listeners.push(listener)
+      },
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }
+
+    const mmSpy = vi.spyOn(window, 'matchMedia').mockReturnValue(mql)
+
+    const theme = useThemeStore()
+    theme.init()
+    theme.init()
+
+    expect(mmSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('init(): falls back to dark when stored preference is invalid or localStorage throws', () => {
+    window.localStorage.setItem(STORAGE_KEY, 'weird')
+
+    const theme = useThemeStore()
+    theme.init()
+    expect(theme.preference).toBe('dark')
+
+    // getItem throws -> fallback to dark
+    setActivePinia(createPinia())
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('boom')
+    })
+
+    const themeThrows = useThemeStore()
+    themeThrows.init()
+    expect(themeThrows.preference).toBe('dark')
+  })
+
+  it('auto: uses addListener fallback when addEventListener is unavailable', () => {
+    window.localStorage.setItem(STORAGE_KEY, 'auto')
+
+    const listeners: Array<(event: any) => void> = []
+    const mql: any = {
+      matches: false,
+      media: '(prefers-color-scheme: dark)',
+      onchange: null,
+      addListener: (listener: (event: any) => void) => {
+        listeners.push(listener)
+      },
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }
+
+    vi.spyOn(window, 'matchMedia').mockReturnValue(mql)
+
+    const theme = useThemeStore()
+    theme.init()
+    expect(theme.preference).toBe('auto')
+    expect(listeners).toHaveLength(1)
+
+    mql.matches = true
+    listeners.forEach((listener) => listener({ matches: true }))
+    expect(theme.resolved).toBe('dark')
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+  })
+
+  it('setPreference(): does not throw when localStorage.setItem fails', () => {
+    const theme = useThemeStore()
+    theme.init()
+
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('boom')
+    })
+
+    expect(() => theme.setPreference('light')).not.toThrow()
+    expect(theme.preference).toBe('light')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+  })
 })

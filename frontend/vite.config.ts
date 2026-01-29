@@ -32,6 +32,14 @@ export default defineConfig({
     include: ['src/__tests__/**/*.test.ts'],
     setupFiles: ['vitest.setup.ts'],
     clearMocks: true,
-    restoreMocks: true
+    restoreMocks: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary'],
+      reportsDirectory: 'coverage',
+      thresholds: {
+        branches: 70
+      }
+    }
   }
 })

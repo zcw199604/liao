@@ -14,6 +14,7 @@ describe('utils/clipboard', () => {
   const originalExecCommand = (document as any).execCommand
 
   afterEach(() => {
+    vi.unstubAllGlobals()
     setClipboard(originalClipboard)
     ;(document as any).execCommand = originalExecCommand
     vi.restoreAllMocks()
@@ -28,6 +29,11 @@ describe('utils/clipboard', () => {
     expect(writeText).toHaveBeenCalledWith('hello')
   })
 
+  it('returns false for empty/whitespace text', async () => {
+    expect(await copyToClipboard('   ')).toBe(false)
+    expect(await copyToClipboard(undefined as any)).toBe(false)
+  })
+
   it('falls back to document.execCommand when writeText fails', async () => {
     const writeText = vi.fn().mockRejectedValue(new Error('denied'))
     setClipboard({ writeText })
@@ -38,6 +44,24 @@ describe('utils/clipboard', () => {
     expect((document as any).execCommand).toHaveBeenCalledWith('copy')
   })
 
+  it('returns false when execCommand reports failure', async () => {
+    setClipboard(undefined)
+    ;(document as any).execCommand = vi.fn().mockReturnValue(false)
+
+    const ok = await copyToClipboard('hi')
+    expect(ok).toBe(false)
+    expect((document as any).execCommand).toHaveBeenCalledWith('copy')
+  })
+
+  it('returns false when document is unavailable', async () => {
+    setClipboard(undefined)
+
+    const originalDocument = globalThis.document
+    vi.stubGlobal('document', undefined as any)
+    expect(await copyToClipboard('hi')).toBe(false)
+    vi.stubGlobal('document', originalDocument as any)
+  })
+
   it('returns false when no method is available', async () => {
     setClipboard(undefined)
     ;(document as any).execCommand = undefined
@@ -46,4 +70,3 @@ describe('utils/clipboard', () => {
     expect(ok).toBe(false)
   })
 })
-

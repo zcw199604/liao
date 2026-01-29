@@ -44,6 +44,10 @@ build/
 /frontend/dist/
 /frontend/.vite/
 
+### Coverage ###
+/coverage_backend.out
+/frontend/coverage/
+
 ### 前端构建产物（由npm run build生成，不提交到仓库）###
 src/main/resources/static/
 temp-old-index.html
