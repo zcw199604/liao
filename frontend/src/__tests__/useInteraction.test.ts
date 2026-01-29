@@ -90,5 +90,79 @@ describe('composables/useInteraction - useSwipeAction', () => {
 
     expect(calls).toEqual([{ dir: 'down' }, { triggered: true }])
   })
-})
 
+  it('triggers left/up directions when exceeding threshold', () => {
+    const dirs: SwipeDirection[] = []
+    const triggers: boolean[] = []
+
+    useSwipeAction(ref<HTMLElement | null>(null), {
+      threshold: 50,
+      onSwipeEnd: (dir) => dirs.push(dir),
+      onSwipeFinish: (_dx, _dy, isTriggered) => triggers.push(isTriggered)
+    })
+
+    setDelta(-60, 0)
+    triggerSwipeEnd()
+    setDelta(0, -70)
+    triggerSwipeEnd()
+
+    expect(dirs).toEqual(['left', 'up'])
+    expect(triggers).toEqual([true, true])
+  })
+
+  it('does not trigger when deltaX and deltaY are equal even if above threshold', () => {
+    const calls: Array<'end' | boolean> = []
+
+    useSwipeAction(ref<HTMLElement | null>(null), {
+      threshold: 50,
+      onSwipeEnd: () => calls.push('end'),
+      onSwipeFinish: (_dx, _dy, isTriggered) => calls.push(isTriggered)
+    })
+
+    setDelta(80, 80)
+    triggerSwipeEnd()
+    expect(calls).toEqual([false])
+  })
+
+  it('reports signed deltas to onSwipeProgress', () => {
+    const progress = vi.fn()
+    useSwipeAction(ref<HTMLElement | null>(null), {
+      onSwipeProgress: (dx, dy) => progress(dx, dy)
+    })
+
+    setDelta(-10, 20)
+    lastUseSwipeOptions?.onSwipe?.()
+
+    expect(progress).toHaveBeenCalledWith(-10, 20)
+  })
+
+  it('still calls onSwipeFinish when triggered even if onSwipeEnd is not provided', () => {
+    const finish = vi.fn()
+
+    useSwipeAction(ref<HTMLElement | null>(null), {
+      threshold: 50,
+      onSwipeFinish: (dx, dy, isTriggered) => finish(dx, dy, isTriggered)
+    })
+
+    setDelta(60, 0)
+    // onSwipeProgress is not provided, but onSwipe should still be callable
+    lastUseSwipeOptions?.onSwipe?.()
+    triggerSwipeEnd()
+
+    expect(finish).toHaveBeenCalledWith(60, 0, true)
+  })
+
+  it('still calls onSwipeEnd when triggered even if onSwipeFinish is not provided', () => {
+    const end = vi.fn()
+
+    useSwipeAction(ref<HTMLElement | null>(null), {
+      threshold: 50,
+      onSwipeEnd: (dir) => end(dir)
+    })
+
+    setDelta(60, 0)
+    triggerSwipeEnd()
+
+    expect(end).toHaveBeenCalledWith('right')
+  })
+})

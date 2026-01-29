@@ -62,11 +62,16 @@ describe('utils/media', () => {
   it('extractUploadLocalPath extracts /images/... from /upload/images/...', () => {
     expect(extractUploadLocalPath('http://localhost:8080/upload/images/2026/01/a.jpg')).toBe('/images/2026/01/a.jpg')
     expect(extractUploadLocalPath('/images/2026/01/a.jpg')).toBe('/images/2026/01/a.jpg')
+    expect(extractUploadLocalPath('/videos/2026/01/a.mp4')).toBe('/videos/2026/01/a.mp4')
+    expect(extractUploadLocalPath('http://localhost:8080/upload/videos/2026/01/a.mp4')).toBe('/videos/2026/01/a.mp4')
+    expect(extractUploadLocalPath('')).toBe('')
+    expect(extractUploadLocalPath('not a url')).toBe('not a url')
   })
 
   it('extractRemoteFilePathFromImgUploadUrl extracts after /img/Upload/', () => {
     expect(extractRemoteFilePathFromImgUploadUrl('http://s:9006/img/Upload/2026/01/a.jpg')).toBe('2026/01/a.jpg')
     expect(extractRemoteFilePathFromImgUploadUrl('')).toBe('')
+    expect(extractRemoteFilePathFromImgUploadUrl('http://x/other')).toBe('http://x/other')
   })
 
   it('inferMediaTypeFromUrl infers type ignoring query/hash', () => {
@@ -74,5 +79,8 @@ describe('utils/media', () => {
     expect(inferMediaTypeFromUrl('http://x/a.mp4#t=1')).toBe('video')
     expect(inferMediaTypeFromUrl('http://x/a.bin')).toBe('file')
     expect(inferMediaTypeFromUrl('')).toBe('file')
+    // cover cleanUrl fallbacks when split yields empty prefix
+    expect(inferMediaTypeFromUrl('?x=1')).toBe('file')
+    expect(inferMediaTypeFromUrl('#t=1')).toBe('file')
   })
 })

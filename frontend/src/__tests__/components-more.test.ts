@@ -362,4 +362,61 @@ describe('components/common/PullToRefresh.vue', () => {
     await wrapper.trigger('touchend')
     expect(onRefresh).not.toHaveBeenCalled()
   })
+
+  it('finds nested scroll container via querySelector and still refreshes', async () => {
+    vi.useFakeTimers()
+    const onRefresh = vi.fn().mockResolvedValue(undefined)
+
+    const wrapper = mount(PullToRefresh, {
+      props: { onRefresh, threshold: 60 },
+      slots: {
+        // firstElementChild is not scrollable; inner .overflow-y-auto is
+        default: `<div><div class="overflow-y-auto" style="overflow-y:auto;height:100px"></div></div>`
+      }
+    })
+
+    const inner = wrapper.get('.overflow-y-auto').element as HTMLElement
+    inner.scrollTop = 0
+
+    await wrapper.trigger('touchstart', { touches: [{ clientX: 0, clientY: 0 }] })
+    await wrapper.trigger('touchmove', { touches: [{ clientX: 0, clientY: 200 }] })
+    await wrapper.trigger('touchend')
+    await Promise.resolve()
+    expect(onRefresh).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(400)
+    await nextTick()
+    vi.useRealTimers()
+  })
+
+  it('cancels pull when scrollTop becomes > 0 during pull and ignores when refreshing', async () => {
+    vi.useFakeTimers()
+    const onRefresh = vi.fn().mockResolvedValue(undefined)
+
+    const wrapper = mount(PullToRefresh, {
+      props: { onRefresh, threshold: 60 },
+      slots: {
+        default: `<div class="overflow-y-auto" style="overflow-y:auto;height:100px"></div>`
+      }
+    })
+
+    const scrollDiv = wrapper.get('.overflow-y-auto').element as HTMLElement
+    scrollDiv.scrollTop = 0
+
+    await wrapper.trigger('touchstart', { touches: [{ clientX: 0, clientY: 0 }] })
+    scrollDiv.scrollTop = 10
+    await wrapper.trigger('touchmove', { touches: [{ clientX: 0, clientY: 50 }] })
+    await wrapper.trigger('touchend')
+    await Promise.resolve()
+    expect(onRefresh).not.toHaveBeenCalled()
+
+    // status=refreshing -> touch handlers do nothing
+    ;(wrapper.vm as any).status = 'refreshing'
+    await wrapper.trigger('touchstart', { touches: [{ clientX: 0, clientY: 0 }] })
+    await wrapper.trigger('touchmove', { touches: [] })
+    await wrapper.trigger('touchend')
+    expect(onRefresh).not.toHaveBeenCalled()
+
+    vi.useRealTimers()
+  })
 })

@@ -801,4 +801,266 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
 
     vi.useRealTimers()
   })
+
+  it('video gesture fallbacks cover stepPx/volume fallback and volume gesture unsupported hint', async () => {
+    const originalRaf = (globalThis as any).requestAnimationFrame
+    const originalCaf = (globalThis as any).cancelAnimationFrame
+    ;(globalThis as any).requestAnimationFrame = (cb: any) => {
+      cb(0)
+      return 1
+    }
+    ;(globalThis as any).cancelAnimationFrame = () => {}
+
+    try {
+      const wrapper = mount(MediaPreview, {
+        props: {
+          visible: false,
+          url: '/upload/videos/2026/01/a.mp4',
+          type: 'video',
+          mediaList: [{ url: '/upload/videos/2026/01/a.mp4', type: 'video' }]
+        },
+        global: { stubs: { teleport: true } }
+      })
+      await wrapper.setProps({ visible: true })
+      await flushAsync()
+      await flushAsync()
+
+      const videoWrapperEl = wrapper.get('.media-preview-video-wrapper').element as HTMLElement
+      const video = wrapper.get('video').element as HTMLVideoElement
+      const vm = wrapper.vm as any
+
+      let paused = true
+      Object.defineProperty(video, 'paused', { configurable: true, get: () => paused })
+      Object.defineProperty(video, 'ended', { configurable: true, get: () => false })
+      Object.defineProperty(video, 'duration', { configurable: true, value: 100 })
+      Object.defineProperty(video, 'currentTime', { configurable: true, writable: true, value: 5 })
+      Object.defineProperty(video, 'volume', { configurable: true, writable: true, value: 0.5 })
+
+      video.play = vi.fn().mockImplementation(async () => {
+        paused = false
+      })
+      video.pause = vi.fn().mockImplementation(() => {
+        paused = true
+      })
+
+      // width/height=0 forces stepPx/volume fallbacks inside applyVideoGestureFrame()
+      ;(videoWrapperEl as any).getBoundingClientRect = () => ({ width: 0, height: 0 })
+
+      const makeEvent = (pointerId: number, clientX: number, clientY: number, extra: Record<string, any> = {}) =>
+        ({
+          pointerId,
+          clientX,
+          clientY,
+          button: 0,
+          cancelable: true,
+          preventDefault: vi.fn(),
+          target: null,
+          currentTarget: videoWrapperEl,
+          ...extra
+        } as any)
+
+      // First vertical gesture sets volumeGestureSupported=false (plyr branch does not mutate video.volume)
+      vm.handleVideoPointerDown(makeEvent(1, 0, 0))
+      vm.handleVideoPointerMove(makeEvent(1, 0, 200))
+      vm.handleVideoPointerUp(makeEvent(1, 0, 200))
+      await flushAsync()
+      expect(toastShow).toHaveBeenCalledWith('当前浏览器限制网页调节音量，请使用实体音量键')
+
+      // Second vertical gesture hits volumeGestureSupported === false early-return path
+      vm.handleVideoPointerDown(makeEvent(2, 0, 0))
+      vm.handleVideoPointerMove(makeEvent(2, 0, 200))
+      vm.handleVideoPointerUp(makeEvent(2, 0, 200))
+      await flushAsync()
+
+      // Horizontal gesture uses stepPx fallback (width=0) and should not throw
+      vm.handleVideoPointerDown(makeEvent(3, 0, 0))
+      vm.handleVideoPointerMove(makeEvent(3, 200, 0))
+      vm.handleVideoPointerUp(makeEvent(3, 200, 0))
+      await flushAsync()
+    } finally {
+      ;(globalThis as any).requestAnimationFrame = originalRaf
+      ;(globalThis as any).cancelAnimationFrame = originalCaf
+    }
+  })
+
+  it('live photo long-press shows motion and suppresses click', async () => {
+    vi.useFakeTimers()
+
+    const wrapper = mount(MediaPreview, {
+      props: {
+        visible: true,
+        url: '/api/douyin/download?key=k1&index=0',
+        type: 'image',
+        mediaList: [
+          { url: '/api/douyin/download?key=k1&index=0', type: 'image', context: { provider: 'douyin', key: 'k1', index: 0, liveVideoIndex: 1 } },
+          { url: '/api/douyin/download?key=k1&index=1', type: 'video', context: { provider: 'douyin', key: 'k1', index: 1 } }
+        ] as any
+      },
+      global: { stubs: { teleport: true } }
+    })
+    await flushAsync()
+
+    const img = wrapper.get('img[alt="预览"]')
+    await img.trigger('mousedown', { clientX: 0, clientY: 0 })
+    await flushAsync()
+
+    await vi.advanceTimersByTimeAsync(300)
+    await flushAsync()
+    expect((wrapper.vm as any).livePhotoVisible).toBe(true)
+
+    window.dispatchEvent(new MouseEvent('mouseup'))
+    await flushAsync()
+
+    vi.useRealTimers()
+  })
+
+  it('file preview + virtual thumbnails branch render (useVirtualThumbnails)', async () => {
+    const bigList = Array.from({ length: 201 }, (_, i) => ({
+      url: i === 0 ? '/upload/files/a.pdf' : `http://x/${i}.png`,
+      type: i === 0 ? 'file' : 'image'
+    }))
+
+    const wrapper = mount(MediaPreview, {
+      props: {
+        visible: true,
+        url: '/upload/files/a.pdf',
+        type: 'file',
+        mediaList: bigList as any
+      },
+      global: {
+        stubs: {
+          teleport: true,
+          RecycleScroller: {
+            props: ['items'],
+            template: '<div data-testid="recycle-scroller"></div>'
+          },
+          MediaTile: { template: '<div />' },
+          MediaDetailPanel: { template: '<div />' }
+        }
+      }
+    })
+    await flushAsync()
+
+    expect(wrapper.text()).toContain('暂不支持预览此文件类型')
+    expect(wrapper.find('[data-testid="recycle-scroller"]').exists()).toBe(true)
+
+    // currentIndex out-of-range fallback branch
+    ;(wrapper.vm as any).currentIndex = 999
+    await flushAsync()
+    expect((wrapper.vm as any).currentIndex).toBe(999)
+  })
+
+  it('single tap shows overlay then auto-hides; double tap toggles fullscreen', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 0, 1, 0, 0, 0))
+
+    if (!(globalThis as any).PointerEvent) {
+      ;(globalThis as any).PointerEvent = MouseEvent as any
+    }
+
+    const wrapper = mount(MediaPreview, {
+      props: {
+        visible: false,
+        url: '/upload/videos/2026/01/a.mp4',
+        type: 'video',
+        mediaList: [{ url: '/upload/videos/2026/01/a.mp4', type: 'video' }]
+      },
+      global: { stubs: { teleport: true } }
+    })
+
+    await wrapper.setProps({ visible: true })
+    await flushAsync()
+    await flushAsync()
+
+    const vm = wrapper.vm as any
+    const videoWrapperEl = wrapper.get('.media-preview-video-wrapper').element as HTMLElement
+
+    const makeEvent = (pointerId: number, clientX: number, clientY: number) =>
+      ({
+        pointerId,
+        clientX,
+        clientY,
+        button: 0,
+        cancelable: true,
+        preventDefault: vi.fn(),
+        target: null,
+        currentTarget: videoWrapperEl
+      } as any)
+
+    // single tap -> overlay visible then auto hides
+    vm.handleVideoPointerDown(makeEvent(1, 0, 0))
+    vm.handleVideoPointerUp(makeEvent(1, 0, 0))
+    await flushAsync()
+    expect(vm.showVideoOverlayControls).toBe(true)
+
+    vi.advanceTimersByTime(1000)
+    await flushAsync()
+    expect(vm.showVideoOverlayControls).toBe(false)
+
+    // double tap within the window -> fullscreen toggles
+    vm.handleVideoPointerDown(makeEvent(2, 10, 10))
+    vm.handleVideoPointerUp(makeEvent(2, 10, 10))
+    vi.advanceTimersByTime(100)
+    vm.handleVideoPointerDown(makeEvent(3, 12, 12))
+    vm.handleVideoPointerUp(makeEvent(3, 12, 12))
+    await flushAsync()
+    expect(vm.isVideoFullscreen).toBe(true)
+
+    vi.useRealTimers()
+  })
+
+  it('speed long-press boosts temp speed and suppresses next speed-menu click', async () => {
+    vi.useFakeTimers()
+
+    if (!(globalThis as any).PointerEvent) {
+      ;(globalThis as any).PointerEvent = MouseEvent as any
+    }
+
+    const wrapper = mount(MediaPreview, {
+      props: {
+        visible: false,
+        url: '/upload/videos/2026/01/a.mp4',
+        type: 'video',
+        mediaList: [{ url: '/upload/videos/2026/01/a.mp4', type: 'video' }]
+      },
+      global: { stubs: { teleport: true } }
+    })
+
+    await wrapper.setProps({ visible: true })
+    await flushAsync()
+    await flushAsync()
+
+    const vm = wrapper.vm as any
+
+    // non-left click -> ignored
+    vm.handleSpeedPressStart({ button: 1 } as any)
+
+    // long-press triggers boost
+    vm.handleSpeedPressStart({ button: 0 } as any)
+    vi.advanceTimersByTime(320)
+    await flushAsync()
+    expect(vm.isTempSpeedBoosting).toBe(true)
+
+    vm.handleSpeedPressEnd()
+    await flushAsync()
+    expect(vm.isTempSpeedBoosting).toBe(false)
+
+    // suppressSpeedClick -> click toggling speed menu should be ignored once
+    expect(vm.showSpeedMenu).toBe(false)
+    vm.handleToggleSpeedMenu()
+    await flushAsync()
+    expect(vm.showSpeedMenu).toBe(false)
+
+    // cancel path while boosting
+    vm.handleSpeedPressStart({ button: 0 } as any)
+    vi.advanceTimersByTime(320)
+    await flushAsync()
+    expect(vm.isTempSpeedBoosting).toBe(true)
+
+    vm.handleSpeedPressCancel()
+    await flushAsync()
+    expect(vm.isTempSpeedBoosting).toBe(false)
+
+    vi.useRealTimers()
+  })
 })

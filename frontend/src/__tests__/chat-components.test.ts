@@ -127,6 +127,12 @@ describe('components/chat/EmojiPanel.vue', () => {
     await wrapper.get('button').trigger('click')
     expect(wrapper.emitted('update:visible')?.[0]).toEqual([false])
   })
+
+  it('renders nothing when visible=false', () => {
+    const wrapper = mount(EmojiPanel, { props: { visible: false } })
+    expect(wrapper.text()).toBe('')
+    expect(wrapper.find('div.grid').exists()).toBe(false)
+  })
 })
 
 describe('components/chat/UploadMenu.vue', () => {

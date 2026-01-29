@@ -45,6 +45,16 @@ describe('stores/user', () => {
     expect(saveSpy).not.toHaveBeenCalled()
   })
 
+  it('setCurrentUser does not save cookie when id is missing', () => {
+    const identityStore = useIdentityStore()
+    const saveSpy = vi.spyOn(identityStore, 'saveIdentityCookie')
+
+    const userStore = useUserStore()
+    userStore.setCurrentUser(makeUser({ id: '', cookie: 'ck-1' }))
+
+    expect(saveSpy).not.toHaveBeenCalled()
+  })
+
   it('updateUserInfo only applies when currentUser exists', () => {
     const userStore = useUserStore()
     userStore.updateUserInfo({ nickname: 'B' })
@@ -73,6 +83,13 @@ describe('stores/user', () => {
     expect(userStore.currentUser?.nickname).toBe('Edited')
   })
 
+  it('saveEdit is a no-op when currentUser is missing', () => {
+    const userStore = useUserStore()
+    userStore.saveEdit()
+    expect(userStore.currentUser).toBeNull()
+    expect(userStore.editMode).toBe(false)
+  })
+
   it('cancelEdit and clearCurrentUser reset state', () => {
     const userStore = useUserStore()
     userStore.setCurrentUser(makeUser())
@@ -89,4 +106,3 @@ describe('stores/user', () => {
     expect(userStore.editUserInfo).toEqual({})
   })
 })
-
