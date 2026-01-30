@@ -123,6 +123,7 @@
 	                :src="media.type === 'video' && media.posterUrl ? media.posterUrl : media.url"
 	                :type="media.type === 'video' && media.posterUrl ? 'image' : media.type"
 	                :poster="media.type === 'video' ? media.posterUrl : undefined"
+                  :fit="media.type === 'video' ? 'contain' : 'cover'"
 	                :reveal-top-right="true"
 	                :fill="layoutMode === 'grid' || (media.type === 'video' && !media.posterUrl)"
 	                :media-class="layoutMode === 'grid' ? '' : ((media.type === 'image' || (media.type === 'video' && media.posterUrl)) ? 'w-full h-auto' : '')"

@@ -13,14 +13,23 @@
           class="w-16 h-16 rounded-lg overflow-hidden cursor-pointer border border-line-strong hover:border-indigo-500 transition-colors relative"
         >
           <MediaTile
-            :src="media.url"
-            :type="media.type"
+            :src="media.type === 'video' && media.posterUrl ? media.posterUrl : media.url"
+            :type="media.type === 'video' && media.posterUrl ? 'image' : media.type"
             :poster="media.type === 'video' ? media.posterUrl : undefined"
             class="w-full h-full"
             :show-skeleton="false"
             :indicator-size="'sm'"
             :muted="true"
+            :fit="media.type === 'video' ? 'contain' : 'cover'"
           >
+            <template #center>
+              <div
+                v-if="media.type === 'video'"
+                class="rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/15 shadow-lg w-6 h-6"
+              >
+                <i class="fas fa-play text-white text-[10px] ml-0.5"></i>
+              </div>
+            </template>
             <template #file>
               <i class="fas fa-file text-2xl"></i>
             </template>
