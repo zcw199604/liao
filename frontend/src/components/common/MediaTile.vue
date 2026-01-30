@@ -1,7 +1,7 @@
 <template>
   <div
     ref="rootRef"
-    class="relative overflow-hidden select-none group"
+    class="relative overflow-hidden select-none group z-0"
     :class="containerLoadingClass"
     :style="aspectStyle"
     @click="handleClick"
@@ -16,6 +16,18 @@
     </template>
 
     <template v-else>
+      <!-- When using object-fit: contain (typically portrait video posters inside fixed-ratio tiles),
+           render a blurred cover backdrop to avoid "black bars" while keeping the full frame visible. -->
+      <img
+        v-if="shouldShowBackdrop"
+        :src="backdropSrc"
+        alt=""
+        aria-hidden="true"
+        class="absolute inset-0 -z-10 w-full h-full object-cover blur-xl scale-110 opacity-40 pointer-events-none"
+        loading="lazy"
+        decoding="async"
+      />
+
       <Skeleton
         v-if="showSkeleton && shouldLoad && !isLoaded && resolvedType !== 'file'"
         class="absolute inset-0"
@@ -219,6 +231,25 @@ const aspectStyle = computed(() => {
   const r = effectiveAspectRatio.value
   if (!r || !Number.isFinite(r) || r <= 0) return undefined
   return { aspectRatio: String(r) }
+})
+
+const backdropSrc = computed(() => {
+  if (props.fit !== 'contain') return ''
+  if (!shouldLoad.value) return ''
+
+  // Prefer poster for videos, otherwise use image src.
+  if (resolvedType.value === 'video') {
+    return String(props.poster || '').trim()
+  }
+  if (resolvedType.value === 'image') {
+    return String(props.src || '').trim()
+  }
+  return ''
+})
+
+const shouldShowBackdrop = computed(() => {
+  if (hasError.value) return false
+  return backdropSrc.value !== '' && resolvedType.value !== 'file'
 })
 
 const fitClass = computed(() => {
