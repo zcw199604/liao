@@ -122,6 +122,7 @@
 	              <MediaTile
 	                :src="media.url"
 	                :type="media.type"
+	                :poster="media.type === 'video' ? media.posterUrl : undefined"
 	                :reveal-top-right="true"
 	                :fill="layoutMode === 'grid' || media.type === 'video'"
 	                :media-class="layoutMode === 'grid' ? '' : (media.type === 'image' ? 'w-full h-auto' : '')"

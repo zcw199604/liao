@@ -7,6 +7,8 @@
 ## [Unreleased]
 
 ### 新增
+- 后端/前端：本地上传视频（`/api/uploadMedia`）落盘后使用 `ffmpeg` 自动生成 poster 封面图（`/videos/.../*.poster.jpg`），并在“上传菜单/全站媒体库/画廊缩略图”中通过 `MediaTile poster` 展示视频缩略图，改善列表浏览体验。
+- 后端：新增历史视频 poster 补齐接口 `POST /api/repairVideoPosters`（支持 dry-run + 分页游标），用于为已上传的视频批量生成 `*.poster.jpg` 封面图。
 - 知识库：新增外部参考文档《TikTokDownloader Web API（FastAPI）整理》（`helloagents/wiki/external/tiktokdownloader-web-api.md`）。
 - 知识库：补充《TikTokDownloader Web API 调用指南与 SDK 草稿》（`helloagents/wiki/external/tiktokdownloader-web-api-sdk.md`）。
 - 测试：前端 Vitest 启用覆盖率报告（新增 devDependency `@vitest/coverage-v8`）。

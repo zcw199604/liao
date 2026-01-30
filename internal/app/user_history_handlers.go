@@ -580,6 +580,12 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 		localPath = saved
 	}
 
+	posterLocalPath := ""
+	posterURL := ""
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(contentType)), "video/") && a.fileStorage != nil {
+		posterLocalPath, posterURL = a.fileStorage.EnsureVideoPosterLogged(r.Context(), a.cfg.FFmpegPath, localPath)
+	}
+
 	imgServerHost := a.imageServer.GetImgServerHost()
 	uploadURL := fmt.Sprintf("http://%s/asmx/upload.asmx/ProcessRequest?act=uploadImgRandom&userid=%s", imgServerHost, userID)
 	slog.Info("上传请求 Headers", "host", strings.Split(imgServerHost, ":")[0], "origin", "http://v1.chat2019.cn")
@@ -630,6 +636,12 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 					"msg":           msg,
 					"port":          availablePort,
 					"localFilename": localFilename,
+				}
+				if posterLocalPath != "" {
+					enhanced["posterLocalPath"] = posterLocalPath
+				}
+				if posterURL != "" {
+					enhanced["posterUrl"] = posterURL
 				}
 				if b, err := json.Marshal(enhanced); err == nil {
 					slog.Info("上传媒体成功", "userid", userID, "remoteFilename", msg, "localPath", localPath, "totalMs", time.Since(totalStart).Milliseconds())

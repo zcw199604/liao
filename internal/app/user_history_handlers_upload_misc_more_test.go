@@ -443,6 +443,12 @@ func TestHandleUploadMedia_CoversRemainingBranches(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		uploadRoot := t.TempDir()
+		ffmpegOK := writeExecutable(t, "ffmpeg-ok", `#!/bin/sh
+out=""
+for a in "$@"; do out="$a"; done
+echo poster > "$out"
+exit 0
+`)
 		req, _ := newMultipartRequest(t, http.MethodPost, "http://example.com/api/uploadMedia", "file", "a.mp4", "video/mp4", []byte("x"), map[string]string{
 			"userid": "u1",
 		})
@@ -468,6 +474,7 @@ func TestHandleUploadMedia_CoversRemainingBranches(t *testing.T) {
 				}),
 			},
 		}
+		app.cfg.FFmpegPath = ffmpegOK
 
 		rr := httptest.NewRecorder()
 		app.handleUploadMedia(rr, req)
@@ -480,6 +487,17 @@ func TestHandleUploadMedia_CoversRemainingBranches(t *testing.T) {
 		}
 		if name, _ := got["localFilename"].(string); !strings.HasSuffix(name, ".mp4") {
 			t.Fatalf("localFilename=%v", got["localFilename"])
+		}
+		if posterURL, _ := got["posterUrl"].(string); posterURL == "" || !strings.HasPrefix(posterURL, "/upload/videos/") || !strings.HasSuffix(posterURL, ".poster.jpg") {
+			t.Fatalf("posterUrl=%v", got["posterUrl"])
+		}
+		if posterLocalPath, _ := got["posterLocalPath"].(string); posterLocalPath == "" || !strings.HasPrefix(posterLocalPath, "/videos/") || !strings.HasSuffix(posterLocalPath, ".poster.jpg") {
+			t.Fatalf("posterLocalPath=%v", got["posterLocalPath"])
+		} else {
+			full := filepath.Join(uploadRoot, filepath.FromSlash(strings.TrimPrefix(posterLocalPath, "/")))
+			if fi, err := os.Stat(full); err != nil || fi.IsDir() || fi.Size() == 0 {
+				t.Fatalf("expected poster file exists: %s err=%v", full, err)
+			}
 		}
 	})
 

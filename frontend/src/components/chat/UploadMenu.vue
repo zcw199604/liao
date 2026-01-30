@@ -15,6 +15,7 @@
           <MediaTile
             :src="media.url"
             :type="media.type"
+            :poster="media.type === 'video' ? media.posterUrl : undefined"
             class="w-full h-full"
             :show-skeleton="false"
             :indicator-size="'sm'"

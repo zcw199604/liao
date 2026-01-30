@@ -52,6 +52,14 @@ export const useUpload = () => {
           type,
           localFilename: res.localFilename
         }
+        if (type === 'video') {
+          const posterUrl = String(res.posterUrl || '').trim()
+          const posterLocalPath = String(res.posterLocalPath || '').trim()
+          if (posterUrl) media.posterUrl = posterUrl
+          else if (posterLocalPath) {
+            media.posterUrl = posterLocalPath.startsWith('/upload/') ? posterLocalPath : `/upload${posterLocalPath.startsWith('/') ? '' : '/'}${posterLocalPath}`
+          }
+        }
 
         mediaStore.addUploadedMedia(media)
         return media

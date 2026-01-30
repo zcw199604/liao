@@ -11,6 +11,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -40,6 +41,7 @@ type MediaUploadHistory struct {
 type MediaFileDTO struct {
 	URL              string `json:"url"`
 	Type             string `json:"type"`
+	PosterURL        string `json:"posterUrl,omitempty"`
 	LocalFilename    string `json:"localFilename,omitempty"`
 	OriginalFilename string `json:"originalFilename,omitempty"`
 	FileSize         int64  `json:"fileSize,omitempty"`
@@ -510,6 +512,16 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 			UploadTime:       uploadTime.Format("2006-01-02T15:04:05"),
 			UpdateTime:       "",
 		}
+		if dto.Type == "video" && s.fileStore != nil {
+			posterLocalPath := buildVideoPosterLocalPath(localPath)
+			if posterLocalPath != "" {
+				if abs, err := s.fileStore.resolveUploadAbsPath(posterLocalPath); err == nil {
+					if fi, err := os.Stat(abs); err == nil && !fi.IsDir() && fi.Size() > 0 {
+						dto.PosterURL = "/upload" + posterLocalPath
+					}
+				}
+			}
+		}
 		if updateTime.Valid {
 			dto.UpdateTime = updateTime.Time.Format("2006-01-02T15:04:05")
 		}
@@ -654,6 +666,11 @@ func (s *MediaUploadService) DeleteMediaByPath(ctx context.Context, userID, loca
 		}
 	} else {
 		fileDeleted = s.fileStore.DeleteFile(storedNormalized)
+	}
+
+	// Best-effort: keep derived poster in sync when deleting the underlying video file.
+	if fileDeleted && strings.HasPrefix(strings.ToLower(strings.TrimSpace(file.FileType)), "video/") {
+		_ = s.fileStore.DeleteVideoPoster(storedNormalized)
 	}
 
 	return DeleteResult{DeletedRecords: deletedCount, FileDeleted: fileDeleted}, nil

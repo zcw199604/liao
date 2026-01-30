@@ -430,6 +430,8 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
    - 返回增强后的 JSON（额外字段）：
      - `port`
      - `localFilename`（从 localPath 取 basename）
+     - `posterLocalPath`（仅视频：例如 `/videos/.../xxx.poster.jpg`；后端通过 `ffmpeg` 生成）
+     - `posterUrl`（仅视频：`/upload{posterLocalPath}`，用于前端 `<video poster>` 缩略图）
 8. 若解析失败或非 OK：返回原始上游响应 body
 9. 若上游上传失败：HTTP 500，`{"error":"上传媒体失败: ...","localPath":"..."}`（本地文件保留供重试）
 
@@ -575,6 +577,42 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 
 **响应（HTTP 200）**
 - 返回统计：`missingMd5`、`duplicatesByMd5`、`duplicatesByLocalPath`，以及可选 `samples/warnings`。
+
+#### [POST] /api/repairVideoPosters
+**描述**：历史视频 poster 修复/补齐接口。用于为已落盘的视频生成封面图（`*.poster.jpg`），以便前端列表缩略图与 `<video poster>` 展示。
+
+**能力**
+- 扫描 `media_file` 或 `douyin_media_file` 中的历史视频记录（按 `id` 递增分页）。
+- 若对应视频文件存在但 poster 不存在：在 `commit=true` 时使用 `ffmpeg` 生成 poster（JPG），并落盘到与视频同目录。
+- 默认 dry-run：仅返回统计信息；必须显式 `commit=true` 才会生成文件。
+
+**请求（application/json）**
+| 字段 | 必填 | 默认 | 说明 |
+|---|---|---|---|
+| commit | 否 | false | 是否真实生成 poster（false=dry-run） |
+| source | 否 | `local` | `local`=扫描 `media_file`；`douyin`=扫描 `douyin_media_file` |
+| startAfterId | 否 | `0` | 分页游标，只处理 `id > startAfterId` |
+| limit | 否 | `200` | 单次最多扫描条数（最大 `2000`）；若返回 `hasMore=true`，可用 `nextAfterId` 继续下一批 |
+
+**响应（HTTP 200）**
+```json
+{
+  "commit": true,
+  "source": "local",
+  "startAfterId": 0,
+  "nextAfterId": 123,
+  "hasMore": false,
+  "limit": 200,
+  "scanned": 123,
+  "videoMissing": 0,
+  "posterExisting": 10,
+  "posterMissing": 113,
+  "posterGenerated": 113,
+  "posterFailed": 0,
+  "skipped": 0,
+  "warnings": []
+}
+```
 
 #### [POST] /api/recordImageSend
 **描述**：记录“媒体发送”关系，用于聊天历史图片查询。
@@ -843,7 +881,8 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
   - `source=local`：仅查询 `media_file`
   - `source=douyin`：仅查询 `douyin_media_file`（可选 `douyinSecUserId` 过滤 `sec_user_id`）
   - `source=all`：`media_file UNION ALL douyin_media_file`（对字符串列 `CONVERT(... USING utf8mb4) COLLATE utf8mb4_unicode_ci` 以避免 MySQL `UNION` collation 冲突）
-  - 每条返回为 `MediaFileDTO`：`url/type/localFilename/originalFilename/fileSize/fileType/fileExtension/uploadTime/updateTime`
+  - 每条返回为 `MediaFileDTO`：`url/type/posterUrl/localFilename/originalFilename/fileSize/fileType/fileExtension/uploadTime/updateTime`
+    - `posterUrl`：仅 `type=="video"` 且本地存在封面图时返回（`/upload/videos/.../*.poster.jpg`），用于前端视频缩略图与 `<video poster>`。
 - `total`：`mediaUploadService.GetAllUploadImagesCountBySource(source,douyinSecUserId)`（`source=all` 时为两表 count 之和）
 - `port`：`resolveImagePortByConfig("")`（历史字段，保留给前端拼接上游 URL 的场景）
 

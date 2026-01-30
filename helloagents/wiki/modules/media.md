@@ -19,6 +19,12 @@
 **模块:** Media
 上传接口需将文件落盘到 `./upload` 并写入本地表（详见 `data.md`），同时对上游上传接口保持兼容。
 
+补充：为提升“视频在列表中的缩略图体验”，当上传文件类型为 `video/*` 且成功落盘到本地 `./upload` 时，后端会使用 `ffmpeg` 生成一张封面图（poster）：
+- 生成路径：与视频同目录，文件名为 `{videoBase}.poster.jpg`（例如 `/videos/2026/01/30/xxx.mp4` → `/videos/2026/01/30/xxx.poster.jpg`）
+- 访问路径：`/upload{posterLocalPath}`（例如 `/upload/videos/2026/01/30/xxx.poster.jpg`）
+- 前端使用：`MediaTile` 的 `poster` 属性；列表/缩略图场景优先展示 poster，点击再播放原视频
+- 依赖：需要服务器可执行 `ffmpeg`（路径可通过环境变量 `FFMPEG_PATH` 配置）
+
 ### 需求: 媒体历史与消息关联
 **模块:** Media
 通过 `recordImageSend` 记录 “fromUserId → toUserId” 的媒体发送关系，用于：
@@ -55,6 +61,13 @@
 ### 需求: 历史媒体数据修复（repairMediaHistory）
 **模块:** Media
 提供历史表 `media_upload_history` 的修复与去重能力（默认 dry-run，需显式开启写入/删除）。
+
+### 需求: 历史视频封面补齐（repairVideoPosters）
+**模块:** Media
+为解决历史视频在列表中“黑底/无缩略图”的体验问题，提供视频 poster 补齐能力：
+- 扫描媒体库表（`media_file` / `douyin_media_file`）中的视频记录；
+- 对于“视频文件存在但 poster 不存在”的条目，使用 `ffmpeg` 生成封面图并落盘为 `*.poster.jpg`；
+- 前端列表/缩略图通过 `MediaTile poster` 使用该封面图实现缩略图效果。
 
 ### 需求: 媒体查重（image_hash）
 **模块:** Media
@@ -101,6 +114,9 @@
 
 ### [GET] /api/getAllUploadImages
 **描述:** 全站媒体库分页（返回 `data/total/page/pageSize/totalPages/port`）
+
+### [POST] /api/repairVideoPosters
+**描述:** 扫描历史视频并补齐 poster（批量任务；默认 dry-run）
 
 **Query 参数**
 - `page`：页码（默认 1）

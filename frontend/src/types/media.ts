@@ -1,6 +1,8 @@
 export interface UploadedMedia {
   url: string
   type: 'image' | 'video' | 'file'
+  // 视频封面图（后端生成 /upload/...jpg），用于列表缩略图与视频 poster。
+  posterUrl?: string
   // 用于下载（与展示 URL 解耦，例如 mtPhoto 预览展示缩略图，但下载原图）
   downloadUrl?: string
   localFilename?: string

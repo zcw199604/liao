@@ -57,6 +57,10 @@ export const useMediaStore = defineStore('media', () => {
           // 将本地URL转换为上游URL：/upload/images/... -> /img/Upload/...
           const localPath = extractUploadLocalPath(localUrl)
           const filename = localPath.substring(localPath.lastIndexOf('/') + 1)
+          // 视频缩略图：后端在落盘时生成 /videos/.../*.poster.jpg，前端可用作 poster。
+          const posterUrl = type === 'video'
+            ? `/upload${localPath.replace(/\.[a-zA-Z0-9]+$/, '')}.poster.jpg`
+            : undefined
           const relativePath = localPath.replace(/^\//, '')
           const uploadPath = relativePath.replace(/^images\//, '').replace(/^videos\//, '')
           let url = localUrl
@@ -64,7 +68,7 @@ export const useMediaStore = defineStore('media', () => {
             const port = await systemConfigStore.resolveImagePort(uploadPath, imgServer.value)
             url = `http://${imgServer.value}:${port}/img/Upload/${uploadPath}`
           }
-          return { url, type, localFilename: filename }
+          return { url, type, localFilename: filename, posterUrl }
         }))
     } catch (error) {
       console.error('获取缓存图片失败', error)
@@ -86,6 +90,7 @@ export const useMediaStore = defineStore('media', () => {
         const newItems: UploadedMedia[] = res.data.map((item: any) => ({
           url: item.url,
           type: item.type,
+          posterUrl: item.posterUrl,
           localFilename: item.localFilename,
           originalFilename: item.originalFilename,
           fileSize: item.fileSize,

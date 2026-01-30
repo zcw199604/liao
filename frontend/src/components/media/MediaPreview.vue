@@ -174,6 +174,7 @@
 		             <video
 		              ref="videoRef"
 		              :src="currentMediaDisplayUrl"
+		              :poster="currentMedia.posterUrl"
 		              playsinline
 		              webkit-playsinline
 	              controls
@@ -321,6 +322,7 @@
 	                <MediaTile
 	                  :src="item.url"
 	                  :type="item.type"
+	                  :poster="item.type === 'video' ? item.posterUrl : undefined"
 	                  class="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden cursor-pointer border-2 transition-all duration-200 shadow-lg"
 	                  :class="index === currentIndex ? 'border-indigo-500 scale-110 opacity-100 ring-2 ring-indigo-500/30' : 'border-transparent opacity-40 hover:opacity-80 hover:scale-105'"
 	                  :show-skeleton="false"
@@ -346,6 +348,7 @@
 	              :key="'thumb-' + idx"
 	              :src="item.url"
 	              :type="item.type"
+	              :poster="item.type === 'video' ? item.posterUrl : undefined"
 	              class="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden cursor-pointer border-2 transition-all duration-200 shadow-lg"
 	              :class="idx === currentIndex ? 'border-indigo-500 scale-110 opacity-100 ring-2 ring-indigo-500/30' : 'border-transparent opacity-40 hover:opacity-80 hover:scale-105'"
 	              :show-skeleton="false"
