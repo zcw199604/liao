@@ -229,8 +229,12 @@ func (s *FileStorageService) EnsureVideoPoster(ctx context.Context, ffmpegPath s
 		vf = rotateFilter + "," + vf
 	}
 
-	// Try to avoid black frames: seek to ~1s first, and fall back to 0s if needed.
+	// Try order:
+	// 1) first keyframe (I-frame) - fast and deterministic
+	// 2) ~1s - often avoids initial black frames
+	// 3) 0s - last fallback
 	tryArgs := [][]string{
+		{"-y", "-skip_frame", "nokey", "-i", inputAbs, "-frames:v", "1", "-vf", vf, "-q:v", "4", outputAbs},
 		{"-y", "-ss", "00:00:01.000", "-i", inputAbs, "-frames:v", "1", "-vf", vf, "-q:v", "4", outputAbs},
 		{"-y", "-ss", "00:00:00.000", "-i", inputAbs, "-frames:v", "1", "-vf", vf, "-q:v", "4", outputAbs},
 	}
