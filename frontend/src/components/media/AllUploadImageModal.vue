@@ -120,22 +120,30 @@
             <div class="h-full cursor-pointer" @click="handleMediaClick(media)">
               <!-- 容器：处理缩放和圆角 -->
 	              <MediaTile
-	                :src="media.url"
-	                :type="media.type"
+	                :src="media.type === 'video' && media.posterUrl ? media.posterUrl : media.url"
+	                :type="media.type === 'video' && media.posterUrl ? 'image' : media.type"
 	                :poster="media.type === 'video' ? media.posterUrl : undefined"
 	                :reveal-top-right="true"
-	                :fill="layoutMode === 'grid' || media.type === 'video'"
-	                :media-class="layoutMode === 'grid' ? '' : (media.type === 'image' ? 'w-full h-auto' : '')"
+	                :fill="layoutMode === 'grid' || (media.type === 'video' && !media.posterUrl)"
+	                :media-class="layoutMode === 'grid' ? '' : ((media.type === 'image' || (media.type === 'video' && media.posterUrl)) ? 'w-full h-auto' : '')"
 	                class="rounded-xl overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] bg-surface-3"
 	                :class="[
                   mediaStore.selectedImages.includes(media.url) ? 'transform scale-95 ring-2 ring-purple-500' : '',
                   deletingUrls.has(media.url) ? 'opacity-50' : 'hover:brightness-110',
-                  layoutMode === 'grid' ? 'w-full h-full' : (media.type === 'video' ? 'aspect-video' : 'w-full')
+                  layoutMode === 'grid' ? 'w-full h-full' : (media.type === 'video' && !media.posterUrl ? 'aspect-video' : 'w-full')
                 ]"
                 :show-skeleton="false"
                 :muted="true"
                 :indicator-size="'lg'"
 	              >
+                  <template #center>
+                    <div
+                      v-if="media.type === 'video'"
+                      class="rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/15 shadow-lg w-10 h-10"
+                    >
+                      <i class="fas fa-play text-white text-sm ml-0.5"></i>
+                    </div>
+                  </template>
 	                <template #top-left>
 	                  <MediaTileSelectMark
 	                    v-if="mediaStore.managementMode && mediaStore.selectionMode"

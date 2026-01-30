@@ -13,6 +13,9 @@ type RepairVideoPostersRequest struct {
 	// Commit=true 才会真实生成 poster；默认 false 为 dry-run。
 	Commit bool `json:"commit"`
 
+	// Force=true 会覆盖已存在的 poster（用于修复已生成但方向不对的历史 poster）。
+	Force bool `json:"force,omitempty"`
+
 	// Source 表示处理范围：
 	// - local: media_file
 	// - douyin: douyin_media_file
@@ -28,6 +31,7 @@ type RepairVideoPostersRequest struct {
 type RepairVideoPostersResult struct {
 	Commit bool   `json:"commit"`
 	Source string `json:"source"`
+	Force  bool   `json:"force"`
 
 	StartAfterID int64 `json:"startAfterId"`
 	NextAfterID  int64 `json:"nextAfterId"`
@@ -47,7 +51,7 @@ type RepairVideoPostersResult struct {
 	Warnings []string `json:"warnings,omitempty"`
 }
 
-func (s *MediaUploadService) RepairVideoPosters(ctx context.Context, ffmpegPath string, req RepairVideoPostersRequest) (RepairVideoPostersResult, error) {
+func (s *MediaUploadService) RepairVideoPosters(ctx context.Context, ffmpegPath string, ffprobePath string, req RepairVideoPostersRequest) (RepairVideoPostersResult, error) {
 	var res RepairVideoPostersResult
 	if s == nil || s.db == nil || s.fileStore == nil {
 		return res, errors.New("服务未初始化")
@@ -72,6 +76,7 @@ func (s *MediaUploadService) RepairVideoPosters(ctx context.Context, ffmpegPath 
 	}
 
 	ffmpegPath = strings.TrimSpace(ffmpegPath)
+	ffprobePath = strings.TrimSpace(ffprobePath)
 	if req.Commit {
 		if ffmpegPath == "" {
 			return res, errors.New("ffmpeg 未配置：请设置环境变量 FFMPEG_PATH 或安装 ffmpeg")
@@ -79,10 +84,17 @@ func (s *MediaUploadService) RepairVideoPosters(ctx context.Context, ffmpegPath 
 		if _, err := exec.LookPath(ffmpegPath); err != nil {
 			return res, fmt.Errorf("ffmpeg 不可用: %v", err)
 		}
+		if ffprobePath == "" {
+			return res, errors.New("ffprobe 未配置：请设置环境变量 FFPROBE_PATH 或安装 ffprobe")
+		}
+		if _, err := exec.LookPath(ffprobePath); err != nil {
+			return res, fmt.Errorf("ffprobe 不可用: %v", err)
+		}
 	}
 
 	res.Commit = req.Commit
 	res.Source = source
+	res.Force = req.Force
 	res.StartAfterID = req.StartAfterID
 	res.NextAfterID = req.StartAfterID
 	res.Limit = req.Limit
@@ -172,8 +184,10 @@ LIMIT ?`, table), req.StartAfterID, queryLimit)
 
 		// Poster already exists.
 		if fi, err := os.Stat(posterAbs); err == nil && !fi.IsDir() && fi.Size() > 0 {
-			res.PosterExisting++
-			continue
+			if !req.Force {
+				res.PosterExisting++
+				continue
+			}
 		}
 
 		res.PosterMissing++
@@ -181,7 +195,7 @@ LIMIT ?`, table), req.StartAfterID, queryLimit)
 			continue
 		}
 
-		created, err := s.fileStore.EnsureVideoPoster(ctx, ffmpegPath, localPath)
+		created, err := s.fileStore.EnsureVideoPoster(ctx, ffmpegPath, ffprobePath, localPath, req.Force)
 		if err != nil {
 			res.PosterFailed++
 			if len(res.Warnings) < 200 {

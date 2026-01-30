@@ -21,7 +21,7 @@ func (a *App) handleRepairVideoPosters(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := a.mediaUpload.RepairVideoPosters(r.Context(), a.cfg.FFmpegPath, req)
+	res, err := a.mediaUpload.RepairVideoPosters(r.Context(), a.cfg.FFmpegPath, a.cfg.FFprobePath, req)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return

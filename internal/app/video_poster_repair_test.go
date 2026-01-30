@@ -30,6 +30,7 @@ for a in "$@"; do out="$a"; done
 echo poster > "$out"
 exit 0
 `)
+	ffprobeOK := writeExecutable(t, "ffprobe-ok", "#!/bin/sh\nexit 0\n")
 
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
@@ -40,7 +41,7 @@ exit 0
 			AddRow(int64(1), videoLocalPath, "video/mp4", "mp4"))
 
 	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: uploadRoot}}
-	res, err := svc.RepairVideoPosters(context.Background(), ffmpegOK, RepairVideoPostersRequest{
+	res, err := svc.RepairVideoPosters(context.Background(), ffmpegOK, ffprobeOK, RepairVideoPostersRequest{
 		Commit:       true,
 		Source:       "local",
 		StartAfterID: 0,
@@ -68,7 +69,7 @@ func TestMediaUploadService_RepairVideoPosters_CommitRequiresFFmpeg(t *testing.T
 	db := mustNewSQLMockDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
-	if _, err := svc.RepairVideoPosters(context.Background(), "   ", RepairVideoPostersRequest{Commit: true}); err == nil {
+	if _, err := svc.RepairVideoPosters(context.Background(), "   ", "ffprobe", RepairVideoPostersRequest{Commit: true}); err == nil {
 		t.Fatalf("expected error")
 	}
 }

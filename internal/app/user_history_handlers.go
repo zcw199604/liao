@@ -583,7 +583,7 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 	posterLocalPath := ""
 	posterURL := ""
 	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(contentType)), "video/") && a.fileStorage != nil {
-		posterLocalPath, posterURL = a.fileStorage.EnsureVideoPosterLogged(r.Context(), a.cfg.FFmpegPath, localPath)
+		posterLocalPath, posterURL = a.fileStorage.EnsureVideoPosterLogged(r.Context(), a.cfg.FFmpegPath, a.cfg.FFprobePath, localPath, false)
 	}
 
 	imgServerHost := a.imageServer.GetImgServerHost()

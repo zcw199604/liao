@@ -2,12 +2,16 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // buildVideoPosterLocalPath converts a video localPath (e.g. /videos/.../a.mp4)
@@ -66,10 +70,101 @@ func (s *FileStorageService) posterURLFromLocalPath(posterLocalPath string) stri
 	return "/upload" + posterLocalPath
 }
 
+func normalizeRotationDegrees(raw int) int {
+	deg := raw % 360
+	if deg < 0 {
+		deg += 360
+	}
+	switch deg {
+	case 0, 90, 180, 270:
+		return deg
+	default:
+		// Best-effort: snap to nearest 90 degrees.
+		return ((deg + 45) / 90 * 90) % 360
+	}
+}
+
+func probeVideoRotationDegrees(ctx context.Context, ffprobePath, inputAbsPath string) int {
+	ffprobePath = strings.TrimSpace(ffprobePath)
+	inputAbsPath = strings.TrimSpace(inputAbsPath)
+	if ffprobePath == "" || inputAbsPath == "" {
+		return 0
+	}
+
+	// Fast path: try common rotate tag first (e.g. iPhone videos).
+	{
+		ctx2, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		out, err := execCommandContext(ctx2,
+			ffprobePath,
+			"-v", "error",
+			"-select_streams", "v:0",
+			"-show_entries", "stream_tags=rotate",
+			"-of", "default=nw=1:nk=1",
+			inputAbsPath,
+		).Output()
+		if err == nil {
+			raw := strings.TrimSpace(string(out))
+			if raw != "" {
+				if v, err := strconv.Atoi(raw); err == nil {
+					return normalizeRotationDegrees(v)
+				}
+			}
+		}
+	}
+
+	// Fallback: inspect side_data_list.rotation from JSON output.
+	{
+		ctx2, cancel := context.WithTimeout(ctx, 8*time.Second)
+		defer cancel()
+
+		out, err := execCommandContext(ctx2,
+			ffprobePath,
+			"-v", "error",
+			"-select_streams", "v:0",
+			"-show_streams",
+			"-of", "json",
+			inputAbsPath,
+		).Output()
+		if err != nil {
+			return 0
+		}
+
+		var parsed struct {
+			Streams []struct {
+				Tags         map[string]string `json:"tags"`
+				SideDataList []struct {
+					Rotation *float64 `json:"rotation"`
+				} `json:"side_data_list"`
+			} `json:"streams"`
+		}
+		if err := json.Unmarshal(out, &parsed); err != nil {
+			return 0
+		}
+		if len(parsed.Streams) == 0 {
+			return 0
+		}
+
+		if v := strings.TrimSpace(parsed.Streams[0].Tags["rotate"]); v != "" {
+			if deg, err := strconv.Atoi(v); err == nil {
+				return normalizeRotationDegrees(deg)
+			}
+		}
+
+		for _, sd := range parsed.Streams[0].SideDataList {
+			if sd.Rotation != nil {
+				return normalizeRotationDegrees(int(math.Round(*sd.Rotation)))
+			}
+		}
+		return 0
+	}
+}
+
 // EnsureVideoPoster generates a JPEG poster image for a locally stored video.
 // The poster generation is best-effort: callers may ignore the error and keep
 // the upload workflow unblocked.
-func (s *FileStorageService) EnsureVideoPoster(ctx context.Context, ffmpegPath string, videoLocalPath string) (string, error) {
+func (s *FileStorageService) EnsureVideoPoster(ctx context.Context, ffmpegPath string, ffprobePath string, videoLocalPath string, force bool) (string, error) {
 	if s == nil {
 		return "", fmt.Errorf("文件服务未初始化")
 	}
@@ -104,18 +199,46 @@ func (s *FileStorageService) EnsureVideoPoster(ctx context.Context, ffmpegPath s
 	}
 
 	// Fast path: poster already exists.
-	if fi, err := os.Stat(outputAbs); err == nil && !fi.IsDir() && fi.Size() > 0 {
-		return posterLocalPath, nil
+	if !force {
+		if fi, err := os.Stat(outputAbs); err == nil && !fi.IsDir() && fi.Size() > 0 {
+			return posterLocalPath, nil
+		}
 	}
 
 	if err := os.MkdirAll(filepath.Dir(outputAbs), 0o755); err != nil {
 		return "", fmt.Errorf("无法创建封面目录: %w", err)
 	}
 
+	rotation := probeVideoRotationDegrees(ctx, ffprobePath, inputAbs)
+	rotateFilter := ""
+	switch rotation {
+	case 90:
+		rotateFilter = "transpose=1"
+	case 180:
+		rotateFilter = "transpose=2,transpose=2"
+	case 270:
+		rotateFilter = "transpose=2"
+	}
+
+	// Keep poster deterministic across ffmpeg versions:
+	// - if rotation metadata is detected, disable ffmpeg auto-rotate and apply
+	//   transpose based on metadata ourselves
+	// - if rotation metadata is unknown, keep ffmpeg default behavior (auto-rotate)
+	vf := "scale='min(480,iw)':-2,setsar=1"
+	if rotateFilter != "" {
+		vf = rotateFilter + "," + vf
+	}
+
 	// Try to avoid black frames: seek to ~1s first, and fall back to 0s if needed.
 	tryArgs := [][]string{
-		{"-y", "-ss", "00:00:01.000", "-i", inputAbs, "-frames:v", "1", "-vf", "scale='min(480,iw)':-2", "-q:v", "4", outputAbs},
-		{"-y", "-ss", "00:00:00.000", "-i", inputAbs, "-frames:v", "1", "-vf", "scale='min(480,iw)':-2", "-q:v", "4", outputAbs},
+		{"-y", "-ss", "00:00:01.000", "-i", inputAbs, "-frames:v", "1", "-vf", vf, "-q:v", "4", outputAbs},
+		{"-y", "-ss", "00:00:00.000", "-i", inputAbs, "-frames:v", "1", "-vf", vf, "-q:v", "4", outputAbs},
+	}
+	if rotateFilter != "" {
+		for i := range tryArgs {
+			// Ensure ffmpeg won't auto-rotate, since we already apply transpose.
+			tryArgs[i] = append([]string{"-y", "-noautorotate"}, tryArgs[i][1:]...)
+		}
 	}
 
 	var lastErr error
@@ -145,8 +268,8 @@ func (s *FileStorageService) DeleteVideoPoster(videoLocalPath string) bool {
 	return s.DeleteFile(posterLocalPath)
 }
 
-func (s *FileStorageService) EnsureVideoPosterLogged(ctx context.Context, ffmpegPath, videoLocalPath string) (posterLocalPath string, posterURL string) {
-	posterLocalPath, err := s.EnsureVideoPoster(ctx, ffmpegPath, videoLocalPath)
+func (s *FileStorageService) EnsureVideoPosterLogged(ctx context.Context, ffmpegPath, ffprobePath, videoLocalPath string, force bool) (posterLocalPath string, posterURL string) {
+	posterLocalPath, err := s.EnsureVideoPoster(ctx, ffmpegPath, ffprobePath, videoLocalPath, force)
 	if err != nil {
 		slog.Warn("生成视频封面失败(将跳过)", "error", err, "localPath", videoLocalPath)
 		return "", ""
