@@ -32,7 +32,7 @@
 ### 验收标准
 - [x] `npm -C frontend run build` 通过
 - [x] `npm -C frontend test` 通过
-- [ ] Android Via + Android Chrome 真机验证：浅色主题下“图片管理”入口卡片文字清晰；“所有上传图片”弹窗头部不出现竖排且控件可操作
+- [x] Android Via + Android Chrome 真机验证：浅色主题下“图片管理”入口卡片文字清晰；“所有上传图片”弹窗头部不出现竖排且控件可操作
 
 ---
 

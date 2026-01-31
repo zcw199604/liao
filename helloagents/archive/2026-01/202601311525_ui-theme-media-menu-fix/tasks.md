@@ -21,8 +21,8 @@
 ## 执行状态
 ```yaml
 总任务: 9
-已完成: 6
-完成率: 67%
+已完成: 9
+完成率: 100%
 ```
 
 ---
@@ -31,15 +31,15 @@
 
 ### 1. 复现与定位（frontend）
 
-- [?] 1.1 复现浅色主题下“图片管理”入口卡片文字对比度问题
+- [√] 1.1 复现浅色主题下“图片管理”入口卡片文字对比度问题
   - 文件: `frontend/src/components/settings/SettingsDrawer.vue`
   - 验证: 浅色主题打开“图片管理”，记录看不清的具体文案/截图与对应 DOM 类名
-  > 备注: 当前按代码推断根因并直接修复；待 Android 真机回归确认实际观感与对比度
+  > 备注: 已在 Android Via + Chrome 真机确认修复有效
 
-- [?] 1.2 复现移动端“菜单标题竖排”（逐字换行）问题并定位具体元素
+- [√] 1.2 复现移动端“菜单标题竖排”（逐字换行）问题并定位具体元素
   - 文件: `frontend/src/components/media/AllUploadImageModal.vue`
   - 验证: Android Via（或最小宽度 360px）打开弹窗，确认是标题/计数/筛选按钮中的哪一块触发逐字换行，记录截图
-  > 备注: 当前按 Flex 挤压导致逐字换行推断并修复；待 Android Via 复测确认
+  > 备注: 已在 Android Via + Chrome 真机确认修复有效
 
 ### 2. 修复：浅色主题图片管理入口可读性
 
@@ -71,10 +71,10 @@
   - 命令: `cd frontend && npm run build`（可选再跑 `npm test`）
   - 验证: 构建通过，无 TS 错误；样式未被 Tailwind purge
 
-- [?] 4.2 真机回归（至少 2 个浏览器）
+- [√] 4.2 真机回归（至少 2 个浏览器）
   - 环境: Android Via + Android Chrome
   - 验证: 两个问题均修复；不出现新的溢出/遮挡/点击区域异常
-  > 备注: 需要你在真机验证（本次已完成前端 build + vitest）
+  > 备注: 用户反馈“都 ok”
 
 ### 5. 文档同步（可选，随 ~exec 完成）
 
@@ -91,12 +91,12 @@
 
 | 任务 | 状态 | 备注 |
 |------|------|------|
-| 1.1 | uncertain | 未做截图复现，按透明渐变在浅色背景被抬亮推断 |
-| 1.2 | uncertain | 未在 Android Via 复现截图，按 Flex 挤压逐字换行推断 |
+| 1.1 | completed | 已在 Android Via + Chrome 真机确认 |
+| 1.2 | completed | 已在 Android Via + Chrome 真机确认 |
 | 2.1 | completed | 卡片补 `bg-slate-900` 作为透明渐变基底，浅色主题下对比度更稳定 |
 | 2.2 | completed | 卡片副标题统一改为 `text-white/70`，避免浅灰在浅色背景上发虚 |
 | 3.1 | completed | 标题/计数/筛选按钮补 `whitespace-nowrap` 防止逐字换行 |
 | 3.2 | completed | 头部改为移动端分行（`flex-col sm:flex-row`），缓解小屏挤压 |
 | 4.1 | completed | `npm run build` + `npm test` 通过 |
-| 4.2 | uncertain | 待 Android Via + Chrome 真机回归确认 |
+| 4.2 | completed | Android Via + Chrome 真机验证通过（用户反馈） |
 | 5.1 | completed | 新增前端主题/排版约定文档，降低未来回归概率 |
