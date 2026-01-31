@@ -175,6 +175,10 @@
 - 前端：修复移动端“系统设置→外观→主题”切换按钮文字因压缩换行导致竖排显示（小屏改为三列栅格 + `whitespace-nowrap`）。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`
+- 前端：修复浅色主题下“图片管理”入口卡片文字对比度不足；并修复移动端“所有上传图片”弹窗头部在小屏挤压下出现逐字换行（竖排）的问题。
+  - 方案: [202601311525_ui-theme-media-menu-fix](archive/2026-01/202601311525_ui-theme-media-menu-fix/)
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
 - 修复 `/api/getHistoryUserList` 在上游用户ID字段为 `UserID/userid` 时，未能填充 `lastMsg` / `lastTime` 的问题。
 - 修复上游返回的消息 `id/toid` 与 `myUserID` 不一致时，最后消息缓存会话Key无法命中导致 `lastMsg` / `lastTime` 缺失的问题。
 - 后端：补齐 Go 版 User History/鉴权关键日志，避免容器运行时仅有启动日志。

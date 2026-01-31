@@ -15,67 +15,67 @@
         @click.stop
       >
         <!-- 头部 -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-line">
-          <div class="flex items-center gap-2">
+        <div class="flex flex-col gap-3 px-4 sm:px-6 py-4 border-b border-line sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex flex-wrap items-center gap-2 min-w-0">
             <i class="fas fa-images" :class="mediaStore.managementMode ? 'text-purple-500' : 'text-blue-500'"></i>
-            <h3 class="text-lg font-bold text-fg">
+            <h3 class="text-lg font-bold text-fg whitespace-nowrap shrink-0">
               {{ mediaStore.managementMode ? '管理已上传图片' : '所有上传图片' }}
             </h3>
-            <span class="text-xs text-fg-subtle ml-2">(共 {{ mediaStore.allUploadTotal }} 个)</span>
+            <span class="text-xs text-fg-subtle ml-2 whitespace-nowrap shrink-0">(共 {{ mediaStore.allUploadTotal }} 个)</span>
 
-            <div class="flex items-center gap-1 ml-4 bg-surface-3 border border-line-strong rounded-lg p-1">
+            <div class="flex items-center gap-1 sm:ml-4 bg-surface-3 border border-line-strong rounded-lg p-1 shrink-0">
               <button
                 @click="changeAllUploadSource('all')"
                 :class="mediaStore.allUploadSource === 'all' ? 'bg-surface-hover text-fg' : 'text-fg-muted hover:text-fg'"
-                class="px-2 py-1 text-xs rounded-md transition"
+                class="px-2 py-1 text-xs rounded-md transition whitespace-nowrap"
               >
                 全部
               </button>
               <button
                 @click="changeAllUploadSource('local')"
                 :class="mediaStore.allUploadSource === 'local' ? 'bg-surface-hover text-fg' : 'text-fg-muted hover:text-fg'"
-                class="px-2 py-1 text-xs rounded-md transition"
+                class="px-2 py-1 text-xs rounded-md transition whitespace-nowrap"
               >
                 本地
               </button>
               <button
                 @click="changeAllUploadSource('douyin')"
                 :class="mediaStore.allUploadSource === 'douyin' ? 'bg-surface-hover text-fg' : 'text-fg-muted hover:text-fg'"
-                class="px-2 py-1 text-xs rounded-md transition"
+                class="px-2 py-1 text-xs rounded-md transition whitespace-nowrap"
               >
                 抖音
               </button>
             </div>
 
-            <div v-if="mediaStore.allUploadSource === 'douyin'" class="flex items-center gap-2 ml-3">
+            <div v-if="mediaStore.allUploadSource === 'douyin'" class="flex flex-wrap items-center gap-2 sm:ml-3 w-full sm:w-auto">
               <input
                 v-model.trim="douyinSecUserIdInput"
                 @keyup.enter="applyDouyinSecUserFilter"
-                class="w-56 px-2 py-1 text-xs rounded-lg bg-surface-deep border border-line-strong text-fg placeholder-fg-subtle focus:outline-none focus:ring-1 focus:ring-blue-500"
+                class="w-full sm:w-56 px-2 py-1 text-xs rounded-lg bg-surface-deep border border-line-strong text-fg placeholder-fg-subtle focus:outline-none focus:ring-1 focus:ring-blue-500"
                 placeholder="抖音 sec_user_id（可选）"
               />
               <button
                 @click="applyDouyinSecUserFilter"
-                class="px-2 py-1 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+                class="px-2 py-1 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition whitespace-nowrap"
               >
                 筛选
               </button>
               <button
                 v-if="douyinSecUserIdInput"
                 @click="clearDouyinSecUserFilter"
-                class="px-2 py-1 text-xs rounded-lg bg-surface-3 text-fg hover:bg-surface-hover transition border border-line"
+                class="px-2 py-1 text-xs rounded-lg bg-surface-3 text-fg hover:bg-surface-hover transition border border-line whitespace-nowrap"
               >
                 清除
               </button>
             </div>
           </div>
 
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
             <button
               v-if="mediaStore.managementMode"
               @click="toggleSelectionMode"
               :class="mediaStore.selectionMode ? 'bg-purple-600' : 'bg-gray-700'"
-              class="px-3 py-1.5 text-white text-sm rounded-lg transition flex items-center gap-1"
+              class="px-3 py-1.5 text-white text-sm rounded-lg transition flex items-center gap-1 whitespace-nowrap"
             >
               <i :class="mediaStore.selectionMode ? 'fas fa-check-square' : 'far fa-square'"></i>
               <span>{{ mediaStore.selectionMode ? '取消选择' : '选择' }}</span>

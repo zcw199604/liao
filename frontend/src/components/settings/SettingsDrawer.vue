@@ -131,12 +131,12 @@
              
              <div 
                @click="openMediaManagement"
-               class="group relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-900/50 to-indigo-900/50 border border-white/5 cursor-pointer hover:border-purple-500/50 transition-all"
+               class="group relative overflow-hidden rounded-xl bg-slate-900 bg-gradient-to-br from-purple-900/50 to-indigo-900/50 border border-white/5 cursor-pointer hover:border-purple-500/50 transition-all"
              >
                 <div class="p-4 flex items-center justify-between z-10 relative">
                    <div>
                       <div class="text-2xl font-bold text-white mb-1">{{ mediaStore.allUploadTotal || 0 }}</div>
-                      <div class="text-xs text-gray-400 group-hover:text-purple-300 transition-colors">所有上传图片</div>
+                      <div class="text-xs text-white/70 group-hover:text-purple-200 transition-colors">所有上传图片</div>
                    </div>
                    <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-purple-500 group-hover:text-white transition-all">
                       <i class="fas fa-chevron-right"></i>
@@ -154,12 +154,12 @@
 
              <div
                @click="openMtPhotoAlbums"
-               class="group relative overflow-hidden rounded-xl bg-gradient-to-br from-pink-900/40 to-rose-900/40 border border-white/5 cursor-pointer hover:border-pink-500/50 transition-all mt-4"
+               class="group relative overflow-hidden rounded-xl bg-slate-900 bg-gradient-to-br from-pink-900/40 to-rose-900/40 border border-white/5 cursor-pointer hover:border-pink-500/50 transition-all mt-4"
              >
                 <div class="p-4 flex items-center justify-between z-10 relative">
                    <div>
                       <div class="text-base font-bold text-white mb-1">mtPhoto 相册</div>
-                      <div class="text-xs text-gray-400 group-hover:text-pink-300 transition-colors">按相册浏览并导入上传</div>
+                      <div class="text-xs text-white/70 group-hover:text-pink-200 transition-colors">按相册浏览并导入上传</div>
                    </div>
                    <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-pink-500 group-hover:text-white transition-all">
                       <i class="fas fa-chevron-right"></i>
@@ -170,12 +170,12 @@
 
              <div
                @click="openDouyinDownloader"
-               class="group relative overflow-hidden rounded-xl bg-gradient-to-br from-emerald-900/40 to-teal-900/40 border border-white/5 cursor-pointer hover:border-emerald-500/50 transition-all mt-4"
+               class="group relative overflow-hidden rounded-xl bg-slate-900 bg-gradient-to-br from-emerald-900/40 to-teal-900/40 border border-white/5 cursor-pointer hover:border-emerald-500/50 transition-all mt-4"
              >
                 <div class="p-4 flex items-center justify-between z-10 relative">
                    <div>
                       <div class="text-base font-bold text-white mb-1">抖音下载</div>
-                      <div class="text-xs text-gray-400 group-hover:text-emerald-300 transition-colors">解析→预览→下载→导入上传</div>
+                      <div class="text-xs text-white/70 group-hover:text-emerald-200 transition-colors">解析→预览→下载→导入上传</div>
                    </div>
                    <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-all">
                       <i class="fas fa-chevron-right"></i>
@@ -186,12 +186,12 @@
 
              <div
                @click="openDuplicateCheck"
-               class="group relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-900/40 to-cyan-900/40 border border-white/5 cursor-pointer hover:border-blue-500/50 transition-all mt-4"
+               class="group relative overflow-hidden rounded-xl bg-slate-900 bg-gradient-to-br from-blue-900/40 to-cyan-900/40 border border-white/5 cursor-pointer hover:border-blue-500/50 transition-all mt-4"
              >
                 <div class="p-4 flex items-center justify-between z-10 relative">
                    <div>
                       <div class="text-base font-bold text-white mb-1">图片查重</div>
-                      <div class="text-xs text-gray-400 group-hover:text-blue-300 transition-colors">按相似度检测重复图片</div>
+                      <div class="text-xs text-white/70 group-hover:text-blue-200 transition-colors">按相似度检测重复图片</div>
                    </div>
                    <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-all">
                       <i class="fas fa-chevron-right"></i>
@@ -202,12 +202,12 @@
 
              <div
                @click="openVideoExtractTasks"
-               class="group relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-900/40 to-indigo-900/40 border border-white/5 cursor-pointer hover:border-purple-500/50 transition-all mt-4"
+               class="group relative overflow-hidden rounded-xl bg-slate-900 bg-gradient-to-br from-purple-900/40 to-indigo-900/40 border border-white/5 cursor-pointer hover:border-purple-500/50 transition-all mt-4"
              >
                 <div class="p-4 flex items-center justify-between z-10 relative">
                    <div>
                       <div class="text-base font-bold text-white mb-1">抽帧任务中心</div>
-                      <div class="text-xs text-gray-400 group-hover:text-purple-300 transition-colors">查看/终止/继续抽帧任务</div>
+                      <div class="text-xs text-white/70 group-hover:text-indigo-200 transition-colors">查看/终止/继续抽帧任务</div>
                    </div>
                    <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-purple-500 group-hover:text-white transition-all">
                       <i class="fas fa-chevron-right"></i>
