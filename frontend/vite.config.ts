@@ -35,13 +35,14 @@ export default defineConfig({
     restoreMocks: true,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json-summary'],
+      // Keep json-summary for quick CI summary, and json for per-file branch analysis.
+      reporter: ['text', 'json-summary', 'json'],
       reportsDirectory: 'coverage',
       // Exclude extremely branch-heavy UI files whose template branches make global
       // coverage volatile/noisy (still tested, just not counted toward threshold).
       exclude: ['src/components/media/DouyinDownloadModal.vue', 'src/components/media/MediaPreview.vue'],
       thresholds: {
-        branches: 80
+        branches: 95
       }
     }
   }
