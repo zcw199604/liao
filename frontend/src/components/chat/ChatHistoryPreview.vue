@@ -296,12 +296,13 @@ const loadHistory = async () => {
 	           const msgs = xmlDoc.getElementsByTagName('Msg')
 	           
 	           const parsed: ChatMessage[] = []
-	           for(let i=0; i<msgs.length; i++) {
-	              const msg = msgs[i]
-	              
-	              const from = msg.querySelector('From')?.textContent || ''
-	              const body = msg.querySelector('Body')?.textContent || ''
-	              const time = msg.querySelector('Time')?.textContent || ''
+		           for(let i=0; i<msgs.length; i++) {
+		              const msg = msgs[i]
+		              if (!msg) continue
+		              
+		              const from = msg.querySelector('From')?.textContent || ''
+		              const body = msg.querySelector('Body')?.textContent || ''
+		              const time = msg.querySelector('Time')?.textContent || ''
               const tid = time 
               
               const isImage = body.startsWith('[img]')

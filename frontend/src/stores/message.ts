@@ -47,11 +47,10 @@ export const useMessageStore = defineStore('message', () => {
     return null
   }
 
-	const stripQueryAndHash = (input: string): string => {
-	    // Call sites already normalize/trim input; keep this helper branch-free.
-	    const s = String(input)
-	    return s.split('?')[0].split('#')[0]
-	  }
+  const stripQueryAndHash = (input: string): string => {
+    const s = String(input || '')
+    return (s.split('?')[0] || '').split('#')[0] || ''
+  }
 
   // 提取聊天媒体消息的 remotePath：
   // - "[path/to/file.ext]" -> "path/to/file.ext"
@@ -239,21 +238,22 @@ export const useMessageStore = defineStore('message', () => {
     }
   }
 
-	  const updateMessageByClientId = (
-	    userId: string,
-	    clientId: string,
-	    updater: (msg: ChatMessage) => void,
-	    options?: { normalize?: boolean }
-	  ): boolean => {
-	    const list = getMessages(userId)
-	    if (!list.length) return false
+  const updateMessageByClientId = (
+    userId: string,
+    clientId: string,
+    updater: (msg: ChatMessage) => void,
+    options?: { normalize?: boolean }
+  ): boolean => {
+    const list = getMessages(userId)
+    if (!list.length) return false
 
     const idx = list.findIndex(m => String(m.clientId || '') === String(clientId))
-	    if (idx < 0) return false
-	
-	    const msg = list[idx]
-	
-	    updater(msg)
+    if (idx < 0) return false
+
+    const msg = list[idx]
+    if (!msg) return false
+
+    updater(msg)
 
     if (options?.normalize !== false) {
       setMessages(userId, list.slice())
@@ -293,8 +293,8 @@ export const useMessageStore = defineStore('message', () => {
     return { kind: 'text', key: normalizeTextForMatch(msg.content) }
   }
 
-	  const confirmOutgoingEcho = (userId: string, echoed: ChatMessage): boolean => {
-	    if (!echoed?.isSelf) return false
+  const confirmOutgoingEcho = (userId: string, echoed: ChatMessage): boolean => {
+    if (!echoed?.isSelf) return false
 
     const list = getMessages(userId)
     if (!list.length) return false
@@ -302,13 +302,14 @@ export const useMessageStore = defineStore('message', () => {
     const echoedKey = getOptimisticMatchKey(echoed)
     const echoedTime = parseMessageTime(echoed.time) ?? Date.now()
 
-	    let best: { idx: number; score: number; statusRank: number } | null = null
-	
-	    for (let i = 0; i < list.length; i++) {
-	      const m = list[i]
-	      if (!m.isSelf) continue
-	      if (!m.clientId) continue
-	      if (m.sendStatus !== 'sending' && m.sendStatus !== 'failed') continue
+    let best: { idx: number; score: number; statusRank: number } | null = null
+
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i]
+      if (!m) continue
+      if (!m.isSelf) continue
+      if (!m.clientId) continue
+      if (m.sendStatus !== 'sending' && m.sendStatus !== 'failed') continue
 
       const mk = getOptimisticMatchKey(m)
       if (mk.kind !== echoedKey.kind) continue
@@ -326,11 +327,12 @@ export const useMessageStore = defineStore('message', () => {
       }
     }
 
-	    if (!best) return false
-	
-	    const target = list[best.idx]
-	
-	    clearPendingTimer(target.clientId)
+    if (!best) return false
+
+    const target = list[best.idx]
+    if (!target?.clientId) return false
+
+    clearPendingTimer(target.clientId)
 
     Object.assign(target, {
       code: echoed.code,
