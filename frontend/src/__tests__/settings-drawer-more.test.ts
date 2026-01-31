@@ -300,4 +300,136 @@ describe('components/settings/SettingsDrawer.vue (more branches)', () => {
     expect(toastShow).toHaveBeenCalledWith('保存失败: boom')
     expect((wrapper.vm as any).saving).toBe(false)
   })
+
+  it('startEdit/saveUserInfo return early when currentUser is missing', async () => {
+    const wrapper = mountDrawer({ mode: 'identity' })
+    await flushAsync()
+
+    // startEdit early return: editMode stays false
+    await wrapper.findAll('button').find((b) => b.text().includes('编辑'))!.trigger('click')
+    await flushAsync()
+    expect((wrapper.vm as any).editMode).toBe(false)
+
+    // saveUserInfo early return should be safe (no throw)
+    await (wrapper.vm as any).saveUserInfo()
+    expect((wrapper.vm as any).saving).toBe(false)
+  })
+
+  it('saveUserInfo: no changes branch shows toast and exits editMode', async () => {
+    const wrapper = mountDrawer({
+      mode: 'identity',
+      beforeMount: () => {
+        const userStore = useUserStore()
+        userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me', sex: '男', ip: '', area: '', cookie: 'c' } as any
+      }
+    })
+    await flushAsync()
+
+    await wrapper.findAll('button').find((b) => b.text().includes('编辑'))!.trigger('click')
+    await flushAsync()
+
+    // No change -> click save
+    await wrapper.findAll('button').find((b) => b.text().includes('保存'))!.trigger('click')
+    await flushAsync()
+
+    expect(toastShow).toHaveBeenCalledWith('没有任何修改')
+    expect((wrapper.vm as any).editMode).toBe(false)
+  })
+
+  it('saveUserInfo: idChanged failure uses default msg when res.msg is empty', async () => {
+    vi.mocked(identityApi.updateIdentityId).mockResolvedValueOnce({ code: 1, msg: '' } as any)
+
+    const wrapper = mountDrawer({
+      mode: 'identity',
+      beforeMount: () => {
+        const userStore = useUserStore()
+        userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me', sex: '男', ip: '', area: '', cookie: 'c' } as any
+      }
+    })
+    await flushAsync()
+
+    await wrapper.findAll('button').find((b) => b.text().includes('编辑'))!.trigger('click')
+    await flushAsync()
+    await wrapper.get('input[placeholder=\"输入用户ID\"]').setValue('me2')
+    await wrapper.findAll('button').find((b) => b.text().includes('保存'))!.trigger('click')
+    await flushAsync()
+
+    expect(toastShow).toHaveBeenCalledWith('更新失败: 未知错误')
+    expect(wsMocks.disconnect).not.toHaveBeenCalled()
+  })
+
+  it('saveUserInfo: updateIdentity failure uses default msg when res.msg is empty', async () => {
+    vi.mocked(identityApi.updateIdentity).mockResolvedValueOnce({ code: 1, msg: '' } as any)
+
+    const wrapper = mountDrawer({
+      mode: 'identity',
+      beforeMount: () => {
+        const userStore = useUserStore()
+        userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me', sex: '男', ip: '', area: '', cookie: 'c' } as any
+
+        const chatStore = useChatStore()
+        chatStore.wsConnected = true
+      }
+    })
+    await flushAsync()
+
+    await wrapper.findAll('button').find((b) => b.text().includes('编辑'))!.trigger('click')
+    await flushAsync()
+    await wrapper.get('input[placeholder=\"输入用户名\"]').setValue('Me2')
+    await wrapper.findAll('button').find((b) => b.text().includes('保存'))!.trigger('click')
+    await flushAsync()
+
+    expect(toastShow).toHaveBeenCalledWith('更新失败: 未知错误')
+    expect(wsMocks.send).not.toHaveBeenCalled()
+  })
+
+  it('covers doDisconnectAll branches and watch(!visible) early return', async () => {
+    const wrapper = mountDrawer({
+      mode: 'identity',
+      beforeMount: () => {
+        const userStore = useUserStore()
+        userStore.currentUser = { id: 'me', name: '', nickname: '', sex: '男', ip: '', area: '', cookie: 'c' } as any
+      }
+    })
+    await flushAsync()
+
+    // currentUser.name is empty -> avatar falls back to '?'
+    expect(wrapper.text()).toContain('?')
+
+    // confirmDisconnectAll toggles dialog flag
+    ;(wrapper.vm as any).confirmDisconnectAll()
+    expect((wrapper.vm as any).showDisconnectAllDialog).toBe(true)
+
+    settingsMocks.disconnectAll.mockResolvedValueOnce(true)
+    await (wrapper.vm as any).doDisconnectAll()
+    expect(toastShow).toHaveBeenCalledWith('已断开所有连接')
+
+    settingsMocks.disconnectAll.mockResolvedValueOnce(false)
+    await (wrapper.vm as any).doDisconnectAll()
+    expect(toastShow).toHaveBeenCalledWith('操作失败')
+
+    // confirmClearForceout + doClearForceout shows message
+    ;(wrapper.vm as any).confirmClearForceout()
+    expect((wrapper.vm as any).showClearForceoutDialog).toBe(true)
+    settingsMocks.clearForceout.mockResolvedValueOnce({ success: false, message: 'no' })
+    await (wrapper.vm as any).doClearForceout()
+    expect(toastShow).toHaveBeenCalledWith('no')
+
+    // Toggle visible false to trigger watch(!v) early return
+    await wrapper.setProps({ visible: false })
+    await flushAsync()
+  })
+
+  it('renders GlobalFavorites when mode=favorites', async () => {
+    const wrapper = mountDrawer({
+      mode: 'favorites',
+      beforeMount: () => {
+        const userStore = useUserStore()
+        userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me', sex: '男', ip: '', area: '', cookie: 'c' } as any
+      }
+    })
+    await flushAsync()
+    // stub GlobalFavorites should exist in DOM
+    expect(wrapper.html()).toContain('global-favorites-stub')
+  })
 })

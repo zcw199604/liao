@@ -134,6 +134,90 @@ describe('composables/useUpload', () => {
     expect(uploaded?.url).toBe('http://img.local:9007/img/Upload/videos/2026/01/a.mp4')
   })
 
+  it('maps non-image/video MIME types to file', async () => {
+    const mediaStore = useMediaStore()
+    mediaStore.imgServer = 'img.local'
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined as any)
+
+    const systemConfigStore = useSystemConfigStore()
+    vi.spyOn(systemConfigStore, 'resolveImagePort').mockResolvedValue('9006')
+
+    vi.mocked(mediaApi.uploadMedia).mockResolvedValue({
+      state: 'OK',
+      msg: 'files/2026/01/a.bin',
+      localFilename: 'a.bin'
+    } as any)
+
+    const { uploadFile } = useUpload()
+    const uploaded = await uploadFile(new File(['x'], 'a.bin', { type: 'application/octet-stream' }), 'me', 'Me')
+    expect(uploaded?.type).toBe('file')
+  })
+
+  it('sets posterUrl when upstream returns video posterUrl', async () => {
+    const mediaStore = useMediaStore()
+    mediaStore.imgServer = 'img.local'
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined as any)
+
+    const systemConfigStore = useSystemConfigStore()
+    vi.spyOn(systemConfigStore, 'resolveImagePort').mockResolvedValue('9006')
+
+    vi.mocked(mediaApi.uploadMedia).mockResolvedValue({
+      state: 'OK',
+      msg: 'videos/2026/01/a.mp4',
+      localFilename: 'a.mp4',
+      posterUrl: 'http://img.local/poster.jpg'
+    } as any)
+
+    const { uploadFile } = useUpload()
+    const uploaded = await uploadFile(new File(['x'], 'a.mp4', { type: 'video/mp4' }), 'me', 'Me')
+    expect(uploaded?.type).toBe('video')
+    expect(uploaded?.posterUrl).toBe('http://img.local/poster.jpg')
+  })
+
+  it('derives posterUrl from posterLocalPath variants when posterUrl is empty', async () => {
+    const mediaStore = useMediaStore()
+    mediaStore.imgServer = 'img.local'
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined as any)
+
+    const systemConfigStore = useSystemConfigStore()
+    vi.spyOn(systemConfigStore, 'resolveImagePort').mockResolvedValue('9006')
+
+    vi.mocked(mediaApi.uploadMedia)
+      .mockResolvedValueOnce({
+        state: 'OK',
+        msg: 'videos/2026/01/a1.mp4',
+        localFilename: 'a1.mp4',
+        posterUrl: '',
+        posterLocalPath: '/upload/poster1.jpg'
+      } as any)
+      .mockResolvedValueOnce({
+        state: 'OK',
+        msg: 'videos/2026/01/a2.mp4',
+        localFilename: 'a2.mp4',
+        posterUrl: '',
+        posterLocalPath: '/poster2.jpg'
+      } as any)
+      .mockResolvedValueOnce({
+        state: 'OK',
+        msg: 'videos/2026/01/a3.mp4',
+        localFilename: 'a3.mp4',
+        posterUrl: '',
+        posterLocalPath: 'poster3.jpg'
+      } as any)
+
+    const { uploadFile } = useUpload()
+    const file = new File(['x'], 'a.mp4', { type: 'video/mp4' })
+
+    const u1 = await uploadFile(file, 'me', 'Me')
+    expect(u1?.posterUrl).toBe('/upload/poster1.jpg')
+
+    const u2 = await uploadFile(file, 'me', 'Me')
+    expect(u2?.posterUrl).toBe('/upload/poster2.jpg')
+
+    const u3 = await uploadFile(file, 'me', 'Me')
+    expect(u3?.posterUrl).toBe('/upload/poster3.jpg')
+  })
+
   it('returns null when upstream response is not OK or missing msg', async () => {
     const mediaStore = useMediaStore()
     mediaStore.imgServer = 'img.local'
@@ -189,6 +273,19 @@ describe('composables/useUpload', () => {
     const uploaded = await uploadFile(new File(['x'], 'a.png', { type: 'image/png' }), 'me', 'Me')
     expect(uploaded).toBeNull()
     expect(toastError).toHaveBeenCalledWith('上传失败: boom')
+  })
+
+  it('uses default message when neither backend error nor Error.message is present', async () => {
+    const mediaStore = useMediaStore()
+    mediaStore.imgServer = 'img.local'
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined as any)
+
+    vi.mocked(mediaApi.uploadMedia).mockRejectedValue({})
+
+    const { uploadFile } = useUpload()
+    const uploaded = await uploadFile(new File(['x'], 'a.png', { type: 'image/png' }), 'me', 'Me')
+    expect(uploaded).toBeNull()
+    expect(toastError).toHaveBeenCalledWith('上传失败，请稍后重试')
   })
 
   it('getMediaUrl maps relative upload paths', () => {

@@ -1320,4 +1320,218 @@ describe('composables/useWebSocket', () => {
       vi.useRealTimers()
     }
   })
+
+  it('code=12 without content does not toast', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+    localStorage.setItem('authToken', 't-1')
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+
+    await FakeWebSocket.instances[0]!.triggerMessage({ code: 12 })
+    expect(toastShow).not.toHaveBeenCalled()
+  })
+
+  it('typing status scrolls even when no scroll callback is registered (no-op branch)', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+    localStorage.setItem('authToken', 't-1')
+
+    const chatStore = useChatStore()
+    chatStore.currentChatUser = {
+      id: 'u2',
+      name: 'U2',
+      nickname: 'U2',
+      sex: '未知',
+      age: '0',
+      area: '',
+      address: '',
+      ip: '',
+      isFavorite: false,
+      lastMsg: '',
+      lastTime: '',
+      unreadCount: 0
+    } as any
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+
+    const messageStore = useMessageStore()
+    await FakeWebSocket.instances[0]!.triggerMessage({ act: 'inputStatusOn_u2_x' })
+    expect(messageStore.isTyping).toBe(true)
+  })
+
+  it('checkUserOnlineStatus returns early when currentUser is missing and sends when present', async () => {
+    const socket = useWebSocket()
+
+    const userStore = useUserStore()
+    userStore.currentUser = null as any
+    socket.checkUserOnlineStatus('u2')
+
+    // Now connect and verify it sends.
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+    localStorage.setItem('authToken', 't-1')
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+
+    socket.checkUserOnlineStatus('u2')
+    const sent = FakeWebSocket.instances[0]!.sent.join('\n')
+    expect(sent).toContain('ShowUserLoginInfo')
+    expect(sent).toContain('"msg":"u2"')
+  })
+
+  it('socket.onerror updates wsConnected only for active connection', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+    localStorage.setItem('authToken', 't-1')
+
+    const chatStore = useChatStore()
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+    expect(chatStore.wsConnected).toBe(true)
+
+    FakeWebSocket.instances[0]!.onerror?.({})
+    expect(chatStore.wsConnected).toBe(false)
+
+    // Stale handler should no-op (branch: activeConnection !== connection).
+    socket.disconnect(true)
+    FakeWebSocket.instances[0]!.onerror?.({})
+    expect(chatStore.wsConnected).toBe(false)
+  })
+
+  it('covers message payload fallbacks (content/time/tid/id/nickname) and targetUserId empty path', async () => {
+    vi.useFakeTimers()
+    try {
+      const authStore = useAuthStore()
+      const userStore = useUserStore()
+      authStore.isAuthenticated = true
+      userStore.currentUser = { id: 'me', name: 'Me', nickname: '' } as any
+      localStorage.setItem('authToken', 't-1')
+
+      // Not in chat page -> shouldDisplay=false for all messages.
+      await router.push('/list')
+      await router.isReady()
+
+      const chatStore = useChatStore()
+      chatStore.currentChatUser = null as any
+
+      const mediaStore = useMediaStore()
+      mediaStore.imgServer = 'img.local' as any
+      vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+      vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+      const socket = useWebSocket()
+      socket.connect()
+      await FakeWebSocket.instances[0]!.triggerOpen()
+
+      // content: fromuser.content
+      await FakeWebSocket.instances[0]!.triggerMessage({
+        code: 7,
+        fromuser: { id: 'u2', name: 'FromName', sex: '未知', ip: '', content: 'c1', time: 't1', tid: 'tid1' },
+        touser: { id: 'me', name: 'ToName', sex: '未知', ip: '' }
+      })
+
+      // content: data.content, time: fromuser.Time, tid: data.Tid
+      await FakeWebSocket.instances[0]!.triggerMessage({
+        code: 7,
+        fromuser: { id: 'u2', name: 'FromName', sex: '未知', ip: '', Time: 't2' },
+        touser: { id: 'me', name: 'ToName', sex: '未知', ip: '' },
+        Tid: 'tid2',
+        content: 'c2'
+      })
+
+      // content: data.msg, time: data.Time, tid: fromuser.Tid
+      await FakeWebSocket.instances[0]!.triggerMessage({
+        code: 7,
+        fromuser: { id: 'u2', name: 'FromName', sex: '未知', ip: '', Tid: 'tid3' },
+        touser: { id: 'me', name: 'ToName', sex: '未知', ip: '' },
+        Time: 't3',
+        msg: 'c3'
+      })
+
+      // content: fallback '', id fallback '' -> targetUserId empty -> should not add history.
+      await FakeWebSocket.instances[0]!.triggerMessage({
+        code: 7,
+        fromuser: { name: 'FromName', sex: '未知', ip: '' },
+        touser: { name: 'ToName', sex: '未知', ip: '' }
+      })
+
+      // cover isSelf=true with shouldDisplay=false (else-if !isSelf branch false)
+      await FakeWebSocket.instances[0]!.triggerMessage({
+        code: 7,
+        fromuser: { id: md5Hex('me'), name: 'Me', nickname: 'Me', sex: '未知', ip: '', content: 'echo', time: '', tid: '' },
+        touser: { id: 'u2', name: 'U2', nickname: 'U2', sex: '未知', ip: '' }
+      })
+
+      // allow any deferred scroll timers to flush
+      await vi.runOnlyPendingTimersAsync()
+
+      const messageStore = useMessageStore()
+      expect(messageStore.getMessages('u2').length).toBeGreaterThan(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('uses default toast text when fallback content becomes blank after stripping tags', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+    localStorage.setItem('authToken', 't-1')
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+
+    // Unknown code but content only contains tags -> should toast default.
+    await FakeWebSocket.instances[0]!.triggerMessage({ code: 999, content: '<br>' })
+    expect(toastShow).toHaveBeenCalledWith('系统消息')
+
+    // Invalid JSON raw message with only tags -> should also toast default.
+    const ret = FakeWebSocket.instances[0]!.onmessage?.({ data: '<br>' })
+    if (ret && typeof (ret as Promise<any>).then === 'function') await ret
+    expect(toastShow).toHaveBeenCalledWith('系统消息')
+  })
+
+  it('raw empty message returns early in catch branch', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+    localStorage.setItem('authToken', 't-1')
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+    await FakeWebSocket.instances[0]!.triggerOpen()
+
+    const ret = FakeWebSocket.instances[0]!.onmessage?.({ data: '' })
+    if (ret && typeof (ret as Promise<any>).then === 'function') await ret
+  })
 })

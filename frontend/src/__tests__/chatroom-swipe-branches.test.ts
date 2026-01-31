@@ -196,13 +196,40 @@ describe('views/ChatRoomView.vue (swipe branches)', () => {
     // Swipe finish: triggered -> early return
     pageSwipe.opts.onSwipeFinish?.(0, 0, true)
 
+    // Swipe progress/end should early-return when sidebar is open.
+    pushSpy.mockClear()
+    ;(wrapper.vm as any).showSidebar = true
+    ;(wrapper.vm as any).pageTranslateX = 0
+    pageSwipe.opts.onSwipeProgress?.(80, 0)
+    expect((wrapper.vm as any).pageTranslateX).toBe(0)
+    pageSwipe.opts.onSwipeEnd?.('right')
+    expect(pushSpy).not.toHaveBeenCalled()
+
+    // Swipe finish when sidebar open should force reset without animation.
+    ;(wrapper.vm as any).isPageAnimating = true
+    ;(wrapper.vm as any).pageTranslateX = 50
+    pageSwipe.opts.onSwipeFinish?.(0, 0, false)
+    expect((wrapper.vm as any).pageTranslateX).toBe(0)
+    expect((wrapper.vm as any).isPageAnimating).toBe(false)
+
+    // Swipe finish when already at 0 should early return.
+    ;(wrapper.vm as any).showSidebar = false
+    ;(wrapper.vm as any).pageTranslateX = 0
+    pageSwipe.opts.onSwipeFinish?.(0, 0, false)
+
     // Drawer swipe progress: showSidebar false -> ignore
     ;(wrapper.vm as any).showSidebar = false
     drawerSwipe.opts.onSwipeProgress?.(-100, 0)
     expect((wrapper.vm as any).sidebarTranslateX).toBe(0)
 
+    // Drawer swipe end: showSidebar false -> early return
+    ;(wrapper.vm as any).sidebarTranslateX = -120
+    drawerSwipe.opts.onSwipeEnd?.('left')
+    expect((wrapper.vm as any).sidebarTranslateX).toBe(-120)
+
     // Drawer swipe progress: showSidebar true but starts away from right edge -> ignore
     ;(wrapper.vm as any).showSidebar = true
+    ;(wrapper.vm as any).sidebarTranslateX = 0
     await flushAsync()
     const sidebarEl = wrapper.find('.absolute.inset-y-0.left-0')?.element as HTMLElement
     if (sidebarEl) {
@@ -211,6 +238,13 @@ describe('views/ChatRoomView.vue (swipe branches)', () => {
     drawerSwipe.coordsStart.x = 0
     drawerSwipe.opts.onSwipeProgress?.(-100, 0)
     expect((wrapper.vm as any).sidebarTranslateX).toBe(0)
+
+    // Drawer swipe progress: showSidebar true but sidebarRef missing -> ignore
+    const prevSidebarRef = (wrapper.vm as any).sidebarRef
+    ;(wrapper.vm as any).sidebarRef = null
+    drawerSwipe.opts.onSwipeProgress?.(-100, 0)
+    expect((wrapper.vm as any).sidebarTranslateX).toBe(0)
+    ;(wrapper.vm as any).sidebarRef = prevSidebarRef
 
     // Drawer swipe progress: valid close gesture updates translate
     drawerSwipe.coordsStart.x = 300
@@ -222,6 +256,30 @@ describe('views/ChatRoomView.vue (swipe branches)', () => {
     drawerSwipe.opts.onSwipeEnd?.('left')
     await flushAsync()
     expect((wrapper.vm as any).showSidebar).toBe(false)
+
+    // Drawer swipe finish: triggered -> early return
+    drawerSwipe.opts.onSwipeFinish?.(0, 0, true)
+
+    // Drawer swipe finish: showSidebar=false -> resets translate and animation
+    ;(wrapper.vm as any).sidebarTranslateX = -10
+    ;(wrapper.vm as any).isSidebarAnimating = true
+    drawerSwipe.opts.onSwipeFinish?.(0, 0, false)
+    expect((wrapper.vm as any).sidebarTranslateX).toBe(0)
+    expect((wrapper.vm as any).isSidebarAnimating).toBe(false)
+
+    // Drawer swipe finish: showSidebar=true with translate=0 -> early return
+    ;(wrapper.vm as any).showSidebar = true
+    ;(wrapper.vm as any).sidebarTranslateX = 0
+    drawerSwipe.opts.onSwipeFinish?.(0, 0, false)
+
+    // Drawer swipe finish: showSidebar=true with translate!=0 -> animates back to 0
+    vi.useFakeTimers()
+    ;(wrapper.vm as any).sidebarTranslateX = -10
+    drawerSwipe.opts.onSwipeFinish?.(0, 0, false)
+    expect((wrapper.vm as any).isSidebarAnimating).toBe(true)
+    vi.runAllTimers()
+    vi.useRealTimers()
+    expect((wrapper.vm as any).isSidebarAnimating).toBe(false)
   })
 
   it('covers clear/reload and loadMore count branches + early returns', async () => {

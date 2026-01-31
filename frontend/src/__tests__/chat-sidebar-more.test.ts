@@ -342,4 +342,212 @@ describe('components/chat/ChatSidebar.vue (more coverage)', () => {
     expect(wsMocks.disconnect).toHaveBeenCalledWith(true)
     expect(resetSpy).toHaveBeenCalled()
   })
+
+  it('handleClearUnread updates unreadCount and vibrates when available', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div />' } }]
+    })
+    await router.push('/')
+    await router.isReady()
+
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'me', nickname: 'me' } as any
+
+    const chatStore = useChatStore()
+    chatStore.activeTab = 'history'
+    chatStore.historyUserIds = ['u1']
+    chatStore.upsertUser({ id: 'u1', name: 'U1', nickname: 'U1', sex: '未知', ip: '', lastMsg: 'x', lastTime: '', unreadCount: 2 } as any)
+
+    const vibrateSpy = vi.fn()
+    Object.defineProperty(navigator, 'vibrate', { configurable: true, value: vibrateSpy })
+
+    const wrapper = mount(ChatSidebar, {
+      global: {
+        plugins: [pinia, router],
+        stubs: {
+          Toast: true,
+          SettingsDrawer: true,
+          Dialog: true,
+          PullToRefresh: { template: '<div><slot /></div>' },
+          Skeleton: true,
+          MatchButton: true,
+          MatchOverlay: true,
+          DraggableBadge: true
+        }
+      }
+    })
+    await flushAsync()
+
+    const vm = wrapper.vm as any
+    const u1 = chatStore.getUser('u1') as any
+
+    vm.handleClearUnread(u1)
+    expect(chatStore.getUser('u1')?.unreadCount).toBe(0)
+    expect(vibrateSpy).toHaveBeenCalled()
+
+    // unreadCount already cleared -> should do nothing
+    vm.handleClearUnread(u1)
+
+    // No vibrate available branch should not throw
+    Object.defineProperty(navigator, 'vibrate', { configurable: true, value: undefined })
+    chatStore.updateUser('u1', { unreadCount: 1 } as any)
+    vm.handleClearUnread(chatStore.getUser('u1') as any)
+    expect(chatStore.getUser('u1')?.unreadCount).toBe(0)
+  })
+
+  it('endLongPress/cancelLongPress clear pending timer and prevent menu opening', async () => {
+    vi.useFakeTimers()
+    try {
+      const pinia = createPinia()
+      setActivePinia(pinia)
+
+      const router = createRouter({
+        history: createMemoryHistory(),
+        routes: [{ path: '/', component: { template: '<div />' } }]
+      })
+      await router.push('/')
+      await router.isReady()
+
+      const userStore = useUserStore()
+      userStore.currentUser = { id: 'me', name: 'me', nickname: 'me' } as any
+
+      const chatStore = useChatStore()
+      chatStore.activeTab = 'history'
+      chatStore.historyUserIds = ['u1']
+      chatStore.upsertUser({ id: 'u1', name: 'U1', nickname: 'U1', sex: '未知', ip: '', lastMsg: 'x', lastTime: '', unreadCount: 0 } as any)
+
+      const wrapper = mount(ChatSidebar, {
+        global: {
+          plugins: [pinia, router],
+          stubs: {
+            Toast: true,
+            SettingsDrawer: true,
+            Dialog: true,
+            PullToRefresh: { template: '<div><slot /></div>' },
+            Skeleton: true,
+            MatchButton: true,
+            MatchOverlay: true,
+            DraggableBadge: true
+          }
+        }
+      })
+      await flushAsync()
+
+      const vm = wrapper.vm as any
+      const u1 = chatStore.getUser('u1') as any
+
+      vm.startLongPress(u1, new MouseEvent('mousedown', { clientX: 10, clientY: 10 }))
+      vm.endLongPress()
+      vi.advanceTimersByTime(600)
+      await flushAsync()
+      expect(vm.showContextMenu).toBe(false)
+
+      vm.startLongPress(u1, new MouseEvent('mousedown', { clientX: 10, clientY: 10 }))
+      vm.cancelLongPress()
+      vi.advanceTimersByTime(600)
+      await flushAsync()
+      expect(vm.showContextMenu).toBe(false)
+
+      // calling when no timer should be safe
+      vm.endLongPress()
+      vm.cancelLongPress()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('covers context menu clamp, selectionMode early returns, and day delete grouping/sort/selection branches', async () => {
+    vi.useFakeTimers()
+    try {
+      const pinia = createPinia()
+      setActivePinia(pinia)
+
+      const router = createRouter({
+        history: createMemoryHistory(),
+        routes: [{ path: '/', component: { template: '<div />' } }]
+      })
+      await router.push('/')
+      await router.isReady()
+
+      const userStore = useUserStore()
+      userStore.currentUser = { id: 'me', name: 'me', nickname: 'me' } as any
+
+      const chatStore = useChatStore()
+      chatStore.activeTab = 'history'
+
+      const today = new Date()
+      const yesterday = new Date(today)
+      yesterday.setDate(today.getDate() - 1)
+
+      chatStore.historyUserIds = ['uToday', 'uYesterday', 'uUnknown']
+      chatStore.upsertUser({ id: 'uToday', name: 'T', nickname: 'T', sex: '未知', ip: '', lastMsg: '', lastTime: today.toISOString(), unreadCount: 0 } as any)
+      chatStore.upsertUser({ id: 'uYesterday', name: 'Y', nickname: 'Y', sex: '未知', ip: '', lastMsg: '', lastTime: yesterday.toISOString(), unreadCount: 0 } as any)
+      chatStore.upsertUser({ id: 'uUnknown', name: 'U', nickname: 'U', sex: '未知', ip: '', lastMsg: '', lastTime: 'bad-time', unreadCount: 0 } as any)
+
+      const wrapper = mount(ChatSidebar, {
+        global: {
+          plugins: [pinia, router],
+          stubs: {
+            Toast: true,
+            SettingsDrawer: true,
+            Dialog: true,
+            PullToRefresh: { template: '<div><slot /></div>' },
+            Skeleton: true,
+            MatchButton: true,
+            MatchOverlay: true,
+            DraggableBadge: true
+          }
+        }
+      })
+      await flushAsync()
+
+      const vm = wrapper.vm as any
+      const user = chatStore.getUser('uToday') as any
+
+      // selectionMode -> context menu should early return
+      vm.selectionMode = true
+      vm.handleContextMenu(user, new MouseEvent('contextmenu', { clientX: 10, clientY: 10 }) as any)
+      expect(vm.showContextMenu).toBe(false)
+
+      vm.selectionMode = false
+      vm.handleContextMenu(
+        user,
+        new MouseEvent('contextmenu', { clientX: window.innerWidth - 1, clientY: window.innerHeight - 1 }) as any
+      )
+      expect(vm.showContextMenu).toBe(true)
+      expect(vm.contextMenuPos.x).toBeLessThanOrEqual(window.innerWidth)
+      expect(vm.contextMenuPos.y).toBeLessThanOrEqual(window.innerHeight)
+
+      // Day delete grouping/sort branches.
+      vm.handleEnterSelectionMode()
+      expect(vm.dayDeleteItems.length).toBeGreaterThan(0)
+      const labels = vm.dayDeleteItems.map((i: any) => String(i.label))
+      expect(labels.some((l: string) => l.includes('今天'))).toBe(true)
+      expect(labels.some((l: string) => l.includes('昨天'))).toBe(true)
+      expect(labels.some((l: string) => l.includes('未知时间'))).toBe(true)
+      // unknown should be last after sort
+      expect(String(vm.dayDeleteItems[vm.dayDeleteItems.length - 1].key)).toBe('unknown')
+
+      // applyDaySelection branches: empty selection and non-empty selection
+      vm.applyDaySelection([])
+      expect(toastShow).toHaveBeenCalledWith('没有可选会话')
+
+      const todayKey = vm.getDayKeyFromLastTime(today.toISOString())
+      vm.applyDaySelection([todayKey])
+      expect(toastShow).toHaveBeenCalledWith('已选中 1 个会话')
+      expect(vm.selectedUserIds.includes('uToday')).toBe(true)
+
+      // toggleSelectAll select and clear branches + isAllSelected computed
+      vm.toggleSelectAll()
+      expect(vm.isAllSelected).toBe(true)
+      vm.toggleSelectAll()
+      expect(vm.isAllSelected).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

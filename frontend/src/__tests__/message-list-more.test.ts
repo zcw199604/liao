@@ -440,4 +440,92 @@ describe('components/chat/MessageList.vue (more coverage)', () => {
 
     clickSpy.mockRestore()
   })
+
+  it('covers getMessageKey fallbacks and image/video/file url fallbacks when explicit urls are missing', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const messageStore = useMessageStore()
+    messageStore.isLoadingHistory = false
+
+    const wrapper = mount(MessageList, {
+      props: {
+        messages: [
+          // clientId branch
+          { clientId: 'cid-1', time: 't', isSelf: true, content: 'a', isImage: false, isVideo: false, isFile: false } as any,
+          // tid branch (clientId empty)
+          { clientId: '', tid: 't-1', time: 't', isSelf: true, content: 'b', isImage: false, isVideo: false, isFile: false } as any,
+          // fallback key branch (no clientId/tid, no fromuser)
+          { time: undefined, type: undefined, content: undefined, isSelf: true, isImage: false, isVideo: false, isFile: false } as any,
+          // fallback image url -> content
+          { tid: 'img', time: 't', isSelf: true, isImage: true, imageUrl: '', content: 'http://x/fallback.png', isVideo: false, isFile: false } as any,
+          // fallback video url -> content
+          { tid: 'vid', time: 't', isSelf: true, isImage: false, isVideo: true, videoUrl: '', content: 'http://x/fallback.mp4', isFile: false } as any,
+          // fallback file url -> content
+          { tid: 'file', time: 't', isSelf: true, isImage: false, isVideo: false, isFile: true, fileUrl: '', content: 'http://x/fallback.txt' } as any,
+          // fallback file url -> empty string
+          { tid: 'file2', time: 't', isSelf: true, isImage: false, isVideo: false, isFile: true, fileUrl: '', content: '' } as any
+        ],
+        isTyping: false,
+        loadingMore: false,
+        canLoadMore: true
+      },
+      global: {
+        plugins: [pinia],
+        stubs: {
+          Skeleton: true,
+          ChatMedia: { template: '<div class=\"chat-media\" />' }
+        }
+      }
+    })
+
+    await flushAsync()
+    expect(wrapper.findAll('.chat-media').length).toBeGreaterThan(0)
+  })
+
+  it('watch branch: ignores length change while loading history and toggles hasNewMessages when not at bottom', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const messageStore = useMessageStore()
+    messageStore.isLoadingHistory = false
+
+    const wrapper = mount(MessageList, {
+      props: {
+        messages: [{ tid: '1', content: 'a', time: 't', isSelf: true } as any],
+        isTyping: false,
+        loadingMore: false,
+        canLoadMore: true
+      },
+      global: { plugins: [pinia], stubs: { Skeleton: true, ChatMedia: true } }
+    })
+    await flushAsync()
+
+    // ignore branch when loading history
+    messageStore.isLoadingHistory = true
+    await wrapper.setProps({ messages: [{ tid: '1', content: 'a', time: 't', isSelf: true } as any, { tid: '2', content: 'b', time: 't', isSelf: true } as any] })
+    await flushAsync()
+    expect((wrapper.vm as any).hasNewMessages).toBe(false)
+
+    // not at bottom -> hasNewMessages=true
+    messageStore.isLoadingHistory = false
+    ;(wrapper.vm as any).isAtBottom = false
+    await wrapper.setProps({ messages: [{ tid: '1', content: 'a', time: 't', isSelf: true } as any, { tid: '2', content: 'b', time: 't', isSelf: true } as any, { tid: '3', content: 'c', time: 't', isSelf: true } as any] })
+    await flushAsync()
+    expect((wrapper.vm as any).hasNewMessages).toBe(true)
+  })
+
+  it('getDownloadFileName returns fallback name when url ends with slash', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const messageStore = useMessageStore()
+    messageStore.isLoadingHistory = false
+
+    const wrapper = mount(MessageList, {
+      props: { messages: [] as any, isTyping: false, loadingMore: false, canLoadMore: true },
+      global: { plugins: [pinia], stubs: { Skeleton: true, ChatMedia: true } }
+    })
+    await flushAsync()
+
+    expect((wrapper.vm as any).getDownloadFileName('http://x/')).toBe('未知文件')
+  })
 })

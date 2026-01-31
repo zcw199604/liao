@@ -398,6 +398,50 @@ describe('stores/mtphoto', () => {
     expect(store.mediaItems).toEqual([])
     expect(store.mediaTotal).toBe(0)
   })
+
+  it('covers album mapping fallbacks for optional fields and start/end time branches', async () => {
+    vi.mocked(mtphotoApi.getMtPhotoAlbums).mockResolvedValue({
+      data: [
+        // upstream favorites album should be filtered out from mapped list
+        { id: 1, name: undefined, cover: undefined, count: undefined },
+        // regular album with missing fields + start/end time
+        { id: 2, name: undefined, cover: undefined, count: undefined, startTime: 's', endTime: 'e' }
+      ]
+    } as any)
+    vi.mocked(mtphotoApi.getMtPhotoAlbumFiles).mockResolvedValue({ total: 0, data: [], page: 1 } as any)
+
+    const store = useMtPhotoStore()
+    await store.open()
+
+    const a2 = store.albums.find(a => a.mtPhotoAlbumId === 2) as any
+    expect(a2).toBeTruthy()
+    expect(a2.name).toBe('')
+    expect(a2.cover).toBe('')
+    expect(a2.count).toBe(0)
+    expect(a2.startTime).toBe('s')
+    expect(a2.endTime).toBe('e')
+  })
+
+  it('covers mtphoto error message fallbacks for albums and files', async () => {
+    // loadAlbums: no response.error and no message -> uses default
+    vi.mocked(mtphotoApi.getMtPhotoAlbums).mockRejectedValueOnce({} as any)
+    const store = useMtPhotoStore()
+    await store.open()
+    expect(store.lastError).toBe('加载失败')
+
+    // loadAlbumPage: missing fields fall back to provided page and existing pageSize
+    vi.mocked(mtphotoApi.getMtPhotoAlbumFiles).mockResolvedValueOnce({ data: [], total: 0, totalPages: 0 } as any)
+    const store2 = useMtPhotoStore()
+    await store2.openAlbum({ id: 2, mtPhotoAlbumId: 2, name: 'A', cover: '', count: 0 } as any)
+    expect(store2.mediaPage).toBe(1)
+    expect(store2.mediaPageSize).toBe(60)
+
+    // loadAlbumPage catch: no response.error and no message -> uses default
+    vi.mocked(mtphotoApi.getMtPhotoAlbumFiles).mockRejectedValueOnce({} as any)
+    const store3 = useMtPhotoStore()
+    await store3.openAlbum({ id: 3, mtPhotoAlbumId: 3, name: 'B', cover: '', count: 0 } as any)
+    expect(store3.lastError).toBe('加载失败')
+  })
 })
 
 describe('stores/identity + user', () => {
@@ -505,6 +549,48 @@ describe('stores/videoExtract', () => {
     expect(store.showCreateModal).toBe(false)
   })
 
+  it('openCreateFromMedia handles blank url and mtPhoto detection for /api urls', async () => {
+    vi.mocked(videoExtractApi.probeVideo).mockResolvedValue({ code: 0, data: {} } as any)
+
+    const store = useVideoExtractStore()
+
+    // Blank url -> mediaUrl should be undefined and label empty.
+    const okBlank = await store.openCreateFromMedia({ type: 'video' } as any, 'u1')
+    expect(okBlank).toBe(true)
+    expect(store.createSource?.mediaUrl).toBeUndefined()
+    expect(store.createSourceLabel).toBe('')
+
+    // /api url + md5 -> mtPhoto source.
+    const okApi = await store.openCreateFromMedia({ type: 'video', url: '/api/download/xxx', md5: 'm2' } as any, 'u2')
+    expect(okApi).toBe(true)
+    expect(store.createSource?.sourceType).toBe('mtPhoto')
+    expect(store.createSourceLabel).toBe('mtPhoto:m2')
+  })
+
+  it('createSourceLabel covers mtPhoto without md5 and upload without localPath', () => {
+    const store = useVideoExtractStore()
+
+    // No createSource -> empty label.
+    expect(store.createSourceLabel).toBe('')
+
+    store.createSource = { sourceType: 'mtPhoto' } as any
+    expect(store.createSourceLabel).toBe('mtPhoto:')
+
+    store.createSource = { sourceType: 'upload' } as any
+    expect(store.createSourceLabel).toBe('')
+  })
+
+  it('fetchProbe returns early when createSource is missing and uses default message when thrown error has no message', async () => {
+    const store = useVideoExtractStore()
+    await store.fetchProbe()
+    expect(videoExtractApi.probeVideo).not.toHaveBeenCalled()
+
+    store.createSource = { sourceType: 'upload', localPath: '/videos/a.mp4' } as any
+    vi.mocked(videoExtractApi.probeVideo).mockRejectedValue({})
+    await store.fetchProbe()
+    expect(store.probeError).toBe('探测失败')
+  })
+
   it('openCreateFromMedia selects mtPhoto source when md5 and /lsp url are present', async () => {
     vi.mocked(videoExtractApi.probeVideo).mockResolvedValue({ code: 0, data: { durationSec: 10, width: 1, height: 1 } } as any)
     const store = useVideoExtractStore()
@@ -585,10 +671,48 @@ describe('stores/videoExtract', () => {
     await expect(store.createTask({ mode: 'keyframe', maxFrames: 1, outputFormat: 'jpg' } as any)).rejects.toThrow('bad')
   })
 
+  it('createTask error message falls back to res.message and then default', async () => {
+    vi.mocked(videoExtractApi.probeVideo).mockResolvedValue({ code: 0, data: {} } as any)
+    const store = useVideoExtractStore()
+    await store.openCreateFromMedia({ type: 'video', url: '/upload/videos/a.mp4' } as any, 'u1')
+
+    vi.mocked(videoExtractApi.createVideoExtractTask).mockResolvedValue({ code: 1, message: 'bad2' } as any)
+    await expect(store.createTask({ mode: 'keyframe', maxFrames: 1, outputFormat: 'jpg' } as any)).rejects.toThrow('bad2')
+
+    vi.mocked(videoExtractApi.createVideoExtractTask).mockResolvedValue({ code: 1 } as any)
+    await expect(store.createTask({ mode: 'keyframe', maxFrames: 1, outputFormat: 'jpg' } as any)).rejects.toThrow('创建任务失败')
+  })
+
+  it('loadTasks handles non-array items and falls back to provided page and defaults', async () => {
+    vi.mocked(videoExtractApi.getVideoExtractTaskList).mockResolvedValue({ data: { items: null } } as any)
+    const store = useVideoExtractStore()
+    await store.loadTasks(3)
+
+    expect(store.tasks).toEqual([])
+    expect(store.listTotal).toBe(0)
+    expect(store.listPage).toBe(3)
+  })
+
   it('cancelTask returns early when id is empty', async () => {
     const store = useVideoExtractStore()
     await store.cancelTask('  ')
     expect(videoExtractApi.cancelVideoExtractTask).not.toHaveBeenCalled()
+  })
+
+  it('cancelTask calls refreshTaskDetail and loadTasks when id is valid', async () => {
+    vi.mocked(videoExtractApi.cancelVideoExtractTask).mockResolvedValue({ code: 0 } as any)
+    vi.mocked(videoExtractApi.getVideoExtractTaskDetail).mockResolvedValue({
+      code: 0,
+      data: { task: { taskId: 't1', status: 'SUCCESS' }, frames: { items: [], nextCursor: 0, hasMore: false } }
+    } as any)
+    vi.mocked(videoExtractApi.getVideoExtractTaskList).mockResolvedValue({ data: { items: [], total: 0, page: 1, pageSize: 20 } } as any)
+
+    const store = useVideoExtractStore()
+    store.selectedTaskId = 't1'
+    await store.cancelTask('t1')
+    expect(videoExtractApi.cancelVideoExtractTask).toHaveBeenCalledWith('t1')
+    expect(videoExtractApi.getVideoExtractTaskDetail).toHaveBeenCalled()
+    expect(videoExtractApi.getVideoExtractTaskList).toHaveBeenCalled()
   })
 
   it('openTaskCenter without taskId only loads list', async () => {
@@ -606,6 +730,25 @@ describe('stores/videoExtract', () => {
     await store.refreshTaskDetail(true)
     expect(store.selectedTask).toBeNull()
     expect(store.detailLoading).toBe(false)
+  })
+
+  it('refreshTaskDetail returns early when selectedTaskId is empty', async () => {
+    const store = useVideoExtractStore()
+    store.selectedTaskId = ''
+    await store.refreshTaskDetail()
+    expect(videoExtractApi.getVideoExtractTaskDetail).not.toHaveBeenCalled()
+  })
+
+  it('refreshTaskDetail tolerates missing frames page', async () => {
+    vi.mocked(videoExtractApi.getVideoExtractTaskDetail).mockResolvedValue({
+      code: 0,
+      data: { task: { taskId: 't1', status: 'SUCCESS' }, frames: null }
+    } as any)
+
+    const store = useVideoExtractStore()
+    store.selectedTaskId = 't1'
+    await store.refreshTaskDetail(true)
+    expect(store.selectedTask?.taskId).toBe('t1')
   })
 
   it('refreshTaskDetail merges frames when loading more and loadMoreFrames respects hasMore', async () => {
@@ -632,6 +775,13 @@ describe('stores/videoExtract', () => {
     expect(videoExtractApi.getVideoExtractTaskDetail).not.toHaveBeenCalled()
   })
 
+  it('loadMoreFrames returns early when selectedTaskId is empty', async () => {
+    const store = useVideoExtractStore()
+    store.selectedTaskId = ''
+    await store.loadMoreFrames()
+    expect(videoExtractApi.getVideoExtractTaskDetail).not.toHaveBeenCalled()
+  })
+
   it('deleteTask clears selection when deleting current task', async () => {
     vi.mocked(videoExtractApi.getVideoExtractTaskList).mockResolvedValue({ data: { items: [], total: 0, page: 1, pageSize: 20 } } as any)
     vi.mocked(videoExtractApi.deleteVideoExtractTask).mockResolvedValue({ code: 0 } as any)
@@ -648,6 +798,72 @@ describe('stores/videoExtract', () => {
     expect(store.selectedTask).toBeNull()
     expect(store.frames.items).toHaveLength(0)
     expect(store.polling).toBe(false)
+  })
+
+  it('deleteTask keeps selection when deleting a different task', async () => {
+    vi.mocked(videoExtractApi.getVideoExtractTaskList).mockResolvedValue({ data: { items: [], total: 0, page: 1, pageSize: 20 } } as any)
+    vi.mocked(videoExtractApi.deleteVideoExtractTask).mockResolvedValue({ code: 0 } as any)
+
+    const store = useVideoExtractStore()
+    store.selectedTaskId = 't1'
+    store.selectedTask = { taskId: 't1', status: 'RUNNING' } as any
+    await store.deleteTask({ taskId: 't2', deleteFiles: false })
+
+    expect(store.selectedTaskId).toBe('t1')
+    expect(store.selectedTask?.taskId).toBe('t1')
+  })
+
+  it('polling tick returns early when polling is turned off before tick fires', async () => {
+    vi.useFakeTimers()
+    try {
+      const store = useVideoExtractStore()
+      store.selectedTask = { taskId: 't1', status: 'RUNNING' } as any
+      store.selectedTaskId = 't1'
+
+      store.startPolling()
+      store.polling = false
+
+      await vi.advanceTimersByTimeAsync(600)
+      store.stopPolling()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('polling uses 5000ms interval when document is hidden', async () => {
+    vi.useFakeTimers()
+    const original = Object.getOwnPropertyDescriptor(document, 'visibilityState')
+    try {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+
+      vi.mocked(videoExtractApi.getVideoExtractTaskDetail).mockResolvedValue({
+        code: 0,
+        data: { task: { taskId: 't1', status: 'RUNNING' }, frames: { items: [], nextCursor: 0, hasMore: false } }
+      } as any)
+
+      const store = useVideoExtractStore()
+      store.selectedTaskId = 't1'
+      store.selectedTask = { taskId: 't1', status: 'RUNNING' } as any
+
+      const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+      store.startPolling()
+
+      await vi.advanceTimersByTimeAsync(600)
+
+      // one of the scheduled timers should be for the 5000ms interval path
+      expect(setTimeoutSpy.mock.calls.some(call => Number(call[1]) === 5000)).toBe(true)
+
+      store.stopPolling()
+      setTimeoutSpy.mockRestore()
+    } finally {
+      if (original) {
+        Object.defineProperty(document, 'visibilityState', original)
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+        delete (document as any).visibilityState
+      }
+      vi.useRealTimers()
+    }
   })
 
   it('polls task detail while running and stops when not running', async () => {

@@ -89,6 +89,30 @@ describe('utils/messageSegments', () => {
     expect(resolveMediaUrl).not.toHaveBeenCalled()
   })
 
+  it('does not treat empty/too-long/invalid extensions as media', async () => {
+    const resolveMediaUrl = vi.fn(async (_path: string) => 'http://x/should-not-be-called')
+
+    // ext is empty -> looksLikeFileExt early return
+    expect(await parseMessageSegments('[a.]', { emojiMap, resolveMediaUrl })).toEqual([{ kind: 'text', text: '[a.]' }])
+
+    // ext length > 10 -> rejected
+    expect(await parseMessageSegments('[a.abcdefghijk]', { emojiMap, resolveMediaUrl })).toEqual([{ kind: 'text', text: '[a.abcdefghijk]' }])
+
+    // ext contains non-alnum -> rejected
+    expect(await parseMessageSegments('[a.a-b]', { emojiMap, resolveMediaUrl })).toEqual([{ kind: 'text', text: '[a.a-b]' }])
+
+    expect(resolveMediaUrl).not.toHaveBeenCalled()
+  })
+
+  it('treats empty token body as plain text and exercises clean fallback branch', async () => {
+    const resolveMediaUrl = vi.fn(async (_path: string) => 'http://x/should-not-be-called')
+
+    expect(await parseMessageSegments('[]', { emojiMap, resolveMediaUrl })).toEqual([{ kind: 'text', text: '[]' }])
+    // raw starts with '?' -> clean becomes raw via "|| raw" fallback, still not a media kind (no dot)
+    expect(await parseMessageSegments('[?a]', { emojiMap, resolveMediaUrl })).toEqual([{ kind: 'text', text: '[?a]' }])
+    expect(resolveMediaUrl).not.toHaveBeenCalled()
+  })
+
   it('falls back to text when resolveMediaUrl returns empty', async () => {
     const resolveMediaUrl = vi.fn(async (_path: string) => '')
 
@@ -148,5 +172,20 @@ describe('utils/messageSegments', () => {
       { kind: 'file', path: 'a.bin', url: 'http://x/a.bin' }
     ] as any
     expect(buildLastMsgPreviewFromSegments(segments, { maxTextLength: 30 })).toBe('123456789012345678901234567890... [文件]')
+  })
+
+  it('getSegmentsMeta keeps firstMediaPath from first media segment and does not overwrite it', () => {
+    const segments = [
+      { kind: 'text', text: 't' },
+      { kind: 'video', path: 'v.mp4', url: 'http://x/v.mp4' },
+      { kind: 'image', path: 'i.jpg', url: 'http://x/i.jpg' },
+      { kind: 'file', path: 'a.bin', url: 'http://x/a.bin' }
+    ] as any
+
+    const meta = getSegmentsMeta(segments)
+    expect(meta.firstMediaPath).toBe('v.mp4')
+    expect(meta.hasVideo).toBe(true)
+    expect(meta.hasImage).toBe(true)
+    expect(meta.hasFile).toBe(true)
   })
 })

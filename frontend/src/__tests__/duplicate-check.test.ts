@@ -336,4 +336,188 @@ describe('components/media/DuplicateCheckModal.vue', () => {
     
     vi.useRealTimers()
   })
+
+  it('covers non-image file branches, drop handler, and handleFileChange no-file path', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = mount(DuplicateCheckModal, {
+        props: { visible: true },
+        global: { stubs: { teleport: true, MediaDetailPanel: true, MediaPreview: true } }
+      })
+
+      // handleDrop without files -> no-op (if false branch)
+      ;(wrapper.vm as any).handleDrop({} as any)
+
+      // Drop a non-image file -> setFile else branch sets previewUrl='' and shows filename block.
+      const txt = new File(['hello'], 'note.txt', { type: 'text/plain' })
+      ;(wrapper.vm as any).handleDrop({ dataTransfer: { files: [txt] } } as any)
+      await nextTick()
+      expect(wrapper.text()).toContain('note.txt')
+
+      // handleFileChange with missing files -> should not throw and should reset input.value
+      const input = { files: null, value: 'x' }
+      ;(wrapper.vm as any).handleFileChange({ target: input } as any)
+      expect(input.value).toBe('')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('covers openDetail/openPreview + helper functions branches', async () => {
+    const wrapper = mount(DuplicateCheckModal, {
+      props: { visible: true },
+      global: {
+        stubs: {
+          teleport: true,
+          MediaTile: true,
+          MediaDetailPanel: { template: '<div class=\"detail-stub\" />' },
+          MediaPreview: { template: '<div class=\"preview-stub\" />' }
+        }
+      }
+    })
+
+    const vm = wrapper.vm as any
+
+    // getMatchTypeText: md5 branch + default branch
+    expect(vm.getMatchTypeText('md5')).toBe('MD5 精确命中')
+    expect(vm.getMatchTypeText('custom')).toBe('custom')
+
+    // getSimilarityClass: red/orange/yellow branches
+    expect(vm.getSimilarityClass(0.96)).toBe('text-red-500')
+    expect(vm.getSimilarityClass(0.9)).toBe('text-orange-500')
+    expect(vm.getSimilarityClass(0.7)).toBe('text-yellow-500')
+
+    // getImgUrl: http, leading '/', and relative path branches
+    expect(vm.getImgUrl('http://x/a.jpg')).toBe('http://x/a.jpg')
+    expect(vm.getImgUrl('/upload/a.jpg')).toContain('/upload/a.jpg')
+    expect(vm.getImgUrl('upload/a.jpg')).toContain('/upload/a.jpg')
+
+    // openDetail renders the v-if panel and sets visible flag
+    vm.openDetail({
+      id: 1,
+      filePath: '/img/Upload/1.jpg',
+      fileName: '1.jpg',
+      md5Hash: 'abc',
+      pHash: '123',
+      fileSize: 1,
+      similarity: 0.9,
+      createdAt: ''
+    })
+    await nextTick()
+    expect(wrapper.find('.detail-stub').exists()).toBe(true)
+
+    // openPreview toggles preview flags
+    vm.openPreview({
+      id: 2,
+      filePath: 'img/Upload/2.jpg',
+      fileName: '2.jpg',
+      md5Hash: 'def',
+      pHash: '',
+      fileSize: 1,
+      similarity: 0.7,
+      createdAt: ''
+    })
+    await nextTick()
+    expect(vm.showPreview).toBe(true)
+  })
+
+  it('covers checkDuplicate early return, missing scroll container, and exception/fallback paths', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = mount(DuplicateCheckModal, {
+        props: { visible: true },
+        global: { stubs: { teleport: true, MediaTile: true, MediaDetailPanel: true, MediaPreview: true } }
+      })
+
+      const vm = wrapper.vm as any
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      // No selected file -> early return
+      await vm.checkDuplicate()
+      expect(vm.loading).toBe(false)
+
+      // Make resultsPanelRef null so scrollIntoView branch is skipped
+      vm.resultsPanelRef = null
+
+      // Provide a selected file
+      vm.selectedFile = new File([''], 'test.png', { type: 'image/png' })
+
+      // res.code!=0 with empty msg -> fallback "查重失败"
+      checkDuplicateMediaMock.mockResolvedValueOnce({ code: 1, msg: '' })
+      await vm.checkDuplicate()
+      expect(toastShow).toHaveBeenCalledWith('查重失败')
+
+      // Exception -> shows "查重请求出错"
+      checkDuplicateMediaMock.mockRejectedValueOnce(new Error('boom'))
+      await vm.checkDuplicate()
+      expect(toastShow).toHaveBeenCalledWith('查重请求出错')
+
+      errorSpy.mockRestore()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('covers watch(visible) toggle and template date/reason fallbacks', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = mount(DuplicateCheckModal, {
+        props: { visible: false },
+        global: { stubs: { teleport: true, MediaTile: true, MediaDetailPanel: true, MediaPreview: true } }
+      })
+
+      // visible=false -> nothing rendered (covers v-if false branch in template)
+      expect(wrapper.find('h3').exists()).toBe(false)
+
+      await wrapper.setProps({ visible: true })
+      await nextTick()
+      expect(wrapper.find('h3').text()).toBe('图片查重工具')
+
+      // Inject a result with createdAt empty and reason empty to cover fallbacks
+      ;(wrapper.vm as any).result = {
+        matchType: 'none',
+        md5: 'x',
+        thresholdType: 'similarity',
+        similarityThreshold: 0.85,
+        distanceThreshold: 10,
+        limit: 20,
+        reason: '',
+        items: [
+          {
+            id: 1,
+            filePath: '/img/Upload/1.jpg',
+            fileName: '1.jpg',
+            md5Hash: 'abc',
+            pHash: '',
+            distance: 2,
+            similarity: 0.9,
+            createdAt: '' // triggers "未知" fallback
+          }
+        ]
+      }
+      await nextTick()
+      expect(wrapper.text()).toContain('日期: 未知')
+
+      // Empty list + empty reason -> shows default reason
+      ;(wrapper.vm as any).result = {
+        matchType: 'none',
+        md5: 'x',
+        thresholdType: 'similarity',
+        similarityThreshold: 0.85,
+        distanceThreshold: 10,
+        limit: 20,
+        reason: '',
+        items: []
+      }
+      await nextTick()
+      expect(wrapper.text()).toContain('未发现重复图片')
+      expect(wrapper.text()).toContain('该图片在数据库中是唯一的')
+
+      // Toggle visible back to false to hit watch(!val) branch
+      await wrapper.setProps({ visible: false })
+      await nextTick()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

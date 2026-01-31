@@ -333,6 +333,117 @@ describe('composables/useMessage', () => {
     useMessage().sendTypingStatus(true, null as any)
     expect(sendMock).not.toHaveBeenCalled()
   })
+
+  it('generateClientId uses crypto.randomUUID when available; otherwise falls back', () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    const cryptoObj = (globalThis as any).crypto
+    const uuidFn = cryptoObj?.randomUUID
+    if (cryptoObj && typeof uuidFn === 'function') {
+      const uuidSpy = vi.spyOn(cryptoObj, 'randomUUID').mockReturnValue('uuid-1')
+
+      useMessage().sendText('hi', { id: 'u1', nickname: 'U1' })
+      const first = useMessageStore().getMessages('u1')[0] as any
+      expect(first.clientId).toBe('uuid-1')
+
+      uuidSpy.mockImplementation(() => { throw new Error('boom') })
+      useMessage().sendText('hi2', { id: 'u2', nickname: 'U2' })
+      const second = useMessageStore().getMessages('u2')[0] as any
+      expect(String(second.clientId)).toMatch(/^c_/)
+
+      uuidSpy.mockRestore()
+    } else {
+      // In environments without crypto.randomUUID, ensure we still generate a fallback id.
+      useMessage().sendText('hi3', { id: 'u3', nickname: 'U3' })
+      const third = useMessageStore().getMessages('u3')[0] as any
+      expect(String(third.clientId)).toMatch(/^c_/)
+    }
+  })
+
+  it('upserts optimistic message by clientId when called twice (update branch)', () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    sendMock.mockReturnValue(true)
+    const messageStore = useMessageStore()
+
+    useMessage().sendText('one', { id: 'u1', nickname: 'U1' }, { clientId: 'cid-upsert' })
+    useMessage().sendText('two', { id: 'u1', nickname: 'U1' }, { clientId: 'cid-upsert' })
+
+    const msgs = messageStore.getMessages('u1') as any[]
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].content).toBe('two')
+  })
+
+  it('sendImage/sendVideo are no-ops when currentUser or targetUser is missing', async () => {
+    // no current user
+    await useMessage().sendImage('http://s:9006/img/Upload/a.png', { id: 'u1', nickname: 'U1' })
+    await useMessage().sendVideo('http://s:9006/img/Upload/a.mp4', { id: 'u1', nickname: 'U1' })
+    expect(sendMock).not.toHaveBeenCalled()
+
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    // no target user
+    await useMessage().sendImage('http://s:9006/img/Upload/a.png', null as any)
+    await useMessage().sendVideo('http://s:9006/img/Upload/a.mp4', null as any)
+    expect(sendMock).not.toHaveBeenCalled()
+  })
+
+  it('sendVideo without clientId option generates an id and still records send relation', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    sendMock.mockReturnValue(true)
+    vi.mocked(mediaApi.recordImageSend).mockResolvedValue({ code: 0 } as any)
+
+    await useMessage().sendVideo('http://s:9006/img/Upload/a.mp4', { id: 'u2', nickname: 'U2' }, 'a.mp4')
+    const msgs = useMessageStore().getMessages('u2') as any[]
+    expect(msgs.length).toBeGreaterThan(0)
+    expect(String(msgs[0].clientId)).toBeTruthy()
+  })
+
+  it('retryMessage early returns when currentUser is missing, and covers empty id/content fallbacks', () => {
+    const userStore = useUserStore()
+    userStore.currentUser = null as any
+    useMessage().retryMessage({ touser: { id: 'u1', nickname: 'U1' }, clientId: 'cid', content: 'x' } as any)
+    expect(sendMock).not.toHaveBeenCalled()
+
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    // targetUser.id is empty -> targetUserId becomes '' and returns early
+    useMessage().retryMessage({ touser: { id: '', nickname: 'U1' }, clientId: 'cid', content: 'x' } as any)
+    expect(sendMock).not.toHaveBeenCalled()
+
+    // content is empty -> payload.msg uses '' fallback
+    useMessageStore().addMessage('u1', {
+      code: 7,
+      fromuser: { id: 'me', name: 'Me', nickname: 'Me', sex: '未知', ip: '' },
+      touser: { id: 'u1', name: 'U1', nickname: 'U1', sex: '未知', ip: '' },
+      type: 'text',
+      content: '',
+      time: '2026-01-01 00:00:00.000',
+      tid: '',
+      isSelf: true,
+      isImage: false,
+      isVideo: false,
+      isFile: false,
+      imageUrl: '',
+      videoUrl: '',
+      fileUrl: '',
+      segments: [],
+      clientId: 'cid-empty',
+      sendStatus: 'failed',
+      sendError: 'x',
+      optimistic: true
+    } as any)
+
+    sendMock.mockReturnValue(true)
+    const msg = (useMessageStore().getMessages('u1') as any[])[0]
+    useMessage().retryMessage(msg)
+    expect(sendMock).toHaveBeenCalledWith(expect.objectContaining({ msg: '' }))
+  })
 })
 
 describe('composables/useChat', () => {
@@ -638,5 +749,246 @@ describe('composables/useChat', () => {
     vi.mocked(chatApi.toggleFavorite).mockRejectedValue(new Error('boom'))
     await useChat().toggleFavorite(chatStore.getUser('u3') as any)
     expect(toastShow).toHaveBeenCalledWith('操作失败')
+  })
+
+  it('covers early-return branches when currentUser is missing', async () => {
+    const chatStore = useChatStore()
+    vi.spyOn(chatStore, 'loadHistoryUsers').mockResolvedValue(undefined as any)
+    vi.spyOn(chatStore, 'loadFavoriteUsers').mockResolvedValue(undefined as any)
+
+    // loadUsers returns early with no current user.
+    await useChat().loadUsers()
+    expect(chatStore.loadHistoryUsers).not.toHaveBeenCalled()
+    expect(chatStore.loadFavoriteUsers).not.toHaveBeenCalled()
+
+    // startMatch returns false with no current user.
+    chatStore.wsConnected = true
+    expect(useChat().startMatch()).toBe(false)
+    expect(sendMock).not.toHaveBeenCalled()
+
+    // cancelMatch returns early with no current user (does not cancel existing config).
+    chatStore.startContinuousMatch(2)
+    useChat().cancelMatch()
+    expect(chatStore.continuousMatchConfig.enabled).toBe(true)
+
+    // startContinuousMatch returns false with no current user.
+    expect(useChat().startContinuousMatch(2)).toBe(false)
+
+    // toggleFavorite returns early with no current user.
+    await useChat().toggleFavorite({ id: 'u1', isFavorite: false })
+    expect(vi.mocked(chatApi.toggleFavorite)).not.toHaveBeenCalled()
+  })
+
+  it('startContinuousMatch returns false and shows toast when WebSocket is disconnected', () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    const chatStore = useChatStore()
+    chatStore.wsConnected = false
+
+    expect(useChat().startContinuousMatch(3)).toBe(false)
+    expect(toastShow).toHaveBeenCalledWith('WebSocket 未连接，无法匹配')
+    expect(sendMock).not.toHaveBeenCalled()
+  })
+
+  it('handleAutoMatch returns early when continuous matching is not enabled', () => {
+    useChat().handleAutoMatch()
+    expect(sendMock).not.toHaveBeenCalled()
+    expect(toastShow).not.toHaveBeenCalled()
+  })
+
+  it('cancelMatch clears pending auto-match timer branch before cancelling', () => {
+    vi.useFakeTimers()
+    try {
+      const userStore = useUserStore()
+      userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+      const chatStore = useChatStore()
+      chatStore.wsConnected = true
+      chatStore.startContinuousMatch(3)
+
+      // current < total -> schedules next match (autoMatchTimer set)
+      const chat = useChat()
+      chat.handleAutoMatch()
+
+      // Cancel should clear timer, so advancing time won't start another match.
+      chat.cancelMatch()
+      sendMock.mockClear()
+
+      vi.advanceTimersByTime(2000)
+      expect(sendMock).not.toHaveBeenCalled()
+    } finally {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
+  })
+
+  it('enterChatAndStopMatch clears timer and stops continuous match before entering chat', () => {
+    vi.useFakeTimers()
+    try {
+      const userStore = useUserStore()
+      userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+      const chatStore = useChatStore()
+      chatStore.wsConnected = true
+      chatStore.startContinuousMatch(3)
+
+      // schedule timer
+      const messageStore = useMessageStore()
+      vi.spyOn(messageStore, 'loadHistory').mockResolvedValue(0)
+
+      const chat = useChat()
+      chat.handleAutoMatch()
+
+      // stop + enter chat
+      const user = { id: 'u9', name: 'U9', nickname: 'U9', unreadCount: 0 }
+      chat.enterChatAndStopMatch(user)
+
+      expect(chatStore.continuousMatchConfig.enabled).toBe(false)
+      expect(chatStore.currentChatUser?.id).toBe('u9')
+
+      // timer cleared -> no further match even if time passes
+      sendMock.mockClear()
+      vi.advanceTimersByTime(2000)
+      expect(sendMock).not.toHaveBeenCalled()
+    } finally {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
+  })
+
+  it('enterChat does not load history when loadHistory=false or currentUser is missing', () => {
+    const chatStore = useChatStore()
+    const messageStore = useMessageStore()
+    const loadSpy = vi.spyOn(messageStore, 'loadHistory').mockResolvedValue(0)
+
+    chatStore.upsertUser({
+      id: 'u2',
+      name: 'U2',
+      nickname: 'U2',
+      sex: '未知',
+      age: '0',
+      area: '',
+      address: '',
+      ip: '',
+      isFavorite: false,
+      lastMsg: '',
+      lastTime: '',
+      unreadCount: 0
+    })
+
+    // no current user -> should not load history even if loadHistory=true
+    useChat().enterChat(chatStore.getUser('u2') as any, true)
+
+    // explicit no-loadHistory
+    useChat().enterChat(chatStore.getUser('u2') as any, false)
+    expect(loadSpy).not.toHaveBeenCalled()
+  })
+
+  it('enterChat incremental-load then() covers newCount >0 and ==0 branches', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    const chatStore = useChatStore()
+    const messageStore = useMessageStore()
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    chatStore.upsertUser({
+      id: 'u2',
+      name: 'U2',
+      nickname: 'U2',
+      sex: '未知',
+      age: '0',
+      area: '',
+      address: '',
+      ip: '',
+      isFavorite: false,
+      lastMsg: '',
+      lastTime: '',
+      unreadCount: 0
+    })
+
+    // Seed one cached message so enterChat takes incremental path.
+    messageStore.addMessage('u2', { tid: 't1', content: 'x', isSelf: true } as any)
+
+    const loadSpy = vi.spyOn(messageStore, 'loadHistory')
+    loadSpy.mockResolvedValueOnce(2)
+    useChat().enterChat(chatStore.getUser('u2') as any, true)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('增量追加 2 条新消息'))
+
+    loadSpy.mockResolvedValueOnce(0)
+    useChat().enterChat(chatStore.getUser('u2') as any, true)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(logSpy).toHaveBeenCalledWith('没有新消息')
+
+    logSpy.mockRestore()
+  })
+
+  it('toggleFavorite covers nickname fallback, list includes guard, and index=-1 remove branch', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    const chatStore = useChatStore()
+    chatStore.upsertUser({
+      id: 'u3',
+      name: 'NameOnly',
+      nickname: '',
+      sex: '未知',
+      age: '0',
+      area: '',
+      address: '',
+      ip: '',
+      isFavorite: false,
+      lastMsg: '',
+      lastTime: '',
+      unreadCount: 0
+    })
+
+    const favoriteStore = useFavoriteStore()
+    const addSpy = vi.spyOn(favoriteStore, 'addFavorite').mockResolvedValue(true)
+    const removeSpy = vi.spyOn(favoriteStore, 'removeFavorite').mockResolvedValue(true)
+
+    // id already in list -> should not unshift duplicate
+    chatStore.favoriteUserIds.push('u3')
+    vi.mocked(chatApi.toggleFavorite).mockResolvedValue({ status: 'true' } as any)
+
+    await useChat().toggleFavorite(chatStore.getUser('u3') as any)
+    expect(chatStore.favoriteUserIds).toEqual(['u3'])
+    expect(addSpy).toHaveBeenCalledWith('me', 'u3', 'NameOnly')
+
+    // remove path where id is missing from list -> index=-1 branch
+    ;(chatStore.getUser('u3') as any).isFavorite = true
+    chatStore.favoriteUserIds.splice(0, chatStore.favoriteUserIds.length)
+    vi.mocked(chatApi.cancelFavorite).mockResolvedValue({ code: '0' } as any)
+    await useChat().toggleFavorite(chatStore.getUser('u3') as any)
+    expect(removeSpy).toHaveBeenCalledWith('me', 'u3')
+  })
+
+  it('toggleFavorite failure message falls back when backend does not provide msg', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    const chatStore = useChatStore()
+    chatStore.upsertUser({
+      id: 'u3',
+      name: 'U3',
+      nickname: 'U3',
+      sex: '未知',
+      age: '0',
+      area: '',
+      address: '',
+      ip: '',
+      isFavorite: false,
+      lastMsg: '',
+      lastTime: '',
+      unreadCount: 0
+    })
+
+    vi.mocked(chatApi.toggleFavorite).mockResolvedValue({ code: '1' } as any)
+    await useChat().toggleFavorite(chatStore.getUser('u3') as any)
+    expect(toastShow).toHaveBeenCalledWith('操作失败: 未知错误')
   })
 })

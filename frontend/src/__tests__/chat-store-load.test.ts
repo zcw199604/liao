@@ -61,6 +61,48 @@ describe('stores/chat load list branches', () => {
     expect(store.historyUserIds).toEqual([])
   })
 
+  it('loadHistoryUsers no-ops when backend returns non-array payload (covers else branch)', async () => {
+    const store = useChatStore()
+    store.historyUserIds = ['u1']
+
+    ;(chatApi.getHistoryUserList as any).mockResolvedValueOnce({ not: 'an array' })
+    await store.loadHistoryUsers('me', 'Me')
+
+    // Should not overwrite list when payload shape is unexpected.
+    expect(store.historyUserIds).toEqual(['u1'])
+  })
+
+  it('loadHistoryUsers uses fallback name/nickname when both are missing and keeps unreadCount via || 0', async () => {
+    const store = useChatStore()
+
+    // Seed an existing user with unreadCount=0 to hit (existing.unreadCount || 0) fallback branch.
+    store.upsertUser({
+      id: 'u1',
+      name: 'Old',
+      nickname: 'Old',
+      sex: '未知',
+      age: '0',
+      area: '',
+      address: '',
+      ip: '',
+      isFavorite: false,
+      lastMsg: 'x',
+      lastTime: '刚刚',
+      unreadCount: 0
+    } as any)
+
+    ;(chatApi.getHistoryUserList as any).mockResolvedValueOnce([
+      { id: 'u1', nickname: 'NewNick', lastMsg: 'new', lastTime: 't' },
+      { id: 'u3' } // no name/nickname -> normalizeUser fallback to '未知'
+    ])
+
+    await store.loadHistoryUsers('me', 'Me')
+
+    expect(store.getUser('u3')?.name).toBe('未知')
+    expect(store.getUser('u3')?.nickname).toBe('未知')
+    expect(store.getUser('u1')?.unreadCount).toBe(0)
+  })
+
   it('loadFavoriteUsers forces isFavorite=true and updates favorite ids', async () => {
     const store = useChatStore()
 
@@ -90,6 +132,22 @@ describe('stores/chat load list branches', () => {
     expect(store.getUser('u1')?.isFavorite).toBe(true)
     expect(store.getUser('u1')?.nickname).toBe('Alice2')
     expect(store.getUser('u3')?.isFavorite).toBe(true)
+  })
+
+  it('loadFavoriteUsers no-ops when backend returns non-array payload (covers else branch)', async () => {
+    const store = useChatStore()
+    store.favoriteUserIds = ['u1']
+
+    ;(chatApi.getFavoriteUserList as any).mockResolvedValueOnce(null)
+    await store.loadFavoriteUsers('me', 'Me')
+    expect(store.favoriteUserIds).toEqual(['u1'])
+  })
+
+  it('incrementMatchCount no-ops when continuousMatch is disabled (covers else branch)', () => {
+    const store = useChatStore()
+    const before = store.continuousMatchConfig.current
+    store.incrementMatchCount()
+    expect(store.continuousMatchConfig.current).toBe(before)
   })
 
   it('getUserByNickname/updateUser/clearAllUsers cover utility branches', () => {
