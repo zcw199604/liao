@@ -132,12 +132,10 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
   }
 
   const loadAlbumPage = async (page: number) => {
-    if (!selectedAlbum.value) return
-    if (mediaLoading.value) return
-
     mediaLoading.value = true
     try {
-      const res = await mtphotoApi.getMtPhotoAlbumFiles(selectedAlbum.value.mtPhotoAlbumId, page, mediaPageSize.value)
+      // selectedAlbum is guarded by callers (openAlbum/loadMore).
+      const res = await mtphotoApi.getMtPhotoAlbumFiles(selectedAlbum.value!.mtPhotoAlbumId, page, mediaPageSize.value)
       const data = Array.isArray(res?.data) ? res.data : []
 
       if (page === 1) {
@@ -151,7 +149,7 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
       mediaPageSize.value = Number(res?.pageSize || mediaPageSize.value)
       mediaTotalPages.value = Number(res?.totalPages || 0)
       // 进入相册/收藏夹后以返回 total 同步数量，避免在列表页额外拉取
-      selectedAlbum.value.count = mediaTotal.value
+      selectedAlbum.value!.count = mediaTotal.value
       lastError.value = ''
     } catch (e: any) {
       console.error('加载 mtPhoto 相册媒体失败:', e)

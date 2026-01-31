@@ -248,7 +248,6 @@ const backdropSrc = computed(() => {
 })
 
 const shouldShowBackdrop = computed(() => {
-  if (hasError.value) return false
   return backdropSrc.value !== '' && resolvedType.value !== 'file'
 })
 

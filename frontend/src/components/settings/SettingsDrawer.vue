@@ -364,51 +364,50 @@ const saveUserInfo = async () => {
     }
 
     // 名字/性别改变：更新数据库 + 同步上游 WS（如果已连接）
-    if (nameChanged || sexChanged) {
-      const res = await identityApi.updateIdentity({
-        id: currentUser.value.id,
-        name: edit.value.name,
-        sex: edit.value.sex
-      })
+    // Note: reaching here means idChanged=false and at least one of nameChanged/sexChanged is true.
+    const res = await identityApi.updateIdentity({
+      id: currentUser.value.id,
+      name: edit.value.name,
+      sex: edit.value.sex
+    })
 
-      if (res.code !== 0) {
-        show(`更新失败: ${res.msg || '未知错误'}`)
-        return
-      }
-
-      if (!chatStore.wsConnected) {
-        show('数据库已更新，但WebSocket未连接，无法同步聊天状态')
-      } else {
-        if (sexChanged) {
-          send({
-            act: 'modinfo',
-            id: currentUser.value.id,
-            userSex: edit.value.sex,
-            address_show: 'false',
-            randomhealthmode: '0',
-            randomvipsex: '0',
-            randomvipaddress: '0'
-          })
-        }
-        if (nameChanged) {
-          send({
-            act: 'chgname',
-            id: currentUser.value.id,
-            msg: edit.value.name
-          })
-        }
-      }
-
-      userStore.updateUserInfo({
-        name: edit.value.name,
-        nickname: edit.value.name,
-        sex: edit.value.sex,
-        cookie: generateCookie(currentUser.value.id, edit.value.name)
-      })
-
-      show('信息已保存')
-      editMode.value = false
+    if (res.code !== 0) {
+      show(`更新失败: ${res.msg || '未知错误'}`)
+      return
     }
+
+    if (!chatStore.wsConnected) {
+      show('数据库已更新，但WebSocket未连接，无法同步聊天状态')
+    } else {
+      if (sexChanged) {
+        send({
+          act: 'modinfo',
+          id: currentUser.value.id,
+          userSex: edit.value.sex,
+          address_show: 'false',
+          randomhealthmode: '0',
+          randomvipsex: '0',
+          randomvipaddress: '0'
+        })
+      }
+      if (nameChanged) {
+        send({
+          act: 'chgname',
+          id: currentUser.value.id,
+          msg: edit.value.name
+        })
+      }
+    }
+
+    userStore.updateUserInfo({
+      name: edit.value.name,
+      nickname: edit.value.name,
+      sex: edit.value.sex,
+      cookie: generateCookie(currentUser.value.id, edit.value.name)
+    })
+
+    show('信息已保存')
+    editMode.value = false
   } catch (e: any) {
     console.error('保存用户信息失败:', e)
     show(`保存失败: ${e?.message || '未知错误'}`)
@@ -436,7 +435,7 @@ const confirmClearForceout = () => {
 
 const doClearForceout = async () => {
   const res = await clearForceout()
-  show(res.success ? res.message : res.message)
+  show(res.message)
 }
 
 const openMediaManagement = async () => {

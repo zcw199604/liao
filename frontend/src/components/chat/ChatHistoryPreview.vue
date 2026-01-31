@@ -289,20 +289,19 @@ const loadHistory = async () => {
 	    }
     // Handle XML response (legacy format)
     else if (res && (typeof res === 'string' || typeof res.data === 'string')) {
-       const xmlStr = typeof res === 'string' ? res : res.data
-       if (xmlStr.includes('<ArrayOfMsg')) {
-           const parser = new DOMParser()
-           const xmlDoc = parser.parseFromString(xmlStr, 'text/xml')
-           const msgs = xmlDoc.getElementsByTagName('Msg')
-           
-           const parsed: ChatMessage[] = []
-           for(let i=0; i<msgs.length; i++) {
-              const msg = msgs[i]
-              if (!msg) continue
-              
-              const from = msg.querySelector('From')?.textContent || ''
-              const body = msg.querySelector('Body')?.textContent || ''
-              const time = msg.querySelector('Time')?.textContent || ''
+	       const xmlStr = typeof res === 'string' ? res : res.data
+	       if (xmlStr.includes('<ArrayOfMsg')) {
+	           const parser = new DOMParser()
+	           const xmlDoc = parser.parseFromString(xmlStr, 'text/xml')
+	           const msgs = xmlDoc.getElementsByTagName('Msg')
+	           
+	           const parsed: ChatMessage[] = []
+	           for(let i=0; i<msgs.length; i++) {
+	              const msg = msgs[i]
+	              
+	              const from = msg.querySelector('From')?.textContent || ''
+	              const body = msg.querySelector('Body')?.textContent || ''
+	              const time = msg.querySelector('Time')?.textContent || ''
               const tid = time 
               
               const isImage = body.startsWith('[img]')
@@ -321,7 +320,7 @@ const loadHistory = async () => {
                  content = videoUrl
               }
               
-              parsed.push({
+	              parsed.push({
                  code: 0,
                  tid,
                  fromuser: {
@@ -341,15 +340,17 @@ const loadHistory = async () => {
                  videoUrl,
                  isFile: false,
                  fileUrl: ''
-              })
-           }
-           messages.value = parsed
-       } else {
-           messages.value = Array.isArray(res.data) ? res.data : []
-       }
-    } else {
-        error.value = '获取消息失败'
-    }
+	              })
+	           }
+	           messages.value = parsed
+	       } else {
+	           // In this branch xmlStr is a string but doesn't contain the expected root tag.
+	           // Keep behavior consistent: treat it as "no messages".
+	           messages.value = []
+	       }
+	    } else {
+	        error.value = '获取消息失败'
+	    }
   } catch (e) {
     console.error(e)
     error.value = '请求历史记录出错'

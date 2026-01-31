@@ -431,7 +431,7 @@ const toggleSelection = (userId: string) => {
 }
 
 const toggleSelectAll = () => {
-  const ids = (chatStore.displayList || []).map(u => u.id)
+  const ids = chatStore.displayList.map(u => u.id)
   if (selectedUserIds.value.length === ids.length) {
     selectedUserIds.value = []
     return
@@ -484,7 +484,7 @@ const getYesterdayKey = () => {
 
 const dayDeleteGroupMap = computed(() => {
   const map = new Map<string, string[]>()
-  for (const user of chatStore.displayList || []) {
+  for (const user of chatStore.displayList) {
     const key = getDayKeyFromLastTime(user.lastTime || '')
     const arr = map.get(key)
     if (arr) {
@@ -512,7 +512,6 @@ const dayDeleteItems = computed(() => {
   items.sort((a, b) => {
     if (a.key === 'unknown') return 1
     if (b.key === 'unknown') return -1
-    if (a.key === b.key) return 0
     return a.key < b.key ? 1 : -1 // 新日期在前
   })
   return items
@@ -525,7 +524,7 @@ const openDaySelector = () => {
 const applyDaySelection = (dayKeys: string[]) => {
   const keySet = new Set(dayKeys)
   const ids: string[] = []
-  for (const user of chatStore.displayList || []) {
+  for (const user of chatStore.displayList) {
     const key = getDayKeyFromLastTime(user.lastTime || '')
     if (keySet.has(key)) ids.push(user.id)
   }

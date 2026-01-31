@@ -184,8 +184,7 @@
             <!-- 发送状态（仅自己发送的乐观消息） -->
             <div
               v-if="row.message.isSelf && (row.message.sendStatus === 'sending' || row.message.sendStatus === 'failed')"
-              class="mt-1 text-[10px] flex items-center gap-2 select-none"
-              :class="row.message.isSelf ? 'justify-end mr-1' : 'ml-1'"
+              class="mt-1 text-[10px] flex items-center gap-2 select-none justify-end mr-1"
             >
               <template v-if="row.message.sendStatus === 'sending'">
                 <span class="text-fg/50">发送中…</span>
