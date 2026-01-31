@@ -48,6 +48,7 @@ build/
 /coverage_backend.out
 /frontend/coverage/
 /frontend/coverage-tmp/
+/frontend/coverage-json/
 
 ### 前端构建产物（由npm run build生成，不提交到仓库）###
 src/main/resources/static/
