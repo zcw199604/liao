@@ -102,9 +102,11 @@ CREATE TABLE IF NOT EXISTS douyin_favorite_user_aweme (
     description TEXT NULL COMMENT '作品描述/标题（best-effort）',
     cover_url VARCHAR(500) NULL COMMENT '封面URL（best-effort）',
     downloads LONGTEXT NULL COMMENT '资源下载链接列表（JSON数组字符串，可选）',
+    sort_order INT NOT NULL DEFAULT 2147483647 COMMENT '展示顺序（越小越靠前）',
     created_at DATETIME NOT NULL COMMENT '创建时间',
     updated_at DATETIME NOT NULL COMMENT '更新时间',
     PRIMARY KEY (sec_user_id, aweme_id),
+    INDEX idx_dfua_user_sort_order (sec_user_id, sort_order),
     INDEX idx_dfua_user_created_at (sec_user_id, created_at DESC),
     INDEX idx_dfua_user_updated_at (sec_user_id, updated_at DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音用户收藏作品（全局）';

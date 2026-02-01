@@ -13,6 +13,11 @@ func isMySQLDuplicateColumn(err error) bool {
 	return errors.As(err, &myErr) && myErr != nil && myErr.Number == 1060
 }
 
+func isMySQLDuplicateKey(err error) bool {
+	var myErr *mysql.MySQLError
+	return errors.As(err, &myErr) && myErr != nil && myErr.Number == 1061
+}
+
 func ensureSchema(db *sql.DB) error {
 	statements := []string{
 		// identity（与现有 init.sql/IdentityService 兼容）
@@ -75,9 +80,11 @@ func ensureSchema(db *sql.DB) error {
 				description TEXT NULL COMMENT '作品描述/标题（best-effort）',
 				cover_url VARCHAR(500) NULL COMMENT '封面URL（best-effort）',
 				downloads LONGTEXT NULL COMMENT '资源下载链接列表（JSON数组字符串，可选）',
+				sort_order INT NOT NULL DEFAULT 2147483647 COMMENT '展示顺序（越小越靠前）',
 				created_at DATETIME NOT NULL COMMENT '创建时间',
 				updated_at DATETIME NOT NULL COMMENT '更新时间',
 				PRIMARY KEY (sec_user_id, aweme_id),
+				INDEX idx_dfua_user_sort_order (sec_user_id, sort_order),
 				INDEX idx_dfua_user_created_at (sec_user_id, created_at DESC),
 				INDEX idx_dfua_user_updated_at (sec_user_id, updated_at DESC)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音用户收藏作品（全局）'`,
@@ -288,12 +295,14 @@ func ensureSchema(db *sql.DB) error {
 	}
 
 	migrations := []string{
+		"ALTER TABLE douyin_favorite_user_aweme ADD COLUMN sort_order INT NOT NULL DEFAULT 2147483647 COMMENT '展示顺序（越小越靠前）'",
+		"ALTER TABLE douyin_favorite_user_aweme ADD INDEX idx_dfua_user_sort_order (sec_user_id, sort_order)",
 		"ALTER TABLE douyin_favorite_user_tag ADD COLUMN sort_order INT NOT NULL DEFAULT 0 COMMENT '展示顺序（越小越靠前）'",
 		"ALTER TABLE douyin_favorite_aweme_tag ADD COLUMN sort_order INT NOT NULL DEFAULT 0 COMMENT '展示顺序（越小越靠前）'",
 	}
 	for _, stmt := range migrations {
 		if _, err := db.Exec(stmt); err != nil {
-			if isMySQLDuplicateColumn(err) {
+			if isMySQLDuplicateColumn(err) || isMySQLDuplicateKey(err) {
 				continue
 			}
 			return fmt.Errorf("数据表迁移失败: %w", err)

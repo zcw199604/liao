@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 )
@@ -52,7 +51,11 @@ func (s *DouyinFavoriteService) UpsertUserAwemes(ctx context.Context, secUserID 
 		return 0, nil
 	}
 
-	unique := make(map[string]DouyinFavoriteUserAwemeUpsert)
+	// Preserve the incoming order (usually: newest -> oldest), because this order is used for
+	// display in favorite user works list. We still dedupe by aweme_id, but keep the first
+	// occurrence order; later duplicates only update the stored metadata.
+	unique := make(map[string]DouyinFavoriteUserAwemeUpsert, len(items))
+	orderedIDs := make([]string, 0, len(items))
 	for _, it := range items {
 		awemeID := strings.TrimSpace(it.AwemeID)
 		if awemeID == "" {
@@ -63,24 +66,21 @@ func (s *DouyinFavoriteService) UpsertUserAwemes(ctx context.Context, secUserID 
 		it.Desc = strings.TrimSpace(it.Desc)
 		it.CoverURL = strings.TrimSpace(it.CoverURL)
 		it.Downloads = normalizeStringList(it.Downloads)
+		if _, ok := unique[awemeID]; !ok {
+			orderedIDs = append(orderedIDs, awemeID)
+		}
 		unique[awemeID] = it
 	}
-	if len(unique) == 0 {
+	if len(orderedIDs) == 0 {
 		return 0, nil
 	}
 
-	awemeIDs := make([]string, 0, len(unique))
-	for id := range unique {
-		awemeIDs = append(awemeIDs, id)
-	}
-	sort.Strings(awemeIDs)
-
-	existing := make(map[string]struct{}, len(awemeIDs))
-	if len(awemeIDs) > 0 {
-		placeholders := make([]string, 0, len(awemeIDs))
-		args := make([]any, 0, len(awemeIDs)+1)
+	existing := make(map[string]struct{}, len(orderedIDs))
+	if len(orderedIDs) > 0 {
+		placeholders := make([]string, 0, len(orderedIDs))
+		args := make([]any, 0, len(orderedIDs)+1)
 		args = append(args, secUserID)
-		for _, id := range awemeIDs {
+		for _, id := range orderedIDs {
 			placeholders = append(placeholders, "?")
 			args = append(args, id)
 		}
@@ -114,10 +114,27 @@ func (s *DouyinFavoriteService) UpsertUserAwemes(ctx context.Context, secUserID 
 	}
 
 	added := 0
-	for _, id := range awemeIDs {
+	for _, id := range orderedIDs {
 		if _, ok := existing[id]; !ok {
 			added += 1
 		}
+	}
+
+	// Always treat the incoming list as the "front segment" of the desired display order
+	// (newest -> oldest as returned by upstream). To keep the display stable across multiple
+	// incremental upserts (e.g. pullLatest), we assign this segment to a new sort_order range
+	// strictly before the current minimum sort_order, so we never need to renumber the rest.
+	var minSortOrder sql.NullInt64
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT MIN(sort_order)
+		FROM douyin_favorite_user_aweme
+		WHERE sec_user_id = ?
+	`, secUserID).Scan(&minSortOrder); err != nil {
+		return 0, err
+	}
+	baseSortOrder := int64(0)
+	if minSortOrder.Valid {
+		baseSortOrder = minSortOrder.Int64 - int64(len(orderedIDs))
 	}
 
 	now := time.Now()
@@ -126,7 +143,7 @@ func (s *DouyinFavoriteService) UpsertUserAwemes(ctx context.Context, secUserID 
 		return 0, err
 	}
 
-	for _, id := range awemeIDs {
+	for idx, id := range orderedIDs {
 		it := unique[id]
 		var downloadsValue any
 		if len(it.Downloads) > 0 {
@@ -138,13 +155,15 @@ func (s *DouyinFavoriteService) UpsertUserAwemes(ctx context.Context, secUserID 
 		_, err := tx.ExecContext(ctx, `
 			INSERT INTO douyin_favorite_user_aweme (
 				sec_user_id, aweme_id, type, description, cover_url, downloads,
+				sort_order,
 				created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON DUPLICATE KEY UPDATE
 				type = COALESCE(VALUES(type), type),
 				description = COALESCE(VALUES(description), description),
 				cover_url = COALESCE(VALUES(cover_url), cover_url),
 				downloads = COALESCE(VALUES(downloads), downloads),
+				sort_order = VALUES(sort_order),
 				updated_at = VALUES(updated_at)
 		`,
 			secUserID,
@@ -153,6 +172,7 @@ func (s *DouyinFavoriteService) UpsertUserAwemes(ctx context.Context, secUserID 
 			nullIfEmpty(it.Desc),
 			nullIfEmpty(it.CoverURL),
 			downloadsValue,
+			baseSortOrder+int64(idx),
 			now,
 			now,
 		)
@@ -190,7 +210,7 @@ func (s *DouyinFavoriteService) ListUserAwemes(ctx context.Context, secUserID st
 		SELECT aweme_id, type, description, cover_url, downloads, created_at, updated_at
 		FROM douyin_favorite_user_aweme
 		WHERE sec_user_id = ?
-		ORDER BY created_at DESC
+		ORDER BY sort_order ASC, aweme_id DESC
 		LIMIT ? OFFSET ?
 	`, secUserID, count+1, cursor)
 	if err != nil {

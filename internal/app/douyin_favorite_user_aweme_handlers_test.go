@@ -17,22 +17,14 @@ func TestHandleDouyinFavoriteUserAwemeUpsert_Success(t *testing.T) {
 	defer cleanup()
 
 	mock.ExpectQuery(`SELECT aweme_id\s+FROM douyin_favorite_user_aweme`).
-		WithArgs("MS4wLjABAAAA_x", "111", "222").
+		WithArgs("MS4wLjABAAAA_x", "222", "111").
 		WillReturnRows(sqlmock.NewRows([]string{"aweme_id"}))
 
+	mock.ExpectQuery(`SELECT MIN\(sort_order\)\s+FROM douyin_favorite_user_aweme`).
+		WithArgs("MS4wLjABAAAA_x").
+		WillReturnRows(sqlmock.NewRows([]string{"min"}).AddRow(nil))
+
 	mock.ExpectBegin()
-	mock.ExpectExec(`INSERT INTO douyin_favorite_user_aweme`).
-		WithArgs(
-			"MS4wLjABAAAA_x",
-			"111",
-			"video",
-			"作品1",
-			"https://example.com/c1.jpg",
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-		).
-		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`INSERT INTO douyin_favorite_user_aweme`).
 		WithArgs(
 			"MS4wLjABAAAA_x",
@@ -41,6 +33,20 @@ func TestHandleDouyinFavoriteUserAwemeUpsert_Success(t *testing.T) {
 			"作品2",
 			"https://example.com/c2.jpg",
 			sqlmock.AnyArg(),
+			0,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO douyin_favorite_user_aweme`).
+		WithArgs(
+			"MS4wLjABAAAA_x",
+			"111",
+			"video",
+			"作品1",
+			"https://example.com/c1.jpg",
+			sqlmock.AnyArg(),
+			1,
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 		).
@@ -222,6 +228,10 @@ func TestHandleDouyinFavoriteUserAwemePullLatest_Success(t *testing.T) {
 		WithArgs("MS4wLjABAAAA_x", "111").
 		WillReturnRows(sqlmock.NewRows([]string{"aweme_id"}))
 
+	mock.ExpectQuery(`SELECT MIN\(sort_order\)\s+FROM douyin_favorite_user_aweme`).
+		WithArgs("MS4wLjABAAAA_x").
+		WillReturnRows(sqlmock.NewRows([]string{"min"}).AddRow(nil))
+
 	mock.ExpectBegin()
 	mock.ExpectExec(`INSERT INTO douyin_favorite_user_aweme`).
 		WithArgs(
@@ -231,6 +241,7 @@ func TestHandleDouyinFavoriteUserAwemePullLatest_Success(t *testing.T) {
 			"作品1",
 			upstream.URL+"/cover1.jpg",
 			sqlmock.AnyArg(),
+			0,
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 		).
