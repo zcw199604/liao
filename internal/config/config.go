@@ -76,6 +76,17 @@ type Config struct {
 	DouyinDefaultCookie string
 	DouyinDefaultProxy  string
 
+	// CookieCloud* 为 CookieCloud（浏览器 Cookie 同步）对接配置（可选；未配置时不启用）。
+	// 参考知识库：helloagents/modules/external/cookiecloud.md
+	CookieCloudBaseURL    string
+	CookieCloudUUID       string
+	CookieCloudPassword   string
+	CookieCloudCryptoType string
+	CookieCloudDomain     string
+	// CookieCloudCookieExpireHours controls how long the decrypted CookieCloud cookie header value is cached.
+	// Unit: hours. Default 72 hours (3 days).
+	CookieCloudCookieExpireHours int
+
 	// 视频抽帧（ffmpeg/ffprobe）配置。
 	FFmpegPath              string
 	FFprobePath             string
@@ -137,6 +148,17 @@ func Load() (Config, error) {
 		TikTokDownloaderToken:   getEnvOptional2("TIKTOKDOWNLOADER_TOKEN", "TIKTOK_DOWNLOADER_TOKEN"),
 		DouyinDefaultCookie:     getEnvOptional2("DOUYIN_COOKIE", "TIKTOKDOWNLOADER_DOUYIN_COOKIE"),
 		DouyinDefaultProxy:      getEnvOptional2("DOUYIN_PROXY", "TIKTOKDOWNLOADER_DOUYIN_PROXY"),
+
+		CookieCloudBaseURL:    getEnvOptional2("COOKIECLOUD_BASE_URL", "COOKIE_CLOUD_BASE_URL"),
+		CookieCloudUUID:       getEnvOptional2("COOKIECLOUD_UUID", "COOKIE_CLOUD_UUID"),
+		CookieCloudPassword:   getEnvOptional2("COOKIECLOUD_PASSWORD", "COOKIE_CLOUD_PASSWORD"),
+		CookieCloudCryptoType: getEnvOptional2("COOKIECLOUD_CRYPTO_TYPE", "COOKIE_CLOUD_CRYPTO_TYPE"),
+		CookieCloudDomain:     getEnvOptional2("COOKIECLOUD_DOMAIN", "COOKIE_CLOUD_DOMAIN"),
+		CookieCloudCookieExpireHours: getEnvIntOptional2(
+			"COOKIECLOUD_COOKIE_EXPIRE_HOURS",
+			"COOKIE_CLOUD_COOKIE_EXPIRE_HOURS",
+			72,
+		),
 
 		FFmpegPath:              getEnv("FFMPEG_PATH", "ffmpeg"),
 		FFprobePath:             getEnv("FFPROBE_PATH", "ffprobe"),
@@ -200,6 +222,29 @@ func Load() (Config, error) {
 		}
 	}
 
+	if v := strings.TrimSpace(cfg.CookieCloudBaseURL); v != "" {
+		if !(strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://")) {
+			return Config{}, fmt.Errorf("COOKIECLOUD_BASE_URL 非法: %s（需以 http(s):// 开头）", v)
+		}
+		if strings.TrimSpace(cfg.CookieCloudUUID) == "" {
+			return Config{}, fmt.Errorf("COOKIECLOUD_UUID 为空（已配置 COOKIECLOUD_BASE_URL 时必须提供）")
+		}
+		if strings.TrimSpace(cfg.CookieCloudPassword) == "" {
+			return Config{}, fmt.Errorf("COOKIECLOUD_PASSWORD 为空（已配置 COOKIECLOUD_BASE_URL 时必须提供）")
+		}
+		if v := strings.TrimSpace(cfg.CookieCloudCryptoType); v != "" {
+			switch v {
+			case "legacy", "aes-128-cbc-fixed":
+			default:
+				return Config{}, fmt.Errorf("COOKIECLOUD_CRYPTO_TYPE 非法: %s（仅支持 legacy/aes-128-cbc-fixed 或留空）", v)
+			}
+		}
+	}
+
+	if cfg.CookieCloudCookieExpireHours <= 0 {
+		cfg.CookieCloudCookieExpireHours = 72
+	}
+
 	return cfg, nil
 }
 
@@ -233,6 +278,16 @@ func getEnvInt(key string, defaultValue int) int {
 		return defaultValue
 	}
 	return parsed
+}
+
+func getEnvIntOptional2(key1, key2 string, defaultValue int) int {
+	if v := strings.TrimSpace(os.Getenv(key1)); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil {
+			return parsed
+		}
+		return defaultValue
+	}
+	return getEnvInt(key2, defaultValue)
 }
 
 // ParseJDBCMySQLURL 将 JDBC MySQL URL（jdbc:mysql://host:port/db?x=y）解析为 host/port/db/params。

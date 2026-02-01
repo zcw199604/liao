@@ -358,11 +358,11 @@ func TestDouyinDownloaderService_EffectiveDefaults(t *testing.T) {
 	if got := s.effectiveUpstreamTimeout(); got != 60*time.Second {
 		t.Fatalf("got=%v", got)
 	}
-	if got := s.effectiveCookie(" "); got != "c" {
-		t.Fatalf("got=%q", got)
+	if got, err := s.effectiveCookie(context.Background(), " "); err != nil || got != "c" {
+		t.Fatalf("got=%q err=%v", got, err)
 	}
-	if got := s.effectiveCookie(" x "); got != "x" {
-		t.Fatalf("got=%q", got)
+	if got, err := s.effectiveCookie(context.Background(), " x "); err != nil || got != "x" {
+		t.Fatalf("got=%q err=%v", got, err)
 	}
 	if got := s.effectiveProxy(" "); got != "p" {
 		t.Fatalf("got=%q", got)

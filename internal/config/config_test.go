@@ -54,6 +54,32 @@ func TestGetEnvInt(t *testing.T) {
 	}
 }
 
+func TestGetEnvIntOptional2(t *testing.T) {
+	t.Setenv("X_INT1", "")
+	t.Setenv("X_INT2", "")
+	if got := getEnvIntOptional2("X_INT1", "X_INT2", 7); got != 7 {
+		t.Fatalf("got %d, want %d", got, 7)
+	}
+
+	t.Setenv("X_INT1", "bad")
+	t.Setenv("X_INT2", "12")
+	if got := getEnvIntOptional2("X_INT1", "X_INT2", 7); got != 7 {
+		t.Fatalf("got %d, want %d", got, 7)
+	}
+
+	t.Setenv("X_INT1", " 11 ")
+	t.Setenv("X_INT2", "12")
+	if got := getEnvIntOptional2("X_INT1", "X_INT2", 7); got != 11 {
+		t.Fatalf("got %d, want %d", got, 11)
+	}
+
+	t.Setenv("X_INT1", "")
+	t.Setenv("X_INT2", " 12 ")
+	if got := getEnvIntOptional2("X_INT1", "X_INT2", 7); got != 12 {
+		t.Fatalf("got %d, want %d", got, 12)
+	}
+}
+
 func TestParseJDBCMySQLURL(t *testing.T) {
 	if _, _, _, _, err := ParseJDBCMySQLURL(""); err == nil {
 		t.Fatalf("expected error")
@@ -185,6 +211,34 @@ func TestLoad_ValidationErrors(t *testing.T) {
 	// BASE_URL 配置后需要以 http(s):// 开头
 	t.Setenv("CACHE_TYPE", "memory")
 	t.Setenv("TIKTOKDOWNLOADER_BASE_URL", "ftp://x")
+	if _, err := Load(); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	// CookieCloud BASE_URL 配置后需要以 http(s):// 开头
+	t.Setenv("TIKTOKDOWNLOADER_BASE_URL", "")
+	t.Setenv("COOKIECLOUD_BASE_URL", "ftp://x")
+	if _, err := Load(); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	// CookieCloud 配置 BASE_URL 时必须配置 UUID/PASSWORD
+	t.Setenv("COOKIECLOUD_BASE_URL", "http://127.0.0.1:8088")
+	t.Setenv("COOKIECLOUD_UUID", "")
+	t.Setenv("COOKIECLOUD_PASSWORD", "p")
+	if _, err := Load(); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	t.Setenv("COOKIECLOUD_UUID", "u")
+	t.Setenv("COOKIECLOUD_PASSWORD", "")
+	if _, err := Load(); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	// CookieCloud crypto_type 只支持 legacy/aes-128-cbc-fixed 或留空
+	t.Setenv("COOKIECLOUD_PASSWORD", "p")
+	t.Setenv("COOKIECLOUD_CRYPTO_TYPE", "bad")
 	if _, err := Load(); err == nil {
 		t.Fatalf("expected error")
 	}

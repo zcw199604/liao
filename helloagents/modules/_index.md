@@ -25,6 +25,7 @@
 - API 说明: [api.md](./api.md)
 - 数据模型: [data.md](./data.md)
 - 外部参考:
+  - [external/cookiecloud.md](./external/cookiecloud.md)
   - [external/tiktokdownloader-web-api.md](./external/tiktokdownloader-web-api.md)
   - [external/tiktokdownloader-web-api-sdk.md](./external/tiktokdownloader-web-api-sdk.md)
 

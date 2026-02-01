@@ -199,6 +199,8 @@ type DouyinDownloaderService struct {
 
 	defaultCookie string
 	defaultProxy  string
+
+	cookieProvider DouyinCookieProvider
 }
 
 type douyinCachedDetail struct {
@@ -326,11 +328,33 @@ func extractDouyinSecUserID(text string) string {
 	return ""
 }
 
-func (s *DouyinDownloaderService) effectiveCookie(cookie string) string {
-	if v := strings.TrimSpace(cookie); v != "" {
-		return v
+func (s *DouyinDownloaderService) SetCookieProvider(p DouyinCookieProvider) {
+	if s == nil {
+		return
 	}
-	return s.defaultCookie
+	s.cookieProvider = p
+}
+
+func (s *DouyinDownloaderService) effectiveCookie(ctx context.Context, cookie string) (string, error) {
+	if v := strings.TrimSpace(cookie); v != "" {
+		return v, nil
+	}
+
+	// CookieCloud provider (optional).
+	if s != nil && s.cookieProvider != nil {
+		val, err := s.cookieProvider.GetCookie(ctx)
+		if err == nil {
+			val = strings.TrimSpace(val)
+			if val != "" {
+				return val, nil
+			}
+		} else if strings.TrimSpace(s.defaultCookie) == "" {
+			// If there's no other fallback, propagate the error to make misconfiguration visible.
+			return "", err
+		}
+	}
+
+	return s.defaultCookie, nil
 }
 
 func (s *DouyinDownloaderService) effectiveProxy(proxy string) string {
@@ -416,7 +440,12 @@ func (s *DouyinDownloaderService) FetchDetail(ctx context.Context, detailID, coo
 	ctx2, cancel := context.WithTimeout(ctx, s.effectiveUpstreamTimeout())
 	defer cancel()
 
-	data, err := s.api.DouyinDetail(ctx2, detailID, s.effectiveCookie(cookie), s.effectiveProxy(proxy))
+	effectiveCookie, err := s.effectiveCookie(ctx2, cookie)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := s.api.DouyinDetail(ctx2, detailID, effectiveCookie, s.effectiveProxy(proxy))
 	if err != nil {
 		return nil, err
 	}
@@ -498,7 +527,12 @@ func (s *DouyinDownloaderService) FetchAccount(ctx context.Context, secUserID, t
 	ctx2, cancel := context.WithTimeout(ctx, s.effectiveUpstreamTimeout())
 	defer cancel()
 
-	data, err := s.api.DouyinAccount(ctx2, secUserID, tab, cursor, count, s.effectiveCookie(cookie), s.effectiveProxy(proxy))
+	effectiveCookie, err := s.effectiveCookie(ctx2, cookie)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := s.api.DouyinAccount(ctx2, secUserID, tab, cursor, count, effectiveCookie, s.effectiveProxy(proxy))
 	if err != nil {
 		return nil, err
 	}

@@ -88,3 +88,13 @@ app:
     host: ${IMG_SERVER_HOST:149.88.79.98}
     port: ${IMG_SERVER_PORT:9003}
     upstream-url: ${IMG_SERVER_UPSTREAM_URL:http://v1.chat2019.cn/asmx/method.asmx/getImgServer}
+
+# CookieCloud（浏览器 Cookie 同步，可选）
+cookiecloud:
+  base-url: ${COOKIECLOUD_BASE_URL:}
+  uuid: ${COOKIECLOUD_UUID:}
+  password: ${COOKIECLOUD_PASSWORD:}
+  crypto-type: ${COOKIECLOUD_CRYPTO_TYPE:}
+  domain: ${COOKIECLOUD_DOMAIN:douyin.com}
+  # 缓存抖音 cookie 的时间（小时），默认 72 小时（3 天）
+  cookie-expire-hours: ${COOKIECLOUD_COOKIE_EXPIRE_HOURS:72}

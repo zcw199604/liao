@@ -106,7 +106,9 @@
 > 说明：当未选择本地身份时，导入会使用 `userid=pre_identity` 作为兜底，不影响按抖音 `sec_user_id` 的筛选与归档。
 
 ## 安全与约束
-- **不落库敏感信息**：抖音 `cookie` 不写入服务端存储；前端仅保存在 localStorage 并在请求中透传（页面填写优先）。
+- **敏感信息处理（cookie）**：
+  - 默认行为：抖音 `cookie` 不落库；前端仅保存在 localStorage 并在请求中透传（页面填写优先）。
+  - 启用 CookieCloud 自动 cookie 时：服务端会将“抖音 cookie header value”（例如 `a=1; b=2`）缓存到 Redis 或内存中并设置 TTL（默认 72 小时），以减少频繁拉取；仍不写入数据库。
 - **SSRF 风险控制**：download/import 不接受任意 URL，只接受 `key+index` 并从服务端缓存读取下载直链。
 - **大文件处理**：下载与导入均采用流式转发与落盘，避免一次性读入内存。
 
@@ -117,9 +119,30 @@
 - `TIKTOKDOWNLOADER_BASE_URL`：TikTokDownloader Web API 地址（必配才能启用）
 - `TIKTOKDOWNLOADER_TOKEN`：可选，上游 token Header（默认上游不校验）
 - `TIKTOKDOWNLOADER_TIMEOUT_SECONDS`：可选，调用 TikTokDownloader Web API 超时（秒，默认跟随 `UPSTREAM_HTTP_TIMEOUT_SECONDS`）
-- `DOUYIN_COOKIE`：可选，默认抖音 Cookie（页面填写优先）
+- `DOUYIN_COOKIE`：可选，默认抖音 Cookie（页面填写优先；当启用 CookieCloud 时优先级低于 CookieCloud）
 - `DOUYIN_PROXY`：可选，服务端默认代理（前端不提供输入）
 - `UPSTREAM_HTTP_TIMEOUT_SECONDS`：可选，调用上游 HTTP 接口超时（秒，默认 60）
+
+### CookieCloud 自动抖音 Cookie（可选）
+
+当抖音相关请求未显式传入 `cookie` 时，服务端可自动从 CookieCloud 拉取并解密抖音 cookie，并进行缓存复用。
+
+优先级（从高到低）：
+1) 请求体显式传入的 `cookie`（保持现有行为）
+2) CookieCloud 拉取到的 cookie（本项目新增）
+3) `DOUYIN_COOKIE` 默认值
+
+相关环境变量：
+- `COOKIECLOUD_BASE_URL`：CookieCloud 服务地址（可包含 API_ROOT 前缀）
+- `COOKIECLOUD_UUID`：CookieCloud UUID
+- `COOKIECLOUD_PASSWORD`：CookieCloud 解密密码
+- `COOKIECLOUD_DOMAIN`：用于提取抖音 cookie 的 domain（默认 `douyin.com`，会自动兼容 `.douyin.com`）
+- `COOKIECLOUD_CRYPTO_TYPE`：可选，`legacy` / `aes-128-cbc-fixed`；留空表示使用服务端返回的 `crypto_type`
+- `COOKIECLOUD_COOKIE_EXPIRE_HOURS`：可选，缓存 TTL（小时），默认 `72`（3 天）
+
+缓存介质：
+- `CACHE_TYPE=redis` 时：缓存写入 Redis（带 TTL），服务重启后 TTL 内仍可复用
+- 否则：仅进程内缓存（重启即失效）
 
 ## 依赖
 - 外部服务：TikTokDownloader Web API（FastAPI）

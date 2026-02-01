@@ -7,6 +7,7 @@
 
 | 时间戳 | 名称 | 类型 | 涉及模块 | 决策 | 结果 |
 |--------|------|------|---------|------|------|
+| 202602011343 | douyin-cookiecloud-cookie | - | - | - | ✅完成 |
 | 202601311525 | ui-theme-media-menu-fix | 修复 | Frontend/Settings/Media | ui-theme-media-menu-fix#D001, ui-theme-media-menu-fix#D002 | ✅完成 |
 | 202601240917 | douyin-favorite-tags | - | - | - | ✅完成 |
 | 202601230536 | feat-douyin-account-preview-gallery | 新增 | Douyin/MediaPreview | feat-douyin-account-preview-gallery#D001 | ✅完成 |

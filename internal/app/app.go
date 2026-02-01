@@ -190,6 +190,20 @@ func New(cfg config.Config) (*App, error) {
 	application.wsManager = NewUpstreamWebSocketManager(application.httpClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache, application.chatHistoryCache)
 	application.mediaUpload = NewMediaUploadService(db, cfg.ServerPort, application.fileStorage, application.imageServer, application.httpClient)
 	application.douyinDownloader = NewDouyinDownloaderService(cfg.TikTokDownloaderBaseURL, cfg.TikTokDownloaderToken, cfg.DouyinDefaultCookie, cfg.DouyinDefaultProxy, time.Duration(cfg.TikTokDownloaderTimeoutSeconds)*time.Second)
+	if strings.TrimSpace(cfg.CookieCloudBaseURL) != "" {
+		provider, err := NewDouyinCookieCloudProvider(cfg, application.httpClient)
+		if err != nil {
+			if closer, ok := userInfoCache.(interface{ Close() error }); ok {
+				_ = closer.Close()
+			}
+			if closer, ok := chatHistoryCache.(interface{ Close() error }); ok {
+				_ = closer.Close()
+			}
+			_ = db.Close()
+			return nil, err
+		}
+		application.douyinDownloader.SetCookieProvider(provider)
+	}
 	application.mtPhoto = NewMtPhotoService(cfg.MtPhotoBaseURL, cfg.MtPhotoLoginUsername, cfg.MtPhotoLoginPassword, cfg.MtPhotoLoginOTP, cfg.LspRoot, application.httpClient)
 	application.videoExtract = NewVideoExtractService(db, cfg, application.fileStorage, application.mtPhoto)
 
@@ -207,6 +221,11 @@ func (a *App) Shutdown(ctx context.Context) {
 	}
 	if a.videoExtract != nil {
 		a.videoExtract.Shutdown()
+	}
+	if a.douyinDownloader != nil {
+		if closer, ok := a.douyinDownloader.cookieProvider.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
 	}
 	if closer, ok := a.userInfoCache.(interface{ Close() error }); ok {
 		_ = closer.Close()
