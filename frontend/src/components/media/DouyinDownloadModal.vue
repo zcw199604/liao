@@ -58,7 +58,7 @@
                 支持直接粘贴整段分享文本/短链/URL/作品ID；无需手动提取链接。
               </template>
               <template v-else-if="activeMode === 'account'">
-                支持粘贴用户主页链接/分享文本/sec_uid，拉取该用户发布作品列表（默认全量拉取）。
+                支持粘贴用户主页链接/分享文本/sec_uid，拉取该用户发布作品列表（默认只拉取一页，可手动翻页或一键全量拉取）。
               </template>
               <template v-else>
                 查看已收藏的抖音用户/作品，并支持一键再次解析。
@@ -207,14 +207,23 @@
                   <div class="text-xs text-gray-400">
                     已加载 {{ accountItems.length }} 个作品
                   </div>
-                  <button
-                    v-if="accountHasMore"
-                    class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs"
-                    :disabled="accountLoading"
-                    @click="handleFetchMoreAccount"
-                  >
-                    {{ accountLoading ? '加载中…' : '加载更多' }}
-                  </button>
+                  <div v-if="accountHasMore" class="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs"
+                      :disabled="accountLoading"
+                      @click="handleFetchMoreAccount"
+                    >
+                      {{ accountLoading ? '加载中…' : '加载更多' }}
+                    </button>
+                    <button
+                      class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                      :disabled="accountLoading"
+                      @click="handleFetchAllAccount"
+                      title="一次性拉取剩余分页"
+                    >
+                      {{ accountLoading ? '加载中…' : '全量拉取' }}
+                    </button>
+                  </div>
                 </div>
 
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -1915,7 +1924,7 @@ const switchMode = (mode: 'detail' | 'account' | 'favorites') => {
   }
 }
 
-const handleFetchAccount = async (opts: { append?: boolean } = {}) => {
+const handleFetchAccount = async (opts: { append?: boolean; fetchAll?: boolean } = {}) => {
   const input = String(accountInput.value || '').trim()
   if (!input) {
     show('请输入抖音用户主页链接/分享文本/sec_uid')
@@ -1930,6 +1939,7 @@ const handleFetchAccount = async (opts: { append?: boolean } = {}) => {
   if (opts.append && !accountHasMore.value) return
 
   const append = !!opts.append
+  const fetchAll = !!opts.fetchAll
 
   accountQueried.value = true
   accountLoading.value = true
@@ -1988,58 +1998,51 @@ const handleFetchAccount = async (opts: { append?: boolean } = {}) => {
       }
     }
 
-	if (append) {
-		const res = await fetchPage(accountCursor.value)
-		accountSecUserId.value = String(res?.secUserId || accountSecUserId.value || '').trim()
-		accountDisplayName.value = String(res?.displayName || accountDisplayName.value || '').trim()
-		accountSignature.value = String(res?.signature || accountSignature.value || '').trim()
-		accountAvatarUrl.value = String(res?.avatarUrl || accountAvatarUrl.value || '').trim()
-		accountProfileUrl.value = String(res?.profileUrl || accountProfileUrl.value || '').trim()
-		if (typeof res?.followerCount === 'number' && res.followerCount > 0) accountFollowerCount.value = res.followerCount
-		if (typeof res?.followingCount === 'number' && res.followingCount > 0) accountFollowingCount.value = res.followingCount
-		if (typeof res?.awemeCount === 'number' && res.awemeCount > 0) accountAwemeCount.value = res.awemeCount
-		if (typeof res?.totalFavorited === 'number' && res.totalFavorited > 0) accountTotalFavorited.value = res.totalFavorited
-		accountCursor.value = Number(res?.cursor || 0)
-		accountHasMore.value = !!res?.hasMore
-		appendItems(res.items || [])
-		return
-	}
+    const applyMeta = (res: DouyinAccountResponse) => {
+      accountSecUserId.value = String(res?.secUserId || accountSecUserId.value || '').trim()
+      accountDisplayName.value = String(res?.displayName || accountDisplayName.value || '').trim()
+      accountSignature.value = String(res?.signature || accountSignature.value || '').trim()
+      accountAvatarUrl.value = String(res?.avatarUrl || accountAvatarUrl.value || '').trim()
+      accountProfileUrl.value = String(res?.profileUrl || accountProfileUrl.value || '').trim()
+      if (typeof res?.followerCount === 'number' && res.followerCount > 0) accountFollowerCount.value = res.followerCount
+      if (typeof res?.followingCount === 'number' && res.followingCount > 0) accountFollowingCount.value = res.followingCount
+      if (typeof res?.awemeCount === 'number' && res.awemeCount > 0) accountAwemeCount.value = res.awemeCount
+      if (typeof res?.totalFavorited === 'number' && res.totalFavorited > 0) accountTotalFavorited.value = res.totalFavorited
+      accountCursor.value = Number(res?.cursor || 0)
+      accountHasMore.value = !!res?.hasMore
+    }
 
-    let cursor = 0
-    let loops = 0
-	while (true) {
-		loops += 1
-		const res = await fetchPage(cursor)
-		accountSecUserId.value = String(res?.secUserId || accountSecUserId.value || '').trim()
-		accountDisplayName.value = String(res?.displayName || accountDisplayName.value || '').trim()
-		accountSignature.value = String(res?.signature || accountSignature.value || '').trim()
-		accountAvatarUrl.value = String(res?.avatarUrl || accountAvatarUrl.value || '').trim()
-		accountProfileUrl.value = String(res?.profileUrl || accountProfileUrl.value || '').trim()
-		if (typeof res?.followerCount === 'number' && res.followerCount > 0) accountFollowerCount.value = res.followerCount
-		if (typeof res?.followingCount === 'number' && res.followingCount > 0) accountFollowingCount.value = res.followingCount
-		if (typeof res?.awemeCount === 'number' && res.awemeCount > 0) accountAwemeCount.value = res.awemeCount
-		if (typeof res?.totalFavorited === 'number' && res.totalFavorited > 0) accountTotalFavorited.value = res.totalFavorited
-		appendItems(res.items || [])
+    let cursor = append ? accountCursor.value : 0
 
-      const nextCursor = Number(res?.cursor || 0)
-      const hasMore = !!res?.hasMore
-      accountCursor.value = nextCursor
-      accountHasMore.value = hasMore
+    if (fetchAll) {
+      let loops = 0
+      while (true) {
+        loops += 1
+        const res = await fetchPage(cursor)
+        applyMeta(res)
+        appendItems(res.items || [])
 
-      if (!hasMore) break
-      if (nextCursor <= 0 || nextCursor === cursor) break
-      cursor = nextCursor
+        const nextCursor = Number(res?.cursor || 0)
+        const hasMore = !!res?.hasMore
+        if (!hasMore) break
+        if (nextCursor <= 0 || nextCursor === cursor) break
+        cursor = nextCursor
 
-      // best-effort：避免上游异常导致死循环（正常情况下 hasMore 会在有限次数内归零）
-      if (loops >= 200) {
-        show('已达到最大分页限制，可能还有未加载的作品')
-        break
+        // best-effort：避免上游异常导致死循环（正常情况下 hasMore 会在有限次数内归零）
+        if (loops >= 200) {
+          show('已达到最大分页限制，可能还有未加载的作品')
+          break
+        }
       }
+    } else {
+      const res = await fetchPage(cursor)
+      applyMeta(res)
+      appendItems(res.items || [])
     }
 
     // 若该用户已被收藏，则同步更新“最后解析时间/作品数”
     const secUserId = String(accountSecUserId.value || '').trim()
-    if (secUserId && isFavoriteUser(secUserId)) {
+    if (secUserId && isFavoriteUser(secUserId) && (fetchAll || !accountHasMore.value)) {
       try {
 	        const updated = await douyinApi.addDouyinFavoriteUser({
 	          secUserId,
@@ -2083,6 +2086,12 @@ const handleFetchMoreAccount = async () => {
   if (accountLoading.value) return
   if (!accountHasMore.value) return
   await handleFetchAccount({ append: true })
+}
+
+const handleFetchAllAccount = async () => {
+  if (accountLoading.value) return
+  if (!accountHasMore.value) return
+  await handleFetchAccount({ append: true, fetchAll: true })
 }
 
 const buildFavoriteUserLastParsedRaw = (meta: {
