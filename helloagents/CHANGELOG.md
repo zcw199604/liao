@@ -91,6 +91,7 @@
 - 前端：UI 质感统一与美化（暗色主题）：补充 Tailwind 设计 tokens（surface/border/glow），统一边框为 `border-white/5|10` 透明体系；聊天头部/输入区毛玻璃与层级增强；按钮去强渐变并增加内高光；Toast/Dialog 样式升级；消息气泡改为更柔和渐变并增加内发光；滚动条样式优化；MediaTile 默认开启骨架屏并提供加载占位背景。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`
+- 后端：抖音用户作品列表抓取改为调用 TikTokDownloader 包装镜像的单页分页接口 `/douyin/account/page`，与游标分页行为对齐。
 
 ### 修复
 - 前端：修复登录页 Toast 可能被 `z-index` 遮挡导致提示不可见的问题（Toast 提升至 `z-[300]`）。

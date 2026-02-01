@@ -1,15 +1,41 @@
-# HelloAGENTS 知识库
+# Liao 知识库
 
-本目录用于沉淀项目知识、变更记录与方案包归档。
+> 本目录用于沉淀项目知识、变更记录与方案包归档。
 
-## 快速入口
-- 项目约定: `helloagents/project.md`
-- 变更记录: `helloagents/CHANGELOG.md`
-- 方案归档: `helloagents/archive/_index.md`
-- 历史归档（legacy）: `helloagents/history/index.md`
-- 架构概览: `helloagents/wiki/arch.md`
-- 功能概览: `helloagents/wiki/overview.md`
-- API 说明: `helloagents/wiki/api.md`
-- 数据模型: `helloagents/wiki/data.md`
-- 模块索引: `helloagents/modules/_index.md`
+## 快速导航
 
+| 需要了解 | 读取文件 |
+|---------|---------|
+| 项目概况、技术栈、开发约定 | [context.md](context.md) |
+| 模块索引与通用文档索引 | [modules/_index.md](modules/_index.md) |
+| 项目变更历史 | [CHANGELOG.md](CHANGELOG.md) |
+| 方案归档索引 | [archive/_index.md](archive/_index.md) |
+| 当前待执行的方案 | [plan/](plan/) |
+| legacy 归档索引（旧结构） | [history/index.md](history/index.md) |
+
+## 知识库状态
+
+```yaml
+最后更新: 2026-02-01 08:24
+模块数量: 10
+待执行方案: 0
+```
+
+## 读取指引
+
+```yaml
+启动任务:
+  1. 读取本文件获取导航
+  2. 读取 context.md 获取项目上下文
+  3. 读取 modules/_index.md 定位相关模块文档
+
+任务相关:
+  - 涉及特定模块: 读取 modules/{模块名}.md
+  - 需要历史决策: 搜索 CHANGELOG.md → 读取对应 archive/{YYYY-MM}/{方案包}/proposal.md
+  - 继续之前任务: 读取 plan/{方案包}/*
+```
+
+## legacy 说明
+
+- `helloagents/wiki/` 为兼容旧链接保留；新文档统一落在 `helloagents/modules/`。
+- `helloagents/history/` 为旧归档结构，后续可按需迁移到 `helloagents/archive/`。
