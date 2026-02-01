@@ -362,20 +362,20 @@ func TestHandleDouyinAccount_Posts(t *testing.T) {
 		case "/douyin/share":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"message":"请求链接成功！","url":"https://www.douyin.com/user/MS4wLjABAAAA_test_secuid","params":{},"time":"2026-01-01"}`))
-		case "/douyin/account":
+		case "/douyin/account/page":
 			w.Header().Set("Content-Type", "application/json")
 			payload := map[string]any{
 				"message": "获取数据成功！",
 				"data": map[string]any{
-					"cursor":   123,
-					"has_more": 1,
-					"user": map[string]any{
-						"nickname": "测试用户",
-					},
-					"aweme_list": []any{
+					"next_cursor": 123,
+					"has_more":    true,
+					"items": []any{
 						map[string]any{
 							"aweme_id": "111",
 							"desc":     "作品1",
+							"author": map[string]any{
+								"nickname": "测试用户",
+							},
 							"video": map[string]any{
 								"cover": map[string]any{
 									"url_list": []any{upstream.URL + "/cover1.jpg"},
@@ -388,6 +388,9 @@ func TestHandleDouyinAccount_Posts(t *testing.T) {
 						map[string]any{
 							"aweme_id": "222",
 							"desc":     "作品2",
+							"author": map[string]any{
+								"nickname": "测试用户",
+							},
 							"images": []any{
 								map[string]any{
 									"url_list": []any{upstream.URL + "/cover2.jpg"},
@@ -479,14 +482,14 @@ func TestHandleDouyinAccount_PreferWebPOverJPEG(t *testing.T) {
 	var upstream *httptest.Server
 	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/douyin/account":
+		case "/douyin/account/page":
 			w.Header().Set("Content-Type", "application/json")
 			payload := map[string]any{
 				"message": "获取数据成功！",
 				"data": map[string]any{
-					"cursor":   0,
-					"has_more": 0,
-					"aweme_list": []any{
+					"next_cursor": 0,
+					"has_more":    false,
+					"items": []any{
 						map[string]any{
 							"aweme_id": "222",
 							"desc":     "作品2",
@@ -548,14 +551,14 @@ func TestHandleDouyinAccount_LivePhotoNestedVideoInImages(t *testing.T) {
 	var upstream *httptest.Server
 	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/douyin/account":
+		case "/douyin/account/page":
 			w.Header().Set("Content-Type", "application/json")
 			payload := map[string]any{
 				"message": "获取数据成功！",
 				"data": map[string]any{
-					"cursor":   0,
-					"has_more": 0,
-					"aweme_list": []any{
+					"next_cursor": 0,
+					"has_more":    false,
+					"items": []any{
 						map[string]any{
 							"aweme_id": "333",
 							"desc":     "测试实况raw",
@@ -631,7 +634,7 @@ func TestHandleDouyinAccount_Posts_FlatDataArray(t *testing.T) {
 		case "/douyin/share":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"message":"请求链接成功！","url":"https://www.douyin.com/user/MS4wLjABAAAA_test_secuid","params":{},"time":"2026-01-01"}`))
-		case "/douyin/account":
+		case "/douyin/account/page":
 			w.Header().Set("Content-Type", "application/json")
 			payload := map[string]any{
 				"message": "获取数据成功！",
@@ -760,7 +763,7 @@ func TestHandleDouyinAccount_NoPosts_DataArray(t *testing.T) {
 		case "/douyin/share":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"message":"请求链接成功！","url":"https://www.douyin.com/user/MS4wLjABAAAA_test_secuid","params":{},"time":"2026-01-01"}`))
-		case "/douyin/account":
+		case "/douyin/account/page":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"message":"暂无作品","data":[],"params":{},"time":"2026-01-01"}`))
 		default:

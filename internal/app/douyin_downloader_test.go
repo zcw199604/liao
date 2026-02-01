@@ -163,10 +163,14 @@ func TestTikTokDownloaderClient_APIs(t *testing.T) {
 					"downloads":     []any{" https://d1 ", " ", "https://d2"},
 				},
 			})
-		case "/douyin/account":
+		case "/douyin/account/page":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"message": "ok",
-				"data":    []any{},
+				"data": map[string]any{
+					"items":       []any{},
+					"next_cursor": 0,
+					"has_more":    false,
+				},
 			})
 		default:
 			http.NotFound(w, r)
@@ -203,7 +207,7 @@ func TestTikTokDownloaderClient_DetailAndAccount_Errors(t *testing.T) {
 				"message": "no data",
 				"data":    nil,
 			})
-		case "/douyin/account":
+		case "/douyin/account/page":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"message": "bad",
 				"data":    "x",
@@ -236,7 +240,7 @@ func TestTikTokDownloaderClient_DetailAccount_MoreErrors(t *testing.T) {
 		switch r.URL.Path {
 		case "/douyin/detail":
 			_ = json.NewEncoder(w).Encode(map[string]any{"message": "x", "data": []any{}})
-		case "/douyin/account":
+		case "/douyin/account/page":
 			_ = json.NewEncoder(w).Encode(map[string]any{"message": "x", "data": nil})
 		default:
 			http.NotFound(w, r)
@@ -413,7 +417,7 @@ func TestDouyinDownloaderService_Flows(t *testing.T) {
 				data = map[string]any{"desc": "", "type": "", "static_cover": "", "downloads": []any{"https://d1"}}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"message": "ok", "data": data})
-		case "/douyin/account":
+		case "/douyin/account/page":
 			if !asBool(payload["source"]) {
 				w.WriteHeader(http.StatusBadRequest)
 				_, _ = w.Write([]byte("expected source=true"))
@@ -428,7 +432,14 @@ func TestDouyinDownloaderService_Flows(t *testing.T) {
 				_ = json.NewEncoder(w).Encode(map[string]any{"message": "ok", "data": []any{}})
 				return
 			}
-			_ = json.NewEncoder(w).Encode(map[string]any{"message": "ok", "data": map[string]any{"cursor": payload["cursor"]}})
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"message": "ok",
+				"data": map[string]any{
+					"items":       []any{},
+					"next_cursor": payload["cursor"],
+					"has_more":    false,
+				},
+			})
 		default:
 			http.NotFound(w, r)
 		}

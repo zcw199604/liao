@@ -133,9 +133,12 @@ func (c *TikTokDownloaderClient) DouyinAccount(ctx context.Context, secUserID, t
 		"cookie":      cookie,
 		"proxy":       proxy,
 		"source":      true,
-		"pages":       1, // 每次只请求一页，方便前端按 cursor 分页加载
+		"pages":       1, // 与上游 Account 模型保持一致；包装镜像的 /douyin/account/page 会忽略批量抓取，仅返回单页 + next_cursor。
 	}
-	if err := c.postJSON(ctx, "/douyin/account", payload, &resp); err != nil {
+	// 说明：
+	// - 上游原生 /douyin/account 是“批量聚合”接口（可抓取多页并聚合返回）。
+	// - /douyin/account/page 是包装镜像新增的“单页分页”接口（返回 items + next_cursor + has_more），更适合 UI 游标分页。
+	if err := c.postJSON(ctx, "/douyin/account/page", payload, &resp); err != nil {
 		return nil, err
 	}
 	if resp.Data == nil {
@@ -143,9 +146,40 @@ func (c *TikTokDownloaderClient) DouyinAccount(ctx context.Context, secUserID, t
 	}
 	switch data := resp.Data.(type) {
 	case map[string]any:
-		return data, nil
+		// 将 page 接口的响应结构转换为 account 风格，复用既有解析逻辑（aweme_list/cursor/has_more）。
+		itemsAny := data["items"]
+		if itemsAny == nil {
+			itemsAny = []any{}
+		}
+		items, ok := itemsAny.([]any)
+		if !ok {
+			// 兼容：若上游返回 items 为非数组类型，保底视为空列表，避免整体失败。
+			items = []any{}
+		}
+
+		nextCursor := asInt(data["next_cursor"])
+		if nextCursor == 0 {
+			// best-effort：兼容不同字段命名
+			if v := asInt(data["cursor"]); v > 0 {
+				nextCursor = v
+			}
+			if v := asInt(data["max_cursor"]); v > 0 {
+				nextCursor = v
+			}
+		}
+
+		hasMore := asBool(data["has_more"])
+		if !hasMore {
+			hasMore = asBool(data["hasMore"])
+		}
+
+		return map[string]any{
+			"aweme_list": items,
+			"cursor":     nextCursor,
+			"has_more":   hasMore,
+		}, nil
 	case []any:
-		// 上游在“暂无作品”等场景可能返回 data=[]；这里兼容成标准对象结构，避免整体失败。
+		// 兼容：上游在“暂无作品”等场景可能返回 data=[]；这里兜底为标准对象结构，避免整体失败。
 		return map[string]any{
 			"aweme_list": data,
 			"cursor":     cursor,

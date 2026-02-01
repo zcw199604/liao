@@ -72,7 +72,7 @@ func TestHandleDouyinAccount_ErrorsAndDefaults(t *testing.T) {
 			switch r.URL.Path {
 			case "/douyin/share":
 				_ = json.NewEncoder(w).Encode(map[string]any{"message": "ok", "url": "https://www.douyin.com/user/u1"})
-			case "/douyin/account":
+			case "/douyin/account/page":
 				w.WriteHeader(http.StatusBadRequest)
 				_, _ = w.Write([]byte("boom"))
 			default:
@@ -100,7 +100,7 @@ func TestHandleDouyinAccount_ErrorsAndDefaults(t *testing.T) {
 			switch r.URL.Path {
 			case "/douyin/share":
 				_ = json.NewEncoder(w).Encode(map[string]any{"message": "ok", "url": "https://www.douyin.com/user/u1"})
-			case "/douyin/account":
+			case "/douyin/account/page":
 				var payload map[string]any
 				_ = json.NewDecoder(r.Body).Decode(&payload)
 				if int(payload["cursor"].(float64)) != 0 {
@@ -112,11 +112,11 @@ func TestHandleDouyinAccount_ErrorsAndDefaults(t *testing.T) {
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"message": "ok",
 					"data": map[string]any{
-						"cursor":     0,
 						"max_cursor": 99,
-						"has_more":   0,
 						"hasMore":    1,
-						"aweme_list": []any{},
+						"items":      []any{},
+						"has_more":   0,
+						"next_cursor": 0,
 					},
 				})
 			default:

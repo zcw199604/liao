@@ -183,7 +183,7 @@ func TestHandleDouyinFavoriteUserAwemeList_Success(t *testing.T) {
 func TestHandleDouyinFavoriteUserAwemePullLatest_Success(t *testing.T) {
 	var upstream *httptest.Server
 	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/douyin/account" {
+		if r.URL.Path != "/douyin/account/page" {
 			http.NotFound(w, r)
 			return
 		}
@@ -191,9 +191,9 @@ func TestHandleDouyinFavoriteUserAwemePullLatest_Success(t *testing.T) {
 		payload := map[string]any{
 			"message": "获取数据成功！",
 			"data": map[string]any{
-				"cursor":   0,
-				"has_more": 0,
-				"aweme_list": []any{
+				"next_cursor": 0,
+				"has_more":    false,
+				"items": []any{
 					map[string]any{
 						"aweme_id": "111",
 						"desc":     "作品1",
