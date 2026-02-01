@@ -112,10 +112,10 @@ func TestHandleDouyinAccount_ErrorsAndDefaults(t *testing.T) {
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"message": "ok",
 					"data": map[string]any{
-						"max_cursor": 99,
-						"hasMore":    1,
-						"items":      []any{},
-						"has_more":   0,
+						"max_cursor":  99,
+						"hasMore":     1,
+						"items":       []any{},
+						"has_more":    0,
 						"next_cursor": 0,
 					},
 				})

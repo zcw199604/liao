@@ -913,19 +913,20 @@ func (s *VideoExtractService) runTask(taskID string) error {
 		_ = s.setTaskStatus(ctx, taskID, VideoExtractStatusFailed, string(VideoExtractStopReasonError), "ffmpeg 启动失败: "+err.Error())
 		return err
 	}
-
-	rt.cmd = cmd
-
 	if err := cmd.Start(); err != nil {
 		_ = s.setTaskStatus(ctx, taskID, VideoExtractStatusFailed, string(VideoExtractStopReasonError), "ffmpeg 启动失败: "+err.Error())
 		return err
 	}
+	rt.mu.Lock()
+	rt.cmd = cmd
+	rt.mu.Unlock()
 
 	// 读取 stdout progress
 	progressDone := make(chan struct{})
 	go func() {
 		defer close(progressDone)
 		scanner := bufio.NewScanner(stdout)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 		frame := -1
 		outTimeMs := int64(-1)
 		speed := ""
@@ -964,6 +965,7 @@ func (s *VideoExtractService) runTask(taskID string) error {
 	go func() {
 		defer close(stderrDone)
 		scanner := bufio.NewScanner(stderr)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 		for scanner.Scan() {
 			line := scanner.Text()
 			rt.appendLog(line)
@@ -991,20 +993,24 @@ func (s *VideoExtractService) runTask(taskID string) error {
 	ticker := time.NewTicker(600 * time.Millisecond)
 	defer ticker.Stop()
 
-	waitDone := make(chan error, 1)
+	// Wait 不能与 stdout/stderr 扫描并发执行，否则 Wait 可能提前关闭 pipe 导致丢失末尾输出。
+	// 这里用 ioDone 表示两路输出均已读完（通常也意味着进程已退出）。
+	ioDone := make(chan struct{})
 	go func() {
-		waitDone <- cmd.Wait()
+		<-progressDone
+		<-stderrDone
+		close(ioDone)
 	}()
 
-	var waitErr error
+	canceled := false
 loop:
 	for {
 		select {
 		case <-rtCtx.Done():
 			flushFrames()
-			waitErr = <-waitDone
+			canceled = true
 			break loop
-		case waitErr = <-waitDone:
+		case <-ioDone:
 			flushFrames()
 			break loop
 		case <-ticker.C:
@@ -1018,9 +1024,18 @@ loop:
 		}
 	}
 
+	// 取消场景：子进程可能继承 stdout/stderr FD（例如测试脚本里的 sleep），导致 Scan 等不到 EOF。
+	// 主动关闭读端可以确保尽快退出扫描与回收资源（允许丢失末尾输出）。
+	if canceled {
+		_ = stdout.Close()
+		_ = stderr.Close()
+	}
+
 	<-progressDone
 	<-stderrDone
 	flushFrames()
+
+	waitErr := cmd.Wait()
 
 	// 结束时再次读取任务数据（frames_extracted 已在 insertFrame 中累加）
 	task2, err := s.loadTaskRow(ctx, taskID)

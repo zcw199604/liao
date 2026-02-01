@@ -283,10 +283,10 @@ func TestDouyinFavoriteService_ListAllUserTagIDsAndFill(t *testing.T) {
 	mock.ExpectQuery(`FROM douyin_favorite_user_tag_map`).
 		WillReturnRows(sqlmock.NewRows([]string{"sec_user_id", "tag_id"}).
 			AddRow("u1", int64(1)).
-			AddRow("", int64(2)).       // skip
-			AddRow("u1", int64(0)).     // skip
-			AddRow(" u2 ", int64(3)).   // trim
-			AddRow("u1", int64(9)))     // keep
+			AddRow("", int64(2)).     // skip
+			AddRow("u1", int64(0)).   // skip
+			AddRow(" u2 ", int64(3)). // trim
+			AddRow("u1", int64(9)))   // keep
 
 	s := NewDouyinFavoriteService(db)
 	m, err := s.listAllUserTagIDs(context.Background())
@@ -329,8 +329,8 @@ func TestDouyinFavoriteService_ListAllAwemeTagIDsAndFill(t *testing.T) {
 	mock.ExpectQuery(`FROM douyin_favorite_aweme_tag_map`).
 		WillReturnRows(sqlmock.NewRows([]string{"aweme_id", "tag_id"}).
 			AddRow("a1", int64(2)).
-			AddRow(" ", int64(3)).      // skip
-			AddRow("a1", int64(-1)).    // skip
+			AddRow(" ", int64(3)).   // skip
+			AddRow("a1", int64(-1)). // skip
 			AddRow("a2", int64(4)))
 
 	s := NewDouyinFavoriteService(db)

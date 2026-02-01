@@ -48,12 +48,12 @@ func TestMediaUploadService_RepairVideoPosters_MixedBranchesAndHasMore(t *testin
 	mock.ExpectQuery(`FROM media_file`).
 		WithArgs(int64(0), 6).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "local_path", "file_type", "file_extension"}).
-			AddRow(int64(1), "   ", "video/mp4", "mp4").            // localPath invalid -> skipped
-			AddRow(int64(2), "/../x.mp4", "video/mp4", "mp4").       // resolve abs error -> videoMissing
+			AddRow(int64(1), "   ", "video/mp4", "mp4").                 // localPath invalid -> skipped
+			AddRow(int64(2), "/../x.mp4", "video/mp4", "mp4").           // resolve abs error -> videoMissing
 			AddRow(int64(3), "/videos/missing.mp4", "video/mp4", "mp4"). // stat missing -> videoMissing
-			AddRow(int64(4), existingVideo, "video/mp4", "mp4").      // poster existing
-			AddRow(int64(5), needVideo, "video/mp4", "mp4").          // poster missing, dry-run
-			AddRow(int64(6), "/videos/extra.mp4", "video/mp4", "mp4")) // extra row => hasMore
+			AddRow(int64(4), existingVideo, "video/mp4", "mp4").         // poster existing
+			AddRow(int64(5), needVideo, "video/mp4", "mp4").             // poster missing, dry-run
+			AddRow(int64(6), "/videos/extra.mp4", "video/mp4", "mp4"))   // extra row => hasMore
 
 	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: uploadRoot}}
 	res, err := svc.RepairVideoPosters(context.Background(), "ffmpeg", "ffprobe", RepairVideoPostersRequest{

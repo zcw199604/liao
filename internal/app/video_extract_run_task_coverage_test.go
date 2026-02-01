@@ -382,8 +382,13 @@ exit 0
 		if time.Now().After(deadline) {
 			t.Fatalf("timeout waiting runtime")
 		}
-		if rt := svc.GetRuntime(taskID); rt != nil && rt.cmd != nil {
-			break
+		if rt := svc.GetRuntime(taskID); rt != nil {
+			rt.mu.Lock()
+			ready := rt.cmd != nil
+			rt.mu.Unlock()
+			if ready {
+				break
+			}
 		}
 		time.Sleep(10 * time.Millisecond)
 	}

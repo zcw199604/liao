@@ -57,13 +57,23 @@ func buildLogger(w io.Writer) *slog.Logger {
 func run() error {
 	logger := buildLogger(os.Stdout)
 
-	cfg, err := loadConfigFn()
+	// Copy function pointers to locals so tests can safely override/reset globals
+	// without racing with the shutdown goroutine (go test -race).
+	loadConfig := loadConfigFn
+	newApp := newAppFn
+	appHandler := appHandlerFn
+	appShutdown := appShutdownFn
+	notifySignals := notifySignalsFn
+	listenAndServe := listenAndServeFn
+	shutdownServer := shutdownServerFn
+
+	cfg, err := loadConfig()
 	if err != nil {
 		logger.Error("加载配置失败", "error", err)
 		return err
 	}
 
-	application, err := newAppFn(cfg)
+	application, err := newApp(cfg)
 	if err != nil {
 		logger.Error("初始化应用失败", "error", err)
 		return err
@@ -71,12 +81,12 @@ func run() error {
 
 	server := &http.Server{
 		Addr:              cfg.ListenAddr(),
-		Handler:           appHandlerFn(application),
+		Handler:           appHandler(application),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	shutdownSignals := make(chan os.Signal, 1)
-	notifySignalsFn(shutdownSignals, syscall.SIGINT, syscall.SIGTERM)
+	notifySignals(shutdownSignals, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		<-shutdownSignals
@@ -84,16 +94,16 @@ func run() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
-		appShutdownFn(application, ctx)
+		appShutdown(application, ctx)
 
-		if err := shutdownServerFn(server, ctx); err != nil {
+		if err := shutdownServer(server, ctx); err != nil {
 			logger.Error("HTTP 服务停止失败", "error", err)
 		}
 	}()
 
 	logger.Info("HTTP 服务启动", "addr", server.Addr)
 
-	if err := listenAndServeFn(server); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := listenAndServe(server); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.Error("HTTP 服务异常退出", "error", err)
 		return err
 	}

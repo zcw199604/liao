@@ -257,4 +257,3 @@ func TestHandleDouyinFavoriteAwemeRemove_BadJSONAndValidation(t *testing.T) {
 		}
 	}
 }
-
