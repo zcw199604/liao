@@ -2,11 +2,11 @@
   <teleport to="body">
     <div
       v-if="douyinStore.showModal"
-      class="fixed inset-0 z-[75] bg-black/70 flex items-center justify-center"
+      class="fixed inset-0 z-[75] bg-black/70 flex items-start justify-center pt-6 sm:items-center sm:pt-0"
       @click="close"
     >
       <div
-        class="w-[95%] max-w-3xl h-[85vh] bg-[#18181b] rounded-2xl shadow-2xl flex flex-col"
+        class="w-[95%] max-w-3xl max-h-[calc(var(--app-height,100vh)-6rem)] bg-[#18181b] rounded-2xl shadow-2xl flex flex-col"
         @click.stop
       >
         <!-- 头部 -->
@@ -24,11 +24,11 @@
           </button>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-6 no-scrollbar">
-            <div class="space-y-3">
-            <div class="flex items-center gap-2">
+        <div class="flex-1 min-h-0 overflow-y-auto p-6 no-scrollbar overscroll-contain">
+          <div class="space-y-3">
+            <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
               <button
-                class="px-4 py-2 rounded-xl border transition text-sm"
+                class="px-4 py-2 rounded-xl border transition text-sm whitespace-nowrap flex-shrink-0"
                 :class="activeMode === 'detail' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-white/10 text-gray-200 hover:bg-gray-700'"
                 :disabled="uiDisabled"
                 @click="switchMode('detail')"
@@ -36,7 +36,7 @@
                 作品解析
               </button>
               <button
-                class="px-4 py-2 rounded-xl border transition text-sm"
+                class="px-4 py-2 rounded-xl border transition text-sm whitespace-nowrap flex-shrink-0"
                 :class="activeMode === 'account' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-white/10 text-gray-200 hover:bg-gray-700'"
                 :disabled="uiDisabled"
                 @click="switchMode('account')"
@@ -44,7 +44,7 @@
                 用户作品
               </button>
               <button
-                class="px-4 py-2 rounded-xl border transition text-sm"
+                class="px-4 py-2 rounded-xl border transition text-sm whitespace-nowrap flex-shrink-0"
                 :class="activeMode === 'favorites' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-[#27272a] border-white/10 text-gray-200 hover:bg-gray-700'"
                 :disabled="uiDisabled"
                 @click="switchMode('favorites')"
@@ -227,12 +227,16 @@
                 </div>
 
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <button
+                  <div
                     v-for="item in accountItems"
                     :key="`douyin-account-${item.detailId}`"
-                    class="rounded-xl overflow-hidden border border-white/10 hover:border-emerald-500 transition-colors bg-black/20 text-left relative group"
+                    class="rounded-xl overflow-hidden border border-white/10 hover:border-emerald-500 transition-colors bg-black/20 text-left relative group cursor-pointer"
+                    role="button"
+                    tabindex="0"
+                    :aria-disabled="accountItemLoading.has(item.detailId)"
                     @click="openAccountItem(item)"
-                    :disabled="accountItemLoading.has(item.detailId)"
+                    @keydown.enter.prevent="openAccountItem(item)"
+                    @keydown.space.prevent="openAccountItem(item)"
                     :title="item.desc || item.detailId"
 	                  >
                       <div v-if="accountItemLoading.has(item.detailId)" class="absolute inset-0 z-20 bg-black/60 flex items-center justify-center backdrop-blur-sm">
@@ -267,7 +271,7 @@
                         {{ item.detailId }}
                       </div>
                     </div>
-                  </button>
+                  </div>
                 </div>
               </div>
 

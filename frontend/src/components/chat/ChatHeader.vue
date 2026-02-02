@@ -1,7 +1,7 @@
 <template>
   <div class="bg-surface/60 backdrop-blur-md border-b border-line sticky top-0 z-20 px-4 py-2 shadow-sm">
     <div class="flex items-center justify-between mb-1">
-      <div class="flex items-center">
+      <div class="flex items-center shrink-0">
         <!-- 侧边栏开关 -->
         <button
           @click="$emit('toggleSidebar')"
@@ -21,11 +21,11 @@
         </button>
       </div>
       
-      <div class="flex flex-col items-center">
-        <div class="font-bold text-base text-fg leading-tight mb-0.5">{{ user?.nickname || '未知用户' }}</div>
+      <div class="flex flex-col items-center min-w-0 flex-1 px-2">
+        <div class="font-bold text-base text-fg leading-tight mb-0.5 truncate max-w-full">{{ user?.nickname || '未知用户' }}</div>
         
         <!-- 状态信息行 -->
-        <div class="flex items-center justify-center gap-2 text-[11px] text-fg/60">
+        <div class="flex items-center justify-center gap-2 text-[11px] text-fg/60 min-w-0">
           <div class="flex items-center gap-1.5" :class="connected ? 'text-emerald-500' : 'text-rose-500'">
             <span
               class="relative inline-flex rounded-full h-2 w-2"
@@ -44,16 +44,16 @@
           </div>
           
           <!-- 地址 -->
-          <div v-if="user?.address && user.address !== '未知' && user.address !== '保密'" class="flex items-center gap-1">
+          <div v-if="user?.address && user.address !== '未知' && user.address !== '保密'" class="flex items-center gap-1 min-w-0">
              <span class="text-fg/25">|</span>
              <i class="fas fa-map-marker-alt text-[10px] opacity-60"></i>
-             <span>{{ user.address }}</span>
+             <span class="truncate max-w-[120px] sm:max-w-[240px]">{{ user.address }}</span>
           </div>
         </div>
       </div>
 
       <!-- 右侧按钮组 -->
-      <div class="flex items-center gap-1 -mr-2">
+      <div class="flex items-center gap-1 -mr-2 shrink-0">
         <!-- 清空记录按钮 -->
         <button
           @click="$emit('clearAndReload')"

@@ -1,7 +1,7 @@
 <template>
   <teleport to="body">
     <div v-if="visible" class="fixed inset-0 z-[70] bg-black/50" @click="close">
-      <div class="absolute right-0 top-0 bottom-0 w-80 bg-surface shadow-2xl overflow-y-auto" @click.stop>
+      <div class="absolute right-0 top-0 bottom-0 w-full max-w-xs bg-surface shadow-2xl overflow-y-auto" @click.stop>
         <!-- 头部 -->
         <div class="h-14 flex items-center justify-between px-4 border-b border-line shrink-0">
           <h2 class="text-lg font-bold text-fg">

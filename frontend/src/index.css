@@ -148,6 +148,8 @@ html, body, #app {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+  /* iOS momentum scrolling for overflow containers */
+  -webkit-overflow-scrolling: touch;
 }
 
 /* 列表区域 */

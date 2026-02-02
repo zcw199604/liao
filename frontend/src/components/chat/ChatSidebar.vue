@@ -87,7 +87,7 @@
     <!-- 列表内容 -->
 	    <PullToRefresh :on-refresh="refreshCurrentTab" class="flex-1 min-h-0">
 	      <div 
-	        class="h-full overflow-y-auto no-scrollbar px-4 pt-2" 
+	        class="h-full overflow-y-auto no-scrollbar px-4 pt-2 pb-24" 
 	        ref="listAreaRef" 
 	        @click="closeContextMenu"
 	        :style="{ 

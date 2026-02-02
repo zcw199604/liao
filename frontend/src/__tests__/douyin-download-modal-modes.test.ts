@@ -219,15 +219,6 @@ describe('components/media/DouyinDownloadModal.vue (modes)', () => {
         hasMore: false,
         items: [{ detailId: 'aw2', type: 'image', desc: '', coverUrl: '', coverDownloadUrl: '', key: '', items: [] }]
       })
-      // append fetch
-      .mockResolvedValueOnce({
-        secUserId: 'SU1',
-        displayName: 'Alice',
-        tab: 'post',
-        cursor: 2,
-        hasMore: false,
-        items: [{ detailId: 'aw3', type: 'image', desc: 'more', coverUrl: 'c', coverDownloadUrl: 'cd', key: '', items: [] }]
-      })
 
     ;(douyinApi.addDouyinFavoriteUser as any).mockResolvedValue({ secUserId: 'SU1', createTime: 't', updateTime: 't' })
     ;(douyinApi.removeDouyinFavoriteUser as any).mockResolvedValue({ success: true })
@@ -265,14 +256,13 @@ describe('components/media/DouyinDownloadModal.vue (modes)', () => {
     vm.activeMode = 'account'
     vm.accountInput = 'MS4wLjABuser'
     await vm.handleFetchAccount()
-    expect(vm.accountItems.length).toBe(2)
-    expect(vm.accountHasMore).toBe(false)
+    expect(vm.accountItems.length).toBe(1)
+    expect(vm.accountHasMore).toBe(true)
     expect(vm.accountSecUserId).toBe('SU1')
 
-    vm.accountHasMore = true
-    vm.accountCursor = 1
     await vm.handleFetchMoreAccount()
-    expect(vm.accountItems.length).toBe(3)
+    expect(vm.accountItems.length).toBe(2)
+    expect(vm.accountHasMore).toBe(false)
 
     // cookie hint path
     accountMock.mockRejectedValueOnce(new Error('cookie invalid'))
