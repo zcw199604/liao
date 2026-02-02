@@ -215,6 +215,9 @@ func (p *DouyinCookieCloudProvider) GetCookie(ctx context.Context) (string, erro
 		return "", fmt.Errorf("CookieCloud 返回空 Cookie（domain=%s）", p.domain)
 	}
 
+	// Avoid logging cookie content (sensitive). Log only high-level fetch info.
+	slog.Info("CookieCloud 拉取抖音 Cookie 成功", "domain", p.domain, "cookie_len", len(val), "redis", p.redis != nil)
+
 	if p.local != nil {
 		p.local.Set(douyinCookieCloudLocalKey, val)
 	}

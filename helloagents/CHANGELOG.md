@@ -16,6 +16,7 @@
 - 知识库：补充《TikTokDownloader Web API 调用指南与 SDK 草稿》（`helloagents/wiki/external/tiktokdownloader-web-api-sdk.md`）。
 - 知识库：新增外部参考文档《CookieCloud Go 获取 Cookie / 解密方式整理》（`helloagents/modules/external/cookiecloud.md`）。
 - 后端：新增 CookieCloud 客户端与本地解密工具包 `internal/cookiecloud`（支持 `legacy` + `aes-128-cbc-fixed`，可直接生成 HTTP `Cookie` Header）；抖音上游请求在未显式传 `cookie` 时支持从 CookieCloud 懒加载获取并按 `CACHE_TYPE` 缓存到 Redis/内存（TTL 默认 72 小时，可通过 `COOKIECLOUD_COOKIE_EXPIRE_HOURS` 配置），同时在 `internal/config` 增加相关环境变量配置项。
+  - 抖音 CookieCloud provider 在缓存未命中并成功拉取时输出 info 日志（不记录 cookie 内容）。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`
 - 测试：前端 Vitest 启用覆盖率报告（新增 devDependency `@vitest/coverage-v8`）。
