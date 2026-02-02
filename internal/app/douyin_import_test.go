@@ -341,31 +341,32 @@ func TestHandleDouyinImport_DedupExisting(t *testing.T) {
 	mock.ExpectQuery(`(?s)FROM douyin_media_file.*WHERE file_md5 = [?].*LIMIT 1`).
 		WithArgs(md5Value).
 		WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec(`(?s)INSERT INTO douyin_media_file`).
-		WithArgs(
-			"u1",
-			sqlmock.AnyArg(),
-			"d",
-			"t.mp4",
-			"l.mp4",
-			"",
-			"",
-			"/videos/x.mp4",
-			int64(4),
-			"video/mp4",
-			"mp4",
-			md5Value,
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-		).
-		WillReturnResult(sqlmock.NewResult(1, 1))
+	expectInsertReturningID(
+		mock,
+		`(?s)INSERT INTO douyin_media_file`,
+		1,
+		"u1",
+		sqlmock.AnyArg(),
+		"d",
+		"t.mp4",
+		"l.mp4",
+		"",
+		"",
+		"/videos/x.mp4",
+		int64(4),
+		"video/mp4",
+		"mp4",
+		md5Value,
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+	)
 
 	uploadRoot := t.TempDir()
 	app := &App{
 		douyinDownloader: NewDouyinDownloaderService("http://127.0.0.1:1", "", "", "", 60*time.Second),
 		fileStorage:      &FileStorageService{baseUploadAbs: uploadRoot},
-		mediaUpload:      &MediaUploadService{db: db},
+		mediaUpload:      &MediaUploadService{db: wrapMySQLDB(db)},
 	}
 
 	key := app.douyinDownloader.CacheDetail(&douyinCachedDetail{
@@ -443,31 +444,32 @@ func TestHandleDouyinImport_LocalOnlySuccess(t *testing.T) {
 	mock.ExpectQuery(`(?s)FROM douyin_media_file.*WHERE file_md5 = [?].*LIMIT 1`).
 		WithArgs(md5Value).
 		WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec(`(?s)INSERT INTO douyin_media_file`).
-		WithArgs(
-			"u1",
-			sqlmock.AnyArg(),
-			"d",
-			"t.jpg",
-			sqlmock.AnyArg(),
-			"",
-			"",
-			sqlmock.AnyArg(),
-			int64(len(fileBytes)),
-			"image/jpeg",
-			"jpg",
-			md5Value,
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-		).
-		WillReturnResult(sqlmock.NewResult(1, 1))
+	expectInsertReturningID(
+		mock,
+		`(?s)INSERT INTO douyin_media_file`,
+		1,
+		"u1",
+		sqlmock.AnyArg(),
+		"d",
+		"t.jpg",
+		sqlmock.AnyArg(),
+		"",
+		"",
+		sqlmock.AnyArg(),
+		int64(len(fileBytes)),
+		"image/jpeg",
+		"jpg",
+		md5Value,
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+	)
 
 	uploadRoot := t.TempDir()
 	app := &App{
 		douyinDownloader: NewDouyinDownloaderService("http://127.0.0.1:1", "", "", "", 60*time.Second),
 		fileStorage:      &FileStorageService{baseUploadAbs: uploadRoot},
-		mediaUpload:      &MediaUploadService{db: db},
+		mediaUpload:      &MediaUploadService{db: wrapMySQLDB(db)},
 	}
 
 	key := app.douyinDownloader.CacheDetail(&douyinCachedDetail{

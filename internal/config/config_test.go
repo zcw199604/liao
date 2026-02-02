@@ -133,6 +133,30 @@ func TestParseJDBCMySQLURL(t *testing.T) {
 	}
 }
 
+func TestParseJDBCURL_PostgresDefaultsAndJDBC(t *testing.T) {
+	scheme, host, port, db, params, err := ParseJDBCURL("postgres://localhost/mydb?sslmode=disable")
+	if err != nil {
+		t.Fatalf("ParseJDBCURL: %v", err)
+	}
+	if scheme != "postgres" || host != "localhost" || port != 5432 || db != "mydb" {
+		t.Fatalf("scheme=%q host=%q port=%d db=%q", scheme, host, port, db)
+	}
+	if params.Get("sslmode") != "disable" {
+		t.Fatalf("params=%v", params)
+	}
+
+	scheme, host, port, db, params, err = ParseJDBCURL("jdbc:postgresql://127.0.0.1:5433/mydb")
+	if err != nil {
+		t.Fatalf("ParseJDBCURL: %v", err)
+	}
+	if scheme != "postgresql" || host != "127.0.0.1" || port != 5433 || db != "mydb" {
+		t.Fatalf("scheme=%q host=%q port=%d db=%q", scheme, host, port, db)
+	}
+	if params == nil {
+		t.Fatalf("params=nil")
+	}
+}
+
 func TestLoad_SetsDefaultsAndValidates(t *testing.T) {
 	t.Setenv("SERVER_PORT", "8081")
 	t.Setenv("TOKEN_EXPIRE_HOURS", "1")

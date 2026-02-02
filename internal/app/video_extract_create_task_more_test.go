@@ -33,7 +33,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 	t.Run("mode keyframe defaults invalid keyframe mode", func(t *testing.T) {
 		db, _, cleanup := newSQLMock(t)
 		defer cleanup()
-		svc := &VideoExtractService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+		svc := &VideoExtractService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 		if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{
 			SourceType:   VideoExtractSourceUpload,
 			LocalPath:    " ", // stop after validation
@@ -48,7 +48,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 	t.Run("mode keyframe scene defaults threshold", func(t *testing.T) {
 		db, _, cleanup := newSQLMock(t)
 		defer cleanup()
-		svc := &VideoExtractService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+		svc := &VideoExtractService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 		if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{
 			SourceType:   VideoExtractSourceUpload,
 			LocalPath:    " ", // stop after validation
@@ -63,7 +63,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 	t.Run("mode keyframe scene invalid threshold", func(t *testing.T) {
 		db, _, cleanup := newSQLMock(t)
 		defer cleanup()
-		svc := &VideoExtractService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+		svc := &VideoExtractService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 		th := 2.0
 		if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{
 			SourceType:   VideoExtractSourceUpload,
@@ -80,7 +80,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 	t.Run("endSec invalid", func(t *testing.T) {
 		db, _, cleanup := newSQLMock(t)
 		defer cleanup()
-		svc := &VideoExtractService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+		svc := &VideoExtractService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 		end := -1.0
 		if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{SourceType: VideoExtractSourceUpload, LocalPath: "/x.mp4", Mode: VideoExtractModeAll, EndSec: &end, MaxFrames: 1}); err == nil {
 			t.Fatalf("expected error")
@@ -90,7 +90,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 	t.Run("outputFormat invalid", func(t *testing.T) {
 		db, _, cleanup := newSQLMock(t)
 		defer cleanup()
-		svc := &VideoExtractService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+		svc := &VideoExtractService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 		if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{SourceType: VideoExtractSourceUpload, LocalPath: "/x.mp4", Mode: VideoExtractModeAll, OutputFormat: VideoExtractOutputFormat("bad"), MaxFrames: 1}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -99,7 +99,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 	t.Run("jpgQuality invalid", func(t *testing.T) {
 		db, _, cleanup := newSQLMock(t)
 		defer cleanup()
-		svc := &VideoExtractService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+		svc := &VideoExtractService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 		q := 0
 		if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{SourceType: VideoExtractSourceUpload, LocalPath: "/x.mp4", Mode: VideoExtractModeAll, JPGQuality: &q, MaxFrames: 1}); err == nil {
 			t.Fatalf("expected error")
@@ -109,7 +109,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 	t.Run("upload localPath empty", func(t *testing.T) {
 		db, _, cleanup := newSQLMock(t)
 		defer cleanup()
-		svc := &VideoExtractService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+		svc := &VideoExtractService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 		if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{SourceType: VideoExtractSourceUpload, LocalPath: " ", Mode: VideoExtractModeAll, MaxFrames: 1}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -119,7 +119,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 		db, _, cleanup := newSQLMock(t)
 		defer cleanup()
 		uploadRoot := t.TempDir()
-		svc := &VideoExtractService{db: db, fileStore: &FileStorageService{baseUploadAbs: uploadRoot}}
+		svc := &VideoExtractService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: uploadRoot}}
 		if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{SourceType: VideoExtractSourceUpload, LocalPath: "/videos/missing.mp4", Mode: VideoExtractModeAll, MaxFrames: 1}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -128,7 +128,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 	t.Run("mtPhoto md5 empty/invalid and nil mtPhoto", func(t *testing.T) {
 		db, _, cleanup := newSQLMock(t)
 		defer cleanup()
-		svc := &VideoExtractService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+		svc := &VideoExtractService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 		if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{SourceType: VideoExtractSourceMtPhoto, MD5: " ", Mode: VideoExtractModeAll, MaxFrames: 1}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -144,7 +144,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 		db, _, cleanup := newSQLMock(t)
 		defer cleanup()
 		svc := &VideoExtractService{
-			db:        db,
+			db:        wrapMySQLDB(db),
 			fileStore: &FileStorageService{baseUploadAbs: t.TempDir()},
 			mtPhoto:   &stubMtPhotoResolver{err: errors.New("boom")},
 		}
@@ -162,7 +162,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 		db, _, cleanup := newSQLMock(t)
 		defer cleanup()
 		svc := &VideoExtractService{
-			db:        db,
+			db:        wrapMySQLDB(db),
 			fileStore: &FileStorageService{baseUploadAbs: t.TempDir()},
 			mtPhoto:   &stubMtPhotoResolver{item: &MtPhotoFilePath{ID: 1, FilePath: "/notlsp/x.mp4"}},
 		}
@@ -182,7 +182,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 		}
 
 		svc := &VideoExtractService{
-			db:        db,
+			db:        wrapMySQLDB(db),
 			cfg:       config.Config{FFprobePath: filepath.Join(t.TempDir(), "missing-ffprobe")},
 			fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 		}
@@ -221,7 +221,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 		}
 
 		svc := &VideoExtractService{
-			db:        db,
+			db:        wrapMySQLDB(db),
 			cfg:       config.Config{FFprobePath: ffprobeOK},
 			fileStore: &FileStorageService{baseUploadAbs: uploadRootFile},
 		}
@@ -250,7 +250,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 		}
 
 		svc := &VideoExtractService{
-			db:        db,
+			db:        wrapMySQLDB(db),
 			cfg:       config.Config{FFprobePath: ffprobeOK},
 			fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 		}
@@ -276,7 +276,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 
 		q := 10
 		svc := &VideoExtractService{
-			db:        db,
+			db:        wrapMySQLDB(db),
 			cfg:       config.Config{FFprobePath: ffprobeDur0},
 			fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 		}
@@ -343,7 +343,7 @@ func TestVideoExtractService_CreateTask_MoreBranches(t *testing.T) {
 			WillReturnError(sql.ErrConnDone)
 
 		svc := &VideoExtractService{
-			db:        db,
+			db:        wrapMySQLDB(db),
 			cfg:       config.Config{FFprobePath: ffprobeOK},
 			fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 		}

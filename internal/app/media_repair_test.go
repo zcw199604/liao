@@ -62,7 +62,7 @@ func TestMediaUploadService_RepairMediaHistory_DryRunRunsOnceAndWarns(t *testing
 		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id"}).
 			AddRow(int64(10), "keep"))
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{}}
 	res, err := svc.RepairMediaHistory(context.Background(), RepairMediaHistoryRequest{
 		Commit:             false,
 		UserID:             " u1 ",
@@ -121,7 +121,7 @@ func TestMediaUploadService_RepairMediaHistory_CommitLoopsAndNoProgressBreak(t *
 		WithArgs("m1", int64(10)).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{}}
 	res, err := svc.RepairMediaHistory(context.Background(), RepairMediaHistoryRequest{Commit: true})
 	if err != nil {
 		t.Fatalf("RepairMediaHistory error: %v", err)
@@ -159,7 +159,7 @@ func TestMediaUploadService_RepairMediaHistory_CommitDedupProgressThenFinish(t *
 		WithArgs(500).
 		WillReturnRows(sqlmock.NewRows([]string{"file_md5", "cnt"}))
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{}}
 	res, err := svc.RepairMediaHistory(context.Background(), RepairMediaHistoryRequest{Commit: true})
 	if err != nil {
 		t.Fatalf("RepairMediaHistory error: %v", err)
@@ -195,7 +195,7 @@ func TestMediaUploadService_RepairMediaHistory_SampleLimitClampedTo200(t *testin
 		// commit=false => no delete exec.
 	}
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{}}
 	res, err := svc.RepairMediaHistory(context.Background(), RepairMediaHistoryRequest{SampleLimit: 999})
 	if err != nil {
 		t.Fatalf("RepairMediaHistory error: %v", err)
@@ -229,7 +229,7 @@ func TestMediaUploadService_repairMissingMD5Batch_SkipsOnCalculateErrorAndEmptyM
 			AddRow(int64(2), "u2", "empty").
 			AddRow(int64(3), "u3", "ok"))
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{}}
 	req := &RepairMediaHistoryRequest{Commit: false, LimitMissingMD5: 10}
 	res := &RepairMediaHistoryResult{}
 	scanned, nextID, err := svc.repairMissingMD5Batch(context.Background(), 0, req, res)
@@ -270,7 +270,7 @@ func TestMediaUploadService_repairMissingMD5Batch_CommitUpdateSuccessAndWarnOnUp
 		WithArgs("m2", int64(2)).
 		WillReturnError(fmt.Errorf("update failed"))
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{}}
 	req := &RepairMediaHistoryRequest{Commit: true, LimitMissingMD5: 10}
 	res := &RepairMediaHistoryResult{}
 	scanned, nextID, err := svc.repairMissingMD5Batch(context.Background(), 0, req, res)
@@ -303,7 +303,7 @@ func TestMediaUploadService_repairMissingMD5Batch_QueryError_ScanError_RowsErr(t
 			WithArgs(int64(0), 10).
 			WillReturnError(fmt.Errorf("qerr"))
 
-		svc := &MediaUploadService{db: db, fileStore: &FileStorageService{}}
+		svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{}}
 		_, _, err := svc.repairMissingMD5Batch(context.Background(), 0, &RepairMediaHistoryRequest{LimitMissingMD5: 10}, &RepairMediaHistoryResult{})
 		if err == nil || !strings.Contains(err.Error(), "query missing md5 rows") {
 			t.Fatalf("err=%v", err)
@@ -319,7 +319,7 @@ func TestMediaUploadService_repairMissingMD5Batch_QueryError_ScanError_RowsErr(t
 			WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "local_path"}).
 				AddRow("bad", "u1", "ok"))
 
-		svc := &MediaUploadService{db: db, fileStore: &FileStorageService{}}
+		svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{}}
 		_, _, err := svc.repairMissingMD5Batch(context.Background(), 0, &RepairMediaHistoryRequest{LimitMissingMD5: 10}, &RepairMediaHistoryResult{})
 		if err == nil || !strings.Contains(err.Error(), "scan missing md5 row") {
 			t.Fatalf("err=%v", err)
@@ -344,7 +344,7 @@ func TestMediaUploadService_repairMissingMD5Batch_QueryError_ScanError_RowsErr(t
 			WithArgs(int64(0), 10).
 			WillReturnRows(rows)
 
-		svc := &MediaUploadService{db: db, fileStore: &FileStorageService{}}
+		svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{}}
 		_, _, err := svc.repairMissingMD5Batch(context.Background(), 0, &RepairMediaHistoryRequest{LimitMissingMD5: 10}, &RepairMediaHistoryResult{})
 		if err == nil || !strings.Contains(err.Error(), "iterate missing md5 rows") {
 			t.Fatalf("err=%v", err)
@@ -361,7 +361,7 @@ func TestMediaUploadService_dedupByMD5Batch_ErrorsAndWarnings(t *testing.T) {
 			WithArgs(10).
 			WillReturnError(fmt.Errorf("qerr"))
 
-		svc := &MediaUploadService{db: db}
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
 		_, err := svc.dedupByMD5Batch(context.Background(), &RepairMediaHistoryRequest{MaxDuplicateGroups: 10}, &RepairMediaHistoryResult{})
 		if err == nil || !strings.Contains(err.Error(), "query duplicate md5 groups") {
 			t.Fatalf("err=%v", err)
@@ -377,7 +377,7 @@ func TestMediaUploadService_dedupByMD5Batch_ErrorsAndWarnings(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{"file_md5", "cnt"}).
 				AddRow("m1", "bad"))
 
-		svc := &MediaUploadService{db: db}
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
 		_, err := svc.dedupByMD5Batch(context.Background(), &RepairMediaHistoryRequest{MaxDuplicateGroups: 10}, &RepairMediaHistoryResult{})
 		if err == nil || !strings.Contains(err.Error(), "scan duplicate md5 group") {
 			t.Fatalf("err=%v", err)
@@ -400,7 +400,7 @@ func TestMediaUploadService_dedupByMD5Batch_ErrorsAndWarnings(t *testing.T) {
 			WithArgs("m1").
 			WillReturnError(sql.ErrNoRows)
 
-		svc := &MediaUploadService{db: db}
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
 		_, err := svc.dedupByMD5Batch(context.Background(), &RepairMediaHistoryRequest{MaxDuplicateGroups: 10}, &RepairMediaHistoryResult{})
 		if err == nil || !strings.Contains(err.Error(), "iterate duplicate md5 groups") {
 			t.Fatalf("err=%v", err)
@@ -420,7 +420,7 @@ func TestMediaUploadService_dedupByMD5Batch_ErrorsAndWarnings(t *testing.T) {
 			WithArgs("m1").
 			WillReturnError(errors.New("boom"))
 
-		svc := &MediaUploadService{db: db}
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
 		_, err := svc.dedupByMD5Batch(context.Background(), &RepairMediaHistoryRequest{MaxDuplicateGroups: 10}, &RepairMediaHistoryResult{})
 		if err == nil || !strings.Contains(err.Error(), "select keep row for md5 dedup") {
 			t.Fatalf("err=%v", err)
@@ -444,7 +444,7 @@ func TestMediaUploadService_dedupByMD5Batch_ErrorsAndWarnings(t *testing.T) {
 			WillReturnError(errors.New("del"))
 
 		res := &RepairMediaHistoryResult{}
-		svc := &MediaUploadService{db: db}
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
 		groups, err := svc.dedupByMD5Batch(context.Background(), &RepairMediaHistoryRequest{Commit: true, MaxDuplicateGroups: 10, SampleLimit: 1}, res)
 		if err != nil {
 			t.Fatalf("dedup error: %v", err)
@@ -473,7 +473,7 @@ func TestMediaUploadService_dedupByLocalPathBatch_ErrorsAndWarnings(t *testing.T
 			WithArgs(10).
 			WillReturnError(fmt.Errorf("qerr"))
 
-		svc := &MediaUploadService{db: db}
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
 		_, err := svc.dedupByLocalPathBatch(context.Background(), &RepairMediaHistoryRequest{MaxDuplicateGroups: 10}, &RepairMediaHistoryResult{})
 		if err == nil || !strings.Contains(err.Error(), "query duplicate local_path groups") {
 			t.Fatalf("err=%v", err)
@@ -489,7 +489,7 @@ func TestMediaUploadService_dedupByLocalPathBatch_ErrorsAndWarnings(t *testing.T
 			WillReturnRows(sqlmock.NewRows([]string{"local_path", "cnt"}).
 				AddRow("p1", "bad"))
 
-		svc := &MediaUploadService{db: db}
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
 		_, err := svc.dedupByLocalPathBatch(context.Background(), &RepairMediaHistoryRequest{MaxDuplicateGroups: 10}, &RepairMediaHistoryResult{})
 		if err == nil || !strings.Contains(err.Error(), "scan duplicate local_path group") {
 			t.Fatalf("err=%v", err)
@@ -512,7 +512,7 @@ func TestMediaUploadService_dedupByLocalPathBatch_ErrorsAndWarnings(t *testing.T
 			WithArgs("p1").
 			WillReturnError(sql.ErrNoRows)
 
-		svc := &MediaUploadService{db: db}
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
 		_, err := svc.dedupByLocalPathBatch(context.Background(), &RepairMediaHistoryRequest{MaxDuplicateGroups: 10}, &RepairMediaHistoryResult{})
 		if err == nil || !strings.Contains(err.Error(), "iterate duplicate local_path groups") {
 			t.Fatalf("err=%v", err)
@@ -532,7 +532,7 @@ func TestMediaUploadService_dedupByLocalPathBatch_ErrorsAndWarnings(t *testing.T
 			WithArgs("p1").
 			WillReturnError(errors.New("boom"))
 
-		svc := &MediaUploadService{db: db}
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
 		_, err := svc.dedupByLocalPathBatch(context.Background(), &RepairMediaHistoryRequest{MaxDuplicateGroups: 10}, &RepairMediaHistoryResult{})
 		if err == nil || !strings.Contains(err.Error(), "select keep row for local_path dedup") {
 			t.Fatalf("err=%v", err)
@@ -556,7 +556,7 @@ func TestMediaUploadService_dedupByLocalPathBatch_ErrorsAndWarnings(t *testing.T
 			WillReturnError(errors.New("del"))
 
 		res := &RepairMediaHistoryResult{}
-		svc := &MediaUploadService{db: db}
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
 		groups, err := svc.dedupByLocalPathBatch(context.Background(), &RepairMediaHistoryRequest{Commit: true, MaxDuplicateGroups: 10, SampleLimit: 1}, res)
 		if err != nil {
 			t.Fatalf("dedup error: %v", err)
@@ -585,7 +585,7 @@ func TestMediaUploadService_RepairMediaHistory_PropagatesBatchErrors(t *testing.
 			WithArgs(int64(0), 500).
 			WillReturnError(errors.New("qerr"))
 
-		svc := &MediaUploadService{db: db}
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
 		if _, err := svc.RepairMediaHistory(context.Background(), RepairMediaHistoryRequest{Commit: true}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -603,7 +603,7 @@ func TestMediaUploadService_RepairMediaHistory_PropagatesBatchErrors(t *testing.
 			WithArgs(500).
 			WillReturnError(errors.New("qerr"))
 
-		svc := &MediaUploadService{db: db}
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
 		if _, err := svc.RepairMediaHistory(context.Background(), RepairMediaHistoryRequest{Commit: true}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -625,7 +625,7 @@ func TestMediaUploadService_RepairMediaHistory_PropagatesBatchErrors(t *testing.
 			WithArgs(500).
 			WillReturnError(errors.New("qerr"))
 
-		svc := &MediaUploadService{db: db}
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
 		if _, err := svc.RepairMediaHistory(context.Background(), RepairMediaHistoryRequest{Commit: true, DeduplicateByLocalPath: true}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -648,7 +648,7 @@ func TestMediaUploadService_RepairMediaHistory_DedupByLocalPath_NoGroups_Breaks(
 		WithArgs(500).
 		WillReturnRows(sqlmock.NewRows([]string{"local_path", "cnt"}))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.RepairMediaHistory(context.Background(), RepairMediaHistoryRequest{Commit: true, DeduplicateByLocalPath: true}); err != nil {
 		t.Fatalf("RepairMediaHistory error: %v", err)
 	}
@@ -701,7 +701,7 @@ func TestMediaUploadService_RepairMediaHistory_DedupByLocalPath_DryRunWarns(t *t
 		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id"}).
 			AddRow(int64(10), "u1"))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	res, err := svc.RepairMediaHistory(context.Background(), RepairMediaHistoryRequest{
 		Commit:                 false,
 		FixMissingMD5:          true,
@@ -751,7 +751,7 @@ func TestMediaUploadService_RepairMediaHistory_DedupByLocalPath_NoProgressBreakW
 		WithArgs("p1", int64(10)).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	res, err := svc.RepairMediaHistory(context.Background(), RepairMediaHistoryRequest{
 		Commit:                 true,
 		FixMissingMD5:          true,
@@ -791,7 +791,7 @@ func TestMediaUploadService_dedupByLocalPathBatch_CommitDeleteIncrementsDeleted(
 		WillReturnResult(sqlmock.NewResult(0, 2))
 
 	res := &RepairMediaHistoryResult{}
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	groups, err := svc.dedupByLocalPathBatch(context.Background(), &RepairMediaHistoryRequest{Commit: true, MaxDuplicateGroups: 10, SampleLimit: 1}, res)
 	if err != nil {
 		t.Fatalf("dedup error: %v", err)

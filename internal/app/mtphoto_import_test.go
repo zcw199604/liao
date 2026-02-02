@@ -17,8 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DATA-DOG/go-sqlmock"
-
 	"liao/internal/config"
 )
 
@@ -82,16 +80,15 @@ func TestHandleImportMtPhotoMedia_Success(t *testing.T) {
 		WithArgs("u1", md5Value).
 		WillReturnError(sql.ErrNoRows)
 
-	mock.ExpectExec(`INSERT INTO media_file`).
-		WillReturnResult(sqlmock.NewResult(1, 1))
+	expectInsertReturningID(mock, `INSERT INTO media_file`, 1)
 
-	fileStorage := NewFileStorageService(db)
+	fileStorage := NewFileStorageService(wrapMySQLDB(db))
 	fileStorage.baseUploadAbs = t.TempDir()
 
 	app := &App{
 		cfg:         config.Config{LspRoot: lspRoot},
 		fileStorage: fileStorage,
-		mediaUpload: NewMediaUploadService(db, 8080, fileStorage, nil, mtSrv.Client()),
+		mediaUpload: NewMediaUploadService(wrapMySQLDB(db), 8080, fileStorage, nil, mtSrv.Client()),
 		mtPhoto:     NewMtPhotoService(mtSrv.URL, "u", "p", "", lspRoot, mtSrv.Client()),
 	}
 
@@ -160,13 +157,13 @@ func TestHandleImportMtPhotoMedia_PathTraversalRejected(t *testing.T) {
 		WithArgs("md5-1").
 		WillReturnError(sql.ErrNoRows)
 
-	fileStorage := NewFileStorageService(db)
+	fileStorage := NewFileStorageService(wrapMySQLDB(db))
 	fileStorage.baseUploadAbs = t.TempDir()
 
 	app := &App{
 		cfg:         config.Config{LspRoot: lspRoot},
 		fileStorage: fileStorage,
-		mediaUpload: NewMediaUploadService(db, 8080, fileStorage, nil, mtSrv.Client()),
+		mediaUpload: NewMediaUploadService(wrapMySQLDB(db), 8080, fileStorage, nil, mtSrv.Client()),
 		mtPhoto:     NewMtPhotoService(mtSrv.URL, "u", "p", "", lspRoot, mtSrv.Client()),
 	}
 

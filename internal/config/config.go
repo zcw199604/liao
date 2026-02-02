@@ -290,45 +290,78 @@ func getEnvIntOptional2(key1, key2 string, defaultValue int) int {
 	return getEnvInt(key2, defaultValue)
 }
 
-// ParseJDBCMySQLURL 将 JDBC MySQL URL（jdbc:mysql://host:port/db?x=y）解析为 host/port/db/params。
-func ParseJDBCMySQLURL(jdbcURL string) (host string, port int, database string, params url.Values, err error) {
+// ParseJDBCURL parses a JDBC-like DB URL (supports "jdbc:" prefix) and returns its components.
+// This function does not perform driver selection; callers should use the returned scheme.
+//
+// Supported schemes:
+// - mysql
+// - postgres
+// - postgresql
+//
+// Examples:
+// - jdbc:mysql://127.0.0.1:3306/db?serverTimezone=Asia%2FShanghai
+// - mysql://127.0.0.1:3306/db
+// - postgres://127.0.0.1:5432/db?sslmode=disable
+// - jdbc:postgresql://127.0.0.1:5432/db
+func ParseJDBCURL(jdbcURL string) (scheme string, host string, port int, database string, params url.Values, err error) {
 	raw := strings.TrimSpace(jdbcURL)
 	if raw == "" {
-		return "", 0, "", nil, fmt.Errorf("DB_URL 为空")
+		return "", "", 0, "", nil, fmt.Errorf("DB_URL 为空")
 	}
 
-	// 支持 jdbc:mysql://... 与 mysql://... 两种形式（以便本地灵活配置）。
+	// Support jdbc:<scheme>://... and <scheme>://...
 	if strings.HasPrefix(raw, "jdbc:") {
 		raw = strings.TrimPrefix(raw, "jdbc:")
 	}
 
 	u, parseErr := url.Parse(raw)
 	if parseErr != nil {
-		return "", 0, "", nil, fmt.Errorf("解析 DB_URL 失败: %w", parseErr)
+		return "", "", 0, "", nil, fmt.Errorf("解析 DB_URL 失败: %w", parseErr)
 	}
 
-	if u.Scheme != "mysql" {
-		return "", 0, "", nil, fmt.Errorf("DB_URL scheme 非法: %s", u.Scheme)
+	scheme = strings.ToLower(strings.TrimSpace(u.Scheme))
+	switch scheme {
+	case "mysql", "postgres", "postgresql":
+	default:
+		return "", "", 0, "", nil, fmt.Errorf("DB_URL scheme 非法: %s", u.Scheme)
 	}
 
 	host = u.Hostname()
 	if host == "" {
-		return "", 0, "", nil, fmt.Errorf("DB_URL 缺少 host")
+		return "", "", 0, "", nil, fmt.Errorf("DB_URL 缺少 host")
 	}
 
 	if u.Port() == "" {
-		port = 3306
+		switch scheme {
+		case "mysql":
+			port = 3306
+		default:
+			port = 5432
+		}
 	} else {
 		port, err = strconv.Atoi(u.Port())
 		if err != nil {
-			return "", 0, "", nil, fmt.Errorf("DB_URL port 非法: %w", err)
+			return "", "", 0, "", nil, fmt.Errorf("DB_URL port 非法: %w", err)
 		}
 	}
 
 	database = strings.TrimPrefix(u.Path, "/")
 	if database == "" {
-		return "", 0, "", nil, fmt.Errorf("DB_URL 缺少数据库名")
+		return "", "", 0, "", nil, fmt.Errorf("DB_URL 缺少数据库名")
 	}
 
-	return host, port, database, u.Query(), nil
+	return scheme, host, port, database, u.Query(), nil
+}
+
+// ParseJDBCMySQLURL parses JDBC MySQL URL (jdbc:mysql://host:port/db?x=y) into host/port/db/params.
+// Deprecated: prefer ParseJDBCURL and use the returned scheme for dialect selection.
+func ParseJDBCMySQLURL(jdbcURL string) (host string, port int, database string, params url.Values, err error) {
+	scheme, host, port, database, params, err := ParseJDBCURL(jdbcURL)
+	if err != nil {
+		return "", 0, "", nil, err
+	}
+	if scheme != "mysql" {
+		return "", 0, "", nil, fmt.Errorf("DB_URL scheme 非法: %s", scheme)
+	}
+	return host, port, database, params, nil
 }

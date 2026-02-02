@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-sql-driver/mysql"
+	"liao/internal/database"
 )
 
 var (
@@ -22,14 +22,6 @@ type DouyinFavoriteTag struct {
 	Count      int64  `json:"count"`
 	CreateTime string `json:"createTime"`
 	UpdateTime string `json:"updateTime"`
-}
-
-func isMySQLDuplicateEntry(err error) bool {
-	var myErr *mysql.MySQLError
-	if errors.As(err, &myErr) && myErr != nil && myErr.Number == 1062 {
-		return true
-	}
-	return false
 }
 
 func normalizeStringList(in []string) []string {
@@ -110,18 +102,14 @@ func (s *DouyinFavoriteService) AddUserTag(ctx context.Context, name string) (*D
 	nextSortOrder += 1
 
 	now := time.Now()
-	res, err := s.db.ExecContext(ctx, `
+	id, err := database.InsertReturningID(ctx, s.db, `
 		INSERT INTO douyin_favorite_user_tag (name, sort_order, created_at, updated_at)
 		VALUES (?, ?, ?, ?)
 	`, strings.TrimSpace(name), nextSortOrder, now, now)
 	if err != nil {
-		if isMySQLDuplicateEntry(err) {
+		if s.db.Dialect().IsDuplicateKey(err) {
 			return nil, ErrDouyinFavoriteTagAlreadyExists
 		}
-		return nil, err
-	}
-	id, err := res.LastInsertId()
-	if err != nil {
 		return nil, err
 	}
 	return s.findUserTagByID(ctx, id)
@@ -135,7 +123,7 @@ func (s *DouyinFavoriteService) UpdateUserTag(ctx context.Context, id int64, nam
 		WHERE id = ?
 	`, strings.TrimSpace(name), now, id)
 	if err != nil {
-		if isMySQLDuplicateEntry(err) {
+		if s.db.Dialect().IsDuplicateKey(err) {
 			return nil, ErrDouyinFavoriteTagAlreadyExists
 		}
 		return nil, err
@@ -211,10 +199,16 @@ func (s *DouyinFavoriteService) ApplyUserTags(ctx context.Context, secUserIDs []
 				return err
 			}
 			for _, tagID := range tagIDs {
-				if _, err := tx.ExecContext(ctx, `
-					INSERT IGNORE INTO douyin_favorite_user_tag_map (sec_user_id, tag_id, created_at)
-					VALUES (?, ?, ?)
-				`, secUserID, tagID, now); err != nil {
+				if _, err := database.ExecInsertIgnore(
+					ctx,
+					tx,
+					"douyin_favorite_user_tag_map",
+					[]string{"sec_user_id", "tag_id", "created_at"},
+					[]string{"sec_user_id", "tag_id"},
+					secUserID,
+					tagID,
+					now,
+				); err != nil {
 					_ = tx.Rollback()
 					return err
 				}
@@ -226,10 +220,16 @@ func (s *DouyinFavoriteService) ApplyUserTags(ctx context.Context, secUserIDs []
 		}
 		for _, secUserID := range targetIDs {
 			for _, tagID := range tagIDs {
-				if _, err := tx.ExecContext(ctx, `
-					INSERT IGNORE INTO douyin_favorite_user_tag_map (sec_user_id, tag_id, created_at)
-					VALUES (?, ?, ?)
-				`, secUserID, tagID, now); err != nil {
+				if _, err := database.ExecInsertIgnore(
+					ctx,
+					tx,
+					"douyin_favorite_user_tag_map",
+					[]string{"sec_user_id", "tag_id", "created_at"},
+					[]string{"sec_user_id", "tag_id"},
+					secUserID,
+					tagID,
+					now,
+				); err != nil {
 					_ = tx.Rollback()
 					return err
 				}
@@ -391,18 +391,14 @@ func (s *DouyinFavoriteService) AddAwemeTag(ctx context.Context, name string) (*
 	nextSortOrder += 1
 
 	now := time.Now()
-	res, err := s.db.ExecContext(ctx, `
+	id, err := database.InsertReturningID(ctx, s.db, `
 		INSERT INTO douyin_favorite_aweme_tag (name, sort_order, created_at, updated_at)
 		VALUES (?, ?, ?, ?)
 	`, strings.TrimSpace(name), nextSortOrder, now, now)
 	if err != nil {
-		if isMySQLDuplicateEntry(err) {
+		if s.db.Dialect().IsDuplicateKey(err) {
 			return nil, ErrDouyinFavoriteTagAlreadyExists
 		}
-		return nil, err
-	}
-	id, err := res.LastInsertId()
-	if err != nil {
 		return nil, err
 	}
 	return s.findAwemeTagByID(ctx, id)
@@ -416,7 +412,7 @@ func (s *DouyinFavoriteService) UpdateAwemeTag(ctx context.Context, id int64, na
 		WHERE id = ?
 	`, strings.TrimSpace(name), now, id)
 	if err != nil {
-		if isMySQLDuplicateEntry(err) {
+		if s.db.Dialect().IsDuplicateKey(err) {
 			return nil, ErrDouyinFavoriteTagAlreadyExists
 		}
 		return nil, err
@@ -492,10 +488,16 @@ func (s *DouyinFavoriteService) ApplyAwemeTags(ctx context.Context, awemeIDs []s
 				return err
 			}
 			for _, tagID := range tagIDs {
-				if _, err := tx.ExecContext(ctx, `
-					INSERT IGNORE INTO douyin_favorite_aweme_tag_map (aweme_id, tag_id, created_at)
-					VALUES (?, ?, ?)
-				`, awemeID, tagID, now); err != nil {
+				if _, err := database.ExecInsertIgnore(
+					ctx,
+					tx,
+					"douyin_favorite_aweme_tag_map",
+					[]string{"aweme_id", "tag_id", "created_at"},
+					[]string{"aweme_id", "tag_id"},
+					awemeID,
+					tagID,
+					now,
+				); err != nil {
 					_ = tx.Rollback()
 					return err
 				}
@@ -507,10 +509,16 @@ func (s *DouyinFavoriteService) ApplyAwemeTags(ctx context.Context, awemeIDs []s
 		}
 		for _, awemeID := range targetIDs {
 			for _, tagID := range tagIDs {
-				if _, err := tx.ExecContext(ctx, `
-					INSERT IGNORE INTO douyin_favorite_aweme_tag_map (aweme_id, tag_id, created_at)
-					VALUES (?, ?, ?)
-				`, awemeID, tagID, now); err != nil {
+				if _, err := database.ExecInsertIgnore(
+					ctx,
+					tx,
+					"douyin_favorite_aweme_tag_map",
+					[]string{"aweme_id", "tag_id", "created_at"},
+					[]string{"aweme_id", "tag_id"},
+					awemeID,
+					tagID,
+					now,
+				); err != nil {
 					_ = tx.Rollback()
 					return err
 				}

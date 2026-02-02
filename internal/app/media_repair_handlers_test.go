@@ -71,7 +71,7 @@ func TestHandleRepairMediaHistory_EmptyBody_Success(t *testing.T) {
 		WithArgs(500).
 		WillReturnRows(sqlmock.NewRows([]string{"file_md5", "cnt"}))
 
-	app := &App{mediaUpload: &MediaUploadService{db: db, fileStore: &FileStorageService{db: db}}}
+	app := &App{mediaUpload: &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{db: wrapMySQLDB(db)}}}
 
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/repairMediaHistory", strings.NewReader(""))
 	req = req.WithContext(context.Background())

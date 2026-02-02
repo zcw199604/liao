@@ -53,7 +53,7 @@ func TestHandleDouyinFavoriteUserAwemeUpsert_Success(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/aweme/upsert", map[string]any{
 		"secUserId": "MS4wLjABAAAA_x",
@@ -129,7 +129,7 @@ func TestHandleDouyinFavoriteUserAwemeList_Success(t *testing.T) {
 		))
 
 	app := &App{
-		douyinFavorite:   NewDouyinFavoriteService(db),
+		douyinFavorite:   NewDouyinFavoriteService(wrapMySQLDB(db)),
 		douyinDownloader: NewDouyinDownloaderService("http://example.com", "", "", "", 60*time.Second),
 	}
 
@@ -249,7 +249,7 @@ func TestHandleDouyinFavoriteUserAwemePullLatest_Success(t *testing.T) {
 	mock.ExpectCommit()
 
 	app := &App{
-		douyinFavorite:   NewDouyinFavoriteService(db),
+		douyinFavorite:   NewDouyinFavoriteService(wrapMySQLDB(db)),
 		douyinDownloader: NewDouyinDownloaderService(upstream.URL, "", "", "", 60*time.Second),
 	}
 

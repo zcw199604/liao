@@ -15,18 +15,19 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"liao/internal/database"
 )
 
 // FileStorageService 负责本地文件保存/删除/读取与 MD5 查询（兼容 Java 侧行为）。
 type FileStorageService struct {
-	db            *sql.DB
+	db            *database.DB
 	baseUploadAbs string
 	baseTempAbs   string
 }
 
 const tempVideoExtractInputsDir = "tmp/video_extract_inputs"
 
-func NewFileStorageService(db *sql.DB) *FileStorageService {
+func NewFileStorageService(db *database.DB) *FileStorageService {
 	wd, err := os.Getwd()
 	base := "upload"
 	if err == nil && wd != "" {

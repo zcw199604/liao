@@ -9,6 +9,7 @@
 |------|------|------|------|
 | auth | 登录/鉴权（access code + JWT） | ✅ | [auth.md](./auth.md) |
 | chat-ui | 聊天 UI/交互规范 | ✅ | [chat-ui.md](./chat-ui.md) |
+| db | 数据库双栈/迁移/切换 Runbook | ✅ | [db.md](./db.md) |
 | douyin-downloader | 抖音下载/导入 | ✅ | [douyin-downloader.md](./douyin-downloader.md) |
 | douyin-livephoto | 抖音实况（Live Photo）支持 | ✅ | [douyin-livephoto.md](./douyin-livephoto.md) |
 | identity | 身份管理 | ✅ | [identity.md](./identity.md) |

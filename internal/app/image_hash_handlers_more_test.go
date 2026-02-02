@@ -98,7 +98,7 @@ func TestHandleCheckDuplicateMedia_FindByMD5HashError(t *testing.T) {
 
 	a := &App{
 		fileStorage: &FileStorageService{},
-		imageHash:   NewImageHashService(db),
+		imageHash:   NewImageHashService(wrapMySQLDB(db)),
 	}
 
 	req, _ := newMultipartRequest(t, http.MethodPost, "http://example.com/api/checkDuplicateMedia", "file", "a.png", "image/png", content, nil)
@@ -134,13 +134,13 @@ func TestHandleCheckDuplicateMedia_FindSimilarByPHashError(t *testing.T) {
 			"id", "file_path", "file_name", "file_dir", "md5_hash", "phash", "file_size", "created_at",
 		}))
 
-	mock.ExpectQuery(`(?s)BIT_COUNT.*FROM image_hash.*<= \?.*LIMIT \?`).
+	mock.ExpectQuery(`(?is)(BIT_COUNT|length\(replace\().*FROM image_hash.*<= \?.*LIMIT \?`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), 10, 20).
 		WillReturnError(errors.New("query fail"))
 
 	a := &App{
 		fileStorage: &FileStorageService{},
-		imageHash:   NewImageHashService(db),
+		imageHash:   NewImageHashService(wrapMySQLDB(db)),
 	}
 
 	req, _ := newMultipartRequest(t, http.MethodPost, "http://example.com/api/checkDuplicateMedia", "file", "a.png", "image/png", content, nil)
@@ -172,7 +172,7 @@ func TestHandleCheckDuplicateMedia_PHashNoMatches(t *testing.T) {
 			"id", "file_path", "file_name", "file_dir", "md5_hash", "phash", "file_size", "created_at",
 		}))
 
-	mock.ExpectQuery(`(?s)BIT_COUNT.*FROM image_hash.*<= \?.*LIMIT \?`).
+	mock.ExpectQuery(`(?is)(BIT_COUNT|length\(replace\().*FROM image_hash.*<= \?.*LIMIT \?`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), 10, 20).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "file_path", "file_name", "file_dir", "md5_hash", "phash", "file_size", "created_at", "distance",
@@ -180,7 +180,7 @@ func TestHandleCheckDuplicateMedia_PHashNoMatches(t *testing.T) {
 
 	a := &App{
 		fileStorage: &FileStorageService{},
-		imageHash:   NewImageHashService(db),
+		imageHash:   NewImageHashService(wrapMySQLDB(db)),
 	}
 
 	req, _ := newMultipartRequest(t, http.MethodPost, "http://example.com/api/checkDuplicateMedia", "file", "a.png", "image/png", content, nil)

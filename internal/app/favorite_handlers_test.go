@@ -20,11 +20,17 @@ func TestHandleFavoriteAdd_Success(t *testing.T) {
 		WithArgs("i1", "u1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "identity_id", "target_user_id", "target_user_name", "create_time"}))
 
-	mock.ExpectExec(`INSERT INTO chat_favorites \(identity_id, target_user_id, target_user_name, create_time\) VALUES \(\?, \?, \?, \?\)`).
-		WithArgs("i1", "u1", "Bob", sqlmock.AnyArg()).
-		WillReturnResult(sqlmock.NewResult(9, 1))
+	expectInsertReturningID(
+		mock,
+		`INSERT INTO chat_favorites \(identity_id, target_user_id, target_user_name, create_time\) VALUES \(\?, \?, \?, \?\)`,
+		9,
+		"i1",
+		"u1",
+		"Bob",
+		sqlmock.AnyArg(),
+	)
 
-	app := &App{favoriteService: NewFavoriteService(db)}
+	app := &App{favoriteService: NewFavoriteService(wrapMySQLDB(db))}
 
 	form := url.Values{}
 	form.Set("identityId", "i1")
@@ -69,11 +75,17 @@ func TestHandleFavoriteAdd_DBError(t *testing.T) {
 		WithArgs("i1", "u1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "identity_id", "target_user_id", "target_user_name", "create_time"}))
 
-	mock.ExpectExec(`INSERT INTO chat_favorites \(identity_id, target_user_id, target_user_name, create_time\) VALUES \(\?, \?, \?, \?\)`).
-		WithArgs("i1", "u1", "Bob", sqlmock.AnyArg()).
-		WillReturnError(sql.ErrConnDone)
+	expectInsertReturningIDError(
+		mock,
+		`INSERT INTO chat_favorites \(identity_id, target_user_id, target_user_name, create_time\) VALUES \(\?, \?, \?, \?\)`,
+		sql.ErrConnDone,
+		"i1",
+		"u1",
+		"Bob",
+		sqlmock.AnyArg(),
+	)
 
-	app := &App{favoriteService: NewFavoriteService(db)}
+	app := &App{favoriteService: NewFavoriteService(wrapMySQLDB(db))}
 
 	form := url.Values{}
 	form.Set("identityId", "i1")
@@ -106,7 +118,7 @@ func TestHandleFavoriteListAll_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "identity_id", "target_user_id", "target_user_name", "create_time"}).
 			AddRow(int64(1), "i1", "u1", sql.NullString{String: "Bob", Valid: true}, sql.NullTime{Time: createTime, Valid: true}))
 
-	app := &App{favoriteService: NewFavoriteService(db)}
+	app := &App{favoriteService: NewFavoriteService(wrapMySQLDB(db))}
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/favorite/list", nil)
 	rr := httptest.NewRecorder()
@@ -135,7 +147,7 @@ func TestHandleFavoriteCheck_NotFavorite(t *testing.T) {
 		WithArgs("i1", "u1").
 		WillReturnRows(sqlmock.NewRows([]string{"1"}))
 
-	app := &App{favoriteService: NewFavoriteService(db)}
+	app := &App{favoriteService: NewFavoriteService(wrapMySQLDB(db))}
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/favorite/check?identityId=i1&targetUserId=u1", nil)
 	rr := httptest.NewRecorder()
@@ -167,7 +179,7 @@ func TestHandleFavoriteRemove_IgnoresDBError(t *testing.T) {
 		WithArgs("i1", "u1").
 		WillReturnError(sql.ErrConnDone)
 
-	app := &App{favoriteService: NewFavoriteService(db)}
+	app := &App{favoriteService: NewFavoriteService(wrapMySQLDB(db))}
 
 	form := url.Values{}
 	form.Set("identityId", "i1")
@@ -258,7 +270,7 @@ func TestHandleFavoriteRemoveByID_Success(t *testing.T) {
 		WithArgs(int64(1)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	app := &App{favoriteService: NewFavoriteService(db)}
+	app := &App{favoriteService: NewFavoriteService(wrapMySQLDB(db))}
 
 	form := url.Values{}
 	form.Set("id", "1")
@@ -279,7 +291,7 @@ func TestHandleFavoriteListAll_DBError(t *testing.T) {
 	mock.ExpectQuery(`SELECT id, identity_id, target_user_id, target_user_name, create_time FROM chat_favorites ORDER BY create_time DESC`).
 		WillReturnError(sql.ErrConnDone)
 
-	app := &App{favoriteService: NewFavoriteService(db)}
+	app := &App{favoriteService: NewFavoriteService(wrapMySQLDB(db))}
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/favorite/list", nil)
 	rr := httptest.NewRecorder()
@@ -299,7 +311,7 @@ func TestHandleFavoriteCheck_DBError(t *testing.T) {
 		WithArgs("i1", "u1").
 		WillReturnError(sql.ErrConnDone)
 
-	app := &App{favoriteService: NewFavoriteService(db)}
+	app := &App{favoriteService: NewFavoriteService(wrapMySQLDB(db))}
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/favorite/check?identityId=i1&targetUserId=u1", nil)
 	rr := httptest.NewRecorder()

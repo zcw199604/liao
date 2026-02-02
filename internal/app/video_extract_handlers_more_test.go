@@ -63,7 +63,7 @@ func TestVideoExtractHandlers_HandleProbeVideo_Upload(t *testing.T) {
 	ffprobeOK := writeExecutable(t, "ffprobe-ok", "#!/bin/sh\necho '{\"streams\":[{\"width\":10,\"height\":20,\"avg_frame_rate\":\"30/1\"}],\"format\":{\"duration\":\"1.0\"}}'\n")
 
 	svc := &VideoExtractService{
-		db:        mustNewSQLMockDB(t),
+		db:        wrapMySQLDB(mustNewSQLMockDB(t)),
 		cfg:       config.Config{FFprobePath: ffprobeBad},
 		fileStore: &FileStorageService{baseUploadAbs: uploadRoot, baseTempAbs: filepath.Join(t.TempDir(), "temp")},
 		runtimes:  make(map[string]*videoExtractRuntime),
@@ -145,7 +145,7 @@ func TestVideoExtractHandlers_HandleProbeVideo_MtPhoto(t *testing.T) {
 
 	mt := NewMtPhotoService(srv.URL, "u", "p", "", lspRoot, srv.Client())
 	svc := &VideoExtractService{
-		db:        mustNewSQLMockDB(t),
+		db:        wrapMySQLDB(mustNewSQLMockDB(t)),
 		cfg:       config.Config{FFprobePath: ffprobeOK},
 		fileStore: &FileStorageService{baseUploadAbs: t.TempDir()},
 		mtPhoto:   mt,
@@ -242,7 +242,7 @@ func TestVideoExtractHandlers_CreateListDetailCancelContinueDelete(t *testing.T)
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	svc := &VideoExtractService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		cfg:       config.Config{FFprobePath: ffprobeOK, ServerPort: 8080, VideoExtractFramePageSz: 2},
 		fileStore: &FileStorageService{baseUploadAbs: uploadRoot, baseTempAbs: filepath.Join(t.TempDir(), "temp")},
 		queue:     make(chan string, 10),
@@ -475,7 +475,7 @@ func TestHandleProbeVideo_mtPhotoResolveError(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	mt := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
-	svc := &VideoExtractService{db: mustNewSQLMockDB(t), cfg: config.Config{FFprobePath: "ffprobe"}, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}, runtimes: make(map[string]*videoExtractRuntime)}
+	svc := &VideoExtractService{db: wrapMySQLDB(mustNewSQLMockDB(t)), cfg: config.Config{FFprobePath: "ffprobe"}, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}, runtimes: make(map[string]*videoExtractRuntime)}
 	t.Cleanup(func() { _ = svc.db.Close() })
 
 	a := &App{videoExtract: svc, mtPhoto: mt, cfg: config.Config{LspRoot: "/lsp"}}

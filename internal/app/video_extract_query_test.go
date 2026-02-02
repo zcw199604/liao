@@ -39,7 +39,7 @@ func TestVideoExtractService_ListTasks(t *testing.T) {
 		mock.ExpectQuery(`(?s)SELECT COUNT.*FROM video_extract_task`).
 			WillReturnError(sql.ErrConnDone)
 
-		svc := &VideoExtractService{db: db}
+		svc := &VideoExtractService{db: wrapMySQLDB(db)}
 		if _, _, err := svc.ListTasks(context.Background(), 1, 10, ""); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -54,7 +54,7 @@ func TestVideoExtractService_ListTasks(t *testing.T) {
 			WithArgs(10, 0).
 			WillReturnError(sql.ErrConnDone)
 
-		svc := &VideoExtractService{db: db}
+		svc := &VideoExtractService{db: wrapMySQLDB(db)}
 		if _, _, err := svc.ListTasks(context.Background(), 1, 10, ""); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -94,7 +94,7 @@ func TestVideoExtractService_ListTasks(t *testing.T) {
 		rt.setProgress(1, 1_000_000, "1.0x")
 
 		svc := &VideoExtractService{
-			db:       db,
+			db:       wrapMySQLDB(db),
 			cfg:      config.Config{ServerPort: 8080, VideoExtractFramePageSz: 20},
 			runtimes: map[string]*videoExtractRuntime{"t1": rt},
 		}
@@ -122,7 +122,7 @@ func TestVideoExtractService_GetTaskDetail(t *testing.T) {
 	t.Run("empty task", func(t *testing.T) {
 		db, _, cleanup := newSQLMock(t)
 		defer cleanup()
-		svc := &VideoExtractService{db: db}
+		svc := &VideoExtractService{db: wrapMySQLDB(db)}
 		if _, _, err := svc.GetTaskDetail(context.Background(), " ", 0, 10, ""); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -135,7 +135,7 @@ func TestVideoExtractService_GetTaskDetail(t *testing.T) {
 			WithArgs("t1").
 			WillReturnError(sql.ErrNoRows)
 
-		svc := &VideoExtractService{db: db}
+		svc := &VideoExtractService{db: wrapMySQLDB(db)}
 		if _, _, err := svc.GetTaskDetail(context.Background(), "t1", 0, 10, ""); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -175,7 +175,7 @@ func TestVideoExtractService_GetTaskDetail(t *testing.T) {
 			WithArgs("t1", 0, 3).
 			WillReturnRows(frameRows)
 
-		svc := &VideoExtractService{db: db, cfg: config.Config{ServerPort: 8080, VideoExtractFramePageSz: 2}}
+		svc := &VideoExtractService{db: wrapMySQLDB(db), cfg: config.Config{ServerPort: 8080, VideoExtractFramePageSz: 2}}
 		task, frames, err := svc.GetTaskDetail(context.Background(), "t1", -1, 2, "")
 		if err != nil {
 			t.Fatalf("err=%v", err)
@@ -217,7 +217,7 @@ func TestVideoExtractService_GetTaskDetail(t *testing.T) {
 			WithArgs("t1", 0, 2).
 			WillReturnRows(badRows)
 
-		svc := &VideoExtractService{db: db, cfg: config.Config{ServerPort: 8080, VideoExtractFramePageSz: 1}}
+		svc := &VideoExtractService{db: wrapMySQLDB(db), cfg: config.Config{ServerPort: 8080, VideoExtractFramePageSz: 1}}
 		if _, _, err := svc.GetTaskDetail(context.Background(), "t1", 0, 1, ""); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -255,7 +255,7 @@ func TestVideoExtractService_GetTaskDetail(t *testing.T) {
 			WithArgs("t1", 0, 2).
 			WillReturnRows(rows)
 
-		svc := &VideoExtractService{db: db, cfg: config.Config{ServerPort: 8080, VideoExtractFramePageSz: 1}}
+		svc := &VideoExtractService{db: wrapMySQLDB(db), cfg: config.Config{ServerPort: 8080, VideoExtractFramePageSz: 1}}
 		if _, _, err := svc.GetTaskDetail(context.Background(), "t1", 0, 1, ""); err == nil {
 			t.Fatalf("expected error")
 		}

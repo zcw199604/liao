@@ -328,7 +328,7 @@ func TestFileStorageService_FindLocalPathByMD5_EdgeCases(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	svc := &FileStorageService{db: db, baseUploadAbs: tempDir}
+	svc := &FileStorageService{db: wrapMySQLDB(db), baseUploadAbs: tempDir}
 	if got, err := svc.FindLocalPathByMD5(context.Background(), " "); err != nil || got != "" {
 		t.Fatalf("got=%q err=%v", got, err)
 	}

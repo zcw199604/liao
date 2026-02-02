@@ -6,14 +6,17 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"liao/internal/config"
+	"liao/internal/database"
 )
 
 var (
@@ -78,7 +81,7 @@ var (
 // App 负责组装依赖并提供 HTTP Handler。
 type App struct {
 	cfg config.Config
-	db  *sql.DB
+	db  *database.DB
 
 	httpClient *http.Client
 	jwt        *JWTService
@@ -240,44 +243,98 @@ func (a *App) Shutdown(ctx context.Context) {
 	}
 }
 
-func openDB(cfg config.Config) (*sql.DB, error) {
-	host, port, database, params, err := config.ParseJDBCMySQLURL(cfg.DBURL)
+func openDB(cfg config.Config) (*database.DB, error) {
+	scheme, host, port, databaseName, params, err := config.ParseJDBCURL(cfg.DBURL)
 	if err != nil {
 		return nil, err
 	}
 
-	loc := params.Get("serverTimezone")
-	if loc == "" {
-		loc = "Local"
+	d, err := database.DialectFromScheme(scheme)
+	if err != nil {
+		return nil, err
 	}
 
-	// 说明：parseTime 与 loc 对应 Java 侧 DATETIME/LocalDateTime 的常用用法。
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&loc=%s&charset=utf8mb4,utf8&collation=utf8mb4_unicode_ci&timeout=15s&readTimeout=15s&writeTimeout=15s",
-		cfg.DBUsername,
-		cfg.DBPassword,
-		host,
-		port,
-		database,
-		urlQueryEscape(loc),
-	)
+	s := strings.ToLower(strings.TrimSpace(scheme))
+	driverName := d.DriverName()
+	dsn := ""
+	switch s {
+	case "mysql":
+		loc := getQueryParamCI(params, "serverTimezone")
+		if loc == "" {
+			loc = "Local"
+		}
 
-	db, err := sqlOpenFn("mysql", dsn)
+		// 说明：parseTime 与 loc 对应 Java 侧 DATETIME/LocalDateTime 的常用用法。
+		dsn = fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&loc=%s&charset=utf8mb4,utf8&collation=utf8mb4_unicode_ci&timeout=15s&readTimeout=15s&writeTimeout=15s",
+			cfg.DBUsername,
+			cfg.DBPassword,
+			host,
+			port,
+			databaseName,
+			urlQueryEscape(loc),
+		)
+	case "postgres", "postgresql":
+		u := &url.URL{
+			Scheme: "postgres",
+			Host:   fmt.Sprintf("%s:%d", host, port),
+			Path:   "/" + databaseName,
+		}
+		if strings.TrimSpace(cfg.DBUsername) != "" {
+			if cfg.DBPassword != "" {
+				u.User = url.UserPassword(cfg.DBUsername, cfg.DBPassword)
+			} else {
+				u.User = url.User(cfg.DBUsername)
+			}
+		}
+
+		// Best-effort compatibility: allow users to switch DB by only changing DB_URL scheme,
+		// while keeping some legacy MySQL query params.
+		q := filterPostgresParams(params)
+
+		// Keep local dev painless; production can override via DB_URL.
+		if strings.TrimSpace(getQueryParamCI(q, "sslmode")) == "" {
+			if useSSL := strings.TrimSpace(getQueryParamCI(params, "useSSL")); useSSL != "" {
+				if isTruthy(useSSL) {
+					q.Set("sslmode", "require")
+				} else {
+					q.Set("sslmode", "disable")
+				}
+			} else {
+				q.Set("sslmode", "disable")
+			}
+		}
+
+		// MySQL commonly uses serverTimezone=Asia/Shanghai. For Postgres, map it to timezone
+		// (a run-time parameter) so "CURRENT_TIMESTAMP" and timestamptz formatting are consistent.
+		if strings.TrimSpace(getQueryParamCI(q, "timezone")) == "" {
+			if tz := strings.TrimSpace(getQueryParamCI(params, "serverTimezone")); tz != "" {
+				q.Set("timezone", tz)
+			}
+		}
+
+		u.RawQuery = q.Encode()
+		dsn = u.String()
+	default:
+		return nil, fmt.Errorf("unsupported DB_URL scheme: %s", scheme)
+	}
+
+	sqlDB, err := sqlOpenFn(driverName, dsn)
 	if err != nil {
 		return nil, fmt.Errorf("打开数据库失败: %w", err)
 	}
 
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(10)
-	db.SetConnMaxLifetime(30 * time.Minute)
+	sqlDB.SetMaxOpenConns(10)
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetConnMaxLifetime(30 * time.Minute)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
+	if err := sqlDB.PingContext(ctx); err != nil {
+		_ = sqlDB.Close()
 		return nil, fmt.Errorf("连接数据库失败: %w", err)
 	}
 
-	return db, nil
+	return database.Wrap(sqlDB, d), nil
 }
 
 func urlQueryEscape(input string) string {
@@ -286,6 +343,65 @@ func urlQueryEscape(input string) string {
 	// 常见值如 Asia/Shanghai，需要将 / 转义为 %2F。
 	replacer := strings.NewReplacer("/", "%2F", " ", "%20")
 	return replacer.Replace(input)
+}
+
+func getQueryParamCI(values url.Values, key string) string {
+	if values == nil {
+		return ""
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return ""
+	}
+	if v := strings.TrimSpace(values.Get(key)); v != "" {
+		return v
+	}
+	for k, vs := range values {
+		if !strings.EqualFold(k, key) {
+			continue
+		}
+		for _, v := range vs {
+			if vv := strings.TrimSpace(v); vv != "" {
+				return vv
+			}
+		}
+		if len(vs) > 0 {
+			return strings.TrimSpace(vs[0])
+		}
+	}
+	return ""
+}
+
+func filterPostgresParams(params url.Values) url.Values {
+	out := url.Values{}
+	for k, vs := range params {
+		// Drop common MySQL-only JDBC parameters to avoid "unrecognized configuration parameter"
+		// errors when switching the scheme to postgres/postgresql.
+		switch strings.ToLower(strings.TrimSpace(k)) {
+		case "usessl",
+			"servertimezone",
+			"characterencoding",
+			"allowpublickeyretrieval",
+			"useunicode",
+			"usejdbccomplianttimezoneshift",
+			"uselegacydatetimecode":
+			continue
+		}
+
+		copied := make([]string, len(vs))
+		copy(copied, vs)
+		out[k] = copied
+	}
+	return out
+}
+
+func isTruthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "t", "yes", "y", "on", "require", "required":
+		return true
+	default:
+		return false
+	}
 }
 
 func resolveStaticDir() string {

@@ -177,7 +177,7 @@ func TestVideoExtractHandlers_OtherErrorBranches(t *testing.T) {
 	t.Run("handleCreateVideoExtractTask CreateTask error", func(t *testing.T) {
 		db, _, cleanup := newSQLMock(t)
 		defer cleanup()
-		app := &App{videoExtract: &VideoExtractService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}}
+		app := &App{videoExtract: &VideoExtractService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}}
 		body, _ := json.Marshal(VideoExtractCreateRequest{SourceType: VideoExtractSourceUpload, LocalPath: "/x.mp4", Mode: VideoExtractModeAll, MaxFrames: 0})
 		req := httptest.NewRequest(http.MethodPost, "http://api.local/api/createVideoExtractTask", bytes.NewReader(body))
 		rec := httptest.NewRecorder()

@@ -7,6 +7,7 @@
 
 | 时间戳 | 名称 | 类型 | 涉及模块 | 决策 | 结果 |
 |--------|------|------|---------|------|------|
+| 202602011533 | db-dualstack-mysql-postgres | 重构 | DB/internal/database | db-dualstack-mysql-postgres#D001, db-dualstack-mysql-postgres#D002, db-dualstack-mysql-postgres#D003, db-dualstack-mysql-postgres#D004 | ✅完成 |
 | 202602011343 | douyin-cookiecloud-cookie | - | - | - | ✅完成 |
 | 202601311525 | ui-theme-media-menu-fix | 修复 | Frontend/Settings/Media | ui-theme-media-menu-fix#D001, ui-theme-media-menu-fix#D002 | ✅完成 |
 | 202601240917 | douyin-favorite-tags | - | - | - | ✅完成 |
@@ -15,6 +16,10 @@
 | 202601220044 | tests-boundary-cases | 测试 | Identity/Favorite/Douyin/MediaUpload/Chat UI | tests-boundary-cases#D001 | ✅完成 |
 
 ## 按月归档
+
+### 2026-02
+- [202602011533_db-dualstack-mysql-postgres](./2026-02/202602011533_db-dualstack-mysql-postgres/) - 数据库支持 MySQL + PostgreSQL 双栈（仅通过 `DB_URL` scheme 切换）
+- [202602011343_douyin-cookiecloud-cookie](./2026-02/202602011343_douyin-cookiecloud-cookie/) - 抖音上游请求支持从 CookieCloud 懒加载获取并缓存 Cookie
 
 ### 2026-01
 - [202601311525_ui-theme-media-menu-fix](./2026-01/202601311525_ui-theme-media-menu-fix/) - 修复浅色主题图片管理对比度不足与移动端弹窗头部竖排

@@ -262,7 +262,7 @@ func TestFileStorageService_EnsureVideoPosterLogged(t *testing.T) {
 
 func TestMediaUploadService_RepairVideoPosters_Validation(t *testing.T) {
 	// Ensure video_poster_repair.go validation branches are covered without requiring ffmpeg/ffprobe.
-	svc := &MediaUploadService{db: mustNewSQLMockDB(t), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+	svc := &MediaUploadService{db: wrapMySQLDB(mustNewSQLMockDB(t)), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 	t.Cleanup(func() { _ = svc.db.Close() })
 
 	if _, err := svc.RepairVideoPosters(context.Background(), "ffmpeg", "ffprobe", RepairVideoPostersRequest{Commit: false, Source: "bad"}); err == nil {
@@ -293,7 +293,7 @@ func TestMediaUploadService_RepairVideoPosters_LimitClampAndDryRun(t *testing.T)
 		WillReturnRows(sqlmock.NewRows([]string{"id", "local_path", "file_type", "file_extension"}).
 			AddRow(int64(1), videoLocalPath, "video/mp4", "mp4"))
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: uploadRoot}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: uploadRoot}}
 	res, err := svc.RepairVideoPosters(context.Background(), "ffmpeg", "ffprobe", RepairVideoPostersRequest{
 		Commit: false,
 		Limit:  0,

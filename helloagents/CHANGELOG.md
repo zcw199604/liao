@@ -7,6 +7,9 @@
 ## [Unreleased]
 
 ### 新增
+- 后端：数据库支持 MySQL + PostgreSQL 双栈；运行时仅通过 `DB_URL` 的 scheme 选择数据库类型（兼容 `jdbc:` 前缀），并新增 `internal/database` 方言层以统一占位符与 Upsert/InsertIgnore/Returning 等差异；同时引入 `schema_migrations` + `sql/{dialect}/*.sql` 版本化迁移机制（启动时自动执行）。
+  - PostgreSQL 连接会过滤常见 MySQL-only query 参数，并在未显式提供时 best-effort 映射 `serverTimezone`→`timezone`、`useSSL`→`sslmode`，以支持仅改 scheme 即可切库。
+  - PostgreSQL 对抖音收藏标签名（`douyin_favorite_user_tag.name` / `douyin_favorite_aweme_tag.name`）增加大小写不敏感唯一索引 `UNIQUE (LOWER(name))`，对齐 MySQL 常见 collation 的行为。
 - 后端/前端：本地上传视频（`/api/uploadMedia`）落盘后使用 `ffmpeg` 自动生成 poster 封面图（`/videos/.../*.poster.jpg`），并在“上传菜单/全站媒体库/画廊缩略图”中通过 `MediaTile poster` 展示视频缩略图，改善列表浏览体验。
 - 后端：新增历史视频 poster 补齐接口 `POST /api/repairVideoPosters`（支持 dry-run + 分页游标），用于为已上传的视频批量生成 `*.poster.jpg` 封面图。
 - 知识库：新增外部参考文档《TikTokDownloader Web API（FastAPI）整理》（`helloagents/wiki/external/tiktokdownloader-web-api.md`）。

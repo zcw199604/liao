@@ -66,7 +66,7 @@ func TestMediaUploadService_DeleteMediaByPath_Success(t *testing.T) {
 	defer cleanup()
 
 	fileStore := &FileStorageService{baseUploadAbs: tempDir}
-	svc := &MediaUploadService{db: db, fileStore: fileStore}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: fileStore}
 
 	localPath := "/images/2026/01/10/x.png"
 	full := filepath.Join(tempDir, filepath.FromSlash(strings.TrimPrefix(localPath, "/")))
@@ -139,7 +139,7 @@ func TestMediaUploadService_DeleteMediaByPath_FileMD5StillUsed_DoesNotDeleteFile
 	defer cleanup()
 
 	fileStore := &FileStorageService{baseUploadAbs: tempDir}
-	svc := &MediaUploadService{db: db, fileStore: fileStore}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: fileStore}
 
 	localPath := "/images/2026/01/10/x.png"
 	full := filepath.Join(tempDir, filepath.FromSlash(strings.TrimPrefix(localPath, "/")))
@@ -283,7 +283,7 @@ func TestMediaUploadService_FindByRemoteURLAndFilename(t *testing.T) {
 		WithArgs("http://remote", "u1").
 		WillReturnRows(rows)
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	got, err := svc.findMediaFileByRemoteURL(context.Background(), "http://remote", "u1")
 	if err != nil || got == nil || got.ID != 1 {
 		t.Fatalf("got=%+v err=%v", got, err)

@@ -26,17 +26,17 @@ func TestSystemConfigService_EnsureDefaults_InsertsAndErrors(t *testing.T) {
 		defer cleanup()
 		mock.MatchExpectationsInOrder(false)
 
-		mock.ExpectExec(`INSERT IGNORE INTO system_config`).
+		mock.ExpectExec(`INSERT (IGNORE )?INTO system_config`).
 			WithArgs(systemConfigKeyImagePortMode, string(defaultSystemConfig.ImagePortMode), sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
-		mock.ExpectExec(`INSERT IGNORE INTO system_config`).
+		mock.ExpectExec(`INSERT (IGNORE )?INTO system_config`).
 			WithArgs(systemConfigKeyImagePortFixed, defaultSystemConfig.ImagePortFixed, sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
-		mock.ExpectExec(`INSERT IGNORE INTO system_config`).
+		mock.ExpectExec(`INSERT (IGNORE )?INTO system_config`).
 			WithArgs(systemConfigKeyImagePortRealMinBytes, "2048", sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
-		svc := NewSystemConfigService(db)
+		svc := NewSystemConfigService(wrapMySQLDB(db))
 		if err := svc.EnsureDefaults(context.Background()); err != nil {
 			t.Fatalf("EnsureDefaults: %v", err)
 		}
@@ -46,11 +46,11 @@ func TestSystemConfigService_EnsureDefaults_InsertsAndErrors(t *testing.T) {
 		db, mock, cleanup := newSQLMock(t)
 		defer cleanup()
 
-		mock.ExpectExec(`INSERT IGNORE INTO system_config`).
+		mock.ExpectExec(`INSERT (IGNORE )?INTO system_config`).
 			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnError(errors.New("insert fail"))
 
-		svc := NewSystemConfigService(db)
+		svc := NewSystemConfigService(wrapMySQLDB(db))
 		if err := svc.EnsureDefaults(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -81,7 +81,7 @@ func TestSystemConfigService_Update_UpsertsAndCaches(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	svc := NewSystemConfigService(db)
+	svc := NewSystemConfigService(wrapMySQLDB(db))
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`INSERT INTO system_config`).
@@ -134,7 +134,7 @@ func TestSystemConfigService_Get_LoadsFromDBWithDefaults(t *testing.T) {
 			AddRow(systemConfigKeyImagePortRealMinBytes, "4096"),
 		)
 
-	svc := NewSystemConfigService(db)
+	svc := NewSystemConfigService(wrapMySQLDB(db))
 	cfg, err := svc.Get(context.Background())
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
@@ -159,7 +159,7 @@ func TestSystemConfigService_Get_LoadError(t *testing.T) {
 		WithArgs(systemConfigKeyImagePortMode, systemConfigKeyImagePortFixed, systemConfigKeyImagePortRealMinBytes).
 		WillReturnError(errors.New("query fail"))
 
-	svc := NewSystemConfigService(db)
+	svc := NewSystemConfigService(wrapMySQLDB(db))
 	if _, err := svc.Get(context.Background()); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -181,7 +181,7 @@ func TestSystemConfigService_Get_Load_IgnoresInvalidValues(t *testing.T) {
 			AddRow(systemConfigKeyImagePortRealMinBytes, "4096"),
 		)
 
-	svc := NewSystemConfigService(db)
+	svc := NewSystemConfigService(wrapMySQLDB(db))
 	cfg, err := svc.Get(context.Background())
 	if err != nil {
 		t.Fatalf("Get: %v", err)
@@ -208,7 +208,7 @@ func TestSystemConfigService_Get_Load_ScanErrorAndRowsErr(t *testing.T) {
 				AddRow(systemConfigKeyImagePortMode, nil),
 			)
 
-		svc := NewSystemConfigService(db)
+		svc := NewSystemConfigService(wrapMySQLDB(db))
 		if _, err := svc.Get(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -225,7 +225,7 @@ func TestSystemConfigService_Get_Load_ScanErrorAndRowsErr(t *testing.T) {
 				RowError(0, errors.New("next fail")),
 			)
 
-		svc := NewSystemConfigService(db)
+		svc := NewSystemConfigService(wrapMySQLDB(db))
 		if _, err := svc.Get(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -244,7 +244,7 @@ func TestSystemConfigService_Update_Errors(t *testing.T) {
 		db, _, cleanup := newSQLMock(t)
 		defer cleanup()
 
-		svc := NewSystemConfigService(db)
+		svc := NewSystemConfigService(wrapMySQLDB(db))
 		if _, err := svc.Update(context.Background(), SystemConfig{ImagePortMode: ImagePortMode("bad")}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -256,7 +256,7 @@ func TestSystemConfigService_Update_Errors(t *testing.T) {
 
 		mock.ExpectBegin().WillReturnError(errors.New("begin fail"))
 
-		svc := NewSystemConfigService(db)
+		svc := NewSystemConfigService(wrapMySQLDB(db))
 		if _, err := svc.Update(context.Background(), defaultSystemConfig); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -272,7 +272,7 @@ func TestSystemConfigService_Update_Errors(t *testing.T) {
 			WillReturnError(errors.New("upsert fail"))
 		mock.ExpectRollback()
 
-		svc := NewSystemConfigService(db)
+		svc := NewSystemConfigService(wrapMySQLDB(db))
 		if _, err := svc.Update(context.Background(), defaultSystemConfig); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -291,7 +291,7 @@ func TestSystemConfigService_Update_Errors(t *testing.T) {
 			WillReturnError(errors.New("upsert fail"))
 		mock.ExpectRollback()
 
-		svc := NewSystemConfigService(db)
+		svc := NewSystemConfigService(wrapMySQLDB(db))
 		if _, err := svc.Update(context.Background(), defaultSystemConfig); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -313,7 +313,7 @@ func TestSystemConfigService_Update_Errors(t *testing.T) {
 			WillReturnError(errors.New("upsert fail"))
 		mock.ExpectRollback()
 
-		svc := NewSystemConfigService(db)
+		svc := NewSystemConfigService(wrapMySQLDB(db))
 		if _, err := svc.Update(context.Background(), defaultSystemConfig); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -335,7 +335,7 @@ func TestSystemConfigService_Update_Errors(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit().WillReturnError(errors.New("commit fail"))
 
-		svc := NewSystemConfigService(db)
+		svc := NewSystemConfigService(wrapMySQLDB(db))
 		if _, err := svc.Update(context.Background(), defaultSystemConfig); err == nil {
 			t.Fatalf("expected error")
 		}

@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"io"
 	"log/slog"
@@ -10,9 +11,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"os"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/go-sql-driver/mysql"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"liao/internal/database"
 )
 
 func init() {
@@ -65,7 +73,7 @@ func newMultipartRequest(t *testing.T, method, url, fieldName, filename, content
 func newSQLMock(t *testing.T) (*sql.DB, sqlmock.Sqlmock, func()) {
 	t.Helper()
 
-	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(placeholderNormalizingMatcher{}))
 	if err != nil {
 		t.Fatalf("创建 sqlmock 失败: %v", err)
 	}
@@ -83,9 +91,66 @@ func newSQLMock(t *testing.T) (*sql.DB, sqlmock.Sqlmock, func()) {
 func mustNewSQLMockDB(t *testing.T) *sql.DB {
 	t.Helper()
 
-	db, _, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	db, _, err := sqlmock.New(sqlmock.QueryMatcherOption(placeholderNormalizingMatcher{}))
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	return db
+}
+
+var placeholderDollarRe = regexp.MustCompile(`\\$\\d+`)
+
+// placeholderNormalizingMatcher makes sqlmock expectations reusable for both MySQL ('?')
+// and Postgres ('$1..$n') placeholder styles by normalizing actual queries.
+//
+// This lets most tests keep using '?' patterns even when the DB wrapper rebinding is enabled.
+type placeholderNormalizingMatcher struct{}
+
+func (placeholderNormalizingMatcher) Match(expectedSQL, actualSQL string) error {
+	normalized := placeholderDollarRe.ReplaceAllString(actualSQL, "?")
+	return sqlmock.QueryMatcherRegexp.Match(expectedSQL, normalized)
+}
+
+// For sqlmock-based tests, keep placeholders as '?' even in "postgres" mode.
+// The real runtime path rebinding to '$1..$n' is covered by internal/database tests.
+type testPostgresDialect struct{ database.PostgresDialect }
+
+func (testPostgresDialect) Rebind(query string) string { return query }
+
+func testDialect() database.Dialect {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("TEST_DB_DIALECT")))
+	switch v {
+	case "postgres", "postgresql", "pg":
+		return testPostgresDialect{}
+	default:
+		return database.MySQLDialect{}
+	}
+}
+
+func wrapMySQLDB(db *sql.DB) *database.DB {
+	return database.Wrap(db, testDialect())
+}
+
+func expectInsertReturningID(mock sqlmock.Sqlmock, query string, id int64, args ...driver.Value) {
+	if testDialect().Name() == "postgres" {
+		rows := sqlmock.NewRows([]string{"id"}).AddRow(id)
+		mock.ExpectQuery(query).WithArgs(args...).WillReturnRows(rows)
+		return
+	}
+	mock.ExpectExec(query).WithArgs(args...).WillReturnResult(sqlmock.NewResult(id, 1))
+}
+
+func expectInsertReturningIDError(mock sqlmock.Sqlmock, query string, err error, args ...driver.Value) {
+	if testDialect().Name() == "postgres" {
+		mock.ExpectQuery(query).WithArgs(args...).WillReturnError(err)
+		return
+	}
+	mock.ExpectExec(query).WithArgs(args...).WillReturnError(err)
+}
+
+func duplicateKeyErr() error {
+	if testDialect().Name() == "postgres" {
+		return &pgconn.PgError{Code: "23505"}
+	}
+	return &mysql.MySQLError{Number: 1062, Message: "dup"}
 }

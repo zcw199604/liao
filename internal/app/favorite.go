@@ -3,8 +3,11 @@ package app
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"time"
+
+	"liao/internal/database"
 )
 
 type Favorite struct {
@@ -16,14 +19,17 @@ type Favorite struct {
 }
 
 type FavoriteService struct {
-	db *sql.DB
+	db *database.DB
 }
 
-func NewFavoriteService(db *sql.DB) *FavoriteService {
+func NewFavoriteService(db *database.DB) *FavoriteService {
 	return &FavoriteService{db: db}
 }
 
 func (s *FavoriteService) Add(ctx context.Context, identityID, targetUserID, targetUserName string) (*Favorite, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("db not initialized")
+	}
 	existing, err := s.findByIdentityAndTarget(ctx, identityID, targetUserID)
 	if err != nil {
 		return nil, err
@@ -33,13 +39,12 @@ func (s *FavoriteService) Add(ctx context.Context, identityID, targetUserID, tar
 	}
 
 	now := time.Now()
-	res, err := s.db.ExecContext(ctx,
+	id, err := database.InsertReturningID(ctx, s.db,
 		"INSERT INTO chat_favorites (identity_id, target_user_id, target_user_name, create_time) VALUES (?, ?, ?, ?)",
 		identityID, targetUserID, nullIfEmpty(targetUserName), now)
 	if err != nil {
 		return nil, err
 	}
-	id, _ := res.LastInsertId()
 
 	return &Favorite{
 		ID:             id,

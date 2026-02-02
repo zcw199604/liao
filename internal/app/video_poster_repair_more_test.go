@@ -55,7 +55,7 @@ func TestMediaUploadService_RepairVideoPosters_MixedBranchesAndHasMore(t *testin
 			AddRow(int64(5), needVideo, "video/mp4", "mp4").             // poster missing, dry-run
 			AddRow(int64(6), "/videos/extra.mp4", "video/mp4", "mp4"))   // extra row => hasMore
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: uploadRoot}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: uploadRoot}}
 	res, err := svc.RepairVideoPosters(context.Background(), "ffmpeg", "ffprobe", RepairVideoPostersRequest{
 		Commit: false,
 		Limit:  5,
@@ -117,7 +117,7 @@ func TestMediaUploadService_RepairVideoPosters_Local_PosterGenerationFailed(t *t
 		WillReturnRows(sqlmock.NewRows([]string{"id", "local_path", "file_type", "file_extension"}).
 			AddRow(int64(1), videoLocalPath, "video/mp4", "mp4"))
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: uploadRoot}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: uploadRoot}}
 	res, err := svc.RepairVideoPosters(context.Background(), ffmpegBad, ffprobeOK, RepairVideoPostersRequest{
 		Commit:       true,
 		Source:       "local",
@@ -147,7 +147,7 @@ func TestMediaUploadService_RepairVideoPosters_LimitClampAndDouyinSource(t *test
 		WithArgs(int64(0), 2001).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "local_path", "file_type", "file_extension"}))
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 	res, err := svc.RepairVideoPosters(context.Background(), "ffmpeg", "ffprobe", RepairVideoPostersRequest{
 		Commit: false,
 		Source: "douyin",
@@ -165,7 +165,7 @@ func TestMediaUploadService_RepairVideoPosters_LimitClampAndDouyinSource(t *test
 }
 
 func TestMediaUploadService_RepairVideoPosters_CommitFFmpegNotFound(t *testing.T) {
-	svc := &MediaUploadService{db: mustNewSQLMockDB(t), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+	svc := &MediaUploadService{db: wrapMySQLDB(mustNewSQLMockDB(t)), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 	t.Cleanup(func() { _ = svc.db.Close() })
 
 	if _, err := svc.RepairVideoPosters(context.Background(), "definitely-not-a-real-ffmpeg-bin", "ffprobe", RepairVideoPostersRequest{Commit: true}); err == nil {

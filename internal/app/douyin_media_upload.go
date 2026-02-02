@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"strings"
 	"time"
+
+	"liao/internal/database"
 )
 
 type mediaFileSource string
@@ -52,7 +54,7 @@ func (s *MediaUploadService) SaveDouyinUploadRecord(ctx context.Context, record 
 	}
 
 	now := time.Now()
-	res, err := s.db.ExecContext(ctx, `INSERT INTO douyin_media_file
+	id, err := database.InsertReturningID(ctx, s.db, `INSERT INTO douyin_media_file
 		(user_id, sec_user_id, detail_id, original_filename, local_filename, remote_filename, remote_url, local_path, file_size, file_type, file_extension, file_md5, upload_time, update_time, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		record.UserID,
@@ -74,7 +76,6 @@ func (s *MediaUploadService) SaveDouyinUploadRecord(ctx context.Context, record 
 	if err != nil {
 		return nil, err
 	}
-	id, _ := res.LastInsertId()
 
 	return &MediaUploadHistory{
 		ID:               id,

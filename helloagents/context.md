@@ -26,6 +26,7 @@
 | chi | 见 go.mod | HTTP 路由 |
 | gorilla/websocket | 见 go.mod | WebSocket |
 | go-sql-driver/mysql | 见 go.mod | MySQL 驱动 |
+| pgx/v5/stdlib | 见 go.mod | PostgreSQL 驱动 |
 | go-redis（可选） | 见 go.mod | 缓存 |
 | Vue | 3.5.24 | 前端框架 |
 | Vite | 7.2.4 | 构建工具 |
@@ -78,6 +79,11 @@ Go:
 ### 配置约定
 
 - 运行时配置通过环境变量提供（Go 服务不读取 `src/main/resources/application.yml`，该文件仅作为 env 默认值对照表保留）
+- 数据库类型仅通过 `DB_URL` 的 scheme 选择：`mysql` / `postgres` / `postgresql`（兼容 `jdbc:` 前缀）
+- 为支持“仅改 scheme 即可切换数据库”：
+  - PostgreSQL 连接会自动过滤常见 MySQL-only query 参数（如 `useSSL/serverTimezone/characterEncoding/allowPublicKeyRetrieval`），避免传入 PG 后导致 `unrecognized configuration parameter` 报错
+  - 若 `DB_URL` 中存在 `serverTimezone=Asia/Shanghai`，PostgreSQL 连接会将其映射为 `timezone=Asia/Shanghai`（运行时参数），以尽量对齐 MySQL 的时区语义；如需显式指定可直接在 `DB_URL` 里写 `timezone=...`
+  - 若未显式提供 `sslmode`，且存在 `useSSL=true/false`，会 best-effort 映射为 `sslmode=require/disable`
 - 本地运行至少需要（按实际功能启用情况）:
   - `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`
   - `WEBSOCKET_UPSTREAM_URL`

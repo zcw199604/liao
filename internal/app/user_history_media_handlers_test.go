@@ -50,7 +50,7 @@ func TestHandleGetCachedImages_WithCache(t *testing.T) {
 		imageCache:  NewImageCacheService(),
 		imageServer: NewImageServerService("img-host", "9003"),
 		systemConfig: &SystemConfigService{
-			db:     db,
+			db:     wrapMySQLDB(db),
 			loaded: true,
 			cached: SystemConfig{
 				ImagePortMode:         ImagePortModeProbe,

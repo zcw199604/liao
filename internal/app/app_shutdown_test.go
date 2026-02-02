@@ -9,6 +9,8 @@ import (
 	"os"
 	"sync/atomic"
 	"testing"
+
+	"liao/internal/database"
 )
 
 type closableUserInfoCache struct {
@@ -92,7 +94,7 @@ func TestAppShutdown_ClosesClosableCaches_AndLogsDBCloseError(t *testing.T) {
 	chc := &closableChatHistoryCache{}
 
 	application := &App{
-		db:               db,
+		db:               database.Wrap(db, database.MySQLDialect{}),
 		userInfoCache:    uic,
 		chatHistoryCache: chc,
 	}

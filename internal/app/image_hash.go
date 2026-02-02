@@ -16,6 +16,8 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+
+	"liao/internal/database"
 )
 
 // ErrPHashUnsupported 表示该文件无法计算 pHash（非图片或解码失败等）。
@@ -67,10 +69,10 @@ type ImageHashMatch struct {
 
 // ImageHashService 提供 image_hash 表查询与 pHash 计算能力（仅用于读/比对）。
 type ImageHashService struct {
-	db *sql.DB
+	db *database.DB
 }
 
-func NewImageHashService(db *sql.DB) *ImageHashService {
+func NewImageHashService(db *database.DB) *ImageHashService {
 	return &ImageHashService{db: db}
 }
 
@@ -113,14 +115,28 @@ func (s *ImageHashService) FindSimilarByPHash(ctx context.Context, phash int64, 
 	limit = clampInt(limit, 1, 500)
 	maxDistance = clampInt(maxDistance, 0, phashBitLength)
 
-	rows, err := s.db.QueryContext(ctx, `
+	query := `
 		SELECT
 			id, file_path, file_name, file_dir, md5_hash, phash, file_size, created_at,
 			BIT_COUNT(CAST(phash AS UNSIGNED) ^ CAST(? AS UNSIGNED)) AS distance
 		FROM image_hash
 		WHERE BIT_COUNT(CAST(phash AS UNSIGNED) ^ CAST(? AS UNSIGNED)) <= ?
 		ORDER BY distance ASC, id DESC
-		LIMIT ?`, phash, phash, maxDistance, limit)
+		LIMIT ?`
+	if s.db.Dialect().Name() == "postgres" {
+		// Compute 64-bit Hamming distance using bitwise XOR on bigint and count '1's.
+		// This avoids relying on non-core extensions (e.g. no custom popcount required).
+		query = `
+			SELECT
+				id, file_path, file_name, file_dir, md5_hash, phash, file_size, created_at,
+				length(replace(((phash # ?)::bit(64))::text, '0', '')) AS distance
+			FROM image_hash
+			WHERE length(replace(((phash # ?)::bit(64))::text, '0', '')) <= ?
+			ORDER BY distance ASC, id DESC
+			LIMIT ?`
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, phash, phash, maxDistance, limit)
 	if err != nil {
 		return nil, err
 	}

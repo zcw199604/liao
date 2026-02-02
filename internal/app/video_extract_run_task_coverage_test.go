@@ -38,7 +38,7 @@ func TestVideoExtractService_runTask_ReturnsNilWhenAlreadyRunning(t *testing.T) 
 		))
 
 	svc := &VideoExtractService{
-		db:       db,
+		db:       wrapMySQLDB(db),
 		runtimes: map[string]*videoExtractRuntime{taskID: {}},
 	}
 	if err := svc.runTask(taskID); err != nil {
@@ -81,7 +81,7 @@ func TestVideoExtractService_runTask_SetStatusError_And_EndSecReachedEarly(t *te
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	svc := &VideoExtractService{
-		db:       db,
+		db:       wrapMySQLDB(db),
 		runtimes: make(map[string]*videoExtractRuntime),
 	}
 	if err := svc.runTask(taskID); err != nil {
@@ -117,7 +117,7 @@ func TestVideoExtractService_runTask_FramesRemainingZero(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	svc := &VideoExtractService{
-		db:       db,
+		db:       wrapMySQLDB(db),
 		runtimes: make(map[string]*videoExtractRuntime),
 	}
 	if err := svc.runTask(taskID); err != nil {
@@ -159,7 +159,7 @@ func TestVideoExtractService_runTask_OutputFormatDefaultAndMkdirAllError(t *test
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	svc := &VideoExtractService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 		runtimes:  make(map[string]*videoExtractRuntime),
 	}
@@ -205,7 +205,7 @@ func TestVideoExtractService_runTask_KeyframeScene_StdoutPipeError(t *testing.T)
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	svc := &VideoExtractService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		cfg:       config.Config{FFmpegPath: "ffmpeg"},
 		fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 		runtimes:  make(map[string]*videoExtractRuntime),
@@ -250,7 +250,7 @@ func TestVideoExtractService_runTask_KeyframeIFrame_StderrPipeError(t *testing.T
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	svc := &VideoExtractService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		cfg:       config.Config{FFmpegPath: "ffmpeg"},
 		fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 		runtimes:  make(map[string]*videoExtractRuntime),
@@ -289,7 +289,7 @@ func TestVideoExtractService_runTask_FPS_StartError(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	svc := &VideoExtractService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		cfg:       config.Config{FFmpegPath: filepath.Join(t.TempDir(), "missing-ffmpeg")},
 		fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 		runtimes:  make(map[string]*videoExtractRuntime),
@@ -366,7 +366,7 @@ exit 0
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	svc := &VideoExtractService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		cfg:       config.Config{FFmpegPath: ffmpegPath},
 		fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 		queue:     make(chan string, 1),
@@ -443,7 +443,7 @@ func TestVideoExtractService_runTask_LoadTaskRowAfterRunError(t *testing.T) {
 		WillReturnError(sql.ErrConnDone)
 
 	svc := &VideoExtractService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		cfg:       config.Config{FFmpegPath: ffmpegPath},
 		fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 		runtimes:  make(map[string]*videoExtractRuntime),
@@ -498,7 +498,7 @@ func TestVideoExtractService_runTask_FFmpegExitError_UsesLastStderrLine(t *testi
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	svc := &VideoExtractService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		cfg:       config.Config{FFmpegPath: ffmpegPath},
 		fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 		runtimes:  make(map[string]*videoExtractRuntime),
@@ -553,7 +553,7 @@ func TestVideoExtractService_runTask_FFmpegExitError_FallbackToWaitErr(t *testin
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	svc := &VideoExtractService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		cfg:       config.Config{FFmpegPath: ffmpegPath},
 		fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 		runtimes:  make(map[string]*videoExtractRuntime),
@@ -613,7 +613,7 @@ func TestVideoExtractService_runTask_EndSecStopReason(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	svc := &VideoExtractService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		cfg:       config.Config{FFmpegPath: ffmpegPath},
 		fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 		runtimes:  make(map[string]*videoExtractRuntime),

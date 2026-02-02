@@ -8,7 +8,7 @@
 - **Go** 1.25.6 - 开发语言
 - **chi** - HTTP 路由
 - **gorilla/websocket** - WebSocket（下游服务端 + 上游客户端）
-- **MySQL (go-sql-driver/mysql)** - 数据库驱动
+- **MySQL (go-sql-driver/mysql) / PostgreSQL (pgx)** - 数据库驱动（由 `DB_URL` 的 scheme 决定）
 - **Redis (可选：go-redis)** - 用户信息/最后消息/聊天记录缓存
 - **JWT (golang-jwt/jwt)** - 身份认证
 
@@ -37,7 +37,7 @@
 ### 环境要求
 
 - **Node.js** 18+ 和 npm
-- **MySQL** 8.0+
+- **MySQL** 8.0+ 或 **PostgreSQL** 13+（二选一）
 - **Go** 1.25.6（本地开发需要；生产建议 Docker）
 
 ### 安装步骤
@@ -49,6 +49,11 @@ cd liao
 ```
 
 2. **配置数据库**
+
+服务支持 MySQL + PostgreSQL（双栈），并且**仅通过 `DB_URL` 的 scheme 选择数据库类型**：
+- MySQL: `mysql://` / `jdbc:mysql://`
+- PostgreSQL: `postgres://` / `postgresql://` / `jdbc:postgresql://`
+
 ```sql
 CREATE DATABASE hot_img CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
@@ -58,7 +63,12 @@ CREATE DATABASE hot_img CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 Go 服务通过环境变量读取配置；`src/main/resources/application.yml` 仅作为 env 变量名与默认值对照表保留（运行时不读取）。
 
 ```bash
+# MySQL 示例（scheme=mysql）
 export DB_URL="jdbc:mysql://localhost:3306/hot_img?useSSL=false&serverTimezone=Asia/Shanghai"
+
+# PostgreSQL 示例（scheme=postgres/postgresql）
+export DB_URL="postgres://localhost:5432/hot_img?sslmode=disable"
+
 export DB_USERNAME="root"
 export DB_PASSWORD="yourpassword"
 export AUTH_ACCESS_CODE="your-access-code"
@@ -114,7 +124,7 @@ go build ./cmd/liao
 ```
 cmd/liao/                 # Go 服务入口
 internal/
-└── app/                  # 业务实现（HTTP API + /ws 代理 + MySQL/缓存/上传）
+└── app/                  # 业务实现（HTTP API + /ws 代理 + MySQL/PostgreSQL/缓存/上传）
 ```
 
 ### 前端结构
@@ -158,7 +168,7 @@ docker run -d -p 8080:8080 \
 ## 配置说明
 
 ### 必需环境变量
-- `DB_URL` - MySQL数据库连接地址
+- `DB_URL` - 数据库连接地址（仅通过 scheme 决定 `mysql`/`postgres`/`postgresql`；兼容 `jdbc:` 前缀）
 - `DB_USERNAME` - 数据库用户名
 - `DB_PASSWORD` - 数据库密码
 - `AUTH_ACCESS_CODE` - 访问码（用于登录）

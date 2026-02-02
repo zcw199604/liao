@@ -8,7 +8,7 @@
 flowchart TD
   FE[浏览器：Vue SPA] -->|HTTP /api| BE[后端：Go 服务（cmd/liao）]
   FE -->|WS /ws?token=JWT| BE
-  BE --> DB[(MySQL)]
+  BE --> DB[(MySQL / PostgreSQL)]
   BE --> CACHE[(Redis 可选 / 内存)]
   BE --> FS[(本地文件 ./upload)]
   BE --> LSP[(本地相册目录 LSP_ROOT)]
@@ -20,7 +20,7 @@ flowchart TD
 ## 技术栈
 - **后端:** Go 1.25.6（chi、gorilla/websocket、JWT HS256）
 - **前端:** Vue 3 / Vite / TypeScript
-- **数据:** MySQL（必需）、Redis（可选；默认内存缓存）、本地文件系统（`./upload`）
+- **数据:** MySQL / PostgreSQL（必需，二选一；通过 `DB_URL` scheme 选择）、Redis（可选；默认内存缓存）、本地文件系统（`./upload`）
 
 ## 代码结构
 

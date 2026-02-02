@@ -20,7 +20,7 @@ func TestVideoExtractService_GetTaskDetail_QueryRowOtherError(t *testing.T) {
 		WithArgs("t1").
 		WillReturnError(sql.ErrConnDone)
 
-	svc := &VideoExtractService{db: db, cfg: config.Config{ServerPort: 8080, VideoExtractFramePageSz: 1}}
+	svc := &VideoExtractService{db: wrapMySQLDB(db), cfg: config.Config{ServerPort: 8080, VideoExtractFramePageSz: 1}}
 	if _, _, err := svc.GetTaskDetail(context.Background(), "t1", 0, 10, ""); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -58,7 +58,7 @@ func TestVideoExtractService_GetTaskDetail_RuntimeBranchAndOptionalFields(t *tes
 	rt := &videoExtractRuntime{}
 	rt.appendLog("hello")
 	svc := &VideoExtractService{
-		db:       db,
+		db:       wrapMySQLDB(db),
 		cfg:      config.Config{ServerPort: 8080, VideoExtractFramePageSz: 2},
 		runtimes: map[string]*videoExtractRuntime{"t1": rt},
 	}
@@ -107,7 +107,7 @@ func TestVideoExtractService_GetTaskDetail_FrameLimitCap(t *testing.T) {
 		WithArgs("t1", 0, 301).
 		WillReturnRows(sqlmock.NewRows([]string{"seq", "rel_path"}))
 
-	svc := &VideoExtractService{db: db, cfg: config.Config{ServerPort: 8080, VideoExtractFramePageSz: 2}, runtimes: make(map[string]*videoExtractRuntime)}
+	svc := &VideoExtractService{db: wrapMySQLDB(db), cfg: config.Config{ServerPort: 8080, VideoExtractFramePageSz: 2}, runtimes: make(map[string]*videoExtractRuntime)}
 	if _, _, err := svc.GetTaskDetail(context.Background(), "t1", 0, 1000, ""); err != nil {
 		t.Fatalf("err=%v", err)
 	}
@@ -141,7 +141,7 @@ func TestVideoExtractService_GetTaskDetail_FramesQueryError(t *testing.T) {
 		WithArgs("t1", 0, 2).
 		WillReturnError(sql.ErrConnDone)
 
-	svc := &VideoExtractService{db: db, cfg: config.Config{ServerPort: 8080, VideoExtractFramePageSz: 1}, runtimes: make(map[string]*videoExtractRuntime)}
+	svc := &VideoExtractService{db: wrapMySQLDB(db), cfg: config.Config{ServerPort: 8080, VideoExtractFramePageSz: 1}, runtimes: make(map[string]*videoExtractRuntime)}
 	if _, _, err := svc.GetTaskDetail(context.Background(), "t1", 0, 1, ""); err == nil {
 		t.Fatalf("expected error")
 	}

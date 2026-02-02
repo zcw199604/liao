@@ -51,7 +51,7 @@ exit 0
 	}
 
 	svc := &VideoExtractService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		cfg:       config.Config{FFmpegPath: ffmpegPath},
 		fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 		queue:     make(chan string, 1),
@@ -135,7 +135,7 @@ func TestVideoExtractService_workerLoop_StopsOnClose(t *testing.T) {
 		WillReturnError(sql.ErrNoRows)
 
 	svc := &VideoExtractService{
-		db:       db,
+		db:       wrapMySQLDB(db),
 		queue:    make(chan string, 1),
 		closing:  make(chan struct{}),
 		runtimes: make(map[string]*videoExtractRuntime),

@@ -58,7 +58,7 @@ func TestHandleGetAllUploadImages_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(0))
 
 	app := &App{
-		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+		mediaUpload: &MediaUploadService{db: wrapMySQLDB(db), serverPort: 8080},
 		imageServer: NewImageServerService("img-host", "9003"),
 	}
 
@@ -128,7 +128,7 @@ func TestHandleGetUserUploadHistory_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(1))
 
 	app := &App{
-		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+		mediaUpload: &MediaUploadService{db: wrapMySQLDB(db), serverPort: 8080},
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "http://api.local:8080/api/getUserUploadHistory?userId=u1&page=1&pageSize=20", nil)
@@ -203,7 +203,7 @@ func TestHandleGetUserSentImages_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(1))
 
 	app := &App{
-		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+		mediaUpload: &MediaUploadService{db: wrapMySQLDB(db), serverPort: 8080},
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "http://api.local:8080/api/getUserSentImages?fromUserId=u1&toUserId=u2&page=1&pageSize=20", nil)
@@ -245,7 +245,7 @@ func TestHandleGetUserUploadStats_Success(t *testing.T) {
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM media_file`).
 		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(123))
 
-	app := &App{mediaUpload: &MediaUploadService{db: db}}
+	app := &App{mediaUpload: &MediaUploadService{db: wrapMySQLDB(db)}}
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/getUserUploadStats?userId=u1", nil)
 	rr := httptest.NewRecorder()
@@ -277,7 +277,7 @@ func TestHandleGetChatImages_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"local_path"}).AddRow("/images/2026/01/10/x.png"))
 
 	app := &App{
-		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+		mediaUpload: &MediaUploadService{db: wrapMySQLDB(db), serverPort: 8080},
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "http://api.local:8080/api/getChatImages?userId1=u1&userId2=u2&limit=2", nil)
@@ -327,9 +327,9 @@ func TestHandleReuploadHistoryImage_SuccessWritesCache(t *testing.T) {
 		t.Fatalf("write file failed: %v", err)
 	}
 
-	fileStore := &FileStorageService{db: db, baseUploadAbs: tempDir}
+	fileStore := &FileStorageService{db: wrapMySQLDB(db), baseUploadAbs: tempDir}
 	imageSrv := NewImageServerService(host, port)
-	mediaUpload := NewMediaUploadService(db, 8080, fileStore, imageSrv, upstream.Client())
+	mediaUpload := NewMediaUploadService(wrapMySQLDB(db), 8080, fileStore, imageSrv, upstream.Client())
 
 	mock.ExpectQuery(`(?s)FROM media_file\s+WHERE local_path = \?\s+AND user_id = \?\s+ORDER BY id LIMIT 1`).
 		WithArgs(sqlmock.AnyArg(), "u1").
@@ -413,8 +413,8 @@ func TestHandleDeleteMedia_Success(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	fileStore := &FileStorageService{db: db, baseUploadAbs: tempDir}
-	svc := &MediaUploadService{db: db, fileStore: fileStore}
+	fileStore := &FileStorageService{db: wrapMySQLDB(db), baseUploadAbs: tempDir}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: fileStore}
 	app := &App{mediaUpload: svc}
 
 	localPath := "/images/2026/01/10/x.png"
@@ -516,7 +516,7 @@ func TestHandleDeleteMedia_InternalError(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	app := &App{mediaUpload: &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}}
+	app := &App{mediaUpload: &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}}
 
 	mock.ExpectQuery(`(?s)FROM media_file\s+WHERE local_path = \?\s+ORDER BY id LIMIT 1`).
 		WithArgs(sqlmock.AnyArg()).
@@ -569,8 +569,8 @@ func TestHandleBatchDeleteMedia_PartialFail(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	fileStore := &FileStorageService{db: db, baseUploadAbs: tempDir}
-	svc := &MediaUploadService{db: db, fileStore: fileStore}
+	fileStore := &FileStorageService{db: wrapMySQLDB(db), baseUploadAbs: tempDir}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: fileStore}
 	app := &App{mediaUpload: svc}
 
 	localPath := "/images/2026/01/10/x.png"
@@ -690,7 +690,7 @@ func TestHandleRecordImageSend_Success(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	app := &App{
-		mediaUpload: &MediaUploadService{db: db},
+		mediaUpload: &MediaUploadService{db: wrapMySQLDB(db)},
 	}
 
 	form := url.Values{}
@@ -749,7 +749,7 @@ func TestHandleRecordImageSend_NotFound(t *testing.T) {
 		}))
 
 	app := &App{
-		mediaUpload: &MediaUploadService{db: db},
+		mediaUpload: &MediaUploadService{db: wrapMySQLDB(db)},
 	}
 
 	form := url.Values{}
@@ -809,7 +809,7 @@ func TestHandleRecordImageSend_InternalError(t *testing.T) {
 		WillReturnError(context.DeadlineExceeded)
 
 	app := &App{
-		mediaUpload: &MediaUploadService{db: db},
+		mediaUpload: &MediaUploadService{db: wrapMySQLDB(db)},
 	}
 
 	form := url.Values{}
@@ -836,7 +836,7 @@ func TestHandleGetUserUploadHistory_QueryError(t *testing.T) {
 		WillReturnError(context.DeadlineExceeded)
 
 	app := &App{
-		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+		mediaUpload: &MediaUploadService{db: wrapMySQLDB(db), serverPort: 8080},
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "http://api.local:8080/api/getUserUploadHistory?userId=u1&page=1&pageSize=20", nil)
@@ -862,7 +862,7 @@ func TestHandleGetUserUploadHistory_CountError(t *testing.T) {
 		WillReturnError(context.DeadlineExceeded)
 
 	app := &App{
-		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+		mediaUpload: &MediaUploadService{db: wrapMySQLDB(db), serverPort: 8080},
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "http://api.local:8080/api/getUserUploadHistory?userId=u1&page=1&pageSize=20", nil)
@@ -882,7 +882,7 @@ func TestHandleGetUserSentImages_QueryError(t *testing.T) {
 		WillReturnError(context.DeadlineExceeded)
 
 	app := &App{
-		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+		mediaUpload: &MediaUploadService{db: wrapMySQLDB(db), serverPort: 8080},
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "http://api.local:8080/api/getUserSentImages?fromUserId=u1&toUserId=u2&page=1&pageSize=20", nil)
@@ -917,7 +917,7 @@ func TestHandleGetUserSentImages_CountError(t *testing.T) {
 		WillReturnError(context.DeadlineExceeded)
 
 	app := &App{
-		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+		mediaUpload: &MediaUploadService{db: wrapMySQLDB(db), serverPort: 8080},
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "http://api.local:8080/api/getUserSentImages?fromUserId=u1&toUserId=u2&page=1&pageSize=20", nil)
@@ -935,7 +935,7 @@ func TestHandleGetUserUploadStats_CountError(t *testing.T) {
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM media_file`).
 		WillReturnError(context.DeadlineExceeded)
 
-	app := &App{mediaUpload: &MediaUploadService{db: db}}
+	app := &App{mediaUpload: &MediaUploadService{db: wrapMySQLDB(db)}}
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/getUserUploadStats?userId=u1", nil)
 	rr := httptest.NewRecorder()
@@ -955,7 +955,7 @@ func TestHandleGetChatImages_QueryError(t *testing.T) {
 		WillReturnError(context.DeadlineExceeded)
 
 	app := &App{
-		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+		mediaUpload: &MediaUploadService{db: wrapMySQLDB(db), serverPort: 8080},
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "http://api.local:8080/api/getChatImages?userId1=u1&userId2=u2&limit=20", nil)
@@ -980,7 +980,7 @@ func TestHandleGetAllUploadImages_ListError(t *testing.T) {
 		WillReturnError(context.DeadlineExceeded)
 
 	app := &App{
-		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+		mediaUpload: &MediaUploadService{db: wrapMySQLDB(db), serverPort: 8080},
 		imageServer: NewImageServerService("img-host", "9003"),
 	}
 
@@ -1011,7 +1011,7 @@ func TestHandleGetAllUploadImages_CountError(t *testing.T) {
 		WillReturnError(context.DeadlineExceeded)
 
 	app := &App{
-		mediaUpload: &MediaUploadService{db: db, serverPort: 8080},
+		mediaUpload: &MediaUploadService{db: wrapMySQLDB(db), serverPort: 8080},
 		imageServer: NewImageServerService("img-host", "9003"),
 	}
 

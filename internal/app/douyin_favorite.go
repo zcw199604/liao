@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
+
+	"liao/internal/database"
 )
 
 type DouyinFavoriteUser struct {
@@ -38,10 +40,10 @@ type DouyinFavoriteAweme struct {
 }
 
 type DouyinFavoriteService struct {
-	db *sql.DB
+	db *database.DB
 }
 
-func NewDouyinFavoriteService(db *sql.DB) *DouyinFavoriteService {
+func NewDouyinFavoriteService(db *database.DB) *DouyinFavoriteService {
 	return &DouyinFavoriteService{db: db}
 }
 
@@ -102,22 +104,32 @@ func (s *DouyinFavoriteService) UpsertUser(ctx context.Context, in DouyinFavorit
 		countValue = *in.LastParsedCount
 	}
 
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO douyin_favorite_user (
-			sec_user_id, source_input, display_name, avatar_url, profile_url,
-			last_parsed_at, last_parsed_count, last_parsed_raw,
-			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON DUPLICATE KEY UPDATE
-			source_input = COALESCE(VALUES(source_input), source_input),
-			display_name = COALESCE(VALUES(display_name), display_name),
-			avatar_url = COALESCE(VALUES(avatar_url), avatar_url),
-			profile_url = COALESCE(VALUES(profile_url), profile_url),
-			last_parsed_at = VALUES(last_parsed_at),
-			last_parsed_count = COALESCE(VALUES(last_parsed_count), last_parsed_count),
-			last_parsed_raw = COALESCE(VALUES(last_parsed_raw), last_parsed_raw),
-			updated_at = VALUES(updated_at)
-	`,
+	_, err := database.ExecUpsert(
+		ctx,
+		s.db,
+		"douyin_favorite_user",
+		[]string{
+			"sec_user_id",
+			"source_input",
+			"display_name",
+			"avatar_url",
+			"profile_url",
+			"last_parsed_at",
+			"last_parsed_count",
+			"last_parsed_raw",
+			"created_at",
+			"updated_at",
+		},
+		[]string{"sec_user_id"},
+		[]string{"last_parsed_at", "updated_at"},
+		[]string{
+			"source_input",
+			"display_name",
+			"avatar_url",
+			"profile_url",
+			"last_parsed_count",
+			"last_parsed_raw",
+		},
 		in.SecUserID,
 		nullIfEmpty(in.SourceInput),
 		nullIfEmpty(in.DisplayName),
@@ -289,19 +301,29 @@ type DouyinFavoriteAwemeUpsert struct {
 func (s *DouyinFavoriteService) UpsertAweme(ctx context.Context, in DouyinFavoriteAwemeUpsert) (*DouyinFavoriteAweme, error) {
 	now := time.Now()
 
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO douyin_favorite_aweme (
-			aweme_id, sec_user_id, type, description, cover_url, raw_detail,
-			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON DUPLICATE KEY UPDATE
-			sec_user_id = COALESCE(VALUES(sec_user_id), sec_user_id),
-			type = COALESCE(VALUES(type), type),
-			description = COALESCE(VALUES(description), description),
-			cover_url = COALESCE(VALUES(cover_url), cover_url),
-			raw_detail = COALESCE(VALUES(raw_detail), raw_detail),
-			updated_at = VALUES(updated_at)
-	`,
+	_, err := database.ExecUpsert(
+		ctx,
+		s.db,
+		"douyin_favorite_aweme",
+		[]string{
+			"aweme_id",
+			"sec_user_id",
+			"type",
+			"description",
+			"cover_url",
+			"raw_detail",
+			"created_at",
+			"updated_at",
+		},
+		[]string{"aweme_id"},
+		[]string{"updated_at"},
+		[]string{
+			"sec_user_id",
+			"type",
+			"description",
+			"cover_url",
+			"raw_detail",
+		},
 		in.AwemeID,
 		nullIfEmpty(in.SecUserID),
 		nullIfEmpty(in.Type),

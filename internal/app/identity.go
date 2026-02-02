@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"liao/internal/database"
 )
 
 type Identity struct {
@@ -19,14 +21,14 @@ type Identity struct {
 }
 
 type IdentityService struct {
-	db *sql.DB
+	db *database.DB
 }
 
 var identityRandIntnFn = func(n int) int {
 	return rand.New(rand.NewSource(time.Now().UnixNano())).Intn(n)
 }
 
-func NewIdentityService(db *sql.DB) *IdentityService {
+func NewIdentityService(db *database.DB) *IdentityService {
 	return &IdentityService{db: db}
 }
 

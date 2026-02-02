@@ -38,7 +38,7 @@ func TestResolveImagePortByConfig_FixedWhenNoImageHost(t *testing.T) {
 	defer cleanup()
 
 	svc := &SystemConfigService{
-		db:     db,
+		db:     wrapMySQLDB(db),
 		loaded: true,
 		cached: SystemConfig{
 			ImagePortMode:         ImagePortModeProbe,
@@ -69,7 +69,7 @@ func TestResolveImagePortByConfig_ProbeUsesDetectAvailablePort(t *testing.T) {
 
 	app := &App{
 		systemConfig: &SystemConfigService{
-			db:     db,
+			db:     wrapMySQLDB(db),
 			loaded: true,
 			cached: SystemConfig{
 				ImagePortMode:         ImagePortModeProbe,
@@ -91,7 +91,7 @@ func TestResolveImagePortByConfig_DefaultFixedWhenConfigFixedEmpty(t *testing.T)
 
 	app := &App{
 		systemConfig: &SystemConfigService{
-			db:     db,
+			db:     wrapMySQLDB(db),
 			loaded: true,
 			cached: SystemConfig{
 				ImagePortMode:         ImagePortModeFixed,
@@ -129,7 +129,7 @@ func TestResolveImagePortByConfig_Real_ReturnsResolvedPort(t *testing.T) {
 
 	app := &App{
 		systemConfig: &SystemConfigService{
-			db:     db,
+			db:     wrapMySQLDB(db),
 			loaded: true,
 			cached: SystemConfig{
 				ImagePortMode:         ImagePortModeReal,
@@ -163,7 +163,7 @@ func TestResolveImagePortByConfig_Real_UsesCachedWhenRealFails(t *testing.T) {
 
 	app := &App{
 		systemConfig: &SystemConfigService{
-			db:     db,
+			db:     wrapMySQLDB(db),
 			loaded: true,
 			cached: SystemConfig{
 				ImagePortMode:         ImagePortModeReal,
@@ -190,7 +190,7 @@ func TestResolveImagePortByConfig_Real_FallsBackToFixedWhenDetectEmpty(t *testin
 
 	app := &App{
 		systemConfig: &SystemConfigService{
-			db:     db,
+			db:     wrapMySQLDB(db),
 			loaded: true,
 			cached: SystemConfig{
 				ImagePortMode:         ImagePortModeReal,
@@ -212,7 +212,7 @@ func TestResolveImagePortByConfig_DefaultModeReturnsFixed(t *testing.T) {
 
 	app := &App{
 		systemConfig: &SystemConfigService{
-			db:     db,
+			db:     wrapMySQLDB(db),
 			loaded: true,
 			cached: SystemConfig{
 				ImagePortMode:         ImagePortMode("weird"),
@@ -238,7 +238,7 @@ func TestResolveImagePortByConfig_RealFallsBackToProbe(t *testing.T) {
 
 	app := &App{
 		systemConfig: &SystemConfigService{
-			db:     db,
+			db:     wrapMySQLDB(db),
 			loaded: true,
 			cached: SystemConfig{
 				ImagePortMode:         ImagePortModeReal,

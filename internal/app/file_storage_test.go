@@ -188,7 +188,7 @@ func TestFileStorageService_FindLocalPathByMD5(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	svc := &FileStorageService{db: db, baseUploadAbs: tempDir}
+	svc := &FileStorageService{db: wrapMySQLDB(db), baseUploadAbs: tempDir}
 
 	localPath := "/images/2026/01/10/test.png"
 	full := filepath.Join(tempDir, filepath.FromSlash(strings.TrimPrefix(localPath, "/")))

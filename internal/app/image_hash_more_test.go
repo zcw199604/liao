@@ -34,7 +34,7 @@ func TestImageHashService_FindByMD5Hash_QueryError(t *testing.T) {
 		WithArgs("abc", 1).
 		WillReturnError(errors.New("query fail"))
 
-	svc := NewImageHashService(db)
+	svc := NewImageHashService(wrapMySQLDB(db))
 	if _, err := svc.FindByMD5Hash(context.Background(), " abc ", 0); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -48,7 +48,7 @@ func TestImageHashService_FindByMD5Hash_ScanError(t *testing.T) {
 		WithArgs("abc", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(1)))
 
-	svc := NewImageHashService(db)
+	svc := NewImageHashService(wrapMySQLDB(db))
 	if _, err := svc.FindByMD5Hash(context.Background(), "abc", 0); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -74,7 +74,7 @@ func TestImageHashService_FindByMD5Hash_Success_NullsAndClamp(t *testing.T) {
 			now,
 		))
 
-	svc := NewImageHashService(db)
+	svc := NewImageHashService(wrapMySQLDB(db))
 	matches, err := svc.FindByMD5Hash(context.Background(), " abc ", 999)
 	if err != nil {
 		t.Fatalf("FindByMD5Hash: %v", err)
@@ -97,11 +97,11 @@ func TestImageHashService_FindSimilarByPHash_QueryError(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`(?s)BIT_COUNT.*FROM image_hash.*<= \?.*LIMIT \?`).
+	mock.ExpectQuery(`(?is)(BIT_COUNT|length\(replace\().*FROM image_hash.*<= \?.*LIMIT \?`).
 		WithArgs(int64(123), int64(123), phashBitLength, 1).
 		WillReturnError(errors.New("query fail"))
 
-	svc := NewImageHashService(db)
+	svc := NewImageHashService(wrapMySQLDB(db))
 	if _, err := svc.FindSimilarByPHash(context.Background(), 123, 999, 0); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -111,11 +111,11 @@ func TestImageHashService_FindSimilarByPHash_ScanError(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`(?s)BIT_COUNT.*FROM image_hash.*<= \?.*LIMIT \?`).
+	mock.ExpectQuery(`(?is)(BIT_COUNT|length\(replace\().*FROM image_hash.*<= \?.*LIMIT \?`).
 		WithArgs(int64(123), int64(123), 10, 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(1)))
 
-	svc := NewImageHashService(db)
+	svc := NewImageHashService(wrapMySQLDB(db))
 	if _, err := svc.FindSimilarByPHash(context.Background(), 123, 10, 0); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -126,7 +126,7 @@ func TestImageHashService_FindSimilarByPHash_Success_NullsAndClamp(t *testing.T)
 	defer cleanup()
 
 	now := time.Now()
-	mock.ExpectQuery(`(?s)BIT_COUNT.*FROM image_hash.*<= \?.*LIMIT \?`).
+	mock.ExpectQuery(`(?is)(BIT_COUNT|length\(replace\().*FROM image_hash.*<= \?.*LIMIT \?`).
 		WithArgs(int64(123), int64(123), 0, 500).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "file_path", "file_name", "file_dir", "md5_hash", "phash", "file_size", "created_at", "distance",
@@ -142,7 +142,7 @@ func TestImageHashService_FindSimilarByPHash_Success_NullsAndClamp(t *testing.T)
 			0,
 		))
 
-	svc := NewImageHashService(db)
+	svc := NewImageHashService(wrapMySQLDB(db))
 	matches, err := svc.FindSimilarByPHash(context.Background(), 123, -1, 999)
 	if err != nil {
 		t.Fatalf("FindSimilarByPHash: %v", err)

@@ -18,7 +18,7 @@ func TestVideoExtractService_ContinueTask_LoadTaskRowError(t *testing.T) {
 		WithArgs("t1").
 		WillReturnError(sql.ErrNoRows)
 
-	svc := &VideoExtractService{db: db}
+	svc := &VideoExtractService{db: wrapMySQLDB(db)}
 	if err := svc.ContinueTask(context.Background(), VideoExtractContinueRequest{TaskID: "t1", MaxFrames: ptrInt(10)}); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -36,7 +36,7 @@ func TestVideoExtractService_ContinueTask_UpdateExecError(t *testing.T) {
 	mock.ExpectExec(`(?s)UPDATE video_extract_task SET .*WHERE task_id = [?]`).
 		WillReturnError(sql.ErrConnDone)
 
-	svc := &VideoExtractService{db: db, queue: make(chan string, 1), closing: make(chan struct{})}
+	svc := &VideoExtractService{db: wrapMySQLDB(db), queue: make(chan string, 1), closing: make(chan struct{})}
 	if err := svc.ContinueTask(context.Background(), VideoExtractContinueRequest{TaskID: "t1", MaxFrames: ptrInt(10)}); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -46,7 +46,7 @@ func TestVideoExtractService_DeleteTask_EmptyTaskID(t *testing.T) {
 	db, _, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	svc := &VideoExtractService{db: db}
+	svc := &VideoExtractService{db: wrapMySQLDB(db)}
 	if err := svc.DeleteTask(context.Background(), VideoExtractDeleteRequest{TaskID: " "}); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -60,7 +60,7 @@ func TestVideoExtractService_DeleteTask_LoadTaskRowError(t *testing.T) {
 		WithArgs("t1").
 		WillReturnError(sql.ErrNoRows)
 
-	svc := &VideoExtractService{db: db, runtimes: make(map[string]*videoExtractRuntime)}
+	svc := &VideoExtractService{db: wrapMySQLDB(db), runtimes: make(map[string]*videoExtractRuntime)}
 	if err := svc.DeleteTask(context.Background(), VideoExtractDeleteRequest{TaskID: "t1"}); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -79,7 +79,7 @@ func TestVideoExtractService_DeleteTask_DeleteFrameExecError(t *testing.T) {
 		WithArgs("t1").
 		WillReturnError(sql.ErrConnDone)
 
-	svc := &VideoExtractService{db: db, runtimes: make(map[string]*videoExtractRuntime)}
+	svc := &VideoExtractService{db: wrapMySQLDB(db), runtimes: make(map[string]*videoExtractRuntime)}
 	if err := svc.DeleteTask(context.Background(), VideoExtractDeleteRequest{TaskID: "t1"}); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -101,7 +101,7 @@ func TestVideoExtractService_DeleteTask_DeleteTaskExecError(t *testing.T) {
 		WithArgs("t1").
 		WillReturnError(sql.ErrConnDone)
 
-	svc := &VideoExtractService{db: db, runtimes: make(map[string]*videoExtractRuntime)}
+	svc := &VideoExtractService{db: wrapMySQLDB(db), runtimes: make(map[string]*videoExtractRuntime)}
 	if err := svc.DeleteTask(context.Background(), VideoExtractDeleteRequest{TaskID: "t1"}); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -134,7 +134,7 @@ func TestVideoExtractService_DeleteTask_DeleteFiles_OutputDirWithoutLeadingSlash
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	svc := &VideoExtractService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 		runtimes:  make(map[string]*videoExtractRuntime),
 	}

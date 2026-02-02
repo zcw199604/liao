@@ -63,7 +63,7 @@ func TestHandleUpdateSystemConfig_Errors(t *testing.T) {
 	// normalize 失败（不触发 DB）
 	db, _, cleanup := newSQLMock(t)
 	defer cleanup()
-	svc := NewSystemConfigService(db)
+	svc := NewSystemConfigService(wrapMySQLDB(db))
 	svc.loaded = true
 	svc.cached = defaultSystemConfig
 
@@ -81,7 +81,7 @@ func TestHandleUpdateSystemConfig_Success_ClearsResolverCache(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	svc := NewSystemConfigService(db)
+	svc := NewSystemConfigService(wrapMySQLDB(db))
 	svc.loaded = true
 	svc.cached = defaultSystemConfig
 
@@ -159,7 +159,7 @@ func TestGetSystemConfigOrDefault_ReturnsDefaultOnGetError(t *testing.T) {
 	mock.ExpectQuery(`SELECT config_key, config_value FROM system_config WHERE config_key IN`).
 		WillReturnError(errors.New("db fail"))
 
-	svc := NewSystemConfigService(db)
+	svc := NewSystemConfigService(wrapMySQLDB(db))
 	a := &App{systemConfig: svc}
 	got := a.getSystemConfigOrDefault(context.Background())
 	if got != defaultSystemConfig {

@@ -234,7 +234,7 @@ func TestHandleImportMtPhotoMedia_CoversBranches(t *testing.T) {
 		a := &App{
 			mtPhoto:     NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil),
 			fileStorage: &FileStorageService{baseUploadAbs: t.TempDir()},
-			mediaUpload: &MediaUploadService{db: db},
+			mediaUpload: &MediaUploadService{db: wrapMySQLDB(db)},
 		}
 
 		form := url.Values{}
@@ -277,7 +277,7 @@ func TestHandleImportMtPhotoMedia_CoversBranches(t *testing.T) {
 		a := &App{
 			mtPhoto:     NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil),
 			fileStorage: &FileStorageService{baseUploadAbs: t.TempDir()},
-			mediaUpload: &MediaUploadService{db: db},
+			mediaUpload: &MediaUploadService{db: wrapMySQLDB(db)},
 		}
 
 		form := url.Values{}
@@ -312,7 +312,7 @@ func TestHandleImportMtPhotoMedia_CoversBranches(t *testing.T) {
 				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, context.Canceled }),
 			}),
 			fileStorage: &FileStorageService{baseUploadAbs: t.TempDir()},
-			mediaUpload: &MediaUploadService{db: db},
+			mediaUpload: &MediaUploadService{db: wrapMySQLDB(db)},
 		}
 
 		form := url.Values{}

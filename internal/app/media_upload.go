@@ -16,6 +16,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"liao/internal/database"
 )
 
 var ErrDeleteForbidden = errors.New("文件不存在或无权删除")
@@ -52,14 +54,14 @@ type MediaFileDTO struct {
 }
 
 type MediaUploadService struct {
-	db         *sql.DB
+	db         *database.DB
 	serverPort int
 	fileStore  *FileStorageService
 	imageSrv   *ImageServerService
 	httpClient *http.Client
 }
 
-func NewMediaUploadService(db *sql.DB, serverPort int, fileStore *FileStorageService, imageSrv *ImageServerService, httpClient *http.Client) *MediaUploadService {
+func NewMediaUploadService(db *database.DB, serverPort int, fileStore *FileStorageService, imageSrv *ImageServerService, httpClient *http.Client) *MediaUploadService {
 	return &MediaUploadService{
 		db:         db,
 		serverPort: serverPort,
@@ -99,7 +101,7 @@ func (s *MediaUploadService) SaveUploadRecord(ctx context.Context, record Upload
 	}
 
 	now := time.Now()
-	res, err := s.db.ExecContext(ctx, `INSERT INTO media_file
+	id, err := database.InsertReturningID(ctx, s.db, `INSERT INTO media_file
 		(user_id, original_filename, local_filename, remote_filename, remote_url, local_path, file_size, file_type, file_extension, file_md5, upload_time, update_time, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		record.UserID,
@@ -119,7 +121,6 @@ func (s *MediaUploadService) SaveUploadRecord(ctx context.Context, record Upload
 	if err != nil {
 		return nil, err
 	}
-	id, _ := res.LastInsertId()
 
 	return &MediaUploadHistory{
 		ID:               id,
@@ -206,13 +207,12 @@ func (s *MediaUploadService) RecordImageSend(ctx context.Context, remoteURL, fro
 		return &out, nil
 	}
 
-	res, err := s.db.ExecContext(ctx,
+	if _, err := s.db.ExecContext(ctx,
 		"INSERT INTO media_send_log (user_id, to_user_id, local_path, remote_url, send_time, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-		fromUserID, toUserID, original.File.LocalPath, remoteURL, now, now)
-	if err != nil {
+		fromUserID, toUserID, original.File.LocalPath, remoteURL, now, now,
+	); err != nil {
 		return nil, err
 	}
-	_, _ = res.LastInsertId()
 	_ = s.updateTimeByStoredMediaFile(ctx, original, now)
 
 	out := *original.File
@@ -462,29 +462,42 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 		args = append(args, pageSize, offset)
 		rows, err = s.db.QueryContext(ctx, query, args...)
 	default:
-		rows, err = s.db.QueryContext(ctx, `(
-			SELECT
-				CONVERT(local_filename USING utf8mb4) COLLATE utf8mb4_unicode_ci AS local_filename,
-				CONVERT(original_filename USING utf8mb4) COLLATE utf8mb4_unicode_ci AS original_filename,
-				CONVERT(local_path USING utf8mb4) COLLATE utf8mb4_unicode_ci AS local_path,
-				file_size,
-				CONVERT(file_type USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_type,
-				CONVERT(file_extension USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_extension,
-				upload_time, update_time
-			FROM media_file
-		) UNION ALL (
-			SELECT
-				CONVERT(local_filename USING utf8mb4) COLLATE utf8mb4_unicode_ci AS local_filename,
-				CONVERT(original_filename USING utf8mb4) COLLATE utf8mb4_unicode_ci AS original_filename,
-				CONVERT(local_path USING utf8mb4) COLLATE utf8mb4_unicode_ci AS local_path,
-				file_size,
-				CONVERT(file_type USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_type,
-				CONVERT(file_extension USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_extension,
-				upload_time, update_time
-			FROM douyin_media_file
-		)
-		ORDER BY update_time DESC
-		LIMIT ? OFFSET ?`, pageSize, offset)
+		if s.db.Dialect().Name() == "postgres" {
+			// MySQL needs a collation workaround for UNION across tables; Postgres doesn't.
+			rows, err = s.db.QueryContext(ctx, `(
+				SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time
+				FROM media_file
+			) UNION ALL (
+				SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time
+				FROM douyin_media_file
+			)
+			ORDER BY update_time DESC
+			LIMIT ? OFFSET ?`, pageSize, offset)
+		} else {
+			rows, err = s.db.QueryContext(ctx, `(
+				SELECT
+					CONVERT(local_filename USING utf8mb4) COLLATE utf8mb4_unicode_ci AS local_filename,
+					CONVERT(original_filename USING utf8mb4) COLLATE utf8mb4_unicode_ci AS original_filename,
+					CONVERT(local_path USING utf8mb4) COLLATE utf8mb4_unicode_ci AS local_path,
+					file_size,
+					CONVERT(file_type USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_type,
+					CONVERT(file_extension USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_extension,
+					upload_time, update_time
+				FROM media_file
+			) UNION ALL (
+				SELECT
+					CONVERT(local_filename USING utf8mb4) COLLATE utf8mb4_unicode_ci AS local_filename,
+					CONVERT(original_filename USING utf8mb4) COLLATE utf8mb4_unicode_ci AS original_filename,
+					CONVERT(local_path USING utf8mb4) COLLATE utf8mb4_unicode_ci AS local_path,
+					file_size,
+					CONVERT(file_type USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_type,
+					CONVERT(file_extension USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_extension,
+					upload_time, update_time
+				FROM douyin_media_file
+			)
+			ORDER BY update_time DESC
+			LIMIT ? OFFSET ?`, pageSize, offset)
+		}
 	}
 	if err != nil {
 		return nil, err

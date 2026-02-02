@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/go-sql-driver/mysql"
 )
 
 func TestHandleDouyinFavoriteUserTagList_Uninitialized(t *testing.T) {
@@ -30,7 +29,7 @@ func TestHandleDouyinFavoriteUserTagList_QueryError(t *testing.T) {
 	mock.ExpectQuery(`FROM douyin_favorite_user_tag`).
 		WillReturnError(errors.New("query failed"))
 
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/favoriteUser/tag/list", nil)
 	app.handleDouyinFavoriteUserTagList(rr, req)
@@ -42,7 +41,7 @@ func TestHandleDouyinFavoriteUserTagList_QueryError(t *testing.T) {
 func TestHandleDouyinFavoriteUserTagAdd_BadJSONAndEmptyName(t *testing.T) {
 	db := mustNewSQLMockDB(t)
 	defer db.Close()
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	{
 		rr := httptest.NewRecorder()
@@ -70,11 +69,17 @@ func TestHandleDouyinFavoriteUserTagAdd_InternalErrorAndOutNil(t *testing.T) {
 
 		mock.ExpectQuery(`SELECT MAX\(sort_order\) FROM douyin_favorite_user_tag`).
 			WillReturnRows(sqlmock.NewRows([]string{"max"}).AddRow(int64(0)))
-		mock.ExpectExec(`INSERT INTO douyin_favorite_user_tag`).
-			WithArgs("美食", int64(1), sqlmock.AnyArg(), sqlmock.AnyArg()).
-			WillReturnError(errors.New("insert failed"))
+		expectInsertReturningIDError(
+			mock,
+			`INSERT INTO douyin_favorite_user_tag`,
+			errors.New("insert failed"),
+			"美食",
+			int64(1),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+		)
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/tag/add", map[string]any{"name": "美食"})
 		rr := httptest.NewRecorder()
 		app.handleDouyinFavoriteUserTagAdd(rr, req)
@@ -90,16 +95,22 @@ func TestHandleDouyinFavoriteUserTagAdd_InternalErrorAndOutNil(t *testing.T) {
 
 		mock.ExpectQuery(`SELECT MAX\(sort_order\) FROM douyin_favorite_user_tag`).
 			WillReturnRows(sqlmock.NewRows([]string{"max"}).AddRow(int64(0)))
-		mock.ExpectExec(`INSERT INTO douyin_favorite_user_tag`).
-			WithArgs("美食", int64(1), sqlmock.AnyArg(), sqlmock.AnyArg()).
-			WillReturnResult(sqlmock.NewResult(7, 1))
+		expectInsertReturningID(
+			mock,
+			`INSERT INTO douyin_favorite_user_tag`,
+			7,
+			"美食",
+			int64(1),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+		)
 		mock.ExpectQuery(`FROM douyin_favorite_user_tag t`).
 			WithArgs(int64(7)).
 			WillReturnRows(sqlmock.NewRows([]string{
 				"id", "name", "sort_order", "cnt", "created_at", "updated_at",
 			})) // no rows -> sql.ErrNoRows
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/tag/add", map[string]any{"name": "美食"})
 		rr := httptest.NewRecorder()
 		app.handleDouyinFavoriteUserTagAdd(rr, req)
@@ -112,7 +123,7 @@ func TestHandleDouyinFavoriteUserTagAdd_InternalErrorAndOutNil(t *testing.T) {
 func TestHandleDouyinFavoriteUserTagUpdate_ValidationAndNotFound(t *testing.T) {
 	db := mustNewSQLMockDB(t)
 	defer db.Close()
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	// id missing
 	{
@@ -147,7 +158,7 @@ func TestHandleDouyinFavoriteUserTagUpdate_ValidationAndNotFound(t *testing.T) {
 				"id", "name", "sort_order", "cnt", "created_at", "updated_at",
 			})) // no rows
 
-		app2 := &App{douyinFavorite: NewDouyinFavoriteService(db2)}
+		app2 := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db2))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/tag/update", map[string]any{"id": 1, "name": "美食2"})
 		rr := httptest.NewRecorder()
 		app2.handleDouyinFavoriteUserTagUpdate(rr, req)
@@ -160,7 +171,7 @@ func TestHandleDouyinFavoriteUserTagUpdate_ValidationAndNotFound(t *testing.T) {
 func TestHandleDouyinFavoriteUserTagRemove_BadJSONAndValidation(t *testing.T) {
 	db := mustNewSQLMockDB(t)
 	defer db.Close()
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	{
 		rr := httptest.NewRecorder()
@@ -190,9 +201,15 @@ func TestHandleDouyinFavoriteAwemeTagAdd_Apply_AndMoreBranches(t *testing.T) {
 
 		mock.ExpectQuery(`SELECT MAX\(sort_order\) FROM douyin_favorite_aweme_tag`).
 			WillReturnRows(sqlmock.NewRows([]string{"max"}).AddRow(int64(0)))
-		mock.ExpectExec(`INSERT INTO douyin_favorite_aweme_tag`).
-			WithArgs("教程", int64(1), sqlmock.AnyArg(), sqlmock.AnyArg()).
-			WillReturnResult(sqlmock.NewResult(5, 1))
+		expectInsertReturningID(
+			mock,
+			`INSERT INTO douyin_favorite_aweme_tag`,
+			5,
+			"教程",
+			int64(1),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+		)
 		mock.ExpectQuery(`FROM douyin_favorite_aweme_tag`).
 			WithArgs(int64(5)).
 			WillReturnRows(sqlmock.NewRows([]string{
@@ -206,7 +223,7 @@ func TestHandleDouyinFavoriteAwemeTagAdd_Apply_AndMoreBranches(t *testing.T) {
 				sql.NullTime{Time: createTime, Valid: true},
 			))
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/tag/add", map[string]any{"name": "教程"})
 		rr := httptest.NewRecorder()
 		app.handleDouyinFavoriteAwemeTagAdd(rr, req)
@@ -229,11 +246,17 @@ func TestHandleDouyinFavoriteAwemeTagAdd_Apply_AndMoreBranches(t *testing.T) {
 
 		mock.ExpectQuery(`SELECT MAX\(sort_order\) FROM douyin_favorite_aweme_tag`).
 			WillReturnRows(sqlmock.NewRows([]string{"max"}).AddRow(int64(0)))
-		mock.ExpectExec(`INSERT INTO douyin_favorite_aweme_tag`).
-			WithArgs("教程", int64(1), sqlmock.AnyArg(), sqlmock.AnyArg()).
-			WillReturnError(&mysql.MySQLError{Number: 1062, Message: "dup"})
+		expectInsertReturningIDError(
+			mock,
+			`INSERT INTO douyin_favorite_aweme_tag`,
+			duplicateKeyErr(),
+			"教程",
+			int64(1),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+		)
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/tag/add", map[string]any{"name": "教程"})
 		rr := httptest.NewRecorder()
 		app.handleDouyinFavoriteAwemeTagAdd(rr, req)
@@ -246,7 +269,7 @@ func TestHandleDouyinFavoriteAwemeTagAdd_Apply_AndMoreBranches(t *testing.T) {
 	{
 		db := mustNewSQLMockDB(t)
 		defer db.Close()
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "http://example.com/api/douyin/favoriteAweme/tag/add", strings.NewReader("{"))
@@ -267,7 +290,7 @@ func TestHandleDouyinFavoriteAwemeTagAdd_Apply_AndMoreBranches(t *testing.T) {
 	{
 		db := mustNewSQLMockDB(t)
 		defer db.Close()
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/tag/apply", map[string]any{
 			"awemeIds": []string{"a1"},
@@ -290,12 +313,12 @@ func TestHandleDouyinFavoriteAwemeTagAdd_Apply_AndMoreBranches(t *testing.T) {
 		mock.ExpectExec(`DELETE FROM douyin_favorite_aweme_tag_map WHERE aweme_id = \?`).
 			WithArgs("a1").
 			WillReturnResult(sqlmock.NewResult(0, 1))
-		mock.ExpectExec(`INSERT IGNORE INTO douyin_favorite_aweme_tag_map`).
+		mock.ExpectExec(`INSERT (IGNORE )?INTO douyin_favorite_aweme_tag_map`).
 			WithArgs("a1", int64(1), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/tag/apply", map[string]any{
 			"awemeIds": []string{"a1"},
 			"tagIds":   []int64{1},
@@ -316,7 +339,7 @@ func TestHandleDouyinFavoriteAwemeTagList_QueryError(t *testing.T) {
 	mock.ExpectQuery(`FROM douyin_favorite_aweme_tag`).
 		WillReturnError(errors.New("query failed"))
 
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/favoriteAweme/tag/list", nil)
 	app.handleDouyinFavoriteAwemeTagList(rr, req)
@@ -329,7 +352,7 @@ func TestHandleDouyinFavoriteAwemeTagUpdate_ValidationDuplicateNotFoundAndError(
 	{
 		db := mustNewSQLMockDB(t)
 		defer db.Close()
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/tag/update", map[string]any{"id": 0, "name": "x"})
 		rr := httptest.NewRecorder()
@@ -353,9 +376,9 @@ func TestHandleDouyinFavoriteAwemeTagUpdate_ValidationDuplicateNotFoundAndError(
 
 		mock.ExpectExec(`UPDATE douyin_favorite_aweme_tag`).
 			WithArgs("教程", sqlmock.AnyArg(), int64(1)).
-			WillReturnError(&mysql.MySQLError{Number: 1062, Message: "dup"})
+			WillReturnError(duplicateKeyErr())
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/tag/update", map[string]any{"id": 1, "name": "教程"})
 		rr := httptest.NewRecorder()
 		app.handleDouyinFavoriteAwemeTagUpdate(rr, req)
@@ -378,7 +401,7 @@ func TestHandleDouyinFavoriteAwemeTagUpdate_ValidationDuplicateNotFoundAndError(
 				"id", "name", "sort_order", "cnt", "created_at", "updated_at",
 			})) // no rows
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/tag/update", map[string]any{"id": 1, "name": "教程2"})
 		rr := httptest.NewRecorder()
 		app.handleDouyinFavoriteAwemeTagUpdate(rr, req)
@@ -396,7 +419,7 @@ func TestHandleDouyinFavoriteAwemeTagUpdate_ValidationDuplicateNotFoundAndError(
 			WithArgs("教程2", sqlmock.AnyArg(), int64(1)).
 			WillReturnError(errors.New("exec fail"))
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/tag/update", map[string]any{"id": 1, "name": "教程2"})
 		rr := httptest.NewRecorder()
 		app.handleDouyinFavoriteAwemeTagUpdate(rr, req)
@@ -409,7 +432,7 @@ func TestHandleDouyinFavoriteAwemeTagUpdate_ValidationDuplicateNotFoundAndError(
 func TestHandleDouyinFavoriteAwemeTagRemove_BadJSONValidationAndError(t *testing.T) {
 	db := mustNewSQLMockDB(t)
 	defer db.Close()
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	{
 		rr := httptest.NewRecorder()
@@ -439,7 +462,7 @@ func TestHandleDouyinFavoriteAwemeTagRemove_BadJSONValidationAndError(t *testing
 			WillReturnError(errors.New("delete failed"))
 		mock.ExpectRollback()
 
-		app2 := &App{douyinFavorite: NewDouyinFavoriteService(db2)}
+		app2 := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db2))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/tag/remove", map[string]any{"id": 1})
 		rr := httptest.NewRecorder()
 		app2.handleDouyinFavoriteAwemeTagRemove(rr, req)
@@ -452,7 +475,7 @@ func TestHandleDouyinFavoriteAwemeTagRemove_BadJSONValidationAndError(t *testing
 func TestHandleDouyinFavoriteAwemeTagReorder_BadJSONAndError(t *testing.T) {
 	db := mustNewSQLMockDB(t)
 	defer db.Close()
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	{
 		rr := httptest.NewRecorder()
@@ -473,7 +496,7 @@ func TestHandleDouyinFavoriteAwemeTagReorder_BadJSONAndError(t *testing.T) {
 			WillReturnError(errors.New("update failed"))
 		mock.ExpectRollback()
 
-		app2 := &App{douyinFavorite: NewDouyinFavoriteService(db2)}
+		app2 := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db2))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/tag/reorder", map[string]any{"tagIds": []int64{1}})
 		rr := httptest.NewRecorder()
 		app2.handleDouyinFavoriteAwemeTagReorder(rr, req)
@@ -486,7 +509,7 @@ func TestHandleDouyinFavoriteAwemeTagReorder_BadJSONAndError(t *testing.T) {
 func TestHandleDouyinFavoriteAwemeTagApply_BadJSON(t *testing.T) {
 	db := mustNewSQLMockDB(t)
 	defer db.Close()
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/douyin/favoriteAweme/tag/apply", strings.NewReader("{"))
@@ -534,7 +557,7 @@ func TestHandleDouyinFavoriteUserTagUpdate_BadJSONAndInternalError(t *testing.T)
 		db := mustNewSQLMockDB(t)
 		defer db.Close()
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "http://example.com/api/douyin/favoriteUser/tag/update", strings.NewReader("{"))
 		app.handleDouyinFavoriteUserTagUpdate(rr, req)
@@ -551,7 +574,7 @@ func TestHandleDouyinFavoriteUserTagUpdate_BadJSONAndInternalError(t *testing.T)
 			WithArgs("美食2", sqlmock.AnyArg(), int64(1)).
 			WillReturnError(errors.New("exec fail"))
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		rr := httptest.NewRecorder()
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/tag/update", map[string]any{"id": 1, "name": "美食2"})
 		app.handleDouyinFavoriteUserTagUpdate(rr, req)
@@ -567,7 +590,7 @@ func TestHandleDouyinFavoriteUserTagRemove_ServiceError(t *testing.T) {
 
 	mock.ExpectBegin().WillReturnError(errors.New("begin fail"))
 
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 	req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/tag/remove", map[string]any{"id": 1})
 	rr := httptest.NewRecorder()
 	app.handleDouyinFavoriteUserTagRemove(rr, req)
@@ -581,7 +604,7 @@ func TestHandleDouyinFavoriteUserTagApply_BadJSONAndInternalError(t *testing.T) 
 		db := mustNewSQLMockDB(t)
 		defer db.Close()
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "http://example.com/api/douyin/favoriteUser/tag/apply", strings.NewReader("{"))
 		app.handleDouyinFavoriteUserTagApply(rr, req)
@@ -596,7 +619,7 @@ func TestHandleDouyinFavoriteUserTagApply_BadJSONAndInternalError(t *testing.T) 
 
 		mock.ExpectBegin().WillReturnError(errors.New("begin fail"))
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/tag/apply", map[string]any{
 			"secUserIds": []string{"u1"},
 			"tagIds":     []int64{1},
@@ -614,7 +637,7 @@ func TestHandleDouyinFavoriteUserTagReorder_BadJSON(t *testing.T) {
 	db := mustNewSQLMockDB(t)
 	defer db.Close()
 
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/douyin/favoriteUser/tag/reorder", strings.NewReader("{"))
 	app.handleDouyinFavoriteUserTagReorder(rr, req)
@@ -629,7 +652,7 @@ func TestHandleDouyinFavoriteAwemeTagApply_InternalError(t *testing.T) {
 
 	mock.ExpectBegin().WillReturnError(errors.New("begin fail"))
 
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 	req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/tag/apply", map[string]any{
 		"awemeIds": []string{"a1"},
 		"tagIds":   []int64{1},

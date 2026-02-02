@@ -48,7 +48,7 @@ func TestMediaUploadService_FindMediaFileByLocalPath_PrefixUploadSlash_NoHit(t *
 			WillReturnError(sql.ErrNoRows)
 	}
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	got, err := svc.findMediaFileByLocalPath(context.Background(), "/upload/images/x.png", "")
 	if err != nil {
 		t.Fatalf("err=%v", err)
@@ -68,7 +68,7 @@ func TestMediaUploadService_FindMediaFileByLocalPath_PrefixUploadNoSlash_NoHit(t
 			WillReturnError(sql.ErrNoRows)
 	}
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	got, err := svc.findMediaFileByLocalPath(context.Background(), "upload/images/x.png", "")
 	if err != nil {
 		t.Fatalf("err=%v", err)
@@ -86,7 +86,7 @@ func TestMediaUploadService_UpdateTimeByLocalPathIgnoreUser_ExecError(t *testing
 		WithArgs(sqlmock.AnyArg(), "/images/x.png").
 		WillReturnError(errors.New("exec fail"))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if got := svc.updateTimeByLocalPathIgnoreUser(context.Background(), "/images/x.png", time.Now()); got != 0 {
 		t.Fatalf("got=%d, want 0", got)
 	}
@@ -114,7 +114,7 @@ func TestMediaUploadService_ReuploadLocalFile_UsesBaseFilenameAndNewRequestError
 	}
 
 	svc := &MediaUploadService{
-		db:         db,
+		db:         wrapMySQLDB(db),
 		fileStore:  fileStore,
 		imageSrv:   NewImageServerService("127.0.0.1", "9003"),
 		httpClient: &http.Client{},
@@ -151,7 +151,7 @@ func TestMediaUploadService_ReuploadLocalFile_DoError(t *testing.T) {
 		))
 
 	svc := &MediaUploadService{
-		db:         db,
+		db:         wrapMySQLDB(db),
 		fileStore:  fileStore,
 		imageSrv:   NewImageServerService("127.0.0.1", "9003"),
 		httpClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, errors.New("net down") })},
@@ -188,7 +188,7 @@ func TestMediaUploadService_ReuploadLocalFile_ReadAllError(t *testing.T) {
 		))
 
 	svc := &MediaUploadService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		fileStore: fileStore,
 		imageSrv:  NewImageServerService("127.0.0.1", "9003"),
 		httpClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -233,7 +233,7 @@ func TestMediaUploadService_ReuploadLocalFile_StatusNotOK(t *testing.T) {
 		))
 
 	svc := &MediaUploadService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		fileStore: fileStore,
 		imageSrv:  NewImageServerService("127.0.0.1", "9003"),
 		httpClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -281,7 +281,7 @@ func TestMediaUploadService_ReuploadLocalFile_AltPathWithoutLeadingSlash(t *test
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	svc := &MediaUploadService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		fileStore: fileStore,
 		imageSrv:  NewImageServerService("127.0.0.1", "9003"),
 		httpClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -316,7 +316,7 @@ func TestMediaUploadService_DeleteMediaByPath_NotFound(t *testing.T) {
 			WillReturnError(sql.ErrNoRows)
 	}
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.DeleteMediaByPath(context.Background(), "u1", "/images/x.png"); err != ErrDeleteForbidden {
 		t.Fatalf("err=%v, want %v", err, ErrDeleteForbidden)
 	}
@@ -359,7 +359,7 @@ func TestMediaUploadService_DeleteMediaByPath_FileMD5Empty_CoversCandidates(t *t
 			WillReturnResult(sqlmock.NewResult(0, 1))
 	}
 
-	svc := &MediaUploadService{db: db, fileStore: fileStore}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: fileStore}
 	result, err := svc.DeleteMediaByPath(context.Background(), "u1", "/upload/images/x.png?x=1")
 	if err != nil {
 		t.Fatalf("DeleteMediaByPath: %v", err)
@@ -387,7 +387,7 @@ func TestMediaUploadService_DeleteMediaByPath_CleanEmptyFromDBRow(t *testing.T) 
 			int64(1), "image/png", "png", sql.NullString{Valid: false}, uploadTime, sql.NullTime{Valid: false},
 		))
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 	if _, err := svc.DeleteMediaByPath(context.Background(), "u1", "/images/x.png"); err != ErrDeleteForbidden {
 		t.Fatalf("err=%v, want %v", err, ErrDeleteForbidden)
 	}
@@ -408,7 +408,7 @@ func TestMediaUploadService_DeleteMediaByPath_StoredLocalPathOnlyQuery_ReturnsFo
 			int64(1), "image/png", "png", sql.NullString{Valid: false}, uploadTime, sql.NullTime{Valid: false},
 		))
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 	if _, err := svc.DeleteMediaByPath(context.Background(), "u1", "/images/x.png"); err != ErrDeleteForbidden {
 		t.Fatalf("err=%v, want %v", err, ErrDeleteForbidden)
 	}
@@ -433,7 +433,7 @@ func TestMediaUploadService_DeleteMediaByPath_DeleteSendLogError(t *testing.T) {
 		WithArgs(sqlmock.AnyArg()).
 		WillReturnError(errors.New("delete fail"))
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 	if _, err := svc.DeleteMediaByPath(context.Background(), "u1", "/images/x.png"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -464,7 +464,7 @@ func TestMediaUploadService_DeleteMediaByPath_DeleteMediaFileError(t *testing.T)
 		WithArgs(sqlmock.AnyArg()).
 		WillReturnError(errors.New("delete fail"))
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 	if _, err := svc.DeleteMediaByPath(context.Background(), "u1", "/images/x.png"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -509,7 +509,7 @@ func TestMediaUploadService_DeleteMediaByPath_FileMD5CountQueryError_DoesNotDele
 		WithArgs("md5").
 		WillReturnError(errors.New("count fail"))
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: tempDir}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: tempDir}}
 	got, err := svc.DeleteMediaByPath(context.Background(), "u1", "/images/x.png")
 	if err != nil {
 		t.Fatalf("DeleteMediaByPath: %v", err)

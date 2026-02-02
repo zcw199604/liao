@@ -18,7 +18,7 @@ func TestVideoExtractService_loadTaskRow(t *testing.T) {
 			WithArgs("t1").
 			WillReturnError(sql.ErrNoRows)
 
-		svc := &VideoExtractService{db: db}
+		svc := &VideoExtractService{db: wrapMySQLDB(db)}
 		_, err := svc.loadTaskRow(context.Background(), "t1")
 		if err == nil || !strings.Contains(err.Error(), "任务不存在") {
 			t.Fatalf("err=%v", err)
@@ -33,7 +33,7 @@ func TestVideoExtractService_loadTaskRow(t *testing.T) {
 			WithArgs("t1").
 			WillReturnError(sql.ErrConnDone)
 
-		svc := &VideoExtractService{db: db}
+		svc := &VideoExtractService{db: wrapMySQLDB(db)}
 		_, err := svc.loadTaskRow(context.Background(), "t1")
 		if err == nil || !strings.Contains(err.Error(), "conn") {
 			t.Fatalf("err=%v", err)
@@ -62,7 +62,7 @@ func TestVideoExtractService_loadTaskRow(t *testing.T) {
 			WithArgs("t1").
 			WillReturnRows(rows)
 
-		svc := &VideoExtractService{db: db}
+		svc := &VideoExtractService{db: wrapMySQLDB(db)}
 		out, err := svc.loadTaskRow(context.Background(), "t1")
 		if err != nil {
 			t.Fatalf("err=%v", err)

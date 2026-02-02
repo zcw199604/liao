@@ -50,7 +50,7 @@ func TestHandleRepairVideoPosters_EmptyBody_Success(t *testing.T) {
 	app := &App{
 		cfg:         config.Config{},
 		fileStorage: &FileStorageService{baseUploadAbs: t.TempDir()},
-		mediaUpload: &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}},
+		mediaUpload: &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}},
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/repairVideoPosters", strings.NewReader(""))

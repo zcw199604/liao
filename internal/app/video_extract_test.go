@@ -255,7 +255,7 @@ func TestVideoExtractService_CreateTask_ValidatesRequest(t *testing.T) {
 	defer cleanup()
 
 	fileStore := &FileStorageService{baseUploadAbs: t.TempDir(), baseTempAbs: filepath.Join(t.TempDir(), "temp")}
-	svc := &VideoExtractService{db: db, fileStore: fileStore, cfg: config.Config{FFprobePath: "ffprobe"}}
+	svc := &VideoExtractService{db: wrapMySQLDB(db), fileStore: fileStore, cfg: config.Config{FFprobePath: "ffprobe"}}
 
 	if _, _, err := svc.CreateTask(context.Background(), VideoExtractCreateRequest{
 		SourceType: VideoExtractSourceUpload,
@@ -336,7 +336,7 @@ echo '{"streams":[{"width":1920,"height":1080,"avg_frame_rate":"30/1"}],"format"
 	close(closing)
 
 	svc := &VideoExtractService{
-		db:        db,
+		db:        wrapMySQLDB(db),
 		cfg:       config.Config{FFprobePath: ffprobePath},
 		fileStore: fileStore,
 		queue:     make(chan string, 1),

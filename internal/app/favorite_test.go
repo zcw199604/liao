@@ -18,7 +18,7 @@ func TestFavoriteService_Add_QueryError(t *testing.T) {
 		WithArgs("i1", "u1").
 		WillReturnError(sql.ErrConnDone)
 
-	svc := NewFavoriteService(db)
+	svc := NewFavoriteService(wrapMySQLDB(db))
 	if _, err := svc.Add(context.Background(), "i1", "u1", "Bob"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -34,7 +34,7 @@ func TestFavoriteService_Add_ReturnsExisting(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "identity_id", "target_user_id", "target_user_name", "create_time"}).
 			AddRow(int64(1), "i1", "u1", sql.NullString{String: "Bob", Valid: true}, sql.NullTime{Time: createTime, Valid: true}))
 
-	svc := NewFavoriteService(db)
+	svc := NewFavoriteService(wrapMySQLDB(db))
 	fav, err := svc.Add(context.Background(), "i1", "u1", "Bob")
 	if err != nil {
 		t.Fatalf("Add failed: %v", err)
@@ -52,11 +52,17 @@ func TestFavoriteService_Add_InsertsWhenMissing(t *testing.T) {
 		WithArgs("i1", "u1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "identity_id", "target_user_id", "target_user_name", "create_time"}))
 
-	mock.ExpectExec(`INSERT INTO chat_favorites \(identity_id, target_user_id, target_user_name, create_time\) VALUES \(\?, \?, \?, \?\)`).
-		WithArgs("i1", "u1", "Bob", sqlmock.AnyArg()).
-		WillReturnResult(sqlmock.NewResult(7, 1))
+	expectInsertReturningID(
+		mock,
+		`INSERT INTO chat_favorites \(identity_id, target_user_id, target_user_name, create_time\) VALUES \(\?, \?, \?, \?\)`,
+		7,
+		"i1",
+		"u1",
+		"Bob",
+		sqlmock.AnyArg(),
+	)
 
-	svc := NewFavoriteService(db)
+	svc := NewFavoriteService(wrapMySQLDB(db))
 	fav, err := svc.Add(context.Background(), "i1", "u1", "Bob")
 	if err != nil {
 		t.Fatalf("Add failed: %v", err)
@@ -74,11 +80,17 @@ func TestFavoriteService_Add_UsesNullForEmptyName(t *testing.T) {
 		WithArgs("i1", "u1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "identity_id", "target_user_id", "target_user_name", "create_time"}))
 
-	mock.ExpectExec(`INSERT INTO chat_favorites \(identity_id, target_user_id, target_user_name, create_time\) VALUES \(\?, \?, \?, \?\)`).
-		WithArgs("i1", "u1", nil, sqlmock.AnyArg()).
-		WillReturnResult(sqlmock.NewResult(7, 1))
+	expectInsertReturningID(
+		mock,
+		`INSERT INTO chat_favorites \(identity_id, target_user_id, target_user_name, create_time\) VALUES \(\?, \?, \?, \?\)`,
+		7,
+		"i1",
+		"u1",
+		nil,
+		sqlmock.AnyArg(),
+	)
 
-	svc := NewFavoriteService(db)
+	svc := NewFavoriteService(wrapMySQLDB(db))
 	fav, err := svc.Add(context.Background(), "i1", "u1", "   ")
 	if err != nil {
 		t.Fatalf("Add failed: %v", err)
@@ -96,11 +108,17 @@ func TestFavoriteService_Add_InsertError(t *testing.T) {
 		WithArgs("i1", "u1").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "identity_id", "target_user_id", "target_user_name", "create_time"}))
 
-	mock.ExpectExec(`INSERT INTO chat_favorites \(identity_id, target_user_id, target_user_name, create_time\) VALUES \(\?, \?, \?, \?\)`).
-		WithArgs("i1", "u1", "Bob", sqlmock.AnyArg()).
-		WillReturnError(errors.New("insert fail"))
+	expectInsertReturningIDError(
+		mock,
+		`INSERT INTO chat_favorites \(identity_id, target_user_id, target_user_name, create_time\) VALUES \(\?, \?, \?, \?\)`,
+		errors.New("insert fail"),
+		"i1",
+		"u1",
+		"Bob",
+		sqlmock.AnyArg(),
+	)
 
-	svc := NewFavoriteService(db)
+	svc := NewFavoriteService(wrapMySQLDB(db))
 	if _, err := svc.Add(context.Background(), "i1", "u1", "Bob"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -113,7 +131,7 @@ func TestFavoriteService_ListAll_Errors(t *testing.T) {
 	mock.ExpectQuery(`SELECT id, identity_id, target_user_id, target_user_name, create_time FROM chat_favorites ORDER BY create_time DESC`).
 		WillReturnError(errors.New("query fail"))
 
-	svc := NewFavoriteService(db)
+	svc := NewFavoriteService(wrapMySQLDB(db))
 	if _, err := svc.ListAll(context.Background()); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -127,7 +145,7 @@ func TestFavoriteService_ListAll_ScanError(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "identity_id", "target_user_id", "target_user_name", "create_time"}).
 			AddRow("not-int", "i1", "u1", sql.NullString{String: "Bob", Valid: true}, sql.NullTime{Valid: false}))
 
-	svc := NewFavoriteService(db)
+	svc := NewFavoriteService(wrapMySQLDB(db))
 	if _, err := svc.ListAll(context.Background()); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -141,7 +159,7 @@ func TestFavoriteService_ListAll_TargetNameAndCreateTimeNull(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "identity_id", "target_user_id", "target_user_name", "create_time"}).
 			AddRow(int64(1), "i1", "u1", sql.NullString{Valid: false}, sql.NullTime{Valid: false}))
 
-	svc := NewFavoriteService(db)
+	svc := NewFavoriteService(wrapMySQLDB(db))
 	list, err := svc.ListAll(context.Background())
 	if err != nil {
 		t.Fatalf("ListAll failed: %v", err)
@@ -165,7 +183,7 @@ func TestFavoriteService_IsFavorite(t *testing.T) {
 		WithArgs("i1", "u1").
 		WillReturnRows(sqlmock.NewRows([]string{"1"}).AddRow(1))
 
-	svc := NewFavoriteService(db)
+	svc := NewFavoriteService(wrapMySQLDB(db))
 	ok, err := svc.IsFavorite(context.Background(), "i1", "u1")
 	if err != nil {
 		t.Fatalf("IsFavorite failed: %v", err)
@@ -195,7 +213,7 @@ func TestFavoriteService_IsFavorite_DBError(t *testing.T) {
 		WithArgs("i1", "u1").
 		WillReturnError(sql.ErrConnDone)
 
-	svc := NewFavoriteService(db)
+	svc := NewFavoriteService(wrapMySQLDB(db))
 	if _, err := svc.IsFavorite(context.Background(), "i1", "u1"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -209,7 +227,7 @@ func TestFavoriteService_RemoveByID(t *testing.T) {
 		WithArgs(int64(1)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	svc := NewFavoriteService(db)
+	svc := NewFavoriteService(wrapMySQLDB(db))
 	if err := svc.RemoveByID(context.Background(), 1); err != nil {
 		t.Fatalf("RemoveByID failed: %v", err)
 	}
@@ -223,7 +241,7 @@ func TestFavoriteService_FindByIdentityAndTarget_ErrorsAndNullFields(t *testing.
 		WithArgs("i1", "u1").
 		WillReturnError(sql.ErrConnDone)
 
-	svc := NewFavoriteService(db)
+	svc := NewFavoriteService(wrapMySQLDB(db))
 	if _, err := svc.findByIdentityAndTarget(context.Background(), "i1", "u1"); err == nil {
 		t.Fatalf("expected error")
 	}

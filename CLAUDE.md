@@ -104,7 +104,7 @@ docker run -d -p 8080:8080 \
 ### 环境变量
 
 **必须配置**：
-- `DB_URL` - MySQL数据库连接地址
+- `DB_URL` - 数据库连接地址（仅通过 scheme 决定 `mysql`/`postgres`/`postgresql`；兼容 `jdbc:` 前缀）
 - `DB_USERNAME` / `DB_PASSWORD` - 数据库凭证
 - `WEBSOCKET_UPSTREAM_URL` - 上游WebSocket服务地址（如`ws://example.com:9999`）
 - `AUTH_ACCESS_CODE` - 访问码（用于登录）
@@ -127,7 +127,7 @@ docker run -d -p 8080:8080 \
 
 ### 数据库初始化
 
-创建数据库：`hot_img`
+创建数据库：`hot_img`（MySQL 或 PostgreSQL 均可；服务启动时会自动建表）
 
 需要的表（服务启动时自动创建）：
 - `identities` - 身份表
@@ -190,7 +190,7 @@ GitHub Actions自动构建：
 - 查看后端日志中的连接错误
 
 ### 数据库连接失败
-- 确认MySQL已启动
+- 确认数据库已启动（MySQL 或 PostgreSQL）
 - 检查`DB_URL`中的主机、端口、数据库名
 - 确认数据库用户有CREATE TABLE权限
 

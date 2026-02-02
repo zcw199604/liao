@@ -158,7 +158,7 @@
   - `internal/app/image_port_strategy.go`
   - `internal/app/image_port_resolver.go`
   - `internal/app/port_detect.go`
-  - `internal/app/schema.go`
+  - 表结构迁移：`internal/database/migrator.go` + `sql/{dialect}/*.sql`（入口：`internal/app/schema.go`）
 - 前端：
   - `frontend/src/components/media/AllUploadImageModal.vue`
   - `frontend/src/components/media/MediaPreview.vue`

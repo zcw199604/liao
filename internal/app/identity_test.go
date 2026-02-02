@@ -17,7 +17,7 @@ func TestIdentityService_GetAll_QueryError(t *testing.T) {
 	mock.ExpectQuery(`SELECT id, name, sex, created_at, last_used_at FROM identity ORDER BY last_used_at DESC`).
 		WillReturnError(errors.New("query fail"))
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	if _, err := svc.GetAll(context.Background()); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -34,7 +34,7 @@ func TestIdentityService_GetAll_ScanError(t *testing.T) {
 	mock.ExpectQuery(`SELECT id, name, sex, created_at, last_used_at FROM identity ORDER BY last_used_at DESC`).
 		WillReturnRows(rows)
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	if _, err := svc.GetAll(context.Background()); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -52,7 +52,7 @@ func TestIdentityService_GetAll_FormatsTimes(t *testing.T) {
 	mock.ExpectQuery(`SELECT id, name, sex, created_at, last_used_at FROM identity ORDER BY last_used_at DESC`).
 		WillReturnRows(rows)
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	list, err := svc.GetAll(context.Background())
 	if err != nil {
 		t.Fatalf("GetAll: %v", err)
@@ -76,7 +76,7 @@ func TestIdentityService_GetByID_NotFound(t *testing.T) {
 		WithArgs("missing").
 		WillReturnRows(sqlmock.NewRows([]string{"name", "sex", "created_at", "last_used_at"}))
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	got, err := svc.GetByID(context.Background(), "missing")
 	if err != nil {
 		t.Fatalf("GetByID: %v", err)
@@ -96,7 +96,7 @@ func TestIdentityService_GetByID_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"name", "sex", "created_at", "last_used_at"}).
 			AddRow("Alice", "女", now, now))
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	got, err := svc.GetByID(context.Background(), "id1")
 	if err != nil {
 		t.Fatalf("GetByID: %v", err)
@@ -114,7 +114,7 @@ func TestIdentityService_GetByID_DBError(t *testing.T) {
 		WithArgs("id1").
 		WillReturnError(sql.ErrConnDone)
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	if _, err := svc.GetByID(context.Background(), "id1"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -128,7 +128,7 @@ func TestIdentityService_Create_Insert(t *testing.T) {
 		WithArgs(sqlmock.AnyArg(), "Alice", "女", sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	created, err := svc.Create(context.Background(), "Alice", "女")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -152,7 +152,7 @@ func TestIdentityService_QuickCreate_SexBranchesAndCreateError(t *testing.T) {
 			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), "男", sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
-		svc := NewIdentityService(db)
+		svc := NewIdentityService(wrapMySQLDB(db))
 		created, err := svc.QuickCreate(context.Background())
 		if err != nil {
 			t.Fatalf("QuickCreate: %v", err)
@@ -172,7 +172,7 @@ func TestIdentityService_QuickCreate_SexBranchesAndCreateError(t *testing.T) {
 			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), "女", sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
-		svc := NewIdentityService(db)
+		svc := NewIdentityService(wrapMySQLDB(db))
 		created, err := svc.QuickCreate(context.Background())
 		if err != nil {
 			t.Fatalf("QuickCreate: %v", err)
@@ -192,7 +192,7 @@ func TestIdentityService_QuickCreate_SexBranchesAndCreateError(t *testing.T) {
 			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), "女", sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnError(errors.New("insert fail"))
 
-		svc := NewIdentityService(db)
+		svc := NewIdentityService(wrapMySQLDB(db))
 		if _, err := svc.QuickCreate(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -207,7 +207,7 @@ func TestIdentityService_Update_ErrorsAndNotFound(t *testing.T) {
 		WithArgs("id1").
 		WillReturnError(sql.ErrConnDone)
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	if _, err := svc.Update(context.Background(), "id1", "New", "女"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -239,7 +239,7 @@ func TestIdentityService_Update_ExecError(t *testing.T) {
 		WithArgs("New", "女", sqlmock.AnyArg(), "id1").
 		WillReturnError(errors.New("update fail"))
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	if _, err := svc.Update(context.Background(), "id1", "New", "女"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -253,7 +253,7 @@ func TestIdentityService_Delete_DBError(t *testing.T) {
 		WithArgs("id1").
 		WillReturnError(errors.New("delete fail"))
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	if _, err := svc.Delete(context.Background(), "id1"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -280,7 +280,7 @@ func TestIdentityService_UpdateID_Success(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	updated, err := svc.UpdateID(context.Background(), "old", "new", "New", "女")
 	if err != nil {
 		t.Fatalf("UpdateID: %v", err)
@@ -298,7 +298,7 @@ func TestIdentityService_UpdateID_GetByIDErrors(t *testing.T) {
 		WithArgs("old").
 		WillReturnError(sql.ErrConnDone)
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	if _, err := svc.UpdateID(context.Background(), "old", "new", "New", "女"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -317,7 +317,7 @@ func TestIdentityService_UpdateID_NewIDLookupError(t *testing.T) {
 		WithArgs("new").
 		WillReturnError(sql.ErrConnDone)
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	if _, err := svc.UpdateID(context.Background(), "old", "new", "New", "女"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -331,7 +331,7 @@ func TestIdentityService_UpdateID_OldNotFound(t *testing.T) {
 		WithArgs("old").
 		WillReturnRows(sqlmock.NewRows([]string{"name", "sex", "created_at", "last_used_at"}))
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	got, err := svc.UpdateID(context.Background(), "old", "new", "New", "女")
 	if err != nil {
 		t.Fatalf("UpdateID: %v", err)
@@ -356,7 +356,7 @@ func TestIdentityService_UpdateID_BeginTxError(t *testing.T) {
 
 	mock.ExpectBegin().WillReturnError(errors.New("begin fail"))
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	if _, err := svc.UpdateID(context.Background(), "old", "new", "New", "女"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -379,7 +379,7 @@ func TestIdentityService_UpdateID_DeleteError(t *testing.T) {
 	mock.ExpectExec(`DELETE FROM identity WHERE id = \?`).WithArgs("old").WillReturnError(errors.New("delete fail"))
 	mock.ExpectRollback()
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	if _, err := svc.UpdateID(context.Background(), "old", "new", "New", "女"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -407,7 +407,7 @@ func TestIdentityService_UpdateID_CommitError(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit().WillReturnError(errors.New("commit fail"))
 
-	svc := NewIdentityService(db)
+	svc := NewIdentityService(wrapMySQLDB(db))
 	if _, err := svc.UpdateID(context.Background(), "old", "new", "New", "女"); err == nil {
 		t.Fatalf("expected error")
 	}

@@ -40,7 +40,7 @@ exit 0
 		WillReturnRows(sqlmock.NewRows([]string{"id", "local_path", "file_type", "file_extension"}).
 			AddRow(int64(1), videoLocalPath, "video/mp4", "mp4"))
 
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: uploadRoot}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: uploadRoot}}
 	res, err := svc.RepairVideoPosters(context.Background(), ffmpegOK, ffprobeOK, RepairVideoPostersRequest{
 		Commit:       true,
 		Source:       "local",
@@ -68,7 +68,7 @@ exit 0
 func TestMediaUploadService_RepairVideoPosters_CommitRequiresFFmpeg(t *testing.T) {
 	db := mustNewSQLMockDB(t)
 	t.Cleanup(func() { _ = db.Close() })
-	svc := &MediaUploadService{db: db, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
 	if _, err := svc.RepairVideoPosters(context.Background(), "   ", "ffprobe", RepairVideoPostersRequest{Commit: true}); err == nil {
 		t.Fatalf("expected error")
 	}

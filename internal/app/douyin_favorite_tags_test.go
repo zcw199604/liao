@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/go-sql-driver/mysql"
 )
 
 func TestNormalizeStringList(t *testing.T) {
@@ -37,18 +36,6 @@ func TestNormalizeInt64List(t *testing.T) {
 	}
 }
 
-func TestIsMySQLDuplicateEntry(t *testing.T) {
-	if !isMySQLDuplicateEntry(&mysql.MySQLError{Number: 1062, Message: "dup"}) {
-		t.Fatalf("expected duplicate entry error to be detected")
-	}
-	if isMySQLDuplicateEntry(&mysql.MySQLError{Number: 9999, Message: "other"}) {
-		t.Fatalf("unexpected duplicate entry detection for non-1062 error")
-	}
-	if isMySQLDuplicateEntry(errors.New("plain")) {
-		t.Fatalf("unexpected duplicate entry detection for non-mysql error")
-	}
-}
-
 func TestDouyinFavoriteService_ApplyUserTags_Set_DefaultAndDedup(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
@@ -57,24 +44,24 @@ func TestDouyinFavoriteService_ApplyUserTags_Set_DefaultAndDedup(t *testing.T) {
 	mock.ExpectExec(`DELETE FROM douyin_favorite_user_tag_map WHERE sec_user_id = \?`).
 		WithArgs("a").
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`INSERT IGNORE INTO douyin_favorite_user_tag_map`).
+	mock.ExpectExec(`INSERT (IGNORE )?INTO douyin_favorite_user_tag_map`).
 		WithArgs("a", int64(1), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`INSERT IGNORE INTO douyin_favorite_user_tag_map`).
+	mock.ExpectExec(`INSERT (IGNORE )?INTO douyin_favorite_user_tag_map`).
 		WithArgs("a", int64(2), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`DELETE FROM douyin_favorite_user_tag_map WHERE sec_user_id = \?`).
 		WithArgs("b").
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`INSERT IGNORE INTO douyin_favorite_user_tag_map`).
+	mock.ExpectExec(`INSERT (IGNORE )?INTO douyin_favorite_user_tag_map`).
 		WithArgs("b", int64(1), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`INSERT IGNORE INTO douyin_favorite_user_tag_map`).
+	mock.ExpectExec(`INSERT (IGNORE )?INTO douyin_favorite_user_tag_map`).
 		WithArgs("b", int64(2), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
-	s := NewDouyinFavoriteService(db)
+	s := NewDouyinFavoriteService(wrapMySQLDB(db))
 	if err := s.ApplyUserTags(context.Background(), []string{" a ", "a", "b"}, []int64{0, 1, 1, 2}, ""); err != nil {
 		t.Fatalf("ApplyUserTags: %v", err)
 	}
@@ -84,7 +71,7 @@ func TestDouyinFavoriteService_ApplyUserTags_InvalidMode(t *testing.T) {
 	db := mustNewSQLMockDB(t)
 	defer db.Close()
 
-	s := NewDouyinFavoriteService(db)
+	s := NewDouyinFavoriteService(wrapMySQLDB(db))
 	if err := s.ApplyUserTags(context.Background(), []string{"a"}, []int64{1}, "bad"); !errors.Is(err, ErrDouyinFavoriteTagInvalidMode) {
 		t.Fatalf("err=%v, want %v", err, ErrDouyinFavoriteTagInvalidMode)
 	}
@@ -98,7 +85,7 @@ func TestDouyinFavoriteService_ApplyUserTags_AddRemove_EmptyTagIDs(t *testing.T)
 		mock.ExpectBegin()
 		mock.ExpectCommit()
 
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.ApplyUserTags(context.Background(), []string{"a"}, []int64{}, "add"); err != nil {
 			t.Fatalf("add empty tagIDs: %v", err)
 		}
@@ -111,7 +98,7 @@ func TestDouyinFavoriteService_ApplyUserTags_AddRemove_EmptyTagIDs(t *testing.T)
 		mock.ExpectBegin()
 		mock.ExpectCommit()
 
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.ApplyUserTags(context.Background(), []string{"a"}, []int64{}, "remove"); err != nil {
 			t.Fatalf("remove empty tagIDs: %v", err)
 		}
@@ -128,7 +115,7 @@ func TestDouyinFavoriteService_ApplyUserTags_DeleteError_RollsBack(t *testing.T)
 		WillReturnError(errors.New("delete failed"))
 	mock.ExpectRollback()
 
-	s := NewDouyinFavoriteService(db)
+	s := NewDouyinFavoriteService(wrapMySQLDB(db))
 	if err := s.ApplyUserTags(context.Background(), []string{"a"}, []int64{1}, "set"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -141,12 +128,12 @@ func TestDouyinFavoriteService_ApplyAwemeTags_AddRemove(t *testing.T) {
 		defer cleanup()
 
 		mock.ExpectBegin()
-		mock.ExpectExec(`INSERT IGNORE INTO douyin_favorite_aweme_tag_map`).
+		mock.ExpectExec(`INSERT (IGNORE )?INTO douyin_favorite_aweme_tag_map`).
 			WithArgs("aweme1", int64(7), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.ApplyAwemeTags(context.Background(), []string{"aweme1"}, []int64{7}, "add"); err != nil {
 			t.Fatalf("ApplyAwemeTags add: %v", err)
 		}
@@ -163,7 +150,7 @@ func TestDouyinFavoriteService_ApplyAwemeTags_AddRemove(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.ApplyAwemeTags(context.Background(), []string{"aweme1"}, []int64{7}, "remove"); err != nil {
 			t.Fatalf("ApplyAwemeTags remove: %v", err)
 		}
@@ -175,7 +162,7 @@ func TestDouyinFavoriteService_ApplyUserTags_AddAndRemoveBranches(t *testing.T) 
 	{
 		db := mustNewSQLMockDB(t)
 		defer db.Close()
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.ApplyUserTags(context.Background(), []string{" ", ""}, []int64{1}, "set"); err != nil {
 			t.Fatalf("empty targets: %v", err)
 		}
@@ -187,15 +174,15 @@ func TestDouyinFavoriteService_ApplyUserTags_AddAndRemoveBranches(t *testing.T) 
 		defer cleanup()
 
 		mock.ExpectBegin()
-		mock.ExpectExec(`INSERT IGNORE INTO douyin_favorite_user_tag_map`).
+		mock.ExpectExec(`INSERT (IGNORE )?INTO douyin_favorite_user_tag_map`).
 			WithArgs("u1", int64(7), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(0, 1))
-		mock.ExpectExec(`INSERT IGNORE INTO douyin_favorite_user_tag_map`).
+		mock.ExpectExec(`INSERT (IGNORE )?INTO douyin_favorite_user_tag_map`).
 			WithArgs("u1", int64(8), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.ApplyUserTags(context.Background(), []string{"u1"}, []int64{7, 8}, "add"); err != nil {
 			t.Fatalf("add: %v", err)
 		}
@@ -212,7 +199,7 @@ func TestDouyinFavoriteService_ApplyUserTags_AddAndRemoveBranches(t *testing.T) 
 			WillReturnError(errors.New("delete failed"))
 		mock.ExpectRollback()
 
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.ApplyUserTags(context.Background(), []string{"u1"}, []int64{7}, "remove"); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -224,7 +211,7 @@ func TestDouyinFavoriteService_ApplyAwemeTags_EmptyTargetsAndEmptyTagIDs(t *test
 	{
 		db := mustNewSQLMockDB(t)
 		defer db.Close()
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.ApplyAwemeTags(context.Background(), []string{" ", ""}, []int64{1}, "set"); err != nil {
 			t.Fatalf("empty targets: %v", err)
 		}
@@ -238,7 +225,7 @@ func TestDouyinFavoriteService_ApplyAwemeTags_EmptyTargetsAndEmptyTagIDs(t *test
 		mock.ExpectBegin()
 		mock.ExpectCommit()
 
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.ApplyAwemeTags(context.Background(), []string{"a1"}, []int64{}, "add"); err != nil {
 			t.Fatalf("add empty: %v", err)
 		}
@@ -252,7 +239,7 @@ func TestDouyinFavoriteService_ApplyAwemeTags_EmptyTargetsAndEmptyTagIDs(t *test
 		mock.ExpectBegin()
 		mock.ExpectCommit()
 
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.ApplyAwemeTags(context.Background(), []string{"a1"}, []int64{}, "remove"); err != nil {
 			t.Fatalf("remove empty: %v", err)
 		}
@@ -269,7 +256,7 @@ func TestDouyinFavoriteService_ApplyAwemeTags_EmptyTargetsAndEmptyTagIDs(t *test
 			WillReturnError(errors.New("delete failed"))
 		mock.ExpectRollback()
 
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.ApplyAwemeTags(context.Background(), []string{"a1"}, []int64{1}, "set"); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -288,7 +275,7 @@ func TestDouyinFavoriteService_ListAllUserTagIDsAndFill(t *testing.T) {
 			AddRow(" u2 ", int64(3)). // trim
 			AddRow("u1", int64(9)))   // keep
 
-	s := NewDouyinFavoriteService(db)
+	s := NewDouyinFavoriteService(wrapMySQLDB(db))
 	m, err := s.listAllUserTagIDs(context.Background())
 	if err != nil {
 		t.Fatalf("listAllUserTagIDs: %v", err)
@@ -333,7 +320,7 @@ func TestDouyinFavoriteService_ListAllAwemeTagIDsAndFill(t *testing.T) {
 			AddRow("a1", int64(-1)). // skip
 			AddRow("a2", int64(4)))
 
-	s := NewDouyinFavoriteService(db)
+	s := NewDouyinFavoriteService(wrapMySQLDB(db))
 	m, err := s.listAllAwemeTagIDs(context.Background())
 	if err != nil {
 		t.Fatalf("listAllAwemeTagIDs: %v", err)
@@ -380,7 +367,7 @@ func TestDouyinFavoriteService_ListUserTags_EmptyResultIsNotNilSlice(t *testing.
 			"updated_at",
 		}))
 
-	s := NewDouyinFavoriteService(db)
+	s := NewDouyinFavoriteService(wrapMySQLDB(db))
 	out, err := s.ListUserTags(context.Background())
 	if err != nil {
 		t.Fatalf("ListUserTags: %v", err)
@@ -404,7 +391,7 @@ func TestDouyinFavoriteService_ListAwemeTags_EmptyResultIsNotNilSlice(t *testing
 			"updated_at",
 		}))
 
-	s := NewDouyinFavoriteService(db)
+	s := NewDouyinFavoriteService(wrapMySQLDB(db))
 	out, err := s.ListAwemeTags(context.Background())
 	if err != nil {
 		t.Fatalf("ListAwemeTags: %v", err)
@@ -426,7 +413,7 @@ func TestDouyinFavoriteService_RemoveUserTag_RollbackBranches(t *testing.T) {
 			WillReturnError(errors.New("delete map failed"))
 		mock.ExpectRollback()
 
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.RemoveUserTag(context.Background(), 1); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -446,7 +433,7 @@ func TestDouyinFavoriteService_RemoveUserTag_RollbackBranches(t *testing.T) {
 			WillReturnError(errors.New("delete tag failed"))
 		mock.ExpectRollback()
 
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.RemoveUserTag(context.Background(), 1); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -465,7 +452,7 @@ func TestDouyinFavoriteService_RemoveAwemeTag_RollbackBranches(t *testing.T) {
 			WillReturnError(errors.New("delete map failed"))
 		mock.ExpectRollback()
 
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.RemoveAwemeTag(context.Background(), 1); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -485,7 +472,7 @@ func TestDouyinFavoriteService_RemoveAwemeTag_RollbackBranches(t *testing.T) {
 			WillReturnError(errors.New("delete tag failed"))
 		mock.ExpectRollback()
 
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.RemoveAwemeTag(context.Background(), 1); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -498,9 +485,9 @@ func TestDouyinFavoriteService_UpdateAwemeTag_Duplicate(t *testing.T) {
 
 	mock.ExpectExec(`UPDATE douyin_favorite_aweme_tag`).
 		WithArgs("教程", sqlmock.AnyArg(), int64(1)).
-		WillReturnError(&mysql.MySQLError{Number: 1062, Message: "dup"})
+		WillReturnError(duplicateKeyErr())
 
-	s := NewDouyinFavoriteService(db)
+	s := NewDouyinFavoriteService(wrapMySQLDB(db))
 	_, err := s.UpdateAwemeTag(context.Background(), 1, "教程")
 	if !errors.Is(err, ErrDouyinFavoriteTagAlreadyExists) {
 		t.Fatalf("err=%v, want %v", err, ErrDouyinFavoriteTagAlreadyExists)
@@ -517,7 +504,7 @@ func TestDouyinFavoriteService_FindAwemeTagByID_NoRows(t *testing.T) {
 			"id", "name", "sort_order", "cnt", "created_at", "updated_at",
 		}))
 
-	s := NewDouyinFavoriteService(db)
+	s := NewDouyinFavoriteService(wrapMySQLDB(db))
 	out, err := s.findAwemeTagByID(context.Background(), 123)
 	if err != nil {
 		t.Fatalf("findAwemeTagByID: %v", err)
@@ -532,7 +519,7 @@ func TestDouyinFavoriteService_ReorderAwemeTags_UpdateErrorRollback(t *testing.T
 		db := mustNewSQLMockDB(t)
 		defer db.Close()
 
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.ReorderAwemeTags(context.Background(), []int64{}); err != nil {
 			t.Fatalf("empty reorder: %v", err)
 		}
@@ -548,7 +535,7 @@ func TestDouyinFavoriteService_ReorderAwemeTags_UpdateErrorRollback(t *testing.T
 			WillReturnError(errors.New("update failed"))
 		mock.ExpectRollback()
 
-		s := NewDouyinFavoriteService(db)
+		s := NewDouyinFavoriteService(wrapMySQLDB(db))
 		if err := s.ReorderAwemeTags(context.Background(), []int64{2}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -565,7 +552,7 @@ func TestDouyinFavoriteService_ApplyAwemeTags_Set_EmptyTagIDs(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
-	s := NewDouyinFavoriteService(db)
+	s := NewDouyinFavoriteService(wrapMySQLDB(db))
 	if err := s.ApplyAwemeTags(context.Background(), []string{"a1"}, []int64{}, "set"); err != nil {
 		t.Fatalf("ApplyAwemeTags set empty: %v", err)
 	}

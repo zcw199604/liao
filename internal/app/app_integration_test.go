@@ -12,6 +12,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 
 	"liao/internal/config"
+	"liao/internal/database"
 )
 
 func TestURLQueryEscape(t *testing.T) {
@@ -85,6 +86,59 @@ func TestOpenDB_UsesEncodedLocAndPings(t *testing.T) {
 	}
 	if !strings.Contains(gotDSN, "loc=Asia%2FShanghai") {
 		t.Fatalf("dsn=%q", gotDSN)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expectations: %v", err)
+	}
+}
+
+func TestOpenDB_Postgres_FiltersMySQLParamsAndMapsTimezone(t *testing.T) {
+	oldOpen := sqlOpenFn
+	t.Cleanup(func() { sqlOpenFn = oldOpen })
+
+	db, mock, err := sqlmock.New(
+		sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp),
+		sqlmock.MonitorPingsOption(true),
+	)
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectPing().WillReturnError(nil)
+
+	var gotDriver string
+	var gotDSN string
+	sqlOpenFn = func(driverName, dsn string) (*sql.DB, error) {
+		gotDriver = driverName
+		gotDSN = dsn
+		return db, nil
+	}
+
+	_, err = openDB(config.Config{
+		DBURL:      "jdbc:postgres://localhost:5432/hot_img?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true",
+		DBUsername: "u",
+		DBPassword: "p",
+	})
+	if err != nil {
+		t.Fatalf("openDB: %v", err)
+	}
+	if gotDriver != "pgx" {
+		t.Fatalf("driver=%q", gotDriver)
+	}
+	if !strings.Contains(gotDSN, "sslmode=disable") {
+		t.Fatalf("dsn=%q (missing sslmode=disable)", gotDSN)
+	}
+	if !strings.Contains(gotDSN, "timezone=Asia%2FShanghai") {
+		t.Fatalf("dsn=%q (missing timezone=Asia%%2FShanghai)", gotDSN)
+	}
+
+	// Ensure MySQL-only params don't leak into Postgres runtime parameters.
+	for _, bad := range []string{"serverTimezone", "useSSL", "characterEncoding", "allowPublicKeyRetrieval"} {
+		if strings.Contains(gotDSN, bad) {
+			t.Fatalf("dsn=%q (should not contain %q)", gotDSN, bad)
+		}
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -166,7 +220,7 @@ func TestNew_ErrorBranches(t *testing.T) {
 		newRedisChatHistoryCacheServiceFn = oldCHC
 	})
 
-	openDBFn = func(cfg config.Config) (*sql.DB, error) { return nil, errors.New("db fail") }
+	openDBFn = func(cfg config.Config) (*database.DB, error) { return nil, errors.New("db fail") }
 	if _, err := New(config.Config{}); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -175,13 +229,13 @@ func TestNew_ErrorBranches(t *testing.T) {
 	defer cleanup()
 	mock.MatchExpectationsInOrder(false)
 
-	openDBFn = func(cfg config.Config) (*sql.DB, error) { return db, nil }
-	ensureSchemaFn = func(db *sql.DB) error { return errors.New("schema fail") }
+	openDBFn = func(cfg config.Config) (*database.DB, error) { return database.Wrap(db, database.MySQLDialect{}), nil }
+	ensureSchemaFn = func(db *database.DB) error { return errors.New("schema fail") }
 	if _, err := New(config.Config{}); err == nil {
 		t.Fatalf("expected error")
 	}
 
-	ensureSchemaFn = func(db *sql.DB) error { return nil }
+	ensureSchemaFn = func(db *database.DB) error { return nil }
 	resolveStaticDirFn = func() string { return "static" }
 	mkdirAllFn = func(path string, perm os.FileMode) error { return errors.New("mkdir fail") }
 	if _, err := New(config.Config{JWTSecret: "s", CacheType: "memory"}); err == nil || !strings.Contains(err.Error(), "创建 upload 目录失败") {
@@ -231,13 +285,13 @@ func TestNew_Success_MemoryCacheAndShutdown(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	openDBFn = func(cfg config.Config) (*sql.DB, error) { return db, nil }
-	ensureSchemaFn = func(db *sql.DB) error { return nil }
+	openDBFn = func(cfg config.Config) (*database.DB, error) { return database.Wrap(db, database.MySQLDialect{}), nil }
+	ensureSchemaFn = func(db *database.DB) error { return nil }
 	resolveStaticDirFn = func() string { return "static" }
 	mkdirAllFn = func(path string, perm os.FileMode) error { return nil }
 
 	for i := 0; i < 3; i++ {
-		mock.ExpectExec(`INSERT IGNORE INTO system_config`).
+		mock.ExpectExec(`INSERT (IGNORE )?INTO system_config`).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 	}
 

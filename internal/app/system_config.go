@@ -4,12 +4,13 @@ package app
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"liao/internal/database"
 )
 
 type ImagePortMode string
@@ -39,14 +40,14 @@ type SystemConfig struct {
 }
 
 type SystemConfigService struct {
-	db *sql.DB
+	db *database.DB
 
 	mu     sync.RWMutex
 	loaded bool
 	cached SystemConfig
 }
 
-func NewSystemConfigService(db *sql.DB) *SystemConfigService {
+func NewSystemConfigService(db *database.DB) *SystemConfigService {
 	return &SystemConfigService{db: db}
 }
 
@@ -63,9 +64,16 @@ func (s *SystemConfigService) EnsureDefaults(ctx context.Context) error {
 	}
 
 	for k, v := range defaults {
-		if _, err := s.db.ExecContext(ctx,
-			"INSERT IGNORE INTO system_config (config_key, config_value, created_at, updated_at) VALUES (?, ?, ?, ?)",
-			k, v, now, now,
+		if _, err := database.ExecInsertIgnore(
+			ctx,
+			s.db,
+			"system_config",
+			[]string{"config_key", "config_value", "created_at", "updated_at"},
+			[]string{"config_key"},
+			k,
+			v,
+			now,
+			now,
 		); err != nil {
 			return err
 		}
@@ -167,11 +175,18 @@ func (s *SystemConfigService) Update(ctx context.Context, next SystemConfig) (Sy
 	defer func() { _ = tx.Rollback() }()
 
 	upsert := func(key, value string) error {
-		_, err := tx.ExecContext(ctx,
-			`INSERT INTO system_config (config_key, config_value, created_at, updated_at)
-			 VALUES (?, ?, ?, ?)
-			 ON DUPLICATE KEY UPDATE config_value = VALUES(config_value), updated_at = VALUES(updated_at)`,
-			key, value, now, now,
+		_, err := database.ExecUpsert(
+			ctx,
+			tx,
+			"system_config",
+			[]string{"config_key", "config_value", "created_at", "updated_at"},
+			[]string{"config_key"},
+			[]string{"config_value", "updated_at"},
+			nil,
+			key,
+			value,
+			now,
+			now,
 		)
 		return err
 	}

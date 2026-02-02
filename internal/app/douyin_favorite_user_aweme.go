@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"liao/internal/database"
 )
 
 type DouyinFavoriteUserAwemeUpsert struct {
@@ -143,6 +145,21 @@ func (s *DouyinFavoriteService) UpsertUserAwemes(ctx context.Context, secUserID 
 		return 0, err
 	}
 
+	insertCols := []string{
+		"sec_user_id",
+		"aweme_id",
+		"type",
+		"description",
+		"cover_url",
+		"downloads",
+		"sort_order",
+		"created_at",
+		"updated_at",
+	}
+	conflictCols := []string{"sec_user_id", "aweme_id"}
+	updateCols := []string{"sort_order", "updated_at"}
+	updateCoalesceCols := []string{"type", "description", "cover_url", "downloads"}
+
 	for idx, id := range orderedIDs {
 		it := unique[id]
 		var downloadsValue any
@@ -152,20 +169,14 @@ func (s *DouyinFavoriteService) UpsertUserAwemes(ctx context.Context, secUserID 
 			}
 		}
 
-		_, err := tx.ExecContext(ctx, `
-			INSERT INTO douyin_favorite_user_aweme (
-				sec_user_id, aweme_id, type, description, cover_url, downloads,
-				sort_order,
-				created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON DUPLICATE KEY UPDATE
-				type = COALESCE(VALUES(type), type),
-				description = COALESCE(VALUES(description), description),
-				cover_url = COALESCE(VALUES(cover_url), cover_url),
-				downloads = COALESCE(VALUES(downloads), downloads),
-				sort_order = VALUES(sort_order),
-				updated_at = VALUES(updated_at)
-		`,
+		_, err := database.ExecUpsert(
+			ctx,
+			tx,
+			"douyin_favorite_user_aweme",
+			insertCols,
+			conflictCols,
+			updateCols,
+			updateCoalesceCols,
 			secUserID,
 			it.AwemeID,
 			nullIfEmpty(it.Type),

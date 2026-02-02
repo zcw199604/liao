@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 
 	"liao/internal/config"
+	"liao/internal/database"
 )
 
 var execCommandContext = exec.CommandContext
@@ -241,7 +242,7 @@ func (r *videoExtractRuntime) setProgress(frame int, outTimeMs int64, speed stri
 }
 
 type VideoExtractService struct {
-	db        *sql.DB
+	db        *database.DB
 	cfg       config.Config
 	fileStore *FileStorageService
 	mtPhoto   mtPhotoFilePathResolver
@@ -257,7 +258,7 @@ type mtPhotoFilePathResolver interface {
 	ResolveFilePath(ctx context.Context, md5Value string) (*MtPhotoFilePath, error)
 }
 
-func NewVideoExtractService(db *sql.DB, cfg config.Config, fileStore *FileStorageService, mtPhoto mtPhotoFilePathResolver) *VideoExtractService {
+func NewVideoExtractService(db *database.DB, cfg config.Config, fileStore *FileStorageService, mtPhoto mtPhotoFilePathResolver) *VideoExtractService {
 	s := &VideoExtractService{
 		db:        db,
 		cfg:       cfg,
@@ -1121,9 +1122,15 @@ func (s *VideoExtractService) insertFrame(ctx context.Context, taskID string, se
 		return nil
 	}
 	now := time.Now()
-	res, err := s.db.ExecContext(ctx, `INSERT INTO video_extract_frame (task_id, seq, rel_path, time_sec, created_at)
-		VALUES (?, ?, ?, NULL, ?)
-		ON DUPLICATE KEY UPDATE rel_path = VALUES(rel_path)`,
+	res, err := database.ExecUpsert(
+		ctx,
+		s.db,
+		"video_extract_frame",
+		// Keep it minimal: time_sec is always NULL for now.
+		[]string{"task_id", "seq", "rel_path", "created_at"},
+		[]string{"task_id", "seq"},
+		[]string{"rel_path"},
+		nil,
 		taskID,
 		seq,
 		relPath,

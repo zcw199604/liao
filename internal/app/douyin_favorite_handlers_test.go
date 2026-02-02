@@ -79,7 +79,7 @@ func TestHandleDouyinFavoriteUserAdd_Success(t *testing.T) {
 			AddRow(int64(1)).
 			AddRow(int64(3)))
 
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/add", map[string]any{
 		"secUserId":       "MS4wLjABAAAA_x",
@@ -149,7 +149,7 @@ func TestHandleDouyinFavoriteUserList_Success(t *testing.T) {
 			AddRow("MS4wLjABAAAA_x", int64(7)).
 			AddRow("MS4wLjABAAAA_x", int64(9)))
 
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/favoriteUser/list", nil)
 	rr := httptest.NewRecorder()
@@ -194,7 +194,7 @@ func TestHandleDouyinFavoriteUserRemove_IgnoresDBError(t *testing.T) {
 		WithArgs("MS4wLjABAAAA_x").
 		WillReturnError(sql.ErrConnDone)
 
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/remove", map[string]any{
 		"secUserId": "MS4wLjABAAAA_x",
@@ -250,7 +250,7 @@ func TestHandleDouyinFavoriteAwemeAdd_Success(t *testing.T) {
 		WithArgs("123456").
 		WillReturnRows(sqlmock.NewRows([]string{"tag_id"}).AddRow(int64(2)))
 
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/add", map[string]any{
 		"awemeId":   "123456",
@@ -312,7 +312,7 @@ func TestHandleDouyinFavoriteAwemeList_Success(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"aweme_id", "tag_id"}).
 			AddRow("123456", int64(2)))
 
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/favoriteAweme/list", nil)
 	rr := httptest.NewRecorder()
@@ -353,7 +353,7 @@ func TestHandleDouyinFavoriteAwemeRemove_IgnoresDBError(t *testing.T) {
 		WithArgs("123456").
 		WillReturnError(sql.ErrConnDone)
 
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/remove", map[string]any{
 		"awemeId": "123456",

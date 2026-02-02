@@ -61,7 +61,7 @@ func TestHandleCheckDuplicateMedia_MD5Hit(t *testing.T) {
 
 	a := &App{
 		fileStorage: &FileStorageService{},
-		imageHash:   NewImageHashService(db),
+		imageHash:   NewImageHashService(wrapMySQLDB(db)),
 	}
 
 	req, _ := newMultipartRequest(t, "POST", "http://example.com/api/checkDuplicateMedia", "file", "a.png", "image/png", content, nil)
@@ -108,7 +108,7 @@ func TestHandleCheckDuplicateMedia_PHashUnsupported(t *testing.T) {
 
 	a := &App{
 		fileStorage: &FileStorageService{},
-		imageHash:   NewImageHashService(db),
+		imageHash:   NewImageHashService(wrapMySQLDB(db)),
 	}
 
 	req, _ := newMultipartRequest(t, "POST", "http://example.com/api/checkDuplicateMedia", "file", "a.bin", "application/octet-stream", content, nil)
@@ -159,7 +159,7 @@ func TestHandleCheckDuplicateMedia_PHashMatch(t *testing.T) {
 			"id", "file_path", "file_name", "file_dir", "md5_hash", "phash", "file_size", "created_at",
 		}))
 
-	mock.ExpectQuery(`(?s)BIT_COUNT.*FROM image_hash.*<= \?.*LIMIT \?`).
+	mock.ExpectQuery(`(?is)(BIT_COUNT|length\(replace\().*FROM image_hash.*<= \?.*LIMIT \?`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), 10, 20).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "file_path", "file_name", "file_dir", "md5_hash", "phash", "file_size", "created_at", "distance",
@@ -177,7 +177,7 @@ func TestHandleCheckDuplicateMedia_PHashMatch(t *testing.T) {
 
 	a := &App{
 		fileStorage: &FileStorageService{},
-		imageHash:   NewImageHashService(db),
+		imageHash:   NewImageHashService(wrapMySQLDB(db)),
 	}
 
 	req, _ := newMultipartRequest(t, "POST", "http://example.com/api/checkDuplicateMedia", "file", "a.png", "image/png", content, nil)
@@ -230,8 +230,8 @@ func TestHandleUploadMedia_SuccessEnhanced(t *testing.T) {
 	}
 
 	imageSrv := NewImageServerService(host, port)
-	fileStore := &FileStorageService{db: db, baseUploadAbs: tempDir}
-	mediaUpload := NewMediaUploadService(db, 8080, fileStore, imageSrv, upstream.Client())
+	fileStore := &FileStorageService{db: wrapMySQLDB(db), baseUploadAbs: tempDir}
+	mediaUpload := NewMediaUploadService(wrapMySQLDB(db), 8080, fileStore, imageSrv, upstream.Client())
 
 	app := &App{
 		httpClient:  upstream.Client(),
@@ -256,23 +256,24 @@ func TestHandleUploadMedia_SuccessEnhanced(t *testing.T) {
 			"file_size", "file_type", "file_extension", "file_md5", "upload_time", "update_time",
 		}))
 
-	mock.ExpectExec(`INSERT INTO media_file`).
-		WithArgs(
-			"u1",
-			"a.png",
-			stringPrefixSuffix{prefix: "", suffix: ".png"},
-			"abc.jpg",
-			"http://"+host+":9006/img/Upload/abc.jpg",
-			stringPrefixSuffix{prefix: "/images/", suffix: ".png"},
-			int64(len(content)),
-			"image/png",
-			"png",
-			md5Hex,
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-		).
-		WillReturnResult(sqlmock.NewResult(1, 1))
+	expectInsertReturningID(
+		mock,
+		`INSERT INTO media_file`,
+		1,
+		"u1",
+		"a.png",
+		stringPrefixSuffix{prefix: "", suffix: ".png"},
+		"abc.jpg",
+		"http://"+host+":9006/img/Upload/abc.jpg",
+		stringPrefixSuffix{prefix: "/images/", suffix: ".png"},
+		int64(len(content)),
+		"image/png",
+		"png",
+		md5Hex,
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+	)
 
 	req, _ := newMultipartRequest(
 		t,
@@ -367,8 +368,8 @@ func TestHandleUploadMedia_FindLocalPathByMD5ErrorIgnored(t *testing.T) {
 	host, port, _ := net.SplitHostPort(u.Host)
 
 	imageSrv := NewImageServerService(host, port)
-	fileStore := &FileStorageService{db: db, baseUploadAbs: tempDir}
-	mediaUpload := NewMediaUploadService(db, 8080, fileStore, imageSrv, upstream.Client())
+	fileStore := &FileStorageService{db: wrapMySQLDB(db), baseUploadAbs: tempDir}
+	mediaUpload := NewMediaUploadService(wrapMySQLDB(db), 8080, fileStore, imageSrv, upstream.Client())
 
 	app := &App{
 		httpClient:  upstream.Client(),
@@ -394,23 +395,24 @@ func TestHandleUploadMedia_FindLocalPathByMD5ErrorIgnored(t *testing.T) {
 			"file_size", "file_type", "file_extension", "file_md5", "upload_time", "update_time",
 		}))
 
-	mock.ExpectExec(`INSERT INTO media_file`).
-		WithArgs(
-			"u1",
-			"a.png",
-			stringPrefixSuffix{prefix: "", suffix: ".png"},
-			"abc.jpg",
-			"http://"+host+":9006/img/Upload/abc.jpg",
-			stringPrefixSuffix{prefix: "/images/", suffix: ".png"},
-			int64(len(content)),
-			"image/png",
-			"png",
-			md5Hex,
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-		).
-		WillReturnResult(sqlmock.NewResult(1, 1))
+	expectInsertReturningID(
+		mock,
+		`INSERT INTO media_file`,
+		1,
+		"u1",
+		"a.png",
+		stringPrefixSuffix{prefix: "", suffix: ".png"},
+		"abc.jpg",
+		"http://"+host+":9006/img/Upload/abc.jpg",
+		stringPrefixSuffix{prefix: "/images/", suffix: ".png"},
+		int64(len(content)),
+		"image/png",
+		"png",
+		md5Hex,
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+	)
 
 	req, _ := newMultipartRequest(
 		t,

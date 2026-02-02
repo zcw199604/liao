@@ -33,7 +33,7 @@ func TestHandleDownloadImgUpload_Success(t *testing.T) {
 	db, _, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	sys := NewSystemConfigService(db)
+	sys := NewSystemConfigService(wrapMySQLDB(db))
 	sys.loaded = true
 	sys.cached = SystemConfig{
 		ImagePortMode:         ImagePortModeFixed,
@@ -101,7 +101,7 @@ func TestHandleDownloadImgUpload_UpstreamError(t *testing.T) {
 	db, _, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	sys := NewSystemConfigService(db)
+	sys := NewSystemConfigService(wrapMySQLDB(db))
 	sys.loaded = true
 	sys.cached = SystemConfig{
 		ImagePortMode:         ImagePortModeFixed,

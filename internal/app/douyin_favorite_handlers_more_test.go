@@ -44,7 +44,7 @@ func TestHandleDouyinFavoriteUserList_QueryError(t *testing.T) {
 	mock.ExpectQuery(`FROM douyin_favorite_user`).
 		WillReturnError(errors.New("query failed"))
 
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/favoriteUser/list", nil)
 	rr := httptest.NewRecorder()
 	app.handleDouyinFavoriteUserList(rr, req)
@@ -56,7 +56,7 @@ func TestHandleDouyinFavoriteUserList_QueryError(t *testing.T) {
 func TestHandleDouyinFavoriteUserAdd_BadJSONAndValidation(t *testing.T) {
 	db := mustNewSQLMockDB(t)
 	defer db.Close()
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	{
 		req := httptest.NewRequest(http.MethodPost, "http://example.com/api/douyin/favoriteUser/add", strings.NewReader("{"))
@@ -85,7 +85,7 @@ func TestHandleDouyinFavoriteUserAdd_SaveErrorAndOutNil(t *testing.T) {
 		mock.ExpectExec(`INSERT INTO douyin_favorite_user`).
 			WillReturnError(errors.New("exec failed"))
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/add", map[string]any{"secUserId": "u1"})
 		rr := httptest.NewRecorder()
 		app.handleDouyinFavoriteUserAdd(rr, req)
@@ -116,7 +116,7 @@ func TestHandleDouyinFavoriteUserAdd_SaveErrorAndOutNil(t *testing.T) {
 				"updated_at",
 			})) // no rows -> sql.ErrNoRows
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/add", map[string]any{"secUserId": "u1"})
 		rr := httptest.NewRecorder()
 		app.handleDouyinFavoriteUserAdd(rr, req)
@@ -129,7 +129,7 @@ func TestHandleDouyinFavoriteUserAdd_SaveErrorAndOutNil(t *testing.T) {
 func TestHandleDouyinFavoriteUserRemove_BadJSONAndValidation(t *testing.T) {
 	db := mustNewSQLMockDB(t)
 	defer db.Close()
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	{
 		req := httptest.NewRequest(http.MethodPost, "http://example.com/api/douyin/favoriteUser/remove", strings.NewReader("{"))
@@ -156,7 +156,7 @@ func TestHandleDouyinFavoriteAwemeList_QueryError(t *testing.T) {
 	mock.ExpectQuery(`FROM douyin_favorite_aweme`).
 		WillReturnError(errors.New("query failed"))
 
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/favoriteAweme/list", nil)
 	rr := httptest.NewRecorder()
 	app.handleDouyinFavoriteAwemeList(rr, req)
@@ -168,7 +168,7 @@ func TestHandleDouyinFavoriteAwemeList_QueryError(t *testing.T) {
 func TestHandleDouyinFavoriteAwemeAdd_BadJSONAndValidation(t *testing.T) {
 	db := mustNewSQLMockDB(t)
 	defer db.Close()
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	{
 		req := httptest.NewRequest(http.MethodPost, "http://example.com/api/douyin/favoriteAweme/add", strings.NewReader("{"))
@@ -197,7 +197,7 @@ func TestHandleDouyinFavoriteAwemeAdd_SaveErrorAndOutNil(t *testing.T) {
 		mock.ExpectExec(`INSERT INTO douyin_favorite_aweme`).
 			WillReturnError(errors.New("exec failed"))
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/add", map[string]any{"awemeId": "a1"})
 		rr := httptest.NewRecorder()
 		app.handleDouyinFavoriteAwemeAdd(rr, req)
@@ -225,7 +225,7 @@ func TestHandleDouyinFavoriteAwemeAdd_SaveErrorAndOutNil(t *testing.T) {
 				"updated_at",
 			})) // no rows -> sql.ErrNoRows
 
-		app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+		app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 		req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteAweme/add", map[string]any{"awemeId": "a1"})
 		rr := httptest.NewRecorder()
 		app.handleDouyinFavoriteAwemeAdd(rr, req)
@@ -238,7 +238,7 @@ func TestHandleDouyinFavoriteAwemeAdd_SaveErrorAndOutNil(t *testing.T) {
 func TestHandleDouyinFavoriteAwemeRemove_BadJSONAndValidation(t *testing.T) {
 	db := mustNewSQLMockDB(t)
 	defer db.Close()
-	app := &App{douyinFavorite: NewDouyinFavoriteService(db)}
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
 
 	{
 		req := httptest.NewRequest(http.MethodPost, "http://example.com/api/douyin/favoriteAweme/remove", strings.NewReader("{"))

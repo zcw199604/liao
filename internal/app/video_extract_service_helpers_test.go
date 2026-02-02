@@ -15,7 +15,7 @@ func TestVideoExtractService_updateProgress(t *testing.T) {
 	defer cleanup()
 	mock.MatchExpectationsInOrder(false)
 
-	svc := &VideoExtractService{db: db}
+	svc := &VideoExtractService{db: wrapMySQLDB(db)}
 
 	// no-op when both outTimeMs and frame are negative
 	if err := svc.updateProgress(context.Background(), "t1", nil, 1.5, -1, -1); err != nil {
@@ -42,7 +42,7 @@ func TestVideoExtractService_insertFrame_and_setTaskStatus(t *testing.T) {
 	defer cleanup()
 	mock.MatchExpectationsInOrder(false)
 
-	svc := &VideoExtractService{db: db}
+	svc := &VideoExtractService{db: wrapMySQLDB(db)}
 
 	if err := svc.insertFrame(context.Background(), "t1", 0, "/x"); err != nil {
 		t.Fatalf("err=%v", err)

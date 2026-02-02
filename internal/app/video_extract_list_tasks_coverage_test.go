@@ -40,7 +40,7 @@ func TestVideoExtractService_ListTasks_PageSizeCapAndOptionalFields(t *testing.T
 		WithArgs(100, 0).
 		WillReturnRows(rows)
 
-	svc := &VideoExtractService{db: db, cfg: config.Config{ServerPort: 8080}, runtimes: make(map[string]*videoExtractRuntime)}
+	svc := &VideoExtractService{db: wrapMySQLDB(db), cfg: config.Config{ServerPort: 8080}, runtimes: make(map[string]*videoExtractRuntime)}
 	items, total, err := svc.ListTasks(context.Background(), 1, 1000, "example.com:123")
 	if err != nil {
 		t.Fatalf("err=%v", err)
@@ -85,7 +85,7 @@ func TestVideoExtractService_ListTasks_ScanError(t *testing.T) {
 		WithArgs(10, 0).
 		WillReturnRows(rows)
 
-	svc := &VideoExtractService{db: db, cfg: config.Config{ServerPort: 8080}, runtimes: make(map[string]*videoExtractRuntime)}
+	svc := &VideoExtractService{db: wrapMySQLDB(db), cfg: config.Config{ServerPort: 8080}, runtimes: make(map[string]*videoExtractRuntime)}
 	if _, _, err := svc.ListTasks(context.Background(), 1, 10, ""); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -127,7 +127,7 @@ func TestVideoExtractService_ListTasks_RowsErr(t *testing.T) {
 		WithArgs(10, 0).
 		WillReturnRows(rows)
 
-	svc := &VideoExtractService{db: db, cfg: config.Config{ServerPort: 8080}, runtimes: make(map[string]*videoExtractRuntime)}
+	svc := &VideoExtractService{db: wrapMySQLDB(db), cfg: config.Config{ServerPort: 8080}, runtimes: make(map[string]*videoExtractRuntime)}
 	if _, _, err := svc.ListTasks(context.Background(), 1, 10, ""); err == nil {
 		t.Fatalf("expected error")
 	}

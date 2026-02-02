@@ -20,7 +20,7 @@ func TestMediaUploadService_SaveUploadRecord_FindExistingError(t *testing.T) {
 		WithArgs("u1", "md5").
 		WillReturnError(errors.New("query fail"))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.SaveUploadRecord(context.Background(), UploadRecord{UserID: "u1", FileMD5: "md5"}); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -56,7 +56,7 @@ func TestMediaUploadService_SaveUploadRecord_UpdateExisting_Success(t *testing.T
 		WithArgs(sqlmock.AnyArg(), int64(1)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	got, err := svc.SaveUploadRecord(context.Background(), UploadRecord{UserID: "u1", FileMD5: "md5"})
 	if err != nil {
 		t.Fatalf("SaveUploadRecord: %v", err)
@@ -96,7 +96,7 @@ func TestMediaUploadService_SaveUploadRecord_UpdateExisting_UpdateError(t *testi
 		WithArgs(sqlmock.AnyArg(), int64(1)).
 		WillReturnError(errors.New("update fail"))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.SaveUploadRecord(context.Background(), UploadRecord{UserID: "u1", FileMD5: "md5"}); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -106,10 +106,9 @@ func TestMediaUploadService_SaveUploadRecord_InsertError(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	mock.ExpectExec(`INSERT INTO media_file`).
-		WillReturnError(errors.New("insert fail"))
+	expectInsertReturningIDError(mock, `INSERT INTO media_file`, errors.New("insert fail"))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.SaveUploadRecord(context.Background(), UploadRecord{UserID: "u1"}); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -151,7 +150,7 @@ func TestMediaUploadService_RecordImageSend_RemoteURL_GlobalFallback_InsertLog(t
 		WithArgs(sqlmock.AnyArg(), int64(10)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	got, err := svc.RecordImageSend(context.Background(), remoteURL, fromUserID, toUserID, "")
 	if err != nil {
 		t.Fatalf("RecordImageSend: %v", err)
@@ -204,7 +203,7 @@ func TestMediaUploadService_RecordImageSend_RemoteFilename_ExistingLog(t *testin
 		WithArgs(sqlmock.AnyArg(), int64(11)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	got, err := svc.RecordImageSend(context.Background(), remoteURL, fromUserID, toUserID, "")
 	if err != nil {
 		t.Fatalf("RecordImageSend: %v", err)
@@ -241,7 +240,7 @@ func TestMediaUploadService_RecordImageSend_ExistingLog_UpdateError(t *testing.T
 		WithArgs(sqlmock.AnyArg(), int64(8)).
 		WillReturnError(errors.New("update fail"))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.RecordImageSend(context.Background(), remoteURL, fromUserID, toUserID, "l.png"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -285,7 +284,7 @@ func TestMediaUploadService_RecordImageSend_Basename_InsertError(t *testing.T) {
 	mock.ExpectExec(`INSERT INTO media_send_log`).
 		WillReturnError(errors.New("insert fail"))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.RecordImageSend(context.Background(), remoteURL, fromUserID, toUserID, ""); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -314,7 +313,7 @@ func TestMediaUploadService_RecordImageSend_FindSendLogError(t *testing.T) {
 		WithArgs(remoteURL, fromUserID, toUserID).
 		WillReturnError(errors.New("query fail"))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.RecordImageSend(context.Background(), remoteURL, fromUserID, toUserID, ""); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -332,7 +331,7 @@ func TestMediaUploadService_RecordImageSend_NoMatch(t *testing.T) {
 		WithArgs("l.png").
 		WillReturnError(sql.ErrNoRows)
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	got, err := svc.RecordImageSend(context.Background(), "", "u1", "u2", "l.png")
 	if err != nil {
 		t.Fatalf("RecordImageSend: %v", err)

@@ -27,6 +27,7 @@ RUN apk add --no-cache ca-certificates tzdata ffmpeg exiftool \
 WORKDIR /app
 COPY --from=backend-builder /out/liao /app/
 COPY --from=backend-builder /out/static /app/static/
+COPY sql/ /app/sql/
 EXPOSE 8080
 ENV SERVER_PORT=8080
 ENTRYPOINT ["/app/liao"]

@@ -60,7 +60,7 @@
 ## 依赖
 - `internal/app/identity.go`
 - `internal/app/identity_handlers.go`
-- `internal/app/schema.go`
+- 表结构迁移：`internal/database/migrator.go` + `sql/{dialect}/*.sql`（入口：`internal/app/schema.go`）
 
 ## 变更历史
 - [202601071248_go_backend_rewrite](../../history/2026-01/202601071248_go_backend_rewrite/) - Go 后端重构并对齐身份管理行为

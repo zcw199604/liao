@@ -39,7 +39,7 @@ func TestVideoExtractService_ContinueTask(t *testing.T) {
 	t.Run("empty task", func(t *testing.T) {
 		db, _, cleanup := newSQLMock(t)
 		defer cleanup()
-		svc := &VideoExtractService{db: db}
+		svc := &VideoExtractService{db: wrapMySQLDB(db)}
 		if err := svc.ContinueTask(context.Background(), VideoExtractContinueRequest{TaskID: " "}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -52,7 +52,7 @@ func TestVideoExtractService_ContinueTask(t *testing.T) {
 			WithArgs("t1").
 			WillReturnRows(makeLoadTaskRowRows("t1", VideoExtractStatusRunning, sql.NullFloat64{}, sql.NullFloat64{}, 10, 0, "/extract/t1"))
 
-		svc := &VideoExtractService{db: db}
+		svc := &VideoExtractService{db: wrapMySQLDB(db)}
 		if err := svc.ContinueTask(context.Background(), VideoExtractContinueRequest{TaskID: "t1", MaxFrames: ptrInt(10)}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -65,7 +65,7 @@ func TestVideoExtractService_ContinueTask(t *testing.T) {
 			WithArgs("t1").
 			WillReturnRows(makeLoadTaskRowRows("t1", VideoExtractStatusFailed, sql.NullFloat64{}, sql.NullFloat64{}, 10, 0, "/extract/t1"))
 
-		svc := &VideoExtractService{db: db}
+		svc := &VideoExtractService{db: wrapMySQLDB(db)}
 		if err := svc.ContinueTask(context.Background(), VideoExtractContinueRequest{TaskID: "t1", MaxFrames: ptrInt(10)}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -78,7 +78,7 @@ func TestVideoExtractService_ContinueTask(t *testing.T) {
 			WithArgs("t1").
 			WillReturnRows(makeLoadTaskRowRows("t1", VideoExtractStatusPausedLimit, sql.NullFloat64{Float64: 2, Valid: true}, sql.NullFloat64{}, 10, 0, "/extract/t1"))
 
-		svc := &VideoExtractService{db: db}
+		svc := &VideoExtractService{db: wrapMySQLDB(db)}
 		end := -1.0
 		if err := svc.ContinueTask(context.Background(), VideoExtractContinueRequest{TaskID: "t1", EndSec: &end}); err == nil {
 			t.Fatalf("expected error")
@@ -92,7 +92,7 @@ func TestVideoExtractService_ContinueTask(t *testing.T) {
 			WithArgs("t1").
 			WillReturnRows(makeLoadTaskRowRows("t1", VideoExtractStatusPausedLimit, sql.NullFloat64{Float64: 2, Valid: true}, sql.NullFloat64{}, 10, 0, "/extract/t1"))
 
-		svc := &VideoExtractService{db: db}
+		svc := &VideoExtractService{db: wrapMySQLDB(db)}
 		end := 1.0
 		if err := svc.ContinueTask(context.Background(), VideoExtractContinueRequest{TaskID: "t1", EndSec: &end}); err == nil {
 			t.Fatalf("expected error")
@@ -106,7 +106,7 @@ func TestVideoExtractService_ContinueTask(t *testing.T) {
 			WithArgs("t1").
 			WillReturnRows(makeLoadTaskRowRows("t1", VideoExtractStatusPausedUser, sql.NullFloat64{}, sql.NullFloat64{}, 10, 5, "/extract/t1"))
 
-		svc := &VideoExtractService{db: db}
+		svc := &VideoExtractService{db: wrapMySQLDB(db)}
 		if err := svc.ContinueTask(context.Background(), VideoExtractContinueRequest{TaskID: "t1", MaxFrames: ptrInt(0)}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -119,7 +119,7 @@ func TestVideoExtractService_ContinueTask(t *testing.T) {
 			WithArgs("t1").
 			WillReturnRows(makeLoadTaskRowRows("t1", VideoExtractStatusPausedUser, sql.NullFloat64{}, sql.NullFloat64{}, 10, 5, "/extract/t1"))
 
-		svc := &VideoExtractService{db: db}
+		svc := &VideoExtractService{db: wrapMySQLDB(db)}
 		if err := svc.ContinueTask(context.Background(), VideoExtractContinueRequest{TaskID: "t1", MaxFrames: ptrInt(4)}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -132,7 +132,7 @@ func TestVideoExtractService_ContinueTask(t *testing.T) {
 			WithArgs("t1").
 			WillReturnRows(makeLoadTaskRowRows("t1", VideoExtractStatusPausedUser, sql.NullFloat64{}, sql.NullFloat64{}, 10, 0, "/extract/t1"))
 
-		svc := &VideoExtractService{db: db}
+		svc := &VideoExtractService{db: wrapMySQLDB(db)}
 		if err := svc.ContinueTask(context.Background(), VideoExtractContinueRequest{TaskID: "t1"}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -151,7 +151,7 @@ func TestVideoExtractService_ContinueTask(t *testing.T) {
 			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), "t1").
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
-		svc := &VideoExtractService{db: db, queue: make(chan string, 1), closing: make(chan struct{})}
+		svc := &VideoExtractService{db: wrapMySQLDB(db), queue: make(chan string, 1), closing: make(chan struct{})}
 		end := 3.0
 		if err := svc.ContinueTask(context.Background(), VideoExtractContinueRequest{TaskID: "t1", EndSec: &end}); err != nil {
 			t.Fatalf("err=%v", err)
@@ -173,7 +173,7 @@ func TestVideoExtractService_ContinueTask(t *testing.T) {
 
 		queue := make(chan string, 1)
 		queue <- "filled"
-		svc := &VideoExtractService{db: db, queue: queue, closing: make(chan struct{})}
+		svc := &VideoExtractService{db: wrapMySQLDB(db), queue: queue, closing: make(chan struct{})}
 		if err := svc.ContinueTask(context.Background(), VideoExtractContinueRequest{TaskID: "t1", MaxFrames: ptrInt(10)}); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -216,7 +216,7 @@ func TestVideoExtractService_DeleteTask_and_CancelAndMark(t *testing.T) {
 
 		cancelCalled := false
 		svc := &VideoExtractService{
-			db:        db,
+			db:        wrapMySQLDB(db),
 			fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 			runtimes:  map[string]*videoExtractRuntime{"t1": {cancel: func() { cancelCalled = true }}},
 		}
@@ -253,7 +253,7 @@ func TestVideoExtractService_DeleteTask_and_CancelAndMark(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
 		svc := &VideoExtractService{
-			db:        db,
+			db:        wrapMySQLDB(db),
 			fileStore: &FileStorageService{baseUploadAbs: uploadRoot},
 			runtimes:  make(map[string]*videoExtractRuntime),
 		}
@@ -279,7 +279,7 @@ func TestVideoExtractService_DeleteTask_and_CancelAndMark(t *testing.T) {
 		mock.ExpectExec(`(?s)UPDATE video_extract_task SET status =`).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
-		svc := &VideoExtractService{db: db, runtimes: make(map[string]*videoExtractRuntime)}
+		svc := &VideoExtractService{db: wrapMySQLDB(db), runtimes: make(map[string]*videoExtractRuntime)}
 		if err := svc.CancelAndMark(context.Background(), VideoExtractCancelRequest{TaskID: "t1"}); err != nil {
 			t.Fatalf("err=%v", err)
 		}

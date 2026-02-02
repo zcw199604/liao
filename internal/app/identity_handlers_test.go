@@ -50,7 +50,7 @@ func TestHandleCreateIdentity_Success(t *testing.T) {
 		WithArgs(sqlmock.AnyArg(), "Alice", "女", sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/createIdentity", strings.NewReader("name=Alice&sex=女"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
@@ -81,7 +81,7 @@ func TestHandleCreateIdentity_DBError(t *testing.T) {
 		WithArgs(sqlmock.AnyArg(), "Alice", "女", sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnError(sql.ErrConnDone)
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/createIdentity", strings.NewReader("name=Alice&sex=女"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
@@ -100,7 +100,7 @@ func TestHandleUpdateIdentity_NotFound(t *testing.T) {
 		WithArgs("id1").
 		WillReturnRows(sqlmock.NewRows([]string{"name", "sex", "created_at", "last_used_at"}))
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/updateIdentity", strings.NewReader("id=id1&name=Alice&sex=女"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
@@ -149,7 +149,7 @@ func TestHandleGetIdentityList_Success(t *testing.T) {
 	mock.ExpectQuery(`SELECT id, name, sex, created_at, last_used_at FROM identity ORDER BY last_used_at DESC`).
 		WillReturnRows(rows)
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getIdentityList", nil)
 	rec := httptest.NewRecorder()
 	a.handleGetIdentityList(rec, req)
@@ -178,7 +178,7 @@ func TestHandleGetIdentityList_DBError(t *testing.T) {
 	mock.ExpectQuery(`SELECT id, name, sex, created_at, last_used_at FROM identity ORDER BY last_used_at DESC`).
 		WillReturnError(sql.ErrConnDone)
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getIdentityList", nil)
 	rec := httptest.NewRecorder()
 	a.handleGetIdentityList(rec, req)
@@ -196,7 +196,7 @@ func TestHandleQuickCreateIdentity_Success(t *testing.T) {
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/quickCreateIdentity", nil)
 	rec := httptest.NewRecorder()
 	a.handleQuickCreateIdentity(rec, req)
@@ -233,7 +233,7 @@ func TestHandleQuickCreateIdentity_DBError(t *testing.T) {
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnError(sql.ErrConnDone)
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/quickCreateIdentity", nil)
 	rec := httptest.NewRecorder()
 	a.handleQuickCreateIdentity(rec, req)
@@ -256,7 +256,7 @@ func TestHandleUpdateIdentity_Success(t *testing.T) {
 		WithArgs("New", "男", sqlmock.AnyArg(), "id1").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	form := url.Values{}
 	form.Set("id", "id1")
 	form.Set("name", "New")
@@ -283,7 +283,7 @@ func TestHandleUpdateIdentity_DBError(t *testing.T) {
 		WithArgs("New", "男", sqlmock.AnyArg(), "id1").
 		WillReturnError(sql.ErrConnDone)
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	form := url.Values{}
 	form.Set("id", "id1")
 	form.Set("name", "New")
@@ -321,7 +321,7 @@ func TestHandleUpdateIdentityID_Success(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	form := url.Values{}
 	form.Set("oldId", "old")
 	form.Set("newId", "new")
@@ -350,7 +350,7 @@ func TestHandleUpdateIdentityID_NewIDAlreadyUsed(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"name", "sex", "created_at", "last_used_at"}).
 			AddRow("Existing", "女", now, now))
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	form := url.Values{}
 	form.Set("oldId", "old")
 	form.Set("newId", "new")
@@ -409,7 +409,7 @@ func TestHandleUpdateIdentityID_UpdateError(t *testing.T) {
 		WithArgs("old").
 		WillReturnError(sql.ErrConnDone)
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	form := url.Values{}
 	form.Set("oldId", "old")
 	form.Set("newId", "new")
@@ -448,7 +448,7 @@ func TestHandleUpdateIdentityID_TransactionInsertError(t *testing.T) {
 		WillReturnError(sql.ErrConnDone)
 	mock.ExpectRollback()
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	form := url.Values{}
 	form.Set("oldId", "old")
 	form.Set("newId", "new")
@@ -484,7 +484,7 @@ func TestHandleDeleteIdentity_NotFound(t *testing.T) {
 		WithArgs("missing").
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	form := url.Values{}
 	form.Set("id", "missing")
 	req := newURLEncodedRequest(t, http.MethodPost, "http://api.local/api/deleteIdentity", form)
@@ -504,7 +504,7 @@ func TestHandleDeleteIdentity_Success(t *testing.T) {
 		WithArgs("id1").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	form := url.Values{}
 	form.Set("id", "id1")
 	req := newURLEncodedRequest(t, http.MethodPost, "http://api.local/api/deleteIdentity", form)
@@ -524,7 +524,7 @@ func TestHandleDeleteIdentity_DBError(t *testing.T) {
 		WithArgs("id1").
 		WillReturnError(sql.ErrConnDone)
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	form := url.Values{}
 	form.Set("id", "id1")
 	req := newURLEncodedRequest(t, http.MethodPost, "http://api.local/api/deleteIdentity", form)
@@ -557,7 +557,7 @@ func TestHandleSelectIdentity_GetByIDError(t *testing.T) {
 		WithArgs("id1").
 		WillReturnError(sql.ErrConnDone)
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	form := url.Values{}
 	form.Set("id", "id1")
 	req := newURLEncodedRequest(t, http.MethodPost, "http://api.local/api/selectIdentity", form)
@@ -577,7 +577,7 @@ func TestHandleSelectIdentity_NotFound(t *testing.T) {
 		WithArgs("missing").
 		WillReturnRows(sqlmock.NewRows([]string{"name", "sex", "created_at", "last_used_at"}))
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	form := url.Values{}
 	form.Set("id", "missing")
 	req := newURLEncodedRequest(t, http.MethodPost, "http://api.local/api/selectIdentity", form)
@@ -602,7 +602,7 @@ func TestHandleSelectIdentity_UpdateLastUsedAtErrorStillOK(t *testing.T) {
 		WithArgs(sqlmock.AnyArg(), "id1").
 		WillReturnError(sql.ErrConnDone)
 
-	a := &App{identityService: NewIdentityService(db)}
+	a := &App{identityService: NewIdentityService(wrapMySQLDB(db))}
 	form := url.Values{}
 	form.Set("id", "id1")
 	req := newURLEncodedRequest(t, http.MethodPost, "http://api.local/api/selectIdentity", form)

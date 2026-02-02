@@ -36,7 +36,7 @@ func TestMediaUploadService_GetUserUploadHistory_PageLessThan1_UpdateTimeValid(t
 			now,
 		))
 
-	svc := &MediaUploadService{db: db, serverPort: 8080}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), serverPort: 8080}
 	out, err := svc.GetUserUploadHistory(context.Background(), "u1", 0, 2, "")
 	if err != nil {
 		t.Fatalf("GetUserUploadHistory: %v", err)
@@ -54,7 +54,7 @@ func TestMediaUploadService_GetUserUploadHistory_QueryError(t *testing.T) {
 		WithArgs("u1", 10, 0).
 		WillReturnError(errors.New("query fail"))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.GetUserUploadHistory(context.Background(), "u1", 1, 10, ""); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -68,7 +68,7 @@ func TestMediaUploadService_GetUserUploadHistory_ScanError(t *testing.T) {
 		WithArgs("u1", 10, 0).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(1)))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.GetUserUploadHistory(context.Background(), "u1", 1, 10, ""); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -95,7 +95,7 @@ func TestMediaUploadService_GetUserSentImages_PageLessThan1_FileNil(t *testing.T
 			WillReturnError(sql.ErrNoRows)
 	}
 
-	svc := &MediaUploadService{db: db, serverPort: 8080}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), serverPort: 8080}
 	out, err := svc.GetUserSentImages(context.Background(), fromUserID, toUserID, 0, 1, "")
 	if err != nil {
 		t.Fatalf("GetUserSentImages: %v", err)
@@ -113,7 +113,7 @@ func TestMediaUploadService_GetUserSentImages_QueryError(t *testing.T) {
 		WithArgs("u1", "u2", 10, 0).
 		WillReturnError(errors.New("query fail"))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.GetUserSentImages(context.Background(), "u1", "u2", 1, 10, ""); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -127,7 +127,7 @@ func TestMediaUploadService_GetUserSentImages_RowScanError(t *testing.T) {
 		WithArgs("u1", "u2", 10, 0).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(1)))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.GetUserSentImages(context.Background(), "u1", "u2", 1, 10, ""); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -141,7 +141,7 @@ func TestMediaUploadService_GetChatImages_DefaultLimit(t *testing.T) {
 		WithArgs("u1", "u2", "u2", "u1", 20).
 		WillReturnRows(sqlmock.NewRows([]string{"local_path"}).AddRow("images/x.png"))
 
-	svc := &MediaUploadService{db: db, serverPort: 8080}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), serverPort: 8080}
 	out, err := svc.GetChatImages(context.Background(), "u1", "u2", 0, "")
 	if err != nil {
 		t.Fatalf("GetChatImages: %v", err)
@@ -159,7 +159,7 @@ func TestMediaUploadService_GetChatImages_QueryError(t *testing.T) {
 		WithArgs("u1", "u2", "u2", "u1", 1).
 		WillReturnError(errors.New("query fail"))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.GetChatImages(context.Background(), "u1", "u2", 1, ""); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -173,7 +173,7 @@ func TestMediaUploadService_GetChatImages_ScanError(t *testing.T) {
 		WithArgs("u1", "u2", "u2", "u1", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"local_path"}).AddRow(nil))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.GetChatImages(context.Background(), "u1", "u2", 1, ""); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -199,7 +199,7 @@ func TestMediaUploadService_GetAllUploadImagesWithDetails_PageLessThan1_UpdateTi
 			now,
 		))
 
-	svc := &MediaUploadService{db: db, serverPort: 8080}
+	svc := &MediaUploadService{db: wrapMySQLDB(db), serverPort: 8080}
 	out, err := svc.GetAllUploadImagesWithDetails(context.Background(), 0, 1, "")
 	if err != nil {
 		t.Fatalf("GetAllUploadImagesWithDetails: %v", err)
@@ -217,7 +217,7 @@ func TestMediaUploadService_GetAllUploadImagesWithDetails_QueryError(t *testing.
 		WithArgs(1, 0).
 		WillReturnError(errors.New("query fail"))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.GetAllUploadImagesWithDetails(context.Background(), 1, 1, ""); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -231,7 +231,7 @@ func TestMediaUploadService_GetAllUploadImagesWithDetails_ScanError(t *testing.T
 		WithArgs(1, 0).
 		WillReturnRows(sqlmock.NewRows([]string{"local_filename"}).AddRow("x"))
 
-	svc := &MediaUploadService{db: db}
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
 	if _, err := svc.GetAllUploadImagesWithDetails(context.Background(), 1, 1, ""); err == nil {
 		t.Fatalf("expected error")
 	}

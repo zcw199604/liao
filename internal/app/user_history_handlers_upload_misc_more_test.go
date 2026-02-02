@@ -304,10 +304,10 @@ func TestHandleUploadMedia_CoversRemainingBranches(t *testing.T) {
 		})
 
 		app := &App{
-			fileStorage: &FileStorageService{db: db, baseUploadAbs: uploadRoot},
+			fileStorage: &FileStorageService{db: wrapMySQLDB(db), baseUploadAbs: uploadRoot},
 			imageServer: NewImageServerService("example.com", "9003"),
 			imageCache:  NewImageCacheService(),
-			mediaUpload: &MediaUploadService{db: db},
+			mediaUpload: &MediaUploadService{db: wrapMySQLDB(db)},
 			httpClient: &http.Client{
 				Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 					_, _ = io.ReadAll(req.Body)
@@ -351,7 +351,7 @@ func TestHandleUploadMedia_CoversRemainingBranches(t *testing.T) {
 		})
 
 		app := &App{
-			fileStorage: &FileStorageService{db: db, baseUploadAbs: uploadRoot},
+			fileStorage: &FileStorageService{db: wrapMySQLDB(db), baseUploadAbs: uploadRoot},
 			imageServer: NewImageServerService("example.com", "9003"),
 			httpClient: &http.Client{
 				Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -385,8 +385,7 @@ func TestHandleUploadMedia_CoversRemainingBranches(t *testing.T) {
 		mock.ExpectQuery(`(?s)FROM media_file.*WHERE user_id = \? AND file_md5 = \?.*LIMIT 1`).
 			WithArgs("u1", sqlmock.AnyArg()).
 			WillReturnError(sql.ErrNoRows)
-		mock.ExpectExec(`INSERT INTO media_file`).
-			WillReturnResult(sqlmock.NewResult(1, 1))
+		expectInsertReturningID(mock, `INSERT INTO media_file`, 1)
 
 		uploadRoot := t.TempDir()
 		req, _ := newMultipartRequest(t, http.MethodPost, "http://example.com/api/uploadMedia", "file", "a.jpg", "image/jpeg", []byte("x"), map[string]string{
@@ -394,10 +393,10 @@ func TestHandleUploadMedia_CoversRemainingBranches(t *testing.T) {
 		})
 
 		app := &App{
-			fileStorage: &FileStorageService{db: db, baseUploadAbs: uploadRoot},
+			fileStorage: &FileStorageService{db: wrapMySQLDB(db), baseUploadAbs: uploadRoot},
 			imageServer: NewImageServerService("example.com", "9003"),
 			imageCache:  NewImageCacheService(),
-			mediaUpload: &MediaUploadService{db: db},
+			mediaUpload: &MediaUploadService{db: wrapMySQLDB(db)},
 			httpClient: &http.Client{
 				Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 					_, err := io.ReadAll(req.Body)
@@ -439,8 +438,7 @@ func TestHandleUploadMedia_CoversRemainingBranches(t *testing.T) {
 		mock.ExpectQuery(`(?s)FROM media_file.*WHERE user_id = \? AND file_md5 = \?.*LIMIT 1`).
 			WithArgs("u1", sqlmock.AnyArg()).
 			WillReturnError(sql.ErrNoRows)
-		mock.ExpectExec(`INSERT INTO media_file`).
-			WillReturnResult(sqlmock.NewResult(1, 1))
+		expectInsertReturningID(mock, `INSERT INTO media_file`, 1)
 
 		uploadRoot := t.TempDir()
 		ffmpegOK := writeExecutable(t, "ffmpeg-ok", `#!/bin/sh
@@ -454,10 +452,10 @@ exit 0
 		})
 
 		app := &App{
-			fileStorage: &FileStorageService{db: db, baseUploadAbs: uploadRoot},
+			fileStorage: &FileStorageService{db: wrapMySQLDB(db), baseUploadAbs: uploadRoot},
 			imageServer: NewImageServerService("example.com", "9003"),
 			imageCache:  NewImageCacheService(),
-			mediaUpload: &MediaUploadService{db: db},
+			mediaUpload: &MediaUploadService{db: wrapMySQLDB(db)},
 			httpClient: &http.Client{
 				Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 					_, err := io.ReadAll(req.Body)
@@ -517,7 +515,7 @@ exit 0
 			"userid": "u1",
 		})
 
-		app := &App{fileStorage: &FileStorageService{db: db, baseUploadAbs: uploadRootFile}}
+		app := &App{fileStorage: &FileStorageService{db: wrapMySQLDB(db), baseUploadAbs: uploadRootFile}}
 		rr := httptest.NewRecorder()
 		app.handleUploadMedia(rr, req)
 		if rr.Code != http.StatusInternalServerError {

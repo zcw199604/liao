@@ -132,10 +132,10 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 
 ---
 
-### 4.2 Identity（本地身份管理，MySQL）
+### 4.2 Identity（本地身份管理，MySQL / PostgreSQL）
 
 处理器：`internal/app/identity_handlers.go`（Base：`/api`）  
-存储：`internal/app/identity.go`（表：`identity`；建表兜底：`internal/app/schema.go`）
+存储：`internal/app/identity.go`（表：`identity`；表结构迁移：`internal/database/migrator.go` + `sql/{dialect}/*.sql`，入口：`internal/app/schema.go`）
 
 #### [GET] /api/getIdentityList
 **描述**：获取身份列表（按 `last_used_at` 倒序）。
@@ -146,7 +146,7 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 ```
 
 #### [POST] /api/createIdentity
-**描述**：创建身份（生成 32 位随机 id，写入 MySQL）。
+**描述**：创建身份（生成 32 位随机 id，写入数据库）。
 
 **请求参数（application/x-www-form-urlencoded）**
 | 参数 | 必填 | 说明 |
@@ -212,10 +212,10 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 
 ---
 
-### 4.3 Favorite（本地聊天收藏，MySQL/JPA）
+### 4.3 Favorite（本地聊天收藏，MySQL / PostgreSQL）
 
 处理器：`internal/app/favorite_handlers.go`（Base：`/api/favorite`）  
-存储：`chat_favorites`（JPA 自动建表/更新：`ddl-auto=update`）
+存储：`internal/app/favorite.go`（表：`chat_favorites`；表结构迁移：`internal/database/migrator.go` + `sql/{dialect}/*.sql`，入口：`internal/app/schema.go`）
 
 #### [POST] /api/favorite/add
 **请求参数（application/x-www-form-urlencoded）**
@@ -880,7 +880,9 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 - `data`：`mediaUploadService.GetAllUploadImagesWithDetailsBySource(page,pageSize,hostHeader,source,douyinSecUserId)`
   - `source=local`：仅查询 `media_file`
   - `source=douyin`：仅查询 `douyin_media_file`（可选 `douyinSecUserId` 过滤 `sec_user_id`）
-  - `source=all`：`media_file UNION ALL douyin_media_file`（对字符串列 `CONVERT(... USING utf8mb4) COLLATE utf8mb4_unicode_ci` 以避免 MySQL `UNION` collation 冲突）
+  - `source=all`：`media_file UNION ALL douyin_media_file`
+    - MySQL：对字符串列 `CONVERT(... USING utf8mb4) COLLATE utf8mb4_unicode_ci` 以避免 `UNION` collation 冲突
+    - PostgreSQL：无需 collation workaround，直接 `UNION ALL`
   - 每条返回为 `MediaFileDTO`：`url/type/posterUrl/localFilename/originalFilename/fileSize/fileType/fileExtension/uploadTime/updateTime`
     - `posterUrl`：仅 `type=="video"` 且本地存在封面图时返回（`/upload/videos/.../*.poster.jpg`），用于前端视频缩略图与 `<video poster>`。
 - `total`：`mediaUploadService.GetAllUploadImagesCountBySource(source,douyinSecUserId)`（`source=all` 时为两表 count 之和）
