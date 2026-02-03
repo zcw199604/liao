@@ -11,6 +11,76 @@
 
           <h3 class="text-xl font-bold text-white mb-6">文件详细信息</h3>
 
+          <div v-if="douyinWork" class="mb-6">
+            <h4 class="text-base font-semibold text-white/90 mb-3">作品信息</h4>
+            <div class="space-y-4">
+              <div v-if="douyinWork.detailId" class="detail-item">
+                <label>作品ID</label>
+                <div class="value font-mono text-xs">{{ douyinWork.detailId }}</div>
+              </div>
+
+              <div v-if="douyinWork.desc" class="detail-item">
+                <label>文案/标题</label>
+                <div class="value text-sm">{{ douyinWork.desc }}</div>
+              </div>
+
+              <div v-if="douyinWork.authorName" class="detail-item">
+                <label>作者名称</label>
+                <div class="value">{{ douyinWork.authorName }}</div>
+              </div>
+
+              <div v-if="douyinWork.authorUniqueId" class="detail-item">
+                <label>抖音号</label>
+                <div class="value font-mono text-xs">{{ douyinWork.authorUniqueId }}</div>
+              </div>
+
+              <div v-if="douyinWork.authorSecUserId" class="detail-item">
+                <label>作者ID（sec_user_id）</label>
+                <div class="value font-mono text-xs">{{ douyinWork.authorSecUserId }}</div>
+              </div>
+
+              <div v-if="douyinWork.status" class="detail-item">
+                <label>状态</label>
+                <div class="value">{{ douyinWork.status }}</div>
+              </div>
+
+              <div v-if="douyinWork.publishAt" class="detail-item">
+                <label>发布时间</label>
+                <div class="value">{{ formatFullTime(douyinWork.publishAt) }}</div>
+              </div>
+
+              <div v-if="douyinWork.isPinned !== undefined" class="detail-item">
+                <label>是否置顶</label>
+                <div class="value">
+                  <span :class="douyinWork.isPinned ? 'text-emerald-300' : 'text-gray-300'">
+                    {{ douyinWork.isPinned ? '是' : '否' }}
+                  </span>
+                </div>
+              </div>
+
+              <div v-if="douyinWork.pinnedRank !== undefined && douyinWork.pinnedRank !== null" class="detail-item">
+                <label>置顶顺序</label>
+                <div class="value">{{ douyinWork.pinnedRank }}</div>
+              </div>
+
+              <div v-if="douyinWork.pinnedAt" class="detail-item">
+                <label>置顶时间</label>
+                <div class="value">{{ formatFullTime(douyinWork.pinnedAt) }}</div>
+              </div>
+
+              <div v-if="douyinWork.crawledAt" class="detail-item">
+                <label>采集时间</label>
+                <div class="value">{{ formatFullTime(douyinWork.crawledAt) }}</div>
+              </div>
+
+              <div v-if="douyinWork.lastSeenAt" class="detail-item">
+                <label>最近可见</label>
+                <div class="value">{{ formatFullTime(douyinWork.lastSeenAt) }}</div>
+              </div>
+            </div>
+          </div>
+
+          <h4 class="text-base font-semibold text-white/90 mb-3">文件信息</h4>
           <div class="space-y-4">
             <div v-if="media.originalFilename" class="detail-item">
               <label>原始文件名</label>
@@ -82,6 +152,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { formatFileSize } from '@/utils/file'
 import { formatFullTime } from '@/utils/time'
 import type { UploadedMedia } from '@/types'
@@ -91,10 +162,33 @@ interface Props {
   media: UploadedMedia
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 const emit = defineEmits<{ 'update:visible': [value: boolean] }>()
 
 const close = () => emit('update:visible', false)
+
+const douyinWork = computed(() => {
+  const media = props.media
+  const ctx = media?.context
+  if (!ctx || ctx.provider !== 'douyin') return null
+  const w = ctx.work
+  if (!w) return null
+  // Only show when there is at least one useful field.
+  const hasAny =
+    !!w.detailId ||
+    !!w.desc ||
+    !!w.authorName ||
+    !!w.authorUniqueId ||
+    !!w.authorSecUserId ||
+    !!w.publishAt ||
+    !!w.pinnedAt ||
+    !!w.crawledAt ||
+    !!w.lastSeenAt ||
+    !!w.status ||
+    w.isPinned !== undefined ||
+    w.pinnedRank !== undefined
+  return hasAny ? w : null
+})
 </script>
 
 <style scoped>

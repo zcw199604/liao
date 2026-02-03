@@ -1272,6 +1272,13 @@
 		                  >
 		                    <i class="fas fa-spinner fa-spin text-white text-xl"></i>
 		                  </div>
+		                  <div
+		                    v-if="item.isPinned"
+		                    class="absolute top-2 left-2 z-10 px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-200 text-[11px] font-semibold border border-emerald-400/20 backdrop-blur-sm"
+		                    :title="item.pinnedAt ? `置顶时间：${item.pinnedAt}` : '置顶作品'"
+		                  >
+		                    置顶<span v-if="typeof item.pinnedRank === 'number'"> #{{ item.pinnedRank }}</span>
+		                  </div>
 		                  <div class="aspect-video bg-[#111113] overflow-hidden">
 		                    <MediaTile
 		                      v-if="item.coverDownloadUrl || item.coverUrl"
@@ -1288,6 +1295,14 @@
 		                  <div class="p-3 space-y-1">
 		                    <div class="text-sm text-white line-clamp-2">
 		                      {{ item.desc || '（无描述）' }}
+		                    </div>
+		                    <div v-if="item.publishAt || item.status" class="text-xs text-gray-400 flex items-center justify-between gap-2">
+		                      <span v-if="item.publishAt" class="truncate" :title="item.publishAt">
+		                        {{ String(item.publishAt).replace('T', ' ').slice(0, 16) }}
+		                      </span>
+		                      <span v-if="item.status && item.status !== 'normal'" class="text-amber-300 shrink-0">
+		                        {{ item.status }}
+		                      </span>
 		                    </div>
 		                    <div class="text-xs text-gray-500 font-mono truncate">
 		                      {{ item.detailId }}
@@ -1379,6 +1394,15 @@ interface DouyinAccountItem {
   desc?: string
   coverUrl?: string
   coverDownloadUrl?: string
+  isPinned?: boolean
+  pinnedRank?: number
+  pinnedAt?: string
+  publishAt?: string
+  crawledAt?: string
+  lastSeenAt?: string
+  status?: string
+  authorUniqueId?: string
+  authorName?: string
   key?: string
   items?: DouyinDetailItem[]
 }
@@ -1436,6 +1460,8 @@ interface DouyinFavoriteTag {
   createTime: string
   updateTime: string
 }
+
+type DouyinWorkMeta = NonNullable<UploadedMedia['context']>['work']
 
 const douyinStore = useDouyinStore()
 const userStore = useUserStore()
@@ -2048,6 +2074,15 @@ const handleFetchAccount = async (opts: { append?: boolean; fetchAll?: boolean }
           desc: String(it?.desc || '').trim(),
           coverUrl: String(it?.coverUrl || '').trim(),
           coverDownloadUrl: String(it?.coverDownloadUrl || '').trim(),
+          isPinned: !!it?.isPinned,
+          pinnedRank: typeof it?.pinnedRank === 'number' ? it.pinnedRank : undefined,
+          pinnedAt: trimOrUndefined(it?.pinnedAt),
+          publishAt: trimOrUndefined(it?.publishAt),
+          crawledAt: trimOrUndefined(it?.crawledAt),
+          lastSeenAt: trimOrUndefined(it?.lastSeenAt),
+          status: trimOrUndefined(it?.status),
+          authorUniqueId: trimOrUndefined(it?.authorUniqueId),
+          authorName: trimOrUndefined(it?.authorName),
           key: String(it?.key || '').trim(),
           items: Array.isArray(it?.items) ? it.items : []
         })
@@ -2507,6 +2542,15 @@ const openBatchTagSheet = () => {
 	        desc: String(it?.desc || '').trim(),
 	        coverUrl: String(it?.coverUrl || '').trim(),
 	        coverDownloadUrl: String(it?.coverDownloadUrl || '').trim(),
+	        isPinned: !!it?.isPinned,
+	        pinnedRank: typeof it?.pinnedRank === 'number' ? it.pinnedRank : undefined,
+	        pinnedAt: trimOrUndefined(it?.pinnedAt),
+	        publishAt: trimOrUndefined(it?.publishAt),
+	        crawledAt: trimOrUndefined(it?.crawledAt),
+	        lastSeenAt: trimOrUndefined(it?.lastSeenAt),
+	        status: trimOrUndefined(it?.status),
+	        authorUniqueId: trimOrUndefined(it?.authorUniqueId),
+	        authorName: trimOrUndefined(it?.authorName),
 	        key: String(it?.key || '').trim(),
 	        items: Array.isArray(it?.items) ? it.items : []
 	      })
@@ -2569,9 +2613,13 @@ const openBatchTagSheet = () => {
 	  previewType.value = first.type
 	  previewUrl.value = String(first.downloadUrl || first.url || '').trim()
 
-	  const fullList = buildAccountPreviewMediaList(favoriteUserWorks.value)
+	  const authorSecUserId = trimOrUndefined(favoriteUserDetailId.value)
+	  const fullList = buildAccountPreviewMediaList(favoriteUserWorks.value, { authorSecUserId })
+	  const work = buildDouyinWorkMeta(item, { authorSecUserId })
 	  previewMediaList.value =
-	    fullList.length > 0 ? fullList : buildPreviewMediaList(item.items || [], { key: String(item.key || '').trim(), title: getAccountItemTitle(item) })
+	    fullList.length > 0
+	      ? fullList
+	      : buildPreviewMediaList(item.items || [], { key: String(item.key || '').trim(), title: getAccountItemTitle(item), work })
 	  showPreview.value = true
 	}
 
@@ -2694,10 +2742,30 @@ const copyText = async (value: string, okMsg = '已复制') => {
 	        type: String(it?.type || '').trim() || undefined,
 	        desc: String(it?.desc || '').trim() || undefined,
 	        coverUrl: String(it?.coverUrl || '').trim() || undefined,
-	        downloads: downloads.length > 0 ? downloads : undefined
+	        downloads: downloads.length > 0 ? downloads : undefined,
+	        isPinned: !!it?.isPinned,
+	        pinnedRank: typeof it?.pinnedRank === 'number' ? it.pinnedRank : undefined,
+	        pinnedAt: trimOrUndefined(it?.pinnedAt),
+	        publishAt: trimOrUndefined(it?.publishAt),
+	        status: trimOrUndefined(it?.status),
+	        authorUniqueId: trimOrUndefined(it?.authorUniqueId),
+	        authorName: trimOrUndefined(it?.authorName)
 	      }
 	    })
-	    .filter(Boolean) as { awemeId: string; type?: string; desc?: string; coverUrl?: string; downloads?: string[] }[]
+	    .filter(Boolean) as {
+	      awemeId: string
+	      type?: string
+	      desc?: string
+	      coverUrl?: string
+	      downloads?: string[]
+	      isPinned?: boolean
+	      pinnedRank?: number
+	      pinnedAt?: string
+	      publishAt?: string
+	      status?: string
+	      authorUniqueId?: string
+	      authorName?: string
+	    }[]
 
 	  if (upserts.length === 0) return
 
@@ -2890,13 +2958,47 @@ const getAccountItemTitle = (item: DouyinAccountItem) => {
   return String(item?.detailId || '').trim()
 }
 
-const buildAccountPreviewMediaList = (items: DouyinAccountItem[]): UploadedMedia[] => {
+const trimOrUndefined = (v: any): string | undefined => {
+  const raw = v === null || v === undefined ? '' : String(v)
+  const s = raw.trim()
+  return s ? s : undefined
+}
+
+const buildDouyinWorkMeta = (item: DouyinAccountItem | null | undefined, ctx: { authorSecUserId?: string } = {}): DouyinWorkMeta => {
+  return {
+    detailId: trimOrUndefined(item?.detailId),
+    desc: trimOrUndefined(item?.desc),
+    publishAt: trimOrUndefined(item?.publishAt),
+    isPinned: typeof item?.isPinned === 'boolean' ? item.isPinned : undefined,
+    pinnedRank: typeof item?.pinnedRank === 'number' ? item.pinnedRank : undefined,
+    pinnedAt: trimOrUndefined(item?.pinnedAt),
+    status: trimOrUndefined(item?.status),
+    authorSecUserId: trimOrUndefined(ctx?.authorSecUserId),
+    authorUniqueId: trimOrUndefined(item?.authorUniqueId),
+    authorName: trimOrUndefined(item?.authorName),
+    crawledAt: trimOrUndefined(item?.crawledAt),
+    lastSeenAt: trimOrUndefined(item?.lastSeenAt)
+  }
+}
+
+const buildDouyinWorkMetaFromDetail = (d: DouyinDetailResponse | null | undefined): DouyinWorkMeta => {
+  return {
+    detailId: trimOrUndefined(d?.detailId),
+    desc: trimOrUndefined(d?.title)
+  }
+}
+
+const buildAccountPreviewMediaList = (
+  items: DouyinAccountItem[],
+  ctx: { authorSecUserId?: string } = {}
+): UploadedMedia[] => {
   const list: UploadedMedia[] = []
   for (const it of items || []) {
     const key = String(it?.key || '').trim()
     const medias = Array.isArray(it?.items) ? it.items : []
     if (!key || medias.length === 0) continue
-    list.push(...buildPreviewMediaList(medias, { key, title: getAccountItemTitle(it) }))
+    const work = buildDouyinWorkMeta(it, ctx)
+    list.push(...buildPreviewMediaList(medias, { key, title: getAccountItemTitle(it), work }))
   }
   return list
 }
@@ -2912,8 +3014,12 @@ const openPreviewFromAccount = (item: DouyinAccountItem) => {
   previewIndex.value = Number(first.index) || 0
   previewType.value = first.type
   previewUrl.value = String(first.downloadUrl || first.url || '').trim()
-  const fullList = buildAccountPreviewMediaList(accountItems.value)
-  previewMediaList.value = fullList.length > 0 ? fullList : buildPreviewMediaList(item.items || [], { key: String(item.key || '').trim(), title: getAccountItemTitle(item) })
+  const fullList = buildAccountPreviewMediaList(accountItems.value, { authorSecUserId: trimOrUndefined(accountSecUserId.value) })
+  const work = buildDouyinWorkMeta(item, { authorSecUserId: trimOrUndefined(accountSecUserId.value) })
+  previewMediaList.value =
+    fullList.length > 0
+      ? fullList
+      : buildPreviewMediaList(item.items || [], { key: String(item.key || '').trim(), title: getAccountItemTitle(item), work })
   showPreview.value = true
 }
 
@@ -3130,9 +3236,13 @@ const handleResolve = async () => {
   }
 }
 
-const buildPreviewMediaList = (items: DouyinDetailItem[], opts: { key?: string; title?: string } = {}): UploadedMedia[] => {
+const buildPreviewMediaList = (
+  items: DouyinDetailItem[],
+  opts: { key?: string; title?: string; work?: DouyinWorkMeta } = {}
+): UploadedMedia[] => {
   const key = String(opts.key || '').trim()
   const title = String(opts.title || '').trim()
+  const work = opts.work
 
   const sorted = (items || []).slice().sort((a, b) => Number(a.index) - Number(b.index))
   const images = sorted.filter((it) => it.type === 'image')
@@ -3169,7 +3279,8 @@ const buildPreviewMediaList = (items: DouyinDetailItem[], opts: { key?: string; 
             provider: 'douyin',
             key,
             index: Number(it.index),
-            liveVideoIndex: it.type === 'image' ? liveVideoIndexByImageIndex.get(Number(it.index)) : undefined
+            liveVideoIndex: it.type === 'image' ? liveVideoIndexByImageIndex.get(Number(it.index)) : undefined,
+            work
           }
         : undefined
     }))
@@ -3191,13 +3302,15 @@ const openPreview = (idx: number) => {
 	  const hasVideo = detail.value.items.some((i) => i.type === 'video')
 	  const mixed = hasImage && hasVideo
 
+	  const work = buildDouyinWorkMetaFromDetail(detail.value)
+
 	  if (mixed) {
-	    previewMediaList.value = buildPreviewMediaList(detail.value.items, { key: detail.value.key, title: detail.value.title })
+	    previewMediaList.value = buildPreviewMediaList(detail.value.items, { key: detail.value.key, title: detail.value.title, work })
 	  } else if (item.type === 'image') {
 	    const images = detail.value.items.filter((i) => i.type === 'image')
-	    previewMediaList.value = buildPreviewMediaList(images, { key: detail.value.key, title: detail.value.title })
+	    previewMediaList.value = buildPreviewMediaList(images, { key: detail.value.key, title: detail.value.title, work })
 	  } else {
-	    previewMediaList.value = buildPreviewMediaList([item], { key: detail.value.key, title: detail.value.title })
+	    previewMediaList.value = buildPreviewMediaList([item], { key: detail.value.key, title: detail.value.title, work })
 	  }
 
   showPreview.value = true

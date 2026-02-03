@@ -1260,6 +1260,27 @@ const hasMediaDetails = computed(() => {
   const media = currentMedia.value
   if (!media) return false
 
+  const ctx = media.context
+  if (ctx?.provider === 'douyin' && ctx.work) {
+    const w = ctx.work
+    if (
+      !!w.detailId ||
+      !!w.desc ||
+      !!w.publishAt ||
+      !!w.pinnedAt ||
+      !!w.crawledAt ||
+      !!w.lastSeenAt ||
+      !!w.status ||
+      !!w.authorSecUserId ||
+      !!w.authorUniqueId ||
+      !!w.authorName ||
+      w.isPinned !== undefined ||
+      w.pinnedRank !== undefined
+    ) {
+      return true
+    }
+  }
+
   return (
     media.fileSize !== undefined ||
     !!media.originalFilename ||
