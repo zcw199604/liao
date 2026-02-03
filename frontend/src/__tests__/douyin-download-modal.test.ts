@@ -35,6 +35,8 @@ vi.mock('@/api/douyin', async () => {
 	    listDouyinFavoriteAwemeTags: vi.fn().mockResolvedValue({ items: [] }),
 	    upsertDouyinFavoriteUserAwemes: vi.fn().mockResolvedValue({ success: true, added: 0 }),
 	    pullLatestDouyinFavoriteUserAwemes: vi.fn().mockResolvedValue({ success: true, added: 0, fetched: 0 }),
+	    getDouyinAccount: vi.fn().mockResolvedValue({ secUserId: '', tab: 'post', cursor: 0, hasMore: false, items: [] }),
+	    addDouyinFavoriteUser: vi.fn().mockResolvedValue({}),
 	    addDouyinFavoriteUserTag: vi.fn().mockResolvedValue({}),
 	    updateDouyinFavoriteUserTag: vi.fn().mockResolvedValue({}),
 	    removeDouyinFavoriteUserTag: vi.fn().mockResolvedValue({ success: true }),
@@ -607,6 +609,73 @@ describe('components/media/DouyinDownloadModal.vue', () => {
     expect(vm.showAdvanced).toBe(true)
     expect(vm.highlightConfig).toBe(true)
     expect(String(vm.cookieHint || '')).toContain('Cookie')
+  })
+
+  it('syncFavoriteUserWorksFromAccount keeps pinnedRank=0 when favoriting user from account mode', async () => {
+    localStorage.setItem('douyin_auto_clipboard', '0')
+    localStorage.setItem('douyin_auto_resolve_clipboard', '0')
+
+    ;(douyinApi.getDouyinAccount as any).mockResolvedValue({
+      secUserId: 'u1',
+      tab: 'post',
+      cursor: 0,
+      hasMore: false,
+      items: [
+        {
+          detailId: 'a1',
+          type: 'video',
+          desc: '置顶作品',
+          coverUrl: 'https://example.com/c1.jpg',
+          isPinned: true,
+          pinnedRank: 0,
+          pinnedAt: '2026-01-01T00:00:00',
+          publishAt: '2026-01-01T00:00:00',
+          status: 'normal',
+          authorUniqueId: 'dy1',
+          authorName: '作者A',
+          key: 'k1',
+          items: [{ index: 0, type: 'video', url: 'https://example.com/v1.mp4', downloadUrl: 'https://example.com/v1.mp4' }]
+        }
+      ]
+    })
+    ;(douyinApi.addDouyinFavoriteUser as any).mockResolvedValue({ secUserId: 'u1', tagIds: [] })
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: { teleport: true, MediaPreview: true, MediaTile: true, MediaTileBadge: true, MediaTileSelectMark: true }
+      }
+    })
+
+    const douyinStore = useDouyinStore()
+    douyinStore.showModal = true
+    await nextTick()
+
+    const accountBtn = wrapper.findAll('button').find((btn) => btn.text().includes('用户作品'))
+    expect(accountBtn).toBeTruthy()
+    await accountBtn!.trigger('click')
+    await nextTick()
+
+    await wrapper.get('textarea').setValue('u1')
+
+    const fetchBtn = wrapper.findAll('button').find((btn) => btn.text().includes('获取作品'))
+    expect(fetchBtn).toBeTruthy()
+    await fetchBtn!.trigger('click')
+    await flushAsync()
+
+    const favBtn = wrapper.findAll('button').find((btn) => btn.text().includes('收藏用户'))
+    expect(favBtn).toBeTruthy()
+    await favBtn!.trigger('click')
+    await flushAsync()
+
+    expect(douyinApi.upsertDouyinFavoriteUserAwemes).toHaveBeenCalledTimes(1)
+    const payload = (douyinApi.upsertDouyinFavoriteUserAwemes as any).mock.calls[0][0]
+    expect(payload?.secUserId).toBe('u1')
+    expect(payload?.items?.[0]?.isPinned).toBe(true)
+    expect(payload?.items?.[0]?.pinnedRank).toBe(0)
   })
 
   it('batch import and download update counters and show summary', async () => {

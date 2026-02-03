@@ -118,6 +118,82 @@ func TestHandleDouyinFavoriteUserAwemeUpsert_Success(t *testing.T) {
 	}
 }
 
+func TestHandleDouyinFavoriteUserAwemeUpsert_PinnedRankZero(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`SELECT aweme_id\s+FROM douyin_favorite_user_aweme`).
+		WithArgs("MS4wLjABAAAA_x", "111").
+		WillReturnRows(sqlmock.NewRows([]string{"aweme_id"}))
+
+	mock.ExpectQuery(`SELECT MIN\(sort_order\)\s+FROM douyin_favorite_user_aweme`).
+		WithArgs("MS4wLjABAAAA_x").
+		WillReturnRows(sqlmock.NewRows([]string{"min"}).AddRow(nil))
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO douyin_favorite_user_aweme`).
+		WithArgs(
+			"MS4wLjABAAAA_x",
+			"111",
+			"video",
+			"置顶作品",
+			"https://example.com/c1.jpg",
+			sqlmock.AnyArg(),
+			true,
+			0,
+			sqlmock.AnyArg(),
+			nil,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			"normal",
+			nil,
+			nil,
+			0,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE douyin_favorite_user_aweme`).
+		WithArgs(sqlmock.AnyArg(), 0, "MS4wLjABAAAA_x", "111").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	app := &App{douyinFavorite: NewDouyinFavoriteService(wrapMySQLDB(db))}
+
+	req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/aweme/upsert", map[string]any{
+		"secUserId": "MS4wLjABAAAA_x",
+		"items": []any{
+			map[string]any{
+				"awemeId":   "111",
+				"type":      "video",
+				"desc":      "置顶作品",
+				"coverUrl":  "https://example.com/c1.jpg",
+				"downloads": []any{"https://example.com/v1.mp4"},
+				"isPinned":  true,
+				"pinnedRank": 0,
+			},
+		},
+	})
+	rr := httptest.NewRecorder()
+
+	app.handleDouyinFavoriteUserAwemeUpsert(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, want %d, body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if got, ok := resp["success"].(bool); !ok || !got {
+		t.Fatalf("success=%v, want true", resp["success"])
+	}
+	if got, _ := resp["added"].(float64); got != 1 {
+		t.Fatalf("added=%v, want %v", resp["added"], 1)
+	}
+}
+
 func TestHandleDouyinFavoriteUserAwemeList_Success(t *testing.T) {
 	db, mock, cleanup := newSQLMock(t)
 	defer cleanup()
@@ -234,6 +310,34 @@ func TestHandleDouyinFavoriteUserAwemeList_Success(t *testing.T) {
 	}
 	if !strings.Contains(resp.Items[0].Items[0].DownloadURL, "/api/douyin/download?key=") {
 		t.Fatalf("items[0].items[0].downloadUrl=%q", resp.Items[0].Items[0].DownloadURL)
+	}
+}
+
+func TestParseOptionalLocalDateTimeISO(t *testing.T) {
+	if got := parseOptionalLocalDateTimeISO(""); got != nil {
+		t.Fatalf("want nil for empty input, got %v", got)
+	}
+	if got := parseOptionalLocalDateTimeISO("  "); got != nil {
+		t.Fatalf("want nil for whitespace input, got %v", got)
+	}
+
+	for _, input := range []string{
+		"2026-01-02T03:04:05",
+		"2026-01-02 03:04:05",
+		"2026-01-02T03:04:05.123",
+		"2026-01-02T03:04:05.123Z",
+	} {
+		got := parseOptionalLocalDateTimeISO(input)
+		if got == nil {
+			t.Fatalf("want non-nil for %q", input)
+		}
+		if got.Location() != time.Local {
+			t.Fatalf("want local location for %q, got %v", input, got.Location())
+		}
+	}
+
+	if got := parseOptionalLocalDateTimeISO("bad"); got != nil {
+		t.Fatalf("want nil for invalid input, got %v", got)
 	}
 }
 

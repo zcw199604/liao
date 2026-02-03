@@ -48,7 +48,15 @@ export const formatTime = (timeStr: string): string => {
 
 // 格式化完整时间
 export const formatFullTime = (timeStr: string): string => {
-  const date = new Date(timeStr)
+  if (!timeStr) return ''
+
+  let date = new Date(timeStr)
+  // 兼容 iOS/Safari 的日期格式 (yyyy-MM-dd)
+  if (Number.isNaN(date.getTime())) {
+    date = new Date(timeStr.replace(/-/g, '/'))
+  }
+  if (Number.isNaN(date.getTime())) return timeStr
+
   const year = date.getFullYear()
   const month = (date.getMonth() + 1).toString().padStart(2, '0')
   const day = date.getDate().toString().padStart(2, '0')

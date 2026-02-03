@@ -1275,7 +1275,7 @@
 		                  <div
 		                    v-if="item.isPinned"
 		                    class="absolute top-2 left-2 z-10 px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-200 text-[11px] font-semibold border border-emerald-400/20 backdrop-blur-sm"
-		                    :title="item.pinnedAt ? `置顶时间：${item.pinnedAt}` : '置顶作品'"
+		                    :title="item.pinnedAt ? `置顶时间：${formatFullTime(item.pinnedAt)}` : '置顶作品'"
 		                  >
 		                    置顶<span v-if="typeof item.pinnedRank === 'number'"> #{{ item.pinnedRank }}</span>
 		                  </div>
@@ -1297,8 +1297,8 @@
 		                      {{ item.desc || '（无描述）' }}
 		                    </div>
 		                    <div v-if="item.publishAt || item.status" class="text-xs text-gray-400 flex items-center justify-between gap-2">
-		                      <span v-if="item.publishAt" class="truncate" :title="item.publishAt">
-		                        {{ String(item.publishAt).replace('T', ' ').slice(0, 16) }}
+		                      <span v-if="item.publishAt" class="truncate" :title="formatFullTime(item.publishAt)">
+		                        {{ formatMinuteTime(item.publishAt) }}
 		                      </span>
 		                      <span v-if="item.status && item.status !== 'normal'" class="text-amber-300 shrink-0">
 		                        {{ item.status }}
@@ -1364,6 +1364,7 @@ import MediaTileBadge from '@/components/common/MediaTileBadge.vue'
 import MediaTileSelectMark from '@/components/common/MediaTileSelectMark.vue'
 import { generateCookie } from '@/utils/cookie'
 import { copyToClipboard } from '@/utils/clipboard'
+import { formatFullTime } from '@/utils/time'
 import * as douyinApi from '@/api/douyin'
 import MediaPreview from '@/components/media/MediaPreview.vue'
 import type { UploadedMedia } from '@/types'
@@ -2962,6 +2963,14 @@ const trimOrUndefined = (v: any): string | undefined => {
   const raw = v === null || v === undefined ? '' : String(v)
   const s = raw.trim()
   return s ? s : undefined
+}
+
+const formatMinuteTime = (timeStr: string | null | undefined): string => {
+  const raw = String(timeStr || '').trim()
+  if (!raw) return ''
+  const full = formatFullTime(raw)
+  if (!full) return ''
+  return full.length > 16 ? full.slice(0, 16) : full
 }
 
 const buildDouyinWorkMeta = (item: DouyinAccountItem | null | undefined, ctx: { authorSecUserId?: string } = {}): DouyinWorkMeta => {

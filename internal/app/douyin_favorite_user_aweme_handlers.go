@@ -35,11 +35,25 @@ func parseOptionalLocalDateTimeISO(v string) *time.Time {
 	if v == "" {
 		return nil
 	}
-	t, err := time.ParseInLocation("2006-01-02T15:04:05", v, time.Local)
-	if err != nil {
-		return nil
+
+	// RFC3339 (with timezone/millis) first, then local-time layouts.
+	if t, err := time.Parse(time.RFC3339Nano, v); err == nil {
+		tt := t.In(time.Local)
+		return &tt
 	}
-	return &t
+
+	for _, layout := range []string{
+		"2006-01-02T15:04:05",
+		"2006-01-02T15:04:05.000",
+		"2006-01-02 15:04:05",
+		"2006-01-02 15:04:05.000",
+	} {
+		if t, err := time.ParseInLocation(layout, v, time.Local); err == nil {
+			return &t
+		}
+	}
+
+	return nil
 }
 
 func (a *App) handleDouyinFavoriteUserAwemeUpsert(w http.ResponseWriter, r *http.Request) {
