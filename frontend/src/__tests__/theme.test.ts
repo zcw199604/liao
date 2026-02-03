@@ -192,4 +192,22 @@ describe('stores/theme', () => {
     expect(theme.preference).toBe('light')
     expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
+
+  it('init(): does not register a media listener when matchMedia result has no addEventListener/addListener', () => {
+    window.localStorage.setItem(STORAGE_KEY, 'auto')
+
+    const mql: any = {
+      matches: true,
+      media: '(prefers-color-scheme: dark)',
+      onchange: null
+      // no addEventListener / addListener
+    }
+
+    vi.spyOn(window, 'matchMedia').mockReturnValue(mql)
+
+    const theme = useThemeStore()
+    theme.init()
+    expect(theme.preference).toBe('auto')
+    expect(theme.resolved).toBe('dark')
+  })
 })

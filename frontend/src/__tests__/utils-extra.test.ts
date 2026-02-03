@@ -33,6 +33,7 @@ describe('utils/cookie', () => {
 describe('utils/file', () => {
   it('extractFileName returns last segment', () => {
     expect(extractFileName('/a/b/c.txt')).toBe('c.txt')
+    expect(extractFileName('/a/b/')).toBe('')
     expect(extractFileName('')).toBe('')
   })
 

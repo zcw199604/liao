@@ -186,6 +186,25 @@ describe('stores/media', () => {
     expect(store.uploadedMedia[1]!.url).toBe('/upload/videos/2026/01/b.mp4')
   })
 
+  it('loadCachedImages skips systemConfig load when systemConfigStore is already loaded', async () => {
+    vi.mocked(mediaApi.getCachedImages).mockResolvedValue({
+      data: ['/upload/images/2026/01/a.png']
+    } as any)
+
+    const systemConfigStore = useSystemConfigStore()
+    systemConfigStore.loaded = true
+    systemConfigStore.imagePortMode = 'fixed' as any
+    systemConfigStore.imagePortFixed = '9006'
+
+    const store = useMediaStore()
+    store.imgServer = ''
+
+    const loadSpy = vi.spyOn(systemConfigStore, 'loadSystemConfig')
+    await store.loadCachedImages('me')
+    expect(loadSpy).not.toHaveBeenCalled()
+    expect(store.uploadedMedia).toHaveLength(1)
+  })
+
   it('loadAllUploadImages replaces first page, appends next page, and computes totalPages when missing', async () => {
     vi.mocked(mediaApi.getAllUploadImages)
       .mockResolvedValueOnce({
@@ -775,11 +794,48 @@ describe('stores/videoExtract', () => {
     expect(videoExtractApi.getVideoExtractTaskDetail).not.toHaveBeenCalled()
   })
 
+  it('loadMoreFrames calls refreshTaskDetail when hasMore is true', async () => {
+    vi.mocked(videoExtractApi.getVideoExtractTaskDetail).mockResolvedValue({
+      code: 0,
+      data: {
+        task: { taskId: 't1', status: 'RUNNING' },
+        frames: { items: [], nextCursor: 1, hasMore: false }
+      }
+    } as any)
+
+    const store = useVideoExtractStore()
+    store.selectedTaskId = 't1'
+    store.frames = { items: [], nextCursor: 0, hasMore: true } as any
+
+    await store.loadMoreFrames()
+    expect(videoExtractApi.getVideoExtractTaskDetail).toHaveBeenCalledTimes(1)
+  })
+
   it('loadMoreFrames returns early when selectedTaskId is empty', async () => {
     const store = useVideoExtractStore()
     store.selectedTaskId = ''
     await store.loadMoreFrames()
     expect(videoExtractApi.getVideoExtractTaskDetail).not.toHaveBeenCalled()
+  })
+
+  it('cancelTask returns early when taskId is empty', async () => {
+    const store = useVideoExtractStore()
+    await store.cancelTask('')
+    expect(videoExtractApi.cancelVideoExtractTask).not.toHaveBeenCalled()
+  })
+
+  it('openTaskDetail tolerates empty taskId (covers taskId fallback branch) and does not call backend', async () => {
+    vi.useFakeTimers()
+    try {
+      const store = useVideoExtractStore()
+      await store.openTaskDetail('')
+      expect(store.selectedTaskId).toBe('')
+      expect(videoExtractApi.getVideoExtractTaskDetail).not.toHaveBeenCalled()
+      store.stopPolling()
+    } finally {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
   })
 
   it('deleteTask clears selection when deleting current task', async () => {
