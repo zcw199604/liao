@@ -39,6 +39,10 @@ describe('api/request', () => {
     const config: any = { headers: {} }
     getRequestFulfilled(request)(config)
     expect(config.headers.Authorization).toBeUndefined()
+
+    const config2: any = { headers: {} }
+    getRequestFulfilled(douyinRequest)(config2)
+    expect(config2.headers.Authorization).toBeUndefined()
   })
 
   it('response interceptor parses JSON strings and returns raw strings for non-JSON/invalid JSON', () => {
@@ -49,8 +53,16 @@ describe('api/request', () => {
     expect(fulfilledRequest({ data: ' {"a":1} ' } as any)).toEqual({ a: 1 })
     expect(fulfilledDouyin({ data: ' [1, 2] ' } as any)).toEqual([1, 2])
 
+    // Non-string payloads returned as-is
+    expect(fulfilledRequest({ data: { ok: true } } as any)).toEqual({ ok: true })
+    expect(fulfilledDouyin({ data: { ok: true } } as any)).toEqual({ ok: true })
+
     // Not JSON -> returned as-is (not trimmed)
     expect(fulfilledRequest({ data: ' hello ' } as any)).toBe(' hello ')
+
+    // Starts like JSON but missing closing token -> treated as non-JSON and returned as-is.
+    expect(fulfilledRequest({ data: ' {"a":1' } as any)).toBe(' {"a":1')
+    expect(fulfilledDouyin({ data: ' [1,2' } as any)).toBe(' [1,2')
 
     // Looks like JSON but cannot be parsed -> returned as-is
     expect(fulfilledDouyin({ data: ' {bad} ' } as any)).toBe(' {bad} ')
@@ -75,6 +87,7 @@ describe('api/request', () => {
 
     const err500: any = { response: { status: 500 } }
     await expect(rejectedRequest(err500)).rejects.toBe(err500)
+    await expect(rejectedDouyin(err500)).rejects.toBe(err500)
     expect(removeSpy).not.toHaveBeenCalled()
     expect(toLoginSpy).not.toHaveBeenCalled()
   })

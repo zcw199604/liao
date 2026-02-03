@@ -22,6 +22,7 @@
 - 测试：前端 Vitest 启用覆盖率报告（新增 devDependency `@vitest/coverage-v8`）。
 - 测试：补齐前端单元测试分支覆盖率，确保全局阈值 `branches >= 95%` 通过（当前 `95.02%`）。
 - 测试：后端 Go 覆盖率提升至 `95.0%`（`go test -cover` 统计 statements；Go 原生不提供 branches 指标）。
+- 测试：补齐前端 `frontend/src/api/*.ts` 的 API 包装函数单测（mock `request/douyinRequest`）；并进一步补齐 `internal/database` 的 DB/Tx wrapper、CRUD/ExpandIn 与 Migrator 关键失败分支单测，提升回归覆盖率（`go test ./internal/database -cover` statements 约 `99%`）。
 - 测试：补齐后端 Identity/Favorite/Douyin/MediaUpload 关键边界用例，并扩展前端 `messageSegments` 异常输入与预览兜底测试（方案包：`helloagents/archive/2026-01/202601220044_tests-boundary-cases/`）。
 - 测试：新增前端“抖音下载”弹窗剪贴板粘贴/打开时自动读取的单元测试。
 - 测试：补充抖音收藏“分类标签”的后端接口与前端弹窗流程用例（更新/删除/打标签、筛选、标签管理、批量打标签）。

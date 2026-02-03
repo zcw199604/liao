@@ -59,3 +59,33 @@ func TestPostgresDialect_DuplicateDetectors(t *testing.T) {
 		t.Fatalf("IsDuplicateIndex should not match other codes")
 	}
 }
+
+func TestDialectFromScheme(t *testing.T) {
+	d, err := DialectFromScheme("mysql")
+	if err != nil || d.Name() != "mysql" {
+		t.Fatalf("DialectFromScheme(mysql) = (%T, %v), want mysql dialect", d, err)
+	}
+
+	d, err = DialectFromScheme("postgres")
+	if err != nil || d.Name() != "postgres" {
+		t.Fatalf("DialectFromScheme(postgres) = (%T, %v), want postgres dialect", d, err)
+	}
+
+	d, err = DialectFromScheme("postgresql")
+	if err != nil || d.Name() != "postgres" {
+		t.Fatalf("DialectFromScheme(postgresql) = (%T, %v), want postgres dialect", d, err)
+	}
+
+	if _, err := DialectFromScheme("sqlite"); err == nil {
+		t.Fatalf("DialectFromScheme(sqlite) should error")
+	}
+}
+
+func TestDialect_DriverName(t *testing.T) {
+	if got := (MySQLDialect{}).DriverName(); got != "mysql" {
+		t.Fatalf("MySQLDialect.DriverName() = %q, want %q", got, "mysql")
+	}
+	if got := (PostgresDialect{}).DriverName(); got != "pgx" {
+		t.Fatalf("PostgresDialect.DriverName() = %q, want %q", got, "pgx")
+	}
+}
