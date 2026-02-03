@@ -187,9 +187,27 @@
             </div>
 
             <div v-if="activeMode === 'account'" class="pt-2">
-              <div v-if="accountSecUserId" class="flex items-center justify-between gap-3 text-xs text-gray-500">
+              <div v-if="accountSecUserId" class="flex items-start justify-between gap-3 text-xs text-gray-500">
                 <div class="min-w-0">
-                  sec_user_id: <span class="font-mono text-gray-300">{{ accountSecUserId }}</span>
+                  <div class="flex items-start gap-2 min-w-0">
+                    <span class="flex-shrink-0">sec_user_id:</span>
+                    <span
+                      class="font-mono text-gray-300 min-w-0"
+                      :class="accountSecUserIdShowFull ? 'whitespace-normal break-all' : 'truncate'"
+                    >
+                      {{ accountSecUserIdShowFull ? accountSecUserId : compactSecUserId(accountSecUserId) }}
+                    </span>
+                    <button
+                      v-if="shouldCompactSecUserId(accountSecUserId)"
+                      class="text-[11px] text-emerald-400 hover:text-emerald-300 flex-shrink-0"
+                      type="button"
+                      :disabled="uiDisabled"
+                      @click.stop="accountSecUserIdShowFull = !accountSecUserIdShowFull"
+                      :title="accountSecUserIdShowFull ? '收起' : '显示全部'"
+                    >
+                      {{ accountSecUserIdShowFull ? '收起' : '显示全部' }}
+                    </button>
+                  </div>
                 </div>
                 <button
                   class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs flex items-center gap-2 flex-shrink-0"
@@ -422,8 +440,8 @@
 	                            <div class="text-white text-sm font-medium whitespace-normal break-words">
 	                              {{ u.displayName || '（未命名用户）' }}
 	                            </div>
-	                            <div class="text-xs text-gray-500 font-mono truncate">
-	                              {{ u.secUserId }}
+	                            <div class="text-xs text-gray-500 font-mono truncate" :title="u.secUserId">
+	                              {{ compactSecUserId(u.secUserId) }}
 	                            </div>
 	                            <div v-if="u.signature" class="text-xs text-gray-400 mt-1 line-clamp-1">
 	                              {{ u.signature }}
@@ -1070,15 +1088,33 @@
 	                <div class="text-white text-base font-semibold whitespace-normal break-words">
 	                  {{ selectedFavoriteUser.displayName || '（未命名用户）' }}
 	                </div>
-	                <button
-	                  class="mt-1 text-xs text-gray-400 font-mono truncate flex items-center gap-2"
-	                  type="button"
-	                  @click="copyText(selectedFavoriteUser.secUserId)"
-	                  title="复制 sec_user_id"
-	                >
-	                  <span class="truncate">{{ selectedFavoriteUser.secUserId }}</span>
-	                  <i class="far fa-copy text-gray-500"></i>
-	                </button>
+                  <div class="mt-1 flex items-start gap-2 min-w-0">
+                    <button
+                      class="text-xs text-gray-400 font-mono flex items-center gap-2 min-w-0"
+                      type="button"
+                      @click="copyText(selectedFavoriteUser.secUserId)"
+                      title="复制 sec_user_id"
+                    >
+                      <span class="min-w-0" :class="favoriteUserDetailSecUserIdShowFull ? 'whitespace-normal break-all' : 'truncate'">
+                        {{
+                          favoriteUserDetailSecUserIdShowFull
+                            ? selectedFavoriteUser.secUserId
+                            : compactSecUserId(selectedFavoriteUser.secUserId)
+                        }}
+                      </span>
+                      <i class="far fa-copy text-gray-500 flex-shrink-0"></i>
+                    </button>
+                    <button
+                      v-if="shouldCompactSecUserId(selectedFavoriteUser.secUserId)"
+                      class="text-[11px] text-emerald-400 hover:text-emerald-300 flex-shrink-0"
+                      type="button"
+                      :disabled="uiDisabled"
+                      @click.stop="favoriteUserDetailSecUserIdShowFull = !favoriteUserDetailSecUserIdShowFull"
+                      :title="favoriteUserDetailSecUserIdShowFull ? '收起' : '显示全部'"
+                    >
+                      {{ favoriteUserDetailSecUserIdShowFull ? '收起' : '显示全部' }}
+                    </button>
+                  </div>
 	              </div>
 
 	              <button
@@ -1434,6 +1470,7 @@ const accountItems = ref<DouyinAccountItem[]>([])
 const accountCursor = ref(0)
 const accountHasMore = ref(false)
 const accountSecUserId = ref('')
+const accountSecUserIdShowFull = ref(false)
 const accountDisplayName = ref('')
 const accountSignature = ref('')
 const accountAvatarUrl = ref('')
@@ -1486,6 +1523,7 @@ const tagSheetError = ref('')
 
 	const favoriteUserDetailOpen = ref(false)
 	const favoriteUserDetailId = ref('')
+  const favoriteUserDetailSecUserIdShowFull = ref(false)
 	const favoriteUserDetailLoading = ref(false)
 	const favoriteUserAvatarError = reactive<Set<string>>(new Set())
 	const selectedFavoriteUser = computed(() =>
@@ -1791,6 +1829,18 @@ const refreshFavorites = async () => {
   }
 }
 
+watch(accountSecUserId, () => {
+  accountSecUserIdShowFull.value = false
+})
+
+watch(favoriteUserDetailId, () => {
+  favoriteUserDetailSecUserIdShowFull.value = false
+})
+
+watch(favoriteUserDetailOpen, (open) => {
+  if (!open) favoriteUserDetailSecUserIdShowFull.value = false
+})
+
 watch(
   () => douyinStore.showModal,
   async (v) => {
@@ -1799,6 +1849,7 @@ watch(
       error.value = ''
       detail.value = null
       accountError.value = ''
+      accountSecUserIdShowFull.value = false
       resetAccountStates()
       cookieHint.value = ''
       highlightConfig.value = false
@@ -1833,6 +1884,7 @@ watch(
         tagSheetError.value = ''
 	      favoriteUserDetailOpen.value = false
 	      favoriteUserDetailId.value = ''
+        favoriteUserDetailSecUserIdShowFull.value = false
 	      favoriteUserDetailLoading.value = false
 	      favoriteUserAvatarError.clear()
 	      void refreshFavorites()
@@ -2123,6 +2175,18 @@ const formatDouyinCount = (value?: number) => {
   if (n >= 100000000) return `${(n / 100000000).toFixed(1).replace(/\\.0$/, '')}亿`
   if (n >= 10000) return `${(n / 10000).toFixed(1).replace(/\\.0$/, '')}万`
   return String(Math.round(n))
+}
+
+const compactSecUserId = (value: string, head = 12, tail = 10) => {
+  const v = String(value || '').trim()
+  if (!v) return ''
+  if (v.length <= head + tail + 1) return v
+  return `${v.slice(0, head)}…${v.slice(-tail)}`
+}
+
+const shouldCompactSecUserId = (value: string) => {
+  const v = String(value || '').trim()
+  return !!v && compactSecUserId(v) !== v
 }
 
 const setCurrentFavoriteTagFilterValue = (value: number | null) => {

@@ -284,4 +284,43 @@ describe('components/media/DouyinDownloadModal.vue (render branches)', () => {
     expect(wrapper.text()).toContain('抖音下载')
     expect(toastShow).not.toHaveBeenCalledWith(expect.stringMatching(/ERROR/i))
   })
+
+  it('collapses long sec_user_id and can expand to show full text', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          MediaPreview: MediaPreviewStub,
+          MediaTile: MediaTileStub,
+          MediaTileBadge: MediaTileBadgeStub,
+          MediaTileSelectMark: MediaTileSelectMarkStub
+        }
+      }
+    })
+
+    const douyinStore = useDouyinStore()
+    douyinStore.showModal = true
+    await flush()
+    await flush()
+
+    const vm = wrapper.vm as any
+    vm.activeMode = 'account'
+    const longId = 'MS4wLjABAAAAhdDWNRa5OpiO0kkyUuNJEKfx-NA0IeyFV9fPTSrrPAUdb2ZGHzUc3pdgwGbI-NH0'
+    vm.accountSecUserId = longId
+    await flush()
+
+    const compact = `${longId.slice(0, 12)}…${longId.slice(-10)}`
+    expect(wrapper.text()).toContain(compact)
+    expect(wrapper.text()).not.toContain(longId)
+
+    const expandBtn = wrapper.findAll('button').find((b) => b.text() === '显示全部')
+    expect(expandBtn).toBeTruthy()
+    await expandBtn!.trigger('click')
+    await flush()
+    expect(wrapper.text()).toContain(longId)
+  })
 })
