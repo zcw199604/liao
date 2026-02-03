@@ -370,4 +370,71 @@ describe('composables/useWebSocket branch gaps', () => {
     expect(String(msgs[0]?.fromuser?.name)).toBe('PeerName')
     expect(String(msgs[0]?.fromuser?.sex)).toBe('未知')
   })
+
+  it('non-json raw message uses anonymous fallback when peer has no name/nickname', async () => {
+    const { useUserStore } = await import('@/stores/user')
+    const { useChatStore } = await import('@/stores/chat')
+    const { useMessageStore } = await import('@/stores/message')
+    const { useMediaStore } = await import('@/stores/media')
+    const { useWebSocket } = await import('@/composables/useWebSocket')
+
+    localStorage.setItem('authToken', 't-1')
+    useUserStore().currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    const chatStore = useChatStore()
+    chatStore.currentChatUser = { id: 'u2', name: '', nickname: '', sex: '', ip: '' } as any
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+
+    const ret = FakeWebSocket.instances[0]!.onmessage?.({ data: 'raw' })
+    if (ret && typeof (ret as Promise<any>).then === 'function') await ret
+
+    const msgs = useMessageStore().getMessages('u2') as any[]
+    expect(msgs.length).toBeGreaterThan(0)
+    expect(String(msgs[0]?.fromuser?.name)).toBe('匿名用户')
+    expect(String(msgs[0]?.fromuser?.nickname)).toBe('匿名用户')
+  })
+
+  it('does not create a new user when fromUserId is missing (else-if condition false)', async () => {
+    const { useAuthStore } = await import('@/stores/auth')
+    const { useUserStore } = await import('@/stores/user')
+    const { useChatStore } = await import('@/stores/chat')
+    const { useMediaStore } = await import('@/stores/media')
+    const { useWebSocket } = await import('@/composables/useWebSocket')
+
+    localStorage.setItem('authToken', 't-1')
+    useAuthStore().isAuthenticated = true
+    useUserStore().currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    const router = (await import('@/router')).default
+    await router.push('/list')
+    await router.isReady()
+
+    const chatStore = useChatStore()
+    chatStore.currentChatUser = null as any
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const socket = useWebSocket()
+    socket.connect()
+
+    await FakeWebSocket.instances[0]!.onmessage?.({
+      data: JSON.stringify({
+        code: 7,
+        fromuser: { content: 'hi', time: '2026-01-01 00:00:00.000', tid: 't-1', sex: '未知', ip: '' },
+        touser: { id: 'me', sex: '未知', ip: '' },
+        tid: 't-1'
+      })
+    })
+
+    expect(chatStore.historyUserIds).toHaveLength(0)
+    expect(chatStore.favoriteUserIds).toHaveLength(0)
+  })
 })

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type douyinDetailRequest struct {
@@ -32,6 +33,15 @@ type douyinAccountItem struct {
 	Desc             string            `json:"desc,omitempty"`
 	CoverURL         string            `json:"coverUrl,omitempty"`
 	CoverDownloadURL string            `json:"coverDownloadUrl,omitempty"`
+	IsPinned         bool              `json:"isPinned,omitempty"`
+	PinnedRank       *int              `json:"pinnedRank,omitempty"`
+	PinnedAt         string            `json:"pinnedAt,omitempty"`
+	PublishAt        string            `json:"publishAt,omitempty"`
+	CrawledAt        string            `json:"crawledAt,omitempty"`
+	LastSeenAt       string            `json:"lastSeenAt,omitempty"`
+	Status           string            `json:"status,omitempty"`
+	AuthorUniqueID   string            `json:"authorUniqueId,omitempty"`
+	AuthorName       string            `json:"authorName,omitempty"`
 	Key              string            `json:"key,omitempty"`
 	Items            []douyinMediaItem `json:"items,omitempty"` // 预览/下载列表（best-effort；为空时前端可回退到 /api/douyin/detail）
 }
@@ -103,12 +113,165 @@ func asInt(v any) int {
 	}
 }
 
+func asInt64(v any) int64 {
+	switch t := v.(type) {
+	case float64:
+		return int64(t)
+	case int:
+		return int64(t)
+	case int64:
+		return t
+	case string:
+		i, _ := strconv.ParseInt(strings.TrimSpace(t), 10, 64)
+		return i
+	default:
+		return int64(asInt(v))
+	}
+}
+
 func asInt64Ptr(v any) *int64 {
 	n := int64(asInt(v))
 	if n <= 0 {
 		return nil
 	}
 	return &n
+}
+
+func formatUnixTimestampISO(v int64) string {
+	if v <= 0 {
+		return ""
+	}
+	// Handle milliseconds timestamps (common in some upstream variants).
+	if v > 1_000_000_000_000 {
+		v = v / 1000
+	}
+	if v <= 0 {
+		return ""
+	}
+	return formatLocalDateTimeISO(time.Unix(v, 0).In(time.Local))
+}
+
+func extractDouyinAccountPublishAt(item map[string]any) string {
+	if item == nil {
+		return ""
+	}
+	keys := []string{
+		"create_time",
+		"createTime",
+		"publish_time",
+		"publishTime",
+		"published_at",
+		"publishedAt",
+	}
+	for _, k := range keys {
+		if ts := asInt64(item[k]); ts > 0 {
+			if s := formatUnixTimestampISO(ts); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+func extractDouyinAccountPinned(item map[string]any) (bool, *int, string) {
+	if item == nil {
+		return false, nil, ""
+	}
+
+	isPinned := false
+	pinnedKeys := []string{"is_top", "isTop", "is_pinned", "isPinned", "top", "pinned"}
+	for _, k := range pinnedKeys {
+		if item[k] == nil {
+			continue
+		}
+		isPinned = asBool(item[k])
+		break
+	}
+
+	var rank *int
+	rankKeys := []string{"top_rank", "topRank", "pinned_rank", "pinnedRank", "top_index", "topIndex", "pin_index", "pinIndex"}
+	for _, k := range rankKeys {
+		n := asInt(item[k])
+		// Rank can be 0-based in some upstreams; treat any non-negative as valid.
+		if item[k] != nil && n >= 0 {
+			v := n
+			rank = &v
+			break
+		}
+	}
+
+	pinnedAt := ""
+	timeKeys := []string{"top_time", "topTime", "pinned_time", "pinnedTime", "pin_time", "pinTime"}
+	for _, k := range timeKeys {
+		if ts := asInt64(item[k]); ts > 0 {
+			pinnedAt = formatUnixTimestampISO(ts)
+			if pinnedAt != "" {
+				break
+			}
+		}
+	}
+
+	return isPinned, rank, pinnedAt
+}
+
+func extractDouyinAccountStatus(item map[string]any) string {
+	if item == nil {
+		return "normal"
+	}
+	if v := strings.TrimSpace(asString(item["status"])); v != "" {
+		return v
+	}
+	if asBool(item["is_delete"]) || asBool(item["isDelete"]) || asBool(item["deleted"]) {
+		return "deleted"
+	}
+	if asBool(item["is_private"]) || asBool(item["isPrivate"]) || asBool(item["private"]) {
+		return "private"
+	}
+	return "normal"
+}
+
+func extractDouyinAccountAuthorMeta(item map[string]any) (uniqueID string, name string) {
+	if item == nil {
+		return "", ""
+	}
+
+	candidates := []any{
+		item["author"],
+		item["author_info"],
+		item["authorInfo"],
+		item["user"],
+		item["user_info"],
+		item["userInfo"],
+	}
+	for _, raw := range candidates {
+		m, ok := raw.(map[string]any)
+		if !ok || m == nil {
+			continue
+		}
+		if name == "" {
+			nameKeys := []string{"nickname", "nick_name", "display_name", "displayName", "name"}
+			for _, k := range nameKeys {
+				if v := strings.TrimSpace(asString(m[k])); v != "" {
+					name = v
+					break
+				}
+			}
+		}
+		if uniqueID == "" {
+			idKeys := []string{"unique_id", "uniqueId", "short_id", "shortId", "douyin_id", "douyinId"}
+			for _, k := range idKeys {
+				if v := strings.TrimSpace(asString(m[k])); v != "" {
+					uniqueID = v
+					break
+				}
+			}
+		}
+		if uniqueID != "" && name != "" {
+			break
+		}
+	}
+
+	return uniqueID, name
 }
 
 func extractDouyinAccountCoverURL(item map[string]any) string {
@@ -608,6 +771,10 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, secUserID string, dat
 
 		desc := strings.TrimSpace(asString(m["desc"]))
 		cover := extractDouyinAccountCoverURL(m)
+		isPinned, pinnedRank, pinnedAt := extractDouyinAccountPinned(m)
+		publishAt := extractDouyinAccountPublishAt(m)
+		status := extractDouyinAccountStatus(m)
+		authorUniqueID, authorName := extractDouyinAccountAuthorMeta(m)
 
 		// best-effort：直接从 account 返回中抽取可预览资源，避免点击后再 /detail N 次。
 		downloads := []string(nil)
@@ -735,6 +902,13 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, secUserID string, dat
 			Type:             displayType,
 			Desc:             desc,
 			CoverURL:         cover,
+			IsPinned:         isPinned,
+			PinnedRank:       pinnedRank,
+			PinnedAt:         pinnedAt,
+			PublishAt:        publishAt,
+			Status:           status,
+			AuthorUniqueID:   authorUniqueID,
+			AuthorName:       authorName,
 			Key:              key,
 			Items:            previewItems,
 			CoverDownloadURL: coverDownloadURL,

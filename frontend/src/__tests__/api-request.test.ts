@@ -51,6 +51,7 @@ describe('api/request', () => {
 
     // JSON object/array strings
     expect(fulfilledRequest({ data: ' {"a":1} ' } as any)).toEqual({ a: 1 })
+    expect(fulfilledRequest({ data: ' [1, 2] ' } as any)).toEqual([1, 2])
     expect(fulfilledDouyin({ data: ' [1, 2] ' } as any)).toEqual([1, 2])
 
     // Non-string payloads returned as-is

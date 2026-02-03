@@ -54,7 +54,20 @@ export const listDouyinFavoriteUserAwemes = (params: { secUserId: string; cursor
 
 export const upsertDouyinFavoriteUserAwemes = (data: {
   secUserId: string
-  items: { awemeId: string; type?: string; desc?: string; coverUrl?: string; downloads?: string[] }[]
+  items: {
+    awemeId: string
+    type?: string
+    desc?: string
+    coverUrl?: string
+    downloads?: string[]
+    isPinned?: boolean
+    pinnedRank?: number
+    pinnedAt?: string
+    publishAt?: string
+    status?: string
+    authorUniqueId?: string
+    authorName?: string
+  }[]
 }) => {
   return douyinRequest.post<any, any>('/douyin/favoriteUser/aweme/upsert', data)
 }

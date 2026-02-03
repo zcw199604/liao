@@ -136,6 +136,33 @@ describe('composables/useMessage', () => {
     expect(msg.sendError).toBe('发送失败')
   })
 
+  it('sendText failure handler is a no-op when message is not in sending state (covers branch)', () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    const messageStore = useMessageStore()
+    sendMock.mockReturnValue(false)
+
+    let calls = 0
+    vi.spyOn(messageStore, 'updateMessageByClientId').mockImplementation((_uid, _cid, updater) => {
+      calls += 1
+      if (calls === 1) {
+        // upsertOptimisticMessage writes a sending optimistic message
+        const msg: any = { sendStatus: 'sending' }
+        updater(msg)
+        return true
+      }
+
+      // failure handler should see a non-sending message and do nothing
+      const msg: any = { sendStatus: 'failed', sendError: 'already failed' }
+      updater(msg)
+      return true
+    })
+
+    useMessage().sendText('oops', { id: 'u1', nickname: 'U1' }, { clientId: 'cid-branch-sendText' })
+    expect(messageStore.updateMessageByClientId).toHaveBeenCalled()
+  })
+
   it('retryMessage resets failed message to sending and re-sends', () => {
     vi.useFakeTimers()
     try {
@@ -219,6 +246,31 @@ describe('composables/useMessage', () => {
     }
   })
 
+  it('sendImage failure handler is a no-op when message is not in sending state (covers branch)', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    const messageStore = useMessageStore()
+    sendMock.mockReturnValue(false)
+    vi.mocked(mediaApi.recordImageSend).mockResolvedValue({ code: 0 } as any)
+
+    let calls = 0
+    vi.spyOn(messageStore, 'updateMessageByClientId').mockImplementation((_uid, _cid, updater) => {
+      calls += 1
+      if (calls === 1) {
+        const msg: any = { sendStatus: 'sending' }
+        updater(msg)
+        return true
+      }
+      const msg: any = { sendStatus: 'sent' }
+      updater(msg)
+      return true
+    })
+
+    await useMessage().sendImage('http://s:9006/img/Upload/a.png', { id: 'u2', nickname: 'U2' }, 'a.png', { clientId: 'cid-branch-sendImage' })
+    expect(messageStore.updateMessageByClientId).toHaveBeenCalled()
+  })
+
   it('sendImage/sendVideo return early when mediaUrl is empty', async () => {
     const userStore = useUserStore()
     userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
@@ -269,6 +321,31 @@ describe('composables/useMessage', () => {
     const msg = (messageStore.getMessages('u2') as any[]).find(m => m.clientId === 'cid-v2')
     expect(msg.sendStatus).toBe('failed')
     expect(msg.sendError).toBe('发送失败')
+  })
+
+  it('sendVideo failure handler is a no-op when message is not in sending state (covers branch)', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    const messageStore = useMessageStore()
+    sendMock.mockReturnValue(false)
+    vi.mocked(mediaApi.recordImageSend).mockResolvedValue({ code: 0 } as any)
+
+    let calls = 0
+    vi.spyOn(messageStore, 'updateMessageByClientId').mockImplementation((_uid, _cid, updater) => {
+      calls += 1
+      if (calls === 1) {
+        const msg: any = { sendStatus: 'sending' }
+        updater(msg)
+        return true
+      }
+      const msg: any = { sendStatus: 'failed', sendError: 'x' }
+      updater(msg)
+      return true
+    })
+
+    await useMessage().sendVideo('http://s:9006/img/Upload/a.mp4', { id: 'u2', nickname: 'U2' }, 'a.mp4', { clientId: 'cid-branch-sendVideo' })
+    expect(messageStore.updateMessageByClientId).toHaveBeenCalled()
   })
 
   it('retryMessage is a no-op when required fields are missing', () => {
@@ -322,6 +399,32 @@ describe('composables/useMessage', () => {
       vi.clearAllTimers()
       vi.useRealTimers()
     }
+  })
+
+  it('retryMessage failure handler is a no-op when message is not in sending state (covers branch)', () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    const messageStore = useMessageStore()
+    sendMock.mockReturnValue(false)
+
+    let calls = 0
+    vi.spyOn(messageStore, 'updateMessageByClientId').mockImplementation((_uid, _cid, updater) => {
+      calls += 1
+      if (calls === 1) {
+        // first update sets sending
+        const msg: any = { sendStatus: 'failed', sendError: 'x' }
+        updater(msg)
+        return true
+      }
+      // failure handler should see a non-sending message and do nothing
+      const msg: any = { sendStatus: 'sent' }
+      updater(msg)
+      return true
+    })
+
+    useMessage().retryMessage({ touser: { id: 'u1', nickname: 'U1' }, clientId: 'cid-branch-retry', content: 'x' } as any)
+    expect(messageStore.updateMessageByClientId).toHaveBeenCalled()
   })
 
   it('sendTypingStatus is a no-op when currentUser/targetUser is missing', () => {

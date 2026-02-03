@@ -12,6 +12,21 @@ export interface UploadedMedia {
     key?: string
     index?: number
     liveVideoIndex?: number
+    // Best-effort metadata for external providers (e.g. Douyin).
+    work?: {
+      detailId?: string
+      desc?: string
+      publishAt?: string
+      isPinned?: boolean
+      pinnedRank?: number
+      pinnedAt?: string
+      status?: string
+      authorSecUserId?: string
+      authorUniqueId?: string
+      authorName?: string
+      crawledAt?: string
+      lastSeenAt?: string
+    }
   }
   // 新增字段 - 用于显示详细信息
   originalFilename?: string

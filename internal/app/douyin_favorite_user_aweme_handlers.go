@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type douyinFavoriteUserAwemeUpsertBatchRequest struct {
@@ -15,11 +16,44 @@ type douyinFavoriteUserAwemeUpsertBatchRequest struct {
 }
 
 type douyinFavoriteUserAwemeUpsertItem struct {
-	AwemeID   string   `json:"awemeId"`
-	Type      string   `json:"type,omitempty"`
-	Desc      string   `json:"desc,omitempty"`
-	CoverURL  string   `json:"coverUrl,omitempty"`
-	Downloads []string `json:"downloads,omitempty"`
+	AwemeID        string   `json:"awemeId"`
+	Type           string   `json:"type,omitempty"`
+	Desc           string   `json:"desc,omitempty"`
+	CoverURL       string   `json:"coverUrl,omitempty"`
+	Downloads      []string `json:"downloads,omitempty"`
+	IsPinned       bool     `json:"isPinned,omitempty"`
+	PinnedRank     *int     `json:"pinnedRank,omitempty"`
+	PinnedAt       string   `json:"pinnedAt,omitempty"`
+	PublishAt      string   `json:"publishAt,omitempty"`
+	Status         string   `json:"status,omitempty"`
+	AuthorUniqueID string   `json:"authorUniqueId,omitempty"`
+	AuthorName     string   `json:"authorName,omitempty"`
+}
+
+func parseOptionalLocalDateTimeISO(v string) *time.Time {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return nil
+	}
+
+	// RFC3339 (with timezone/millis) first, then local-time layouts.
+	if t, err := time.Parse(time.RFC3339Nano, v); err == nil {
+		tt := t.In(time.Local)
+		return &tt
+	}
+
+	for _, layout := range []string{
+		"2006-01-02T15:04:05",
+		"2006-01-02T15:04:05.000",
+		"2006-01-02 15:04:05",
+		"2006-01-02 15:04:05.000",
+	} {
+		if t, err := time.ParseInLocation(layout, v, time.Local); err == nil {
+			return &t
+		}
+	}
+
+	return nil
 }
 
 func (a *App) handleDouyinFavoriteUserAwemeUpsert(w http.ResponseWriter, r *http.Request) {
@@ -47,11 +81,18 @@ func (a *App) handleDouyinFavoriteUserAwemeUpsert(w http.ResponseWriter, r *http
 			continue
 		}
 		upserts = append(upserts, DouyinFavoriteUserAwemeUpsert{
-			AwemeID:   awemeID,
-			Type:      strings.TrimSpace(it.Type),
-			Desc:      strings.TrimSpace(it.Desc),
-			CoverURL:  strings.TrimSpace(it.CoverURL),
-			Downloads: it.Downloads,
+			AwemeID:        awemeID,
+			Type:           strings.TrimSpace(it.Type),
+			Desc:           strings.TrimSpace(it.Desc),
+			CoverURL:       strings.TrimSpace(it.CoverURL),
+			Downloads:      it.Downloads,
+			IsPinned:       it.IsPinned,
+			PinnedRank:     it.PinnedRank,
+			PinnedAt:       parseOptionalLocalDateTimeISO(it.PinnedAt),
+			PublishAt:      parseOptionalLocalDateTimeISO(it.PublishAt),
+			Status:         strings.TrimSpace(it.Status),
+			AuthorUniqueID: strings.TrimSpace(it.AuthorUniqueID),
+			AuthorName:     strings.TrimSpace(it.AuthorName),
 		})
 	}
 
@@ -97,12 +138,21 @@ func (a *App) handleDouyinFavoriteUserAwemeList(w http.ResponseWriter, r *http.R
 	items := make([]douyinAccountItem, 0, len(rows))
 	for _, row := range rows {
 		it := douyinAccountItem{
-			DetailID: strings.TrimSpace(row.AwemeID),
-			Type:     strings.TrimSpace(row.Type),
-			Desc:     strings.TrimSpace(row.Desc),
-			CoverURL: strings.TrimSpace(row.CoverURL),
-			Key:      "",
-			Items:    []douyinMediaItem{},
+			DetailID:       strings.TrimSpace(row.AwemeID),
+			Type:           strings.TrimSpace(row.Type),
+			Desc:           strings.TrimSpace(row.Desc),
+			CoverURL:       strings.TrimSpace(row.CoverURL),
+			IsPinned:       row.IsPinned,
+			PinnedRank:     row.PinnedRank,
+			PinnedAt:       strings.TrimSpace(row.PinnedAt),
+			PublishAt:      strings.TrimSpace(row.PublishAt),
+			CrawledAt:      strings.TrimSpace(row.CrawledAt),
+			LastSeenAt:     strings.TrimSpace(row.LastSeenAt),
+			Status:         strings.TrimSpace(row.Status),
+			AuthorUniqueID: strings.TrimSpace(row.AuthorUniqueID),
+			AuthorName:     strings.TrimSpace(row.AuthorName),
+			Key:            "",
+			Items:          []douyinMediaItem{},
 		}
 
 		downloads := normalizeStringList(row.Downloads)
@@ -226,11 +276,18 @@ func (a *App) handleDouyinFavoriteUserAwemePullLatest(w http.ResponseWriter, r *
 			}
 		}
 		upserts = append(upserts, DouyinFavoriteUserAwemeUpsert{
-			AwemeID:   awemeID,
-			Type:      strings.TrimSpace(it.Type),
-			Desc:      strings.TrimSpace(it.Desc),
-			CoverURL:  strings.TrimSpace(it.CoverURL),
-			Downloads: downloads,
+			AwemeID:        awemeID,
+			Type:           strings.TrimSpace(it.Type),
+			Desc:           strings.TrimSpace(it.Desc),
+			CoverURL:       strings.TrimSpace(it.CoverURL),
+			Downloads:      downloads,
+			IsPinned:       it.IsPinned,
+			PinnedRank:     it.PinnedRank,
+			PinnedAt:       parseOptionalLocalDateTimeISO(it.PinnedAt),
+			PublishAt:      parseOptionalLocalDateTimeISO(it.PublishAt),
+			Status:         strings.TrimSpace(it.Status),
+			AuthorUniqueID: strings.TrimSpace(it.AuthorUniqueID),
+			AuthorName:     strings.TrimSpace(it.AuthorName),
 		})
 	}
 

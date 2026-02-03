@@ -12,21 +12,37 @@ import (
 )
 
 type DouyinFavoriteUserAwemeUpsert struct {
-	AwemeID   string
-	Type      string
-	Desc      string
-	CoverURL  string
-	Downloads []string
+	AwemeID        string
+	Type           string
+	Desc           string
+	CoverURL       string
+	Downloads      []string
+	IsPinned       bool
+	PinnedRank     *int
+	PinnedAt       *time.Time
+	PublishAt      *time.Time
+	Status         string
+	AuthorUniqueID string
+	AuthorName     string
 }
 
 type DouyinFavoriteUserAwemeRow struct {
-	AwemeID    string
-	Type       string
-	Desc       string
-	CoverURL   string
-	Downloads  []string
-	CreateTime string
-	UpdateTime string
+	AwemeID        string
+	Type           string
+	Desc           string
+	CoverURL       string
+	Downloads      []string
+	IsPinned       bool
+	PinnedRank     *int
+	PinnedAt       string
+	PublishAt      string
+	CrawledAt      string
+	LastSeenAt     string
+	Status         string
+	AuthorUniqueID string
+	AuthorName     string
+	CreateTime     string
+	UpdateTime     string
 }
 
 func parseJSONStringArray(raw sql.NullString) []string {
@@ -68,6 +84,17 @@ func (s *DouyinFavoriteService) UpsertUserAwemes(ctx context.Context, secUserID 
 		it.Desc = strings.TrimSpace(it.Desc)
 		it.CoverURL = strings.TrimSpace(it.CoverURL)
 		it.Downloads = normalizeStringList(it.Downloads)
+		it.Status = strings.TrimSpace(it.Status)
+		it.AuthorUniqueID = strings.TrimSpace(it.AuthorUniqueID)
+		it.AuthorName = strings.TrimSpace(it.AuthorName)
+		// Treat pinned_rank as only meaningful when pinned.
+		if !it.IsPinned {
+			it.PinnedRank = nil
+			it.PinnedAt = nil
+		}
+		if it.Status == "" {
+			it.Status = "normal"
+		}
 		if _, ok := unique[awemeID]; !ok {
 			orderedIDs = append(orderedIDs, awemeID)
 		}
@@ -152,13 +179,22 @@ func (s *DouyinFavoriteService) UpsertUserAwemes(ctx context.Context, secUserID 
 		"description",
 		"cover_url",
 		"downloads",
+		"is_pinned",
+		"pinned_rank",
+		"pinned_at",
+		"publish_at",
+		"crawled_at",
+		"last_seen_at",
+		"status",
+		"author_unique_id",
+		"author_name",
 		"sort_order",
 		"created_at",
 		"updated_at",
 	}
 	conflictCols := []string{"sec_user_id", "aweme_id"}
-	updateCols := []string{"sort_order", "updated_at"}
-	updateCoalesceCols := []string{"type", "description", "cover_url", "downloads"}
+	updateCols := []string{"sort_order", "updated_at", "is_pinned", "crawled_at", "last_seen_at", "status"}
+	updateCoalesceCols := []string{"type", "description", "cover_url", "downloads", "publish_at", "author_unique_id", "author_name"}
 
 	for idx, id := range orderedIDs {
 		it := unique[id]
@@ -167,6 +203,21 @@ func (s *DouyinFavoriteService) UpsertUserAwemes(ctx context.Context, secUserID 
 			if b, err := json.Marshal(it.Downloads); err == nil {
 				downloadsValue = nullIfEmpty(string(b))
 			}
+		}
+		var pinnedRankValue any
+		if it.PinnedRank != nil {
+			pinnedRankValue = *it.PinnedRank
+		}
+		var pinnedAtValue any
+		if it.PinnedAt != nil && !it.PinnedAt.IsZero() {
+			pinnedAtValue = *it.PinnedAt
+		} else if it.IsPinned {
+			// best-effort: first time observed pinned (or unknown pinned time)
+			pinnedAtValue = now
+		}
+		var publishAtValue any
+		if it.PublishAt != nil && !it.PublishAt.IsZero() {
+			publishAtValue = *it.PublishAt
 		}
 
 		_, err := database.ExecUpsert(
@@ -183,10 +234,44 @@ func (s *DouyinFavoriteService) UpsertUserAwemes(ctx context.Context, secUserID 
 			nullIfEmpty(it.Desc),
 			nullIfEmpty(it.CoverURL),
 			downloadsValue,
+			it.IsPinned,
+			pinnedRankValue,
+			pinnedAtValue,
+			publishAtValue,
+			now,
+			now,
+			nullIfEmpty(it.Status),
+			nullIfEmpty(it.AuthorUniqueID),
+			nullIfEmpty(it.AuthorName),
 			baseSortOrder+int64(idx),
 			now,
 			now,
 		)
+		if err != nil {
+			_ = tx.Rollback()
+			return 0, err
+		}
+
+		// Keep pinned fields consistent:
+		// - Pinned: set pinned_at if missing; update pinned_rank only when provided.
+		// - Not pinned: clear pinned_rank/pinned_at.
+		if it.IsPinned {
+			_, err = tx.ExecContext(ctx, `
+				UPDATE douyin_favorite_user_aweme
+				SET pinned_at = COALESCE(pinned_at, ?),
+				    pinned_rank = COALESCE(?, pinned_rank)
+				WHERE sec_user_id = ?
+				  AND aweme_id = ?
+			`, pinnedAtValue, pinnedRankValue, secUserID, it.AwemeID)
+		} else {
+			_, err = tx.ExecContext(ctx, `
+				UPDATE douyin_favorite_user_aweme
+				SET pinned_at = NULL,
+				    pinned_rank = NULL
+				WHERE sec_user_id = ?
+				  AND aweme_id = ?
+			`, secUserID, it.AwemeID)
+		}
 		if err != nil {
 			_ = tx.Rollback()
 			return 0, err
@@ -218,10 +303,20 @@ func (s *DouyinFavoriteService) ListUserAwemes(ctx context.Context, secUserID st
 	}
 
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT aweme_id, type, description, cover_url, downloads, created_at, updated_at
+		SELECT aweme_id, type, description, cover_url, downloads,
+		       is_pinned, pinned_rank, pinned_at, publish_at, crawled_at, last_seen_at,
+		       status, author_unique_id, author_name,
+		       created_at, updated_at
 		FROM douyin_favorite_user_aweme
 		WHERE sec_user_id = ?
-		ORDER BY sort_order ASC, aweme_id DESC
+		ORDER BY
+		  CASE WHEN is_pinned THEN 0 ELSE 1 END ASC,
+		  CASE WHEN pinned_rank IS NULL THEN 1 ELSE 0 END ASC,
+		  pinned_rank ASC,
+		  CASE WHEN publish_at IS NULL THEN 1 ELSE 0 END ASC,
+		  publish_at DESC,
+		  sort_order ASC,
+		  aweme_id DESC
 		LIMIT ? OFFSET ?
 	`, secUserID, count+1, cursor)
 	if err != nil {
@@ -233,8 +328,29 @@ func (s *DouyinFavoriteService) ListUserAwemes(ctx context.Context, secUserID st
 	for rows.Next() {
 		var row DouyinFavoriteUserAwemeRow
 		var typeValue, descValue, coverURL, downloadsRaw sql.NullString
+		var isPinned sql.NullBool
+		var pinnedRank sql.NullInt64
+		var pinnedAt, publishAt, crawledAt, lastSeenAt sql.NullTime
+		var status, authorUniqueID, authorName sql.NullString
 		var createdAt, updatedAt sql.NullTime
-		if err := rows.Scan(&row.AwemeID, &typeValue, &descValue, &coverURL, &downloadsRaw, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(
+			&row.AwemeID,
+			&typeValue,
+			&descValue,
+			&coverURL,
+			&downloadsRaw,
+			&isPinned,
+			&pinnedRank,
+			&pinnedAt,
+			&publishAt,
+			&crawledAt,
+			&lastSeenAt,
+			&status,
+			&authorUniqueID,
+			&authorName,
+			&createdAt,
+			&updatedAt,
+		); err != nil {
 			return nil, 0, false, err
 		}
 		row.AwemeID = strings.TrimSpace(row.AwemeID)
@@ -246,6 +362,24 @@ func (s *DouyinFavoriteService) ListUserAwemes(ctx context.Context, secUserID st
 		}
 		if coverURL.Valid {
 			row.CoverURL = strings.TrimSpace(coverURL.String)
+		}
+		row.IsPinned = isPinned.Valid && isPinned.Bool
+		if pinnedRank.Valid {
+			v := int(pinnedRank.Int64)
+			row.PinnedRank = &v
+		}
+		row.PinnedAt = formatNullLocalDateTimeISO(pinnedAt)
+		row.PublishAt = formatNullLocalDateTimeISO(publishAt)
+		row.CrawledAt = formatNullLocalDateTimeISO(crawledAt)
+		row.LastSeenAt = formatNullLocalDateTimeISO(lastSeenAt)
+		if status.Valid {
+			row.Status = strings.TrimSpace(status.String)
+		}
+		if authorUniqueID.Valid {
+			row.AuthorUniqueID = strings.TrimSpace(authorUniqueID.String)
+		}
+		if authorName.Valid {
+			row.AuthorName = strings.TrimSpace(authorName.String)
 		}
 		row.Downloads = parseJSONStringArray(downloadsRaw)
 		row.CreateTime = formatNullLocalDateTimeISO(createdAt)

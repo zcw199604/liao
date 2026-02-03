@@ -108,5 +108,17 @@ describe('stores/systemConfig', () => {
     const port = await store.resolveImagePort('/img/Upload/a.png')
     expect(port).toBe('9009')
   })
-})
 
+  it('resolveImagePort stores cached port even when imgServer is not provided (covers resolvedForServer else branch)', async () => {
+    vi.mocked(systemApi.resolveImagePort).mockResolvedValue({ code: 0, data: { port: 9012 } } as any)
+
+    const store = useSystemConfigStore()
+    store.loaded = true
+    store.imagePortMode = 'real' as any
+    store.imagePortFixed = '9009'
+
+    const port = await store.resolveImagePort('/img/Upload/a.png')
+    expect(port).toBe('9012')
+    expect(systemApi.resolveImagePort).toHaveBeenCalledTimes(1)
+  })
+})

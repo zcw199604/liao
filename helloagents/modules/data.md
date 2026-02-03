@@ -315,6 +315,15 @@
 | description | TEXT | 可空 | 作品描述/标题（best-effort） |
 | cover_url | VARCHAR(500) | 可空 | 封面 URL（best-effort） |
 | raw_detail | LONGTEXT | 可空 | 作品解析原始数据（JSON 字符串，可选） |
+| is_pinned | TINYINT/BOOLEAN | NOT NULL, DEFAULT 0 | 是否置顶（best-effort） |
+| pinned_rank | INT | 可空 | 置顶顺序（best-effort，越小越靠前） |
+| pinned_at | DATETIME/TIMESTAMP | 可空 | 置顶时间（best-effort） |
+| publish_at | DATETIME/TIMESTAMP | 可空 | 发布时间（best-effort） |
+| crawled_at | DATETIME/TIMESTAMP | 可空 | 采集时间（最近一次抓取） |
+| last_seen_at | DATETIME/TIMESTAMP | 可空 | 最近一次仍可见时间（best-effort） |
+| status | VARCHAR(32) | 可空 | 作品状态（`normal/private/deleted/unavailable` 等） |
+| author_unique_id | VARCHAR(64) | 可空 | 作者抖音号（unique_id） |
+| author_name | VARCHAR(128) | 可空 | 作者名称/昵称（快照） |
 | created_at | DATETIME | NOT NULL | 创建时间 |
 | updated_at | DATETIME | NOT NULL | 更新时间 |
 
@@ -322,10 +331,48 @@
 - `idx_dfa_sec_user_id (sec_user_id)`
 - `idx_dfa_updated_at (updated_at DESC)`
 - `idx_dfa_created_at (created_at DESC)`
+- `idx_dfa_publish_at (publish_at DESC)`（迁移：`sql/{dialect}/004_douyin_aweme_meta.sql`）
 
 ---
 
-### 1.13 `douyin_favorite_user_tag`（抖音用户收藏标签，全局）
+### 1.13 `douyin_favorite_user_aweme`（抖音用户收藏作品，全局）
+
+**用途**：存储“收藏用户 → 作品列表”的入库结果（全局一份，不按本地身份隔离）。  
+前端“抖音下载 → 收藏用户详情 → 入库作品网格”读取该表；并支持按置顶/发布时间排序、作品预览与下载列表。  
+**创建位置**：`sql/{dialect}/*.sql`（由 `internal/database/migrator.go` 执行；入口：`internal/app/schema.go`）。  
+**实现**：`internal/app/douyin_favorite_user_aweme.go`、`internal/app/douyin_favorite_user_aweme_handlers.go`。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| sec_user_id | VARCHAR(128) | PK(联合), NOT NULL | 抖音 `sec_user_id`（sec_uid） |
+| aweme_id | VARCHAR(64) | PK(联合), NOT NULL | 作品 ID（aweme_id） |
+| type | VARCHAR(16) | 可空 | `video/image`（best-effort） |
+| description | TEXT | 可空 | 作品描述/标题（best-effort） |
+| cover_url | VARCHAR(500) | 可空 | 封面 URL（best-effort） |
+| downloads | LONGTEXT/TEXT | 可空 | 资源下载链接列表（JSON 数组字符串，可选） |
+| is_pinned | TINYINT/BOOLEAN | NOT NULL, DEFAULT 0 | 是否置顶（best-effort） |
+| pinned_rank | INT | 可空 | 置顶顺序（best-effort，越小越靠前） |
+| pinned_at | DATETIME/TIMESTAMP | 可空 | 置顶时间（best-effort） |
+| publish_at | DATETIME/TIMESTAMP | 可空 | 发布时间（best-effort） |
+| crawled_at | DATETIME/TIMESTAMP | 可空 | 采集时间（最近一次抓取） |
+| last_seen_at | DATETIME/TIMESTAMP | 可空 | 最近一次仍可见时间（best-effort） |
+| status | VARCHAR(32) | 可空 | 作品状态（`normal/private/deleted/unavailable` 等） |
+| author_unique_id | VARCHAR(64) | 可空 | 作者抖音号（unique_id） |
+| author_name | VARCHAR(128) | 可空 | 作者名称/昵称（快照） |
+| sort_order | INT | NOT NULL, DEFAULT 2147483647 | 展示顺序（越小越靠前；用于兼容旧排序与兜底） |
+| created_at | DATETIME | NOT NULL | 创建时间 |
+| updated_at | DATETIME | NOT NULL | 更新时间 |
+
+**索引**
+- `PRIMARY KEY (sec_user_id, aweme_id)`
+- `idx_dfua_user_sort_order (sec_user_id, sort_order)`
+- `idx_dfua_user_created_at (sec_user_id, created_at DESC)`
+- `idx_dfua_user_updated_at (sec_user_id, updated_at DESC)`
+- `idx_dfua_user_pinned_publish (sec_user_id, is_pinned, pinned_rank, publish_at)`（迁移：`sql/{dialect}/004_douyin_aweme_meta.sql`）
+
+---
+
+### 1.14 `douyin_favorite_user_tag`（抖音用户收藏标签，全局）
 
 **用途**：用户收藏的“分类标签”定义表（全局共享，不按本地身份隔离）。  
 **创建位置**：`sql/{dialect}/*.sql`（由 `internal/database/migrator.go` 执行；入口：`internal/app/schema.go`）。  
@@ -349,7 +396,7 @@
 
 ---
 
-### 1.14 `douyin_favorite_user_tag_map`（抖音用户收藏标签映射，全局）
+### 1.15 `douyin_favorite_user_tag_map`（抖音用户收藏标签映射，全局）
 
 **用途**：用户收藏与标签的多对多映射表；一条用户收藏可绑定多个标签。  
 **创建位置**：`sql/{dialect}/*.sql`（由 `internal/database/migrator.go` 执行；入口：`internal/app/schema.go`）。
@@ -366,7 +413,7 @@
 
 ---
 
-### 1.15 `douyin_favorite_aweme_tag`（抖音作品收藏标签，全局）
+### 1.16 `douyin_favorite_aweme_tag`（抖音作品收藏标签，全局）
 
 **用途**：作品收藏的“分类标签”定义表（全局共享）。与用户收藏标签体系互不影响。  
 **创建位置**：`sql/{dialect}/*.sql`（由 `internal/database/migrator.go` 执行；入口：`internal/app/schema.go`）。
@@ -388,7 +435,7 @@
 
 ---
 
-### 1.16 `douyin_favorite_aweme_tag_map`（抖音作品收藏标签映射，全局）
+### 1.17 `douyin_favorite_aweme_tag_map`（抖音作品收藏标签映射，全局）
 
 **用途**：作品收藏与标签的多对多映射表；一条作品收藏可绑定多个标签。  
 **创建位置**：`sql/{dialect}/*.sql`（由 `internal/database/migrator.go` 执行；入口：`internal/app/schema.go`）。
