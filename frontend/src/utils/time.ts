@@ -1,3 +1,8 @@
+const safariSafeDate = (timeStr: string): string => {
+  // Only replace the leading "YYYY-MM-DD" part, so we don't break timezone offsets like "-08:00".
+  return timeStr.replace(/^(\d{4})-(\d{2})-(\d{2})(?=[T ]|$)/, '$1/$2/$3')
+}
+
 // 格式化时间为相对时间
 export const formatTime = (timeStr: string): string => {
   if (!timeStr) return ''
@@ -5,7 +10,7 @@ export const formatTime = (timeStr: string): string => {
   let date = new Date(timeStr)
   // 兼容 iOS/Safari 的日期格式 (yyyy-MM-dd)
   if (Number.isNaN(date.getTime())) {
-    date = new Date(timeStr.replace(/-/g, '/'))
+    date = new Date(safariSafeDate(timeStr))
   }
   if (Number.isNaN(date.getTime())) return timeStr
 
@@ -53,7 +58,7 @@ export const formatFullTime = (timeStr: string): string => {
   let date = new Date(timeStr)
   // 兼容 iOS/Safari 的日期格式 (yyyy-MM-dd)
   if (Number.isNaN(date.getTime())) {
-    date = new Date(timeStr.replace(/-/g, '/'))
+    date = new Date(safariSafeDate(timeStr))
   }
   if (Number.isNaN(date.getTime())) return timeStr
 
