@@ -33,10 +33,22 @@ func TestHandleDouyinFavoriteUserAwemeUpsert_Success(t *testing.T) {
 			"作品2",
 			"https://example.com/c2.jpg",
 			sqlmock.AnyArg(),
+			false,
+			nil,
+			nil,
+			nil,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			"normal",
+			nil,
+			nil,
 			0,
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE douyin_favorite_user_aweme`).
+		WithArgs("MS4wLjABAAAA_x", "222").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`INSERT INTO douyin_favorite_user_aweme`).
 		WithArgs(
@@ -46,10 +58,22 @@ func TestHandleDouyinFavoriteUserAwemeUpsert_Success(t *testing.T) {
 			"作品1",
 			"https://example.com/c1.jpg",
 			sqlmock.AnyArg(),
+			false,
+			nil,
+			nil,
+			nil,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			"normal",
+			nil,
+			nil,
 			1,
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE douyin_favorite_user_aweme`).
+		WithArgs("MS4wLjABAAAA_x", "111").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
@@ -100,7 +124,7 @@ func TestHandleDouyinFavoriteUserAwemeList_Success(t *testing.T) {
 
 	createTime := time.Date(2026, 1, 24, 1, 2, 3, 0, time.Local)
 	updateTime := time.Date(2026, 1, 24, 1, 2, 4, 0, time.Local)
-	mock.ExpectQuery(`SELECT aweme_id, type, description, cover_url, downloads, created_at, updated_at`).
+	mock.ExpectQuery(`FROM douyin_favorite_user_aweme`).
 		WithArgs("MS4wLjABAAAA_x", 3, 0).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"aweme_id",
@@ -108,6 +132,15 @@ func TestHandleDouyinFavoriteUserAwemeList_Success(t *testing.T) {
 			"description",
 			"cover_url",
 			"downloads",
+			"is_pinned",
+			"pinned_rank",
+			"pinned_at",
+			"publish_at",
+			"crawled_at",
+			"last_seen_at",
+			"status",
+			"author_unique_id",
+			"author_name",
 			"created_at",
 			"updated_at",
 		}).AddRow(
@@ -116,6 +149,15 @@ func TestHandleDouyinFavoriteUserAwemeList_Success(t *testing.T) {
 			sql.NullString{String: "作品1", Valid: true},
 			sql.NullString{String: "https://example.com/c1.jpg", Valid: true},
 			sql.NullString{String: `["https://example.com/v1.mp4"]`, Valid: true},
+			false,
+			nil,
+			nil,
+			sql.NullTime{Time: createTime, Valid: true},
+			sql.NullTime{Time: updateTime, Valid: true},
+			sql.NullTime{Time: updateTime, Valid: true},
+			sql.NullString{String: "normal", Valid: true},
+			nil,
+			nil,
 			sql.NullTime{Time: createTime, Valid: true},
 			sql.NullTime{Time: updateTime, Valid: true},
 		).AddRow(
@@ -124,6 +166,15 @@ func TestHandleDouyinFavoriteUserAwemeList_Success(t *testing.T) {
 			sql.NullString{String: "作品2", Valid: true},
 			sql.NullString{String: "https://example.com/c2.jpg", Valid: true},
 			sql.NullString{String: `["https://example.com/img1.jpg","https://example.com/img2.jpg"]`, Valid: true},
+			false,
+			nil,
+			nil,
+			sql.NullTime{Time: createTime, Valid: true},
+			sql.NullTime{Time: updateTime, Valid: true},
+			sql.NullTime{Time: updateTime, Valid: true},
+			sql.NullString{String: "normal", Valid: true},
+			nil,
+			nil,
 			sql.NullTime{Time: createTime, Valid: true},
 			sql.NullTime{Time: updateTime, Valid: true},
 		))
@@ -186,6 +237,65 @@ func TestHandleDouyinFavoriteUserAwemeList_Success(t *testing.T) {
 	}
 }
 
+func TestHandleDouyinFavoriteUserAwemeList_OrderByPinnedPublish(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	createTime := time.Date(2026, 1, 24, 1, 2, 3, 0, time.Local)
+	updateTime := time.Date(2026, 1, 24, 1, 2, 4, 0, time.Local)
+
+	// Assert the SQL contains the intended pinned/publish ordering (best-effort with regex).
+	mock.ExpectQuery(`FROM douyin_favorite_user_aweme[\s\S]*ORDER BY[\s\S]*CASE WHEN is_pinned THEN 0 ELSE 1 END[\s\S]*pinned_rank ASC[\s\S]*publish_at DESC`).
+		WithArgs("MS4wLjABAAAA_x", 2, 0).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"aweme_id",
+			"type",
+			"description",
+			"cover_url",
+			"downloads",
+			"is_pinned",
+			"pinned_rank",
+			"pinned_at",
+			"publish_at",
+			"crawled_at",
+			"last_seen_at",
+			"status",
+			"author_unique_id",
+			"author_name",
+			"created_at",
+			"updated_at",
+		}).AddRow(
+			"111",
+			sql.NullString{String: "video", Valid: true},
+			sql.NullString{String: "置顶作品", Valid: true},
+			sql.NullString{String: "https://example.com/c1.jpg", Valid: true},
+			sql.NullString{String: `["https://example.com/v1.mp4"]`, Valid: true},
+			true,
+			int64(1),
+			createTime,
+			createTime,
+			updateTime,
+			updateTime,
+			sql.NullString{String: "normal", Valid: true},
+			sql.NullString{String: "dy123", Valid: true},
+			sql.NullString{String: "作者A", Valid: true},
+			createTime,
+			updateTime,
+		))
+
+	app := &App{
+		douyinFavorite:   NewDouyinFavoriteService(wrapMySQLDB(db)),
+		douyinDownloader: NewDouyinDownloaderService("http://example.com", "", "", "", 60*time.Second),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/favoriteUser/aweme/list?secUserId=MS4wLjABAAAA_x&cursor=0&count=1", nil)
+	rr := httptest.NewRecorder()
+	app.handleDouyinFavoriteUserAwemeList(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, want %d, body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+}
+
 func TestHandleDouyinFavoriteUserAwemePullLatest_Success(t *testing.T) {
 	var upstream *httptest.Server
 	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -241,10 +351,22 @@ func TestHandleDouyinFavoriteUserAwemePullLatest_Success(t *testing.T) {
 			"作品1",
 			upstream.URL+"/cover1.jpg",
 			sqlmock.AnyArg(),
+			false,
+			nil,
+			nil,
+			nil,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			"normal",
+			nil,
+			nil,
 			0,
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE douyin_favorite_user_aweme`).
+		WithArgs("MS4wLjABAAAA_x", "111").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
