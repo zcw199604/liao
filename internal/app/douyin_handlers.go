@@ -1174,6 +1174,16 @@ func (a *App) handleDouyinDownload(w http.ResponseWriter, r *http.Request) {
 					if a.douyinDownloader.cache != nil {
 						a.douyinDownloader.cache.Set(key, *refreshed)
 					}
+					// Best-effort: persist refreshed links to DB so next time we don't immediately hit expired links again.
+					if a.douyinFavorite != nil {
+						dbSecUserID := strings.TrimSpace(cached.SecUserID)
+						if dbSecUserID == "" {
+							dbSecUserID = strings.TrimSpace(refreshed.SecUserID)
+						}
+						if dbSecUserID != "" {
+							_ = a.douyinFavorite.UpdateUserAwemeDownloadsCover(r.Context(), dbSecUserID, refreshed.DetailID, refreshed.Downloads, refreshed.CoverURL)
+						}
+					}
 
 					remoteURL = newURL
 					cached = refreshed
@@ -1298,6 +1308,16 @@ func (a *App) handleDouyinCover(w http.ResponseWriter, r *http.Request) {
 				if a.douyinDownloader.cache != nil {
 					a.douyinDownloader.cache.Set(key, *refreshed)
 				}
+				// Best-effort: persist refreshed links to DB so next time we don't immediately hit expired links again.
+				if a.douyinFavorite != nil {
+					dbSecUserID := strings.TrimSpace(cached.SecUserID)
+					if dbSecUserID == "" {
+						dbSecUserID = strings.TrimSpace(refreshed.SecUserID)
+					}
+					if dbSecUserID != "" {
+						_ = a.douyinFavorite.UpdateUserAwemeDownloadsCover(r.Context(), dbSecUserID, refreshed.DetailID, refreshed.Downloads, refreshed.CoverURL)
+					}
+				}
 				remoteURL = strings.TrimSpace(refreshed.CoverURL)
 				cached = refreshed
 
@@ -1390,6 +1410,16 @@ retryHead:
 				if a.douyinDownloader.cache != nil && strings.TrimSpace(key) != "" {
 					a.douyinDownloader.cache.Set(strings.TrimSpace(key), *refreshed)
 				}
+				// Best-effort: persist refreshed links to DB so next time we don't immediately hit expired links again.
+				if a.douyinFavorite != nil {
+					dbSecUserID := strings.TrimSpace(cached.SecUserID)
+					if dbSecUserID == "" {
+						dbSecUserID = strings.TrimSpace(refreshed.SecUserID)
+					}
+					if dbSecUserID != "" {
+						_ = a.douyinFavorite.UpdateUserAwemeDownloadsCover(r.Context(), dbSecUserID, refreshed.DetailID, refreshed.Downloads, refreshed.CoverURL)
+					}
+				}
 				cached = refreshed
 				remoteURL = newURL
 				goto retryHead
@@ -1416,6 +1446,16 @@ retryRange:
 				if newURL != "" {
 					if a.douyinDownloader.cache != nil && strings.TrimSpace(key) != "" {
 						a.douyinDownloader.cache.Set(strings.TrimSpace(key), *refreshed)
+					}
+					// Best-effort: persist refreshed links to DB so next time we don't immediately hit expired links again.
+					if a.douyinFavorite != nil {
+						dbSecUserID := strings.TrimSpace(cached.SecUserID)
+						if dbSecUserID == "" {
+							dbSecUserID = strings.TrimSpace(refreshed.SecUserID)
+						}
+						if dbSecUserID != "" {
+							_ = a.douyinFavorite.UpdateUserAwemeDownloadsCover(r.Context(), dbSecUserID, refreshed.DetailID, refreshed.Downloads, refreshed.CoverURL)
+						}
 					}
 					cached = refreshed
 					remoteURL = newURL
@@ -1545,6 +1585,16 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 				if newURL != "" {
 					if a.douyinDownloader.cache != nil && strings.TrimSpace(key) != "" {
 						a.douyinDownloader.cache.Set(strings.TrimSpace(key), *refreshed)
+					}
+					// Best-effort: persist refreshed links to DB so next time we don't immediately hit expired links again.
+					if a.douyinFavorite != nil {
+						dbSecUserID := strings.TrimSpace(cached.SecUserID)
+						if dbSecUserID == "" {
+							dbSecUserID = strings.TrimSpace(refreshed.SecUserID)
+						}
+						if dbSecUserID != "" {
+							_ = a.douyinFavorite.UpdateUserAwemeDownloadsCover(r.Context(), dbSecUserID, refreshed.DetailID, refreshed.Downloads, refreshed.CoverURL)
+						}
 					}
 					remoteURL = newURL
 					cached = refreshed
