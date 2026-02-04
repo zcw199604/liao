@@ -1,8 +1,11 @@
 package app
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -22,6 +25,49 @@ func effectiveDouyinUserAgent(r *http.Request) string {
 		return ua
 	}
 	return douyinDefaultUserAgent
+}
+
+type urlLogInfo struct {
+	RawLen    int
+	Hash      string
+	Scheme    string
+	Host      string
+	Path      string
+	QueryKeys int
+}
+
+func buildURLLogInfo(raw string) urlLogInfo {
+	raw = strings.TrimSpace(raw)
+	info := urlLogInfo{RawLen: len(raw)}
+	if raw == "" {
+		return info
+	}
+
+	sum := sha256.Sum256([]byte(raw))
+	// Keep it short for logs; enough to correlate requests without leaking full URL params.
+	info.Hash = hex.EncodeToString(sum[:8])
+
+	u, err := url.Parse(raw)
+	if err != nil || u == nil {
+		return info
+	}
+	info.Scheme = strings.TrimSpace(u.Scheme)
+	info.Host = strings.TrimSpace(u.Host)
+	info.Path = strings.TrimSpace(u.Path)
+	if strings.TrimSpace(u.RawQuery) != "" {
+		if q, err := url.ParseQuery(u.RawQuery); err == nil {
+			info.QueryKeys = len(q)
+		}
+	}
+	return info
+}
+
+func truncateForLog(raw string, maxLen int) string {
+	raw = strings.TrimSpace(raw)
+	if maxLen <= 0 || len(raw) <= maxLen {
+		return raw
+	}
+	return raw[:maxLen] + "..."
 }
 
 func isDouyinHost(host string) bool {
