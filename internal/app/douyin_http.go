@@ -70,6 +70,23 @@ func truncateForLog(raw string, maxLen int) string {
 	return raw[:maxLen] + "..."
 }
 
+func douyinRefererForDetail(detailID string, mediaType string) string {
+	detailID = strings.TrimSpace(detailID)
+	if detailID == "" {
+		return douyinDefaultReferer
+	}
+
+	switch strings.ToLower(strings.TrimSpace(mediaType)) {
+	case "video":
+		return "https://www.douyin.com/video/" + detailID
+	case "image":
+		// Image posts typically use /note/<id> in Douyin web.
+		return "https://www.douyin.com/note/" + detailID
+	default:
+		return douyinDefaultReferer
+	}
+}
+
 func isDouyinHost(host string) bool {
 	h := strings.TrimSpace(host)
 	if h == "" {
@@ -92,5 +109,10 @@ func isDouyinHost(host string) bool {
 	return h == "douyin.com" ||
 		strings.HasSuffix(h, ".douyin.com") ||
 		h == "iesdouyin.com" ||
-		strings.HasSuffix(h, ".iesdouyin.com")
+		strings.HasSuffix(h, ".iesdouyin.com") ||
+		// Video/image CDN domains may also require cookies (best-effort).
+		h == "douyinvod.com" ||
+		strings.HasSuffix(h, ".douyinvod.com") ||
+		h == "douyinpic.com" ||
+		strings.HasSuffix(h, ".douyinpic.com")
 }

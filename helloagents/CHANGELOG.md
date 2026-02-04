@@ -140,6 +140,7 @@
   - 检测依据: `master(分支)` + `git push`
 - 后端：修复“抖音收藏用户 → 作品预览/下载”在 downloads 直链过期时返回 `403 Forbidden (openresty)` 的问题：`/api/douyin/download`、`/api/douyin/import`、`/api/douyin/cover` 在 `403` 时会 best-effort 调用上游 `POST /douyin/detail` 刷新直链并自动重试一次，同时更新同一 `key` 的缓存以复用新链接；并发场景下会按 `detail_id` 使用 `singleflight` 合并回源刷新，避免“惊群”；刷新成功后 best-effort 回写 `douyin_favorite_user_aweme.downloads/cover_url`（若存在对应记录），减少短时间内重复回源。
 - 后端：修复部分作品直链在刷新后仍可能返回 `403 Forbidden (Tengine)` 的问题：`/api/douyin/download`、`/api/douyin/import`、`/api/douyin/cover` 回源请求时会补齐浏览器 `User-Agent`（优先透传前端 UA）并设置 `Referer/Origin`；当下载 URL 指向 `*.douyin.com/*.iesdouyin.com` 时 best-effort 携带抖音 cookie，并在重定向到其他 host 时自动清除 `Cookie` 头以避免泄漏。
+- 后端：进一步兼容抖音 CDN 域名：当直链 host 为 `*.douyinvod.com` / `*.douyinpic.com` 时同样 best-effort 携带抖音 cookie；并在 `403` 刷新重试时**保留原 downloads 长度**（仅替换触发 index 的直链，必要时视频退化到 `first_video`），避免刷新后 index 不匹配/越界导致无法重试。
 - 后端：为抖音下载/封面/导入在 `403` 场景增加结构化日志（打印原始/最终 host+path+hash、响应 `Server/Content-Type`、刷新前后 URL 对比等；不记录 cookie 与直链 query value），便于定位被拦截的域名与链路。
 - 后端：修复抖音实况导出在 MIUI 相册不识别为“动态照片”的问题：`format=jpg` 生成改用 `APP1(Exif) → APP1(XMP) → APP0(JFIF)` 段顺序，并在 `EOI` 与 MP4 之间插入 24 字节 gap；同时实况下载文件名与普通图片下载对齐并追加 `_live`。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险

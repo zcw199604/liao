@@ -1142,6 +1142,7 @@ func (a *App) handleDouyinDownload(w http.ResponseWriter, r *http.Request) {
 	userAgent := effectiveDouyinUserAgent(r)
 
 	cookieValue := ""
+	var cookieErr error
 	cookieFetched := false
 	getCookie := func() string {
 		if cookieFetched {
@@ -1152,6 +1153,8 @@ func (a *App) handleDouyinDownload(w http.ResponseWriter, r *http.Request) {
 		v, err := a.douyinDownloader.effectiveCookie(r.Context(), "")
 		if err == nil {
 			cookieValue = strings.TrimSpace(v)
+		} else {
+			cookieErr = err
 		}
 		return cookieValue
 	}
@@ -1161,9 +1164,11 @@ func (a *App) handleDouyinDownload(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return nil, err
 		}
+		mediaType := guessDouyinMediaTypeFromURL(urlValue)
 		req.Header.Set("User-Agent", userAgent)
-		req.Header.Set("Referer", douyinDefaultReferer)
+		req.Header.Set("Referer", douyinRefererForDetail(cached.DetailID, mediaType))
 		req.Header.Set("Origin", douyinDefaultOrigin)
+		req.Header.Set("Accept", "*/*")
 		if rangeValue != "" {
 			req.Header.Set("Range", rangeValue)
 		}
@@ -1241,6 +1246,7 @@ func (a *App) handleDouyinDownload(w http.ResponseWriter, r *http.Request) {
 				"locationPath", locInfo.Path,
 				"needCookie", needCookie,
 				"cookieLen", cookieLen,
+				"cookieErr", cookieErr,
 				"uaLen", len(userAgent),
 				"range", rangeValue,
 				"server", strings.TrimSpace(resp.Header.Get("Server")),
@@ -1255,38 +1261,92 @@ func (a *App) handleDouyinDownload(w http.ResponseWriter, r *http.Request) {
 			slog.Info("抖音下载403，尝试刷新直链", "detailID", cached.DetailID, "key", key, "index", index)
 
 			refreshed, refreshErr := a.douyinDownloader.RefreshDetailBestEffort(cached.DetailID)
-			if refreshErr == nil && refreshed != nil && index < len(refreshed.Downloads) {
-				newURL := strings.TrimSpace(refreshed.Downloads[index])
-				if newURL != "" {
-					oldInfo := buildURLLogInfo(remoteURL)
+			if refreshErr != nil {
+				slog.Warn("抖音直链刷新失败(下载)", "detailID", cached.DetailID, "error", refreshErr)
+			} else if refreshed == nil {
+				slog.Warn("抖音直链刷新失败(下载)", "detailID", cached.DetailID, "error", "refreshed=nil")
+			} else {
+				coverInfo := buildURLLogInfo(refreshed.CoverURL)
+				slog.Info(
+					"抖音直链刷新返回",
+					"detailID", refreshed.DetailID,
+					"downloadsLen", len(refreshed.Downloads),
+					"secUserID", strings.TrimSpace(refreshed.SecUserID),
+					"coverHost", coverInfo.Host,
+					"coverHash", coverInfo.Hash,
+				)
+
+				oldURL := remoteURL
+				oldType := guessDouyinMediaTypeFromURL(oldURL)
+
+				newURL := ""
+				pickedBy := "index"
+				if index >= 0 && index < len(refreshed.Downloads) {
+					newURL = strings.TrimSpace(refreshed.Downloads[index])
+				}
+				// Fallback: if refresh returns a shorter downloads list, try to pick a matching video URL to keep downloads usable.
+				if newURL == "" && oldType == "video" {
+					for _, u := range refreshed.Downloads {
+						u = strings.TrimSpace(u)
+						if u == "" {
+							continue
+						}
+						if guessDouyinMediaTypeFromURL(u) == "video" {
+							newURL = u
+							pickedBy = "first_video"
+							break
+						}
+					}
+				}
+
+				if newURL == "" {
+					slog.Warn(
+						"抖音直链刷新后未找到可用下载URL",
+						"detailID", refreshed.DetailID,
+						"index", index,
+						"downloadsLen", len(refreshed.Downloads),
+						"oldType", oldType,
+					)
+				} else {
+					oldInfo := buildURLLogInfo(oldURL)
 					newInfo := buildURLLogInfo(newURL)
 					slog.Info(
 						"抖音直链刷新成功，准备重试下载",
 						"detailID", refreshed.DetailID,
 						"index", index,
+						"pickedBy", pickedBy,
 						"oldHost", oldInfo.Host,
 						"oldHash", oldInfo.Hash,
 						"newHost", newInfo.Host,
 						"newHash", newInfo.Hash,
 					)
 
-					// Update cache under the same key so subsequent range requests reuse the refreshed URL set.
-					if a.douyinDownloader.cache != nil {
-						a.douyinDownloader.cache.Set(key, *refreshed)
+					// Preserve the original downloads length to avoid breaking existing indices.
+					updated := *cached
+					updated.Downloads = append([]string(nil), cached.Downloads...)
+					if strings.TrimSpace(updated.SecUserID) == "" {
+						updated.SecUserID = strings.TrimSpace(refreshed.SecUserID)
 					}
-					// Best-effort: persist refreshed links to DB so next time we don't immediately hit expired links again.
-					if a.douyinFavorite != nil {
-						dbSecUserID := strings.TrimSpace(cached.SecUserID)
-						if dbSecUserID == "" {
-							dbSecUserID = strings.TrimSpace(refreshed.SecUserID)
-						}
-						if dbSecUserID != "" {
-							_ = a.douyinFavorite.UpdateUserAwemeDownloadsCover(r.Context(), dbSecUserID, refreshed.DetailID, refreshed.Downloads, refreshed.CoverURL)
-						}
+					if v := strings.TrimSpace(refreshed.CoverURL); v != "" {
+						updated.CoverURL = v
+					}
+					if index >= 0 && index < len(updated.Downloads) {
+						updated.Downloads[index] = newURL
 					}
 
+					if a.douyinDownloader.cache != nil {
+						a.douyinDownloader.cache.Set(key, updated)
+					}
+					cached = &updated
 					remoteURL = newURL
-					cached = refreshed
+
+					// Best-effort: persist refreshed links to DB so next time we don't immediately hit expired links again.
+					if a.douyinFavorite != nil {
+						dbSecUserID := strings.TrimSpace(updated.SecUserID)
+						if dbSecUserID != "" {
+							_ = a.douyinFavorite.UpdateUserAwemeDownloadsCover(r.Context(), dbSecUserID, updated.DetailID, updated.Downloads, updated.CoverURL)
+						}
+					}
 
 					resp2, err2 := doDownload(remoteURL)
 					if err2 != nil {
@@ -1311,6 +1371,7 @@ func (a *App) handleDouyinDownload(w http.ResponseWriter, r *http.Request) {
 						"抖音直链刷新后仍下载失败",
 						"detailID", refreshed.DetailID,
 						"index", index,
+						"pickedBy", pickedBy,
 						"status", resp2.Status,
 						"origHost", origInfo.Host,
 						"origPath", origInfo.Path,
@@ -1326,10 +1387,6 @@ func (a *App) handleDouyinDownload(w http.ResponseWriter, r *http.Request) {
 					writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("下载失败: %s %s", resp2.Status, strings.TrimSpace(string(body2)))})
 					return
 				}
-			}
-
-			if refreshErr != nil {
-				slog.Warn("抖音直链刷新失败(下载)", "detailID", cached.DetailID, "error", refreshErr)
 			}
 		}
 
@@ -1409,6 +1466,7 @@ func (a *App) handleDouyinCover(w http.ResponseWriter, r *http.Request) {
 	userAgent := effectiveDouyinUserAgent(r)
 
 	cookieValue := ""
+	var cookieErr error
 	cookieFetched := false
 	getCookie := func() string {
 		if cookieFetched {
@@ -1418,6 +1476,8 @@ func (a *App) handleDouyinCover(w http.ResponseWriter, r *http.Request) {
 		v, err := a.douyinDownloader.effectiveCookie(r.Context(), "")
 		if err == nil {
 			cookieValue = strings.TrimSpace(v)
+		} else {
+			cookieErr = err
 		}
 		return cookieValue
 	}
@@ -1427,9 +1487,11 @@ func (a *App) handleDouyinCover(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return nil, err
 		}
+		mediaType := guessDouyinMediaTypeFromURL(urlValue)
 		req.Header.Set("User-Agent", userAgent)
-		req.Header.Set("Referer", douyinDefaultReferer)
+		req.Header.Set("Referer", douyinRefererForDetail(cached.DetailID, mediaType))
 		req.Header.Set("Origin", douyinDefaultOrigin)
+		req.Header.Set("Accept", "*/*")
 
 		parsed, _ := url.Parse(urlValue)
 		needCookie := parsed != nil && isDouyinHost(parsed.Host)
@@ -1471,6 +1533,16 @@ func (a *App) handleDouyinCover(w http.ResponseWriter, r *http.Request) {
 			if resp != nil && resp.Request != nil && resp.Request.URL != nil {
 				finalInfo = buildURLLogInfo(resp.Request.URL.String())
 			}
+
+			needCookie := isDouyinHost(origInfo.Host)
+			if !needCookie && strings.TrimSpace(finalInfo.Host) != "" {
+				needCookie = isDouyinHost(finalInfo.Host)
+			}
+			cookieLen := 0
+			if needCookie {
+				cookieLen = len(getCookie())
+			}
+
 			slog.Warn(
 				"抖音封面回源403",
 				"method", r.Method,
@@ -1484,6 +1556,9 @@ func (a *App) handleDouyinCover(w http.ResponseWriter, r *http.Request) {
 				"finalHost", finalInfo.Host,
 				"finalPath", finalInfo.Path,
 				"finalHash", finalInfo.Hash,
+				"needCookie", needCookie,
+				"cookieLen", cookieLen,
+				"cookieErr", cookieErr,
 				"server", strings.TrimSpace(resp.Header.Get("Server")),
 				"contentType", strings.TrimSpace(resp.Header.Get("Content-Type")),
 				"body", truncateForLog(string(body), 240),
@@ -1494,9 +1569,14 @@ func (a *App) handleDouyinCover(w http.ResponseWriter, r *http.Request) {
 		if resp.StatusCode == http.StatusForbidden {
 			slog.Info("抖音封面403，尝试刷新直链", "detailID", cached.DetailID, "key", key)
 			refreshed, refreshErr := a.douyinDownloader.RefreshDetailBestEffort(cached.DetailID)
-			if refreshErr == nil && refreshed != nil && strings.TrimSpace(refreshed.CoverURL) != "" {
+			if refreshErr != nil {
+				slog.Warn("抖音直链刷新失败(封面)", "detailID", cached.DetailID, "error", refreshErr)
+			} else if refreshed == nil {
+				slog.Warn("抖音直链刷新失败(封面)", "detailID", cached.DetailID, "error", "refreshed=nil")
+			} else if strings.TrimSpace(refreshed.CoverURL) != "" {
 				oldInfo := buildURLLogInfo(remoteURL)
-				newInfo := buildURLLogInfo(refreshed.CoverURL)
+				newCover := strings.TrimSpace(refreshed.CoverURL)
+				newInfo := buildURLLogInfo(newCover)
 				slog.Info(
 					"抖音封面直链刷新成功，准备重试",
 					"detailID", refreshed.DetailID,
@@ -1506,21 +1586,26 @@ func (a *App) handleDouyinCover(w http.ResponseWriter, r *http.Request) {
 					"newHash", newInfo.Hash,
 				)
 
-				if a.douyinDownloader.cache != nil {
-					a.douyinDownloader.cache.Set(key, *refreshed)
+				updated := *cached
+				updated.Downloads = append([]string(nil), cached.Downloads...)
+				if strings.TrimSpace(updated.SecUserID) == "" {
+					updated.SecUserID = strings.TrimSpace(refreshed.SecUserID)
 				}
+				updated.CoverURL = newCover
+
+				if a.douyinDownloader.cache != nil {
+					a.douyinDownloader.cache.Set(key, updated)
+				}
+				cached = &updated
+				remoteURL = newCover
+
 				// Best-effort: persist refreshed links to DB so next time we don't immediately hit expired links again.
 				if a.douyinFavorite != nil {
-					dbSecUserID := strings.TrimSpace(cached.SecUserID)
-					if dbSecUserID == "" {
-						dbSecUserID = strings.TrimSpace(refreshed.SecUserID)
-					}
+					dbSecUserID := strings.TrimSpace(updated.SecUserID)
 					if dbSecUserID != "" {
-						_ = a.douyinFavorite.UpdateUserAwemeDownloadsCover(r.Context(), dbSecUserID, refreshed.DetailID, refreshed.Downloads, refreshed.CoverURL)
+						_ = a.douyinFavorite.UpdateUserAwemeDownloadsCover(r.Context(), dbSecUserID, updated.DetailID, updated.Downloads, updated.CoverURL)
 					}
 				}
-				remoteURL = strings.TrimSpace(refreshed.CoverURL)
-				cached = refreshed
 
 				resp2, err2 := doCover(remoteURL)
 				if err2 != nil {
@@ -1556,10 +1641,8 @@ func (a *App) handleDouyinCover(w http.ResponseWriter, r *http.Request) {
 
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("获取封面失败: %s %s", resp2.Status, strings.TrimSpace(string(body2)))})
 				return
-			}
-
-			if refreshErr != nil {
-				slog.Warn("抖音直链刷新失败(封面)", "detailID", cached.DetailID, "error", refreshErr)
+			} else if refreshed != nil {
+				slog.Warn("抖音封面直链刷新后仍为空", "detailID", refreshed.DetailID)
 			}
 		}
 
@@ -1597,6 +1680,7 @@ func (a *App) handleDouyinDownloadHead(w http.ResponseWriter, r *http.Request, k
 	userAgent := effectiveDouyinUserAgent(r)
 
 	cookieValue := ""
+	var cookieErr error
 	cookieFetched := false
 	getCookie := func() string {
 		if cookieFetched {
@@ -1606,6 +1690,8 @@ func (a *App) handleDouyinDownloadHead(w http.ResponseWriter, r *http.Request, k
 		v, err := a.douyinDownloader.effectiveCookie(r.Context(), "")
 		if err == nil {
 			cookieValue = strings.TrimSpace(v)
+		} else {
+			cookieErr = err
 		}
 		return cookieValue
 	}
@@ -1615,9 +1701,11 @@ func (a *App) handleDouyinDownloadHead(w http.ResponseWriter, r *http.Request, k
 		if err != nil {
 			return nil, err
 		}
+		mediaType := guessDouyinMediaTypeFromURL(urlValue)
 		req.Header.Set("User-Agent", userAgent)
-		req.Header.Set("Referer", douyinDefaultReferer)
+		req.Header.Set("Referer", douyinRefererForDetail(cached.DetailID, mediaType))
 		req.Header.Set("Origin", douyinDefaultOrigin)
+		req.Header.Set("Accept", "*/*")
 
 		parsed, _ := url.Parse(urlValue)
 		needCookie := parsed != nil && isDouyinHost(parsed.Host)
@@ -1647,9 +1735,11 @@ func (a *App) handleDouyinDownloadHead(w http.ResponseWriter, r *http.Request, k
 		if err != nil {
 			return nil, err
 		}
+		mediaType := guessDouyinMediaTypeFromURL(urlValue)
 		req.Header.Set("User-Agent", userAgent)
-		req.Header.Set("Referer", douyinDefaultReferer)
+		req.Header.Set("Referer", douyinRefererForDetail(cached.DetailID, mediaType))
 		req.Header.Set("Origin", douyinDefaultOrigin)
+		req.Header.Set("Accept", "*/*")
 		req.Header.Set("Range", "bytes=0-0")
 
 		parsed, _ := url.Parse(urlValue)
@@ -1692,6 +1782,15 @@ retryHead:
 		if resp != nil && resp.Request != nil && resp.Request.URL != nil {
 			finalInfo = buildURLLogInfo(resp.Request.URL.String())
 		}
+
+		needCookie := isDouyinHost(origInfo.Host)
+		if !needCookie && strings.TrimSpace(finalInfo.Host) != "" {
+			needCookie = isDouyinHost(finalInfo.Host)
+		}
+		cookieLen := 0
+		if needCookie {
+			cookieLen = len(getCookie())
+		}
 		slog.Warn(
 			"抖音下载HEAD回源403",
 			"path", r.URL.Path,
@@ -1705,6 +1804,9 @@ retryHead:
 			"finalHost", finalInfo.Host,
 			"finalPath", finalInfo.Path,
 			"finalHash", finalInfo.Hash,
+			"needCookie", needCookie,
+			"cookieLen", cookieLen,
+			"cookieErr", cookieErr,
 			"server", strings.TrimSpace(resp.Header.Get("Server")),
 			"contentType", strings.TrimSpace(resp.Header.Get("Content-Type")),
 		)
@@ -1712,42 +1814,81 @@ retryHead:
 		triedRefresh = true
 		slog.Info("抖音下载HEAD 403，尝试刷新直链", "detailID", cached.DetailID, "key", key, "index", index)
 		refreshed, refreshErr := a.douyinDownloader.RefreshDetailBestEffort(cached.DetailID)
-		if refreshErr == nil && refreshed != nil && index < len(refreshed.Downloads) {
-			newURL := strings.TrimSpace(refreshed.Downloads[index])
-			if newURL != "" {
-				oldInfo := buildURLLogInfo(remoteURL)
+		if refreshErr != nil {
+			slog.Warn("抖音直链刷新失败(HEAD)", "detailID", cached.DetailID, "error", refreshErr)
+		} else if refreshed == nil {
+			slog.Warn("抖音直链刷新失败(HEAD)", "detailID", cached.DetailID, "error", "refreshed=nil")
+		} else {
+			oldURL := remoteURL
+			oldType := guessDouyinMediaTypeFromURL(oldURL)
+
+			newURL := ""
+			pickedBy := "index"
+			if index >= 0 && index < len(refreshed.Downloads) {
+				newURL = strings.TrimSpace(refreshed.Downloads[index])
+			}
+			if newURL == "" && oldType == "video" {
+				for _, u := range refreshed.Downloads {
+					u = strings.TrimSpace(u)
+					if u == "" {
+						continue
+					}
+					if guessDouyinMediaTypeFromURL(u) == "video" {
+						newURL = u
+						pickedBy = "first_video"
+						break
+					}
+				}
+			}
+			if newURL == "" {
+				slog.Warn(
+					"抖音下载HEAD 刷新后未找到可用URL",
+					"detailID", refreshed.DetailID,
+					"index", index,
+					"downloadsLen", len(refreshed.Downloads),
+					"oldType", oldType,
+				)
+			} else {
+				oldInfo := buildURLLogInfo(oldURL)
 				newInfo := buildURLLogInfo(newURL)
 				slog.Info(
 					"抖音下载HEAD 直链刷新成功，准备重试",
 					"detailID", refreshed.DetailID,
 					"index", index,
+					"pickedBy", pickedBy,
 					"oldHost", oldInfo.Host,
 					"oldHash", oldInfo.Hash,
 					"newHost", newInfo.Host,
 					"newHash", newInfo.Hash,
 				)
 
+				updated := *cached
+				updated.Downloads = append([]string(nil), cached.Downloads...)
+				if strings.TrimSpace(updated.SecUserID) == "" {
+					updated.SecUserID = strings.TrimSpace(refreshed.SecUserID)
+				}
+				if v := strings.TrimSpace(refreshed.CoverURL); v != "" {
+					updated.CoverURL = v
+				}
+				if index >= 0 && index < len(updated.Downloads) {
+					updated.Downloads[index] = newURL
+				}
+
 				if a.douyinDownloader.cache != nil && strings.TrimSpace(key) != "" {
-					a.douyinDownloader.cache.Set(strings.TrimSpace(key), *refreshed)
+					a.douyinDownloader.cache.Set(strings.TrimSpace(key), updated)
 				}
 				// Best-effort: persist refreshed links to DB so next time we don't immediately hit expired links again.
 				if a.douyinFavorite != nil {
-					dbSecUserID := strings.TrimSpace(cached.SecUserID)
-					if dbSecUserID == "" {
-						dbSecUserID = strings.TrimSpace(refreshed.SecUserID)
-					}
+					dbSecUserID := strings.TrimSpace(updated.SecUserID)
 					if dbSecUserID != "" {
-						_ = a.douyinFavorite.UpdateUserAwemeDownloadsCover(r.Context(), dbSecUserID, refreshed.DetailID, refreshed.Downloads, refreshed.CoverURL)
+						_ = a.douyinFavorite.UpdateUserAwemeDownloadsCover(r.Context(), dbSecUserID, updated.DetailID, updated.Downloads, updated.CoverURL)
 					}
 				}
-				cached = refreshed
+
+				cached = &updated
 				remoteURL = newURL
 				goto retryHead
 			}
-		}
-
-		if refreshErr != nil {
-			slog.Warn("抖音直链刷新失败(HEAD)", "detailID", cached.DetailID, "error", refreshErr)
 		}
 	}
 
@@ -1777,6 +1918,14 @@ retryRange:
 		if rangeResp != nil && rangeResp.Request != nil && rangeResp.Request.URL != nil {
 			finalInfo = buildURLLogInfo(rangeResp.Request.URL.String())
 		}
+		needCookie := isDouyinHost(origInfo.Host)
+		if !needCookie && strings.TrimSpace(finalInfo.Host) != "" {
+			needCookie = isDouyinHost(finalInfo.Host)
+		}
+		cookieLen := 0
+		if needCookie {
+			cookieLen = len(getCookie())
+		}
 		slog.Warn(
 			"抖音下载Range探测回源403",
 			"path", r.URL.Path,
@@ -1790,6 +1939,9 @@ retryRange:
 			"finalHost", finalInfo.Host,
 			"finalPath", finalInfo.Path,
 			"finalHash", finalInfo.Hash,
+			"needCookie", needCookie,
+			"cookieLen", cookieLen,
+			"cookieErr", cookieErr,
 			"server", strings.TrimSpace(rangeResp.Header.Get("Server")),
 			"contentType", strings.TrimSpace(rangeResp.Header.Get("Content-Type")),
 			"body", truncateForLog(string(body), 240),
@@ -1798,42 +1950,81 @@ retryRange:
 		triedRefresh = true
 		slog.Info("抖音下载Range探测 403，尝试刷新直链", "detailID", cached.DetailID, "key", key, "index", index)
 		refreshed, refreshErr := a.douyinDownloader.RefreshDetailBestEffort(cached.DetailID)
-		if refreshErr == nil && refreshed != nil && index < len(refreshed.Downloads) {
-			newURL := strings.TrimSpace(refreshed.Downloads[index])
-			if newURL != "" {
-				oldInfo := buildURLLogInfo(remoteURL)
+		if refreshErr != nil {
+			slog.Warn("抖音直链刷新失败(Range探测)", "detailID", cached.DetailID, "error", refreshErr)
+		} else if refreshed == nil {
+			slog.Warn("抖音直链刷新失败(Range探测)", "detailID", cached.DetailID, "error", "refreshed=nil")
+		} else {
+			oldURL := remoteURL
+			oldType := guessDouyinMediaTypeFromURL(oldURL)
+
+			newURL := ""
+			pickedBy := "index"
+			if index >= 0 && index < len(refreshed.Downloads) {
+				newURL = strings.TrimSpace(refreshed.Downloads[index])
+			}
+			if newURL == "" && oldType == "video" {
+				for _, u := range refreshed.Downloads {
+					u = strings.TrimSpace(u)
+					if u == "" {
+						continue
+					}
+					if guessDouyinMediaTypeFromURL(u) == "video" {
+						newURL = u
+						pickedBy = "first_video"
+						break
+					}
+				}
+			}
+			if newURL == "" {
+				slog.Warn(
+					"抖音下载Range探测 刷新后未找到可用URL",
+					"detailID", refreshed.DetailID,
+					"index", index,
+					"downloadsLen", len(refreshed.Downloads),
+					"oldType", oldType,
+				)
+			} else {
+				oldInfo := buildURLLogInfo(oldURL)
 				newInfo := buildURLLogInfo(newURL)
 				slog.Info(
 					"抖音下载Range探测直链刷新成功，准备重试",
 					"detailID", refreshed.DetailID,
 					"index", index,
+					"pickedBy", pickedBy,
 					"oldHost", oldInfo.Host,
 					"oldHash", oldInfo.Hash,
 					"newHost", newInfo.Host,
 					"newHash", newInfo.Hash,
 				)
 
+				updated := *cached
+				updated.Downloads = append([]string(nil), cached.Downloads...)
+				if strings.TrimSpace(updated.SecUserID) == "" {
+					updated.SecUserID = strings.TrimSpace(refreshed.SecUserID)
+				}
+				if v := strings.TrimSpace(refreshed.CoverURL); v != "" {
+					updated.CoverURL = v
+				}
+				if index >= 0 && index < len(updated.Downloads) {
+					updated.Downloads[index] = newURL
+				}
+
 				if a.douyinDownloader.cache != nil && strings.TrimSpace(key) != "" {
-					a.douyinDownloader.cache.Set(strings.TrimSpace(key), *refreshed)
+					a.douyinDownloader.cache.Set(strings.TrimSpace(key), updated)
 				}
 				// Best-effort: persist refreshed links to DB so next time we don't immediately hit expired links again.
 				if a.douyinFavorite != nil {
-					dbSecUserID := strings.TrimSpace(cached.SecUserID)
-					if dbSecUserID == "" {
-						dbSecUserID = strings.TrimSpace(refreshed.SecUserID)
-					}
+					dbSecUserID := strings.TrimSpace(updated.SecUserID)
 					if dbSecUserID != "" {
-						_ = a.douyinFavorite.UpdateUserAwemeDownloadsCover(r.Context(), dbSecUserID, refreshed.DetailID, refreshed.Downloads, refreshed.CoverURL)
+						_ = a.douyinFavorite.UpdateUserAwemeDownloadsCover(r.Context(), dbSecUserID, updated.DetailID, updated.Downloads, updated.CoverURL)
 					}
 				}
-				cached = refreshed
+
+				cached = &updated
 				remoteURL = newURL
 				goto retryRange
 			}
-		}
-
-		if refreshErr != nil {
-			slog.Warn("抖音直链刷新失败(Range探测)", "detailID", cached.DetailID, "error", refreshErr)
 		}
 	}
 
@@ -1928,6 +2119,7 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 	userAgent := effectiveDouyinUserAgent(r)
 
 	cookieValue := ""
+	var cookieErr error
 	cookieFetched := false
 	getCookie := func() string {
 		if cookieFetched {
@@ -1937,6 +2129,8 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 		v, err := a.douyinDownloader.effectiveCookie(r.Context(), "")
 		if err == nil {
 			cookieValue = strings.TrimSpace(v)
+		} else {
+			cookieErr = err
 		}
 		return cookieValue
 	}
@@ -1946,9 +2140,11 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return nil, err
 		}
+		mediaType := guessDouyinMediaTypeFromURL(urlValue)
 		req.Header.Set("User-Agent", userAgent)
-		req.Header.Set("Referer", douyinDefaultReferer)
+		req.Header.Set("Referer", douyinRefererForDetail(cached.DetailID, mediaType))
 		req.Header.Set("Origin", douyinDefaultOrigin)
+		req.Header.Set("Accept", "*/*")
 
 		parsed, _ := url.Parse(urlValue)
 		needCookie := parsed != nil && isDouyinHost(parsed.Host)
@@ -1989,6 +2185,14 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 			if downloadResp != nil && downloadResp.Request != nil && downloadResp.Request.URL != nil {
 				finalInfo = buildURLLogInfo(downloadResp.Request.URL.String())
 			}
+			needCookie := isDouyinHost(origInfo.Host)
+			if !needCookie && strings.TrimSpace(finalInfo.Host) != "" {
+				needCookie = isDouyinHost(finalInfo.Host)
+			}
+			cookieLen := 0
+			if needCookie {
+				cookieLen = len(getCookie())
+			}
 			slog.Warn(
 				"抖音导入回源403",
 				"method", r.Method,
@@ -2003,6 +2207,9 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 				"finalHost", finalInfo.Host,
 				"finalPath", finalInfo.Path,
 				"finalHash", finalInfo.Hash,
+				"needCookie", needCookie,
+				"cookieLen", cookieLen,
+				"cookieErr", cookieErr,
 				"server", strings.TrimSpace(downloadResp.Header.Get("Server")),
 				"contentType", strings.TrimSpace(downloadResp.Header.Get("Content-Type")),
 				"body", truncateForLog(string(body), 240),
@@ -2013,36 +2220,79 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 		if downloadResp.StatusCode == http.StatusForbidden {
 			slog.Info("抖音导入403，尝试刷新直链", "detailID", cached.DetailID, "key", key, "index", index)
 			refreshed, refreshErr := a.douyinDownloader.RefreshDetailBestEffort(cached.DetailID)
-			if refreshErr == nil && refreshed != nil && index < len(refreshed.Downloads) {
-				newURL := strings.TrimSpace(refreshed.Downloads[index])
-				if newURL != "" {
-					oldInfo := buildURLLogInfo(remoteURL)
+			if refreshErr != nil {
+				slog.Warn("抖音直链刷新失败(导入)", "detailID", cached.DetailID, "error", refreshErr)
+			} else if refreshed == nil {
+				slog.Warn("抖音直链刷新失败(导入)", "detailID", cached.DetailID, "error", "refreshed=nil")
+			} else {
+				oldURL := remoteURL
+				oldType := guessDouyinMediaTypeFromURL(oldURL)
+
+				newURL := ""
+				pickedBy := "index"
+				if index >= 0 && index < len(refreshed.Downloads) {
+					newURL = strings.TrimSpace(refreshed.Downloads[index])
+				}
+				if newURL == "" && oldType == "video" {
+					for _, u := range refreshed.Downloads {
+						u = strings.TrimSpace(u)
+						if u == "" {
+							continue
+						}
+						if guessDouyinMediaTypeFromURL(u) == "video" {
+							newURL = u
+							pickedBy = "first_video"
+							break
+						}
+					}
+				}
+				if newURL == "" {
+					slog.Warn(
+						"抖音导入刷新后未找到可用URL",
+						"detailID", refreshed.DetailID,
+						"index", index,
+						"downloadsLen", len(refreshed.Downloads),
+						"oldType", oldType,
+					)
+				} else {
+					oldInfo := buildURLLogInfo(oldURL)
 					newInfo := buildURLLogInfo(newURL)
 					slog.Info(
 						"抖音导入直链刷新成功，准备重试下载",
 						"detailID", refreshed.DetailID,
 						"index", index,
+						"pickedBy", pickedBy,
 						"oldHost", oldInfo.Host,
 						"oldHash", oldInfo.Hash,
 						"newHost", newInfo.Host,
 						"newHash", newInfo.Hash,
 					)
 
+					updated := *cached
+					updated.Downloads = append([]string(nil), cached.Downloads...)
+					if strings.TrimSpace(updated.SecUserID) == "" {
+						updated.SecUserID = strings.TrimSpace(refreshed.SecUserID)
+					}
+					if v := strings.TrimSpace(refreshed.CoverURL); v != "" {
+						updated.CoverURL = v
+					}
+					if index >= 0 && index < len(updated.Downloads) {
+						updated.Downloads[index] = newURL
+					}
+
 					if a.douyinDownloader.cache != nil && strings.TrimSpace(key) != "" {
-						a.douyinDownloader.cache.Set(strings.TrimSpace(key), *refreshed)
+						a.douyinDownloader.cache.Set(strings.TrimSpace(key), updated)
 					}
 					// Best-effort: persist refreshed links to DB so next time we don't immediately hit expired links again.
 					if a.douyinFavorite != nil {
-						dbSecUserID := strings.TrimSpace(cached.SecUserID)
-						if dbSecUserID == "" {
-							dbSecUserID = strings.TrimSpace(refreshed.SecUserID)
-						}
+						dbSecUserID := strings.TrimSpace(updated.SecUserID)
 						if dbSecUserID != "" {
-							_ = a.douyinFavorite.UpdateUserAwemeDownloadsCover(r.Context(), dbSecUserID, refreshed.DetailID, refreshed.Downloads, refreshed.CoverURL)
+							_ = a.douyinFavorite.UpdateUserAwemeDownloadsCover(r.Context(), dbSecUserID, updated.DetailID, updated.Downloads, updated.CoverURL)
 						}
 					}
+
 					remoteURL = newURL
-					cached = refreshed
+					cached = &updated
 
 					downloadResp2, err2 := doImportDownload(remoteURL)
 					if err2 != nil {
@@ -2065,6 +2315,7 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 						"抖音导入直链刷新后仍失败",
 						"detailID", refreshed.DetailID,
 						"index", index,
+						"pickedBy", pickedBy,
 						"status", downloadResp2.Status,
 						"origHost", newInfo.Host,
 						"origPath", newInfo.Path,
@@ -2080,10 +2331,6 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 					writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("下载失败: %s %s", downloadResp2.Status, strings.TrimSpace(string(body2)))})
 					return
 				}
-			}
-
-			if refreshErr != nil {
-				slog.Warn("抖音直链刷新失败(导入)", "detailID", cached.DetailID, "error", refreshErr)
 			}
 		}
 
