@@ -186,10 +186,10 @@
               {{ accountError }}
             </div>
 
-            <div v-if="activeMode === 'account'" class="pt-2">
-              <div v-if="accountSecUserId" class="flex items-start justify-between gap-3 text-xs text-gray-500">
-                <div class="min-w-0">
-                  <div class="flex items-start gap-2 min-w-0">
+	            <div v-if="activeMode === 'account'" class="pt-2">
+	              <div v-if="accountSecUserId" class="flex items-start justify-between gap-3 text-xs text-gray-500">
+	                <div class="min-w-0">
+	                  <div class="flex items-start gap-2 min-w-0">
                     <span class="flex-shrink-0">sec_user_id:</span>
                     <span
                       class="font-mono text-gray-300 min-w-0"
@@ -206,19 +206,30 @@
                       :title="accountSecUserIdShowFull ? '收起' : '显示全部'"
                     >
                       {{ accountSecUserIdShowFull ? '收起' : '显示全部' }}
+	                    </button>
+	                  </div>
+	                </div>
+                  <div class="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition text-xs flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                      :disabled="uiDisabled || accountWorksSyncing || accountItems.length === 0"
+                      @click="syncCurrentAccountWorks"
+                      title="将当前已加载作品信息同步入库（不需要收藏）"
+                    >
+                      <i class="fas fa-sync-alt" :class="accountWorksSyncing ? 'fa-spin' : ''"></i>
+                      <span>{{ accountWorksSyncing ? '同步中…' : '同步作品' }}</span>
+                    </button>
+                    <button
+                      class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs flex items-center gap-2"
+                      :disabled="uiDisabled"
+                      @click="toggleFavoriteCurrentUser"
+                      title="收藏/取消收藏该用户"
+                    >
+                      <i :class="isFavoriteUser(accountSecUserId) ? 'fas fa-star text-yellow-400' : 'far fa-star text-gray-400'"></i>
+                      <span>{{ isFavoriteUser(accountSecUserId) ? '已收藏' : '收藏用户' }}</span>
                     </button>
                   </div>
-                </div>
-                <button
-                  class="px-3 py-2 bg-[#27272a] hover:bg-gray-700 text-white rounded-xl border border-white/10 transition text-xs flex items-center gap-2 flex-shrink-0"
-                  :disabled="uiDisabled"
-                  @click="toggleFavoriteCurrentUser"
-                  title="收藏/取消收藏该用户"
-                >
-                  <i :class="isFavoriteUser(accountSecUserId) ? 'fas fa-star text-yellow-400' : 'far fa-star text-gray-400'"></i>
-                  <span>{{ isFavoriteUser(accountSecUserId) ? '已收藏' : '收藏用户' }}</span>
-                </button>
-              </div>
+	              </div>
 
               <div v-if="accountItems.length > 0" class="mt-3 space-y-3">
                 <div class="flex items-center justify-between gap-3">
@@ -1463,6 +1474,20 @@ interface DouyinFavoriteTag {
 }
 
 type DouyinWorkMeta = NonNullable<UploadedMedia['context']>['work']
+type DouyinFavoriteUserAwemeUpsertPayload = {
+  awemeId: string
+  type?: string
+  desc?: string
+  coverUrl?: string
+  downloads?: string[]
+  isPinned?: boolean
+  pinnedRank?: number
+  pinnedAt?: string
+  publishAt?: string
+  status?: string
+  authorUniqueId?: string
+  authorName?: string
+}
 
 const douyinStore = useDouyinStore()
 const userStore = useUserStore()
@@ -1508,6 +1533,7 @@ const accountAwemeCount = ref<number | null>(null)
 const accountTotalFavorited = ref<number | null>(null)
 const accountQueried = ref(false)
 const accountItemLoading = reactive<Set<string>>(new Set())
+const accountWorksSyncing = ref(false)
 
 const favoritesTab = ref<'users' | 'awemes'>('users')
 const favoritesLoading = ref(false)
@@ -2722,60 +2748,88 @@ const copyText = async (value: string, okMsg = '已复制') => {
 	  }
 	}
 
-	const syncFavoriteUserWorksFromAccount = async (secUserId: string) => {
-	  const id = String(secUserId || '').trim()
-	  if (!id) return
+  const buildFavoriteUserAwemeUpsertsFromAccountItems = (items: DouyinAccountItem[]): DouyinFavoriteUserAwemeUpsertPayload[] => {
+    const out: DouyinFavoriteUserAwemeUpsertPayload[] = []
+    for (const it of items || []) {
+      const awemeId = String(it?.detailId || '').trim()
+      if (!awemeId) continue
+      const downloads = Array.isArray(it?.items) ? it.items.map((m) => String((m as any)?.url || '').trim()).filter(Boolean) : []
+      out.push({
+        awemeId,
+        type: String(it?.type || '').trim() || undefined,
+        desc: String(it?.desc || '').trim() || undefined,
+        coverUrl: String(it?.coverUrl || '').trim() || undefined,
+        downloads: downloads.length > 0 ? downloads : undefined,
+        isPinned: !!it?.isPinned,
+        pinnedRank: typeof it?.pinnedRank === 'number' ? it.pinnedRank : undefined,
+        pinnedAt: trimOrUndefined(it?.pinnedAt),
+        publishAt: trimOrUndefined(it?.publishAt),
+        status: trimOrUndefined(it?.status),
+        authorUniqueId: trimOrUndefined(it?.authorUniqueId),
+        authorName: trimOrUndefined(it?.authorName)
+      })
+    }
+    return out
+  }
 
-	  if (String(accountSecUserId.value || '').trim() !== id) return
+  const syncFavoriteUserWorksFromAccount = async (secUserId: string) => {
+    const id = String(secUserId || '').trim()
+    if (!id) return
 
-	  const items = accountItems.value || []
-	  if (items.length === 0) return
+    if (String(accountSecUserId.value || '').trim() !== id) return
 
-	  const upserts = items
-	    .map((it) => {
-	      const awemeId = String(it?.detailId || '').trim()
-	      if (!awemeId) return null
-	      const downloads = Array.isArray(it?.items)
-	        ? it.items.map((m) => String((m as any)?.url || '').trim()).filter(Boolean)
-	        : []
-	      return {
-	        awemeId,
-	        type: String(it?.type || '').trim() || undefined,
-	        desc: String(it?.desc || '').trim() || undefined,
-	        coverUrl: String(it?.coverUrl || '').trim() || undefined,
-	        downloads: downloads.length > 0 ? downloads : undefined,
-	        isPinned: !!it?.isPinned,
-	        pinnedRank: typeof it?.pinnedRank === 'number' ? it.pinnedRank : undefined,
-	        pinnedAt: trimOrUndefined(it?.pinnedAt),
-	        publishAt: trimOrUndefined(it?.publishAt),
-	        status: trimOrUndefined(it?.status),
-	        authorUniqueId: trimOrUndefined(it?.authorUniqueId),
-	        authorName: trimOrUndefined(it?.authorName)
-	      }
-	    })
-	    .filter(Boolean) as {
-	      awemeId: string
-	      type?: string
-	      desc?: string
-	      coverUrl?: string
-	      downloads?: string[]
-	      isPinned?: boolean
-	      pinnedRank?: number
-	      pinnedAt?: string
-	      publishAt?: string
-	      status?: string
-	      authorUniqueId?: string
-	      authorName?: string
-	    }[]
+    const items = accountItems.value || []
+    if (items.length === 0) return
 
-	  if (upserts.length === 0) return
+    const upserts = buildFavoriteUserAwemeUpsertsFromAccountItems(items)
+    if (upserts.length === 0) return
 
-	  try {
-	    await douyinApi.upsertDouyinFavoriteUserAwemes({ secUserId: id, items: upserts })
-	  } catch (e) {
-	    console.warn('同步收藏用户作品入库失败:', e)
-	  }
-	}
+    try {
+      await douyinApi.upsertDouyinFavoriteUserAwemes({ secUserId: id, items: upserts })
+    } catch (e) {
+      console.warn('同步收藏用户作品入库失败:', e)
+    }
+  }
+
+  const syncCurrentAccountWorks = async () => {
+    if (accountWorksSyncing.value) return
+
+    const secUserId = String(accountSecUserId.value || '').trim()
+    if (!secUserId) {
+      show('请先获取用户作品')
+      return
+    }
+
+    const items = accountItems.value || []
+    if (items.length === 0) {
+      show('暂无可同步作品')
+      return
+    }
+
+    accountWorksSyncing.value = true
+    try {
+      const upserts = buildFavoriteUserAwemeUpsertsFromAccountItems(items)
+      if (upserts.length === 0) {
+        show('暂无可同步作品')
+        return
+      }
+
+      const res = await douyinApi.upsertDouyinFavoriteUserAwemes({ secUserId, items: upserts })
+      const added = Number(res?.added || 0)
+      const addedLabel = Number.isFinite(added) && added > 0 ? added : 0
+
+      if (accountHasMore.value) {
+        show(`已同步 ${upserts.length} 个作品（新增 ${addedLabel}），还有未加载作品可先点“全量拉取”`)
+      } else {
+        show(`已同步 ${upserts.length} 个作品（新增 ${addedLabel}）`)
+      }
+    } catch (e: any) {
+      console.error('同步作品信息失败:', e)
+      show(e?.response?.data?.error || e?.message || '同步失败')
+    } finally {
+      accountWorksSyncing.value = false
+    }
+  }
 
 	const upsertFavoriteUser = async (payload: {
 	  secUserId: string
