@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/singleflight"
 )
 
 type tikTokDownloaderURLResponse struct {
@@ -201,6 +202,9 @@ type DouyinDownloaderService struct {
 	defaultProxy  string
 
 	cookieProvider DouyinCookieProvider
+
+	// Prevent thundering herd when many requests hit an expired CDN URL at the same time.
+	refreshDetailGroup singleflight.Group
 }
 
 type douyinCachedDetail struct {
@@ -504,6 +508,35 @@ func (s *DouyinDownloaderService) FetchDetail(ctx context.Context, detailID, coo
 		CoverURL:  cover,
 		Downloads: downloads,
 	}, nil
+}
+
+// RefreshDetailBestEffort refreshes a work detail (downloads/cover/etc.) from upstream, and
+// dedupes concurrent refreshes by detail_id to reduce upstream load.
+//
+// Note: We intentionally do NOT use the caller's context, because a single canceled request
+// should not cancel the shared refresh and fail all other waiters.
+func (s *DouyinDownloaderService) RefreshDetailBestEffort(detailID string) (*douyinCachedDetail, error) {
+	if !s.configured() {
+		return nil, fmt.Errorf("抖音下载未启用（请配置 TIKTOKDOWNLOADER_BASE_URL）")
+	}
+	detailID = strings.TrimSpace(detailID)
+	if detailID == "" {
+		return nil, fmt.Errorf("detail_id 不能为空")
+	}
+
+	v, err, _ := s.refreshDetailGroup.Do(detailID, func() (any, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), s.effectiveUpstreamTimeout())
+		defer cancel()
+		return s.FetchDetail(ctx, detailID, "", "")
+	})
+	if err != nil {
+		return nil, err
+	}
+	out, ok := v.(*douyinCachedDetail)
+	if !ok || out == nil {
+		return nil, fmt.Errorf("刷新作品直链失败")
+	}
+	return out, nil
 }
 
 func (s *DouyinDownloaderService) FetchAccount(ctx context.Context, secUserID, tab, cookie, proxy string, cursor, count int) (map[string]any, error) {
