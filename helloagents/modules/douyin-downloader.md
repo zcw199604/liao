@@ -93,6 +93,10 @@
   - 视频：`标题.mp4`
   - 图集：`标题_01.jpg`（按序号追加）
   - 实况：按 `items[].type` 分别命名（视频默认 `.mp4`，图片默认 `.jpg`；若 URL 带扩展名则优先使用）
+- 后端请求头策略（用于降低 `403` 概率，best-effort）：
+  - `User-Agent`：优先透传前端请求的 UA；缺失时回退到内置浏览器 UA。
+  - `Referer/Origin`：固定为 `https://www.douyin.com/`。
+  - 当下载直链 host 为 `*.douyin.com` / `*.iesdouyin.com` 时：best-effort 携带抖音 cookie（来源优先级同“CookieCloud 自动抖音 Cookie”）；并在重定向到其他 host（CDN）时自动清除 `Cookie` 头，避免泄漏。
 - 兼容：当抖音 CDN 返回 `403 Forbidden`（常见于“收藏用户作品”里保存的历史 downloads 直链过期）时，后端会 best-effort 调用上游 `POST /douyin/detail` 刷新 `downloads`，更新同一 `key` 的缓存并自动重试一次下载（避免用户手动“重新解析”）；并发场景下会按 `detail_id` 使用 `singleflight` 合并回源刷新，避免“惊群”。刷新成功后还会 best-effort 将 `downloads/cover_url` 回写到 `douyin_favorite_user_aweme`（若存在对应记录），减少短时间内重复回源。
 
 `HEAD /api/douyin/download?key=...&index=...`：

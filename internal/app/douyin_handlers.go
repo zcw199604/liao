@@ -1138,17 +1138,59 @@ func (a *App) handleDouyinDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rangeValue := strings.TrimSpace(r.Header.Get("Range"))
+	userAgent := effectiveDouyinUserAgent(r)
+
+	cookieValue := ""
+	cookieFetched := false
+	getCookie := func() string {
+		if cookieFetched {
+			return cookieValue
+		}
+		cookieFetched = true
+
+		v, err := a.douyinDownloader.effectiveCookie(r.Context(), "")
+		if err == nil {
+			cookieValue = strings.TrimSpace(v)
+		}
+		return cookieValue
+	}
 
 	doDownload := func(urlValue string) (*http.Response, error) {
 		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, urlValue, nil)
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-		req.Header.Set("Referer", "https://www.douyin.com/")
+		req.Header.Set("User-Agent", userAgent)
+		req.Header.Set("Referer", douyinDefaultReferer)
+		req.Header.Set("Origin", douyinDefaultOrigin)
 		if rangeValue != "" {
 			req.Header.Set("Range", rangeValue)
 		}
+
+		parsed, _ := url.Parse(urlValue)
+		needCookie := parsed != nil && isDouyinHost(parsed.Host)
+		if needCookie {
+			if c := getCookie(); c != "" {
+				req.Header.Set("Cookie", c)
+			}
+		}
+
+		// Avoid leaking Douyin cookies to redirected CDN hosts.
+		if needCookie {
+			clientCopy := *a.douyinDownloader.api.httpClient
+			firstHost := ""
+			if parsed != nil {
+				firstHost = parsed.Host
+			}
+			clientCopy.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				if len(via) > 0 && strings.TrimSpace(firstHost) != "" && req.URL != nil && req.URL.Host != firstHost {
+					req.Header.Del("Cookie")
+				}
+				return nil
+			}
+			return clientCopy.Do(req)
+		}
+
 		return a.douyinDownloader.api.httpClient.Do(req)
 	}
 
@@ -1280,13 +1322,51 @@ func (a *App) handleDouyinCover(w http.ResponseWriter, r *http.Request) {
 		method = http.MethodGet
 	}
 
+	userAgent := effectiveDouyinUserAgent(r)
+
+	cookieValue := ""
+	cookieFetched := false
+	getCookie := func() string {
+		if cookieFetched {
+			return cookieValue
+		}
+		cookieFetched = true
+		v, err := a.douyinDownloader.effectiveCookie(r.Context(), "")
+		if err == nil {
+			cookieValue = strings.TrimSpace(v)
+		}
+		return cookieValue
+	}
+
 	doCover := func(urlValue string) (*http.Response, error) {
 		req, err := http.NewRequestWithContext(r.Context(), method, urlValue, nil)
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-		req.Header.Set("Referer", "https://www.douyin.com/")
+		req.Header.Set("User-Agent", userAgent)
+		req.Header.Set("Referer", douyinDefaultReferer)
+		req.Header.Set("Origin", douyinDefaultOrigin)
+
+		parsed, _ := url.Parse(urlValue)
+		needCookie := parsed != nil && isDouyinHost(parsed.Host)
+		if needCookie {
+			if c := getCookie(); c != "" {
+				req.Header.Set("Cookie", c)
+			}
+			clientCopy := *a.douyinDownloader.api.httpClient
+			firstHost := ""
+			if parsed != nil {
+				firstHost = parsed.Host
+			}
+			clientCopy.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				if len(via) > 0 && strings.TrimSpace(firstHost) != "" && req.URL != nil && req.URL.Host != firstHost {
+					req.Header.Del("Cookie")
+				}
+				return nil
+			}
+			return clientCopy.Do(req)
+		}
+
 		return a.douyinDownloader.api.httpClient.Do(req)
 	}
 
@@ -1369,13 +1449,51 @@ func (a *App) handleDouyinDownloadHead(w http.ResponseWriter, r *http.Request, k
 		return
 	}
 
+	userAgent := effectiveDouyinUserAgent(r)
+
+	cookieValue := ""
+	cookieFetched := false
+	getCookie := func() string {
+		if cookieFetched {
+			return cookieValue
+		}
+		cookieFetched = true
+		v, err := a.douyinDownloader.effectiveCookie(r.Context(), "")
+		if err == nil {
+			cookieValue = strings.TrimSpace(v)
+		}
+		return cookieValue
+	}
+
 	doHead := func(urlValue string) (*http.Response, error) {
 		req, err := http.NewRequestWithContext(r.Context(), http.MethodHead, urlValue, nil)
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-		req.Header.Set("Referer", "https://www.douyin.com/")
+		req.Header.Set("User-Agent", userAgent)
+		req.Header.Set("Referer", douyinDefaultReferer)
+		req.Header.Set("Origin", douyinDefaultOrigin)
+
+		parsed, _ := url.Parse(urlValue)
+		needCookie := parsed != nil && isDouyinHost(parsed.Host)
+		if needCookie {
+			if c := getCookie(); c != "" {
+				req.Header.Set("Cookie", c)
+			}
+			clientCopy := *a.douyinDownloader.api.httpClient
+			firstHost := ""
+			if parsed != nil {
+				firstHost = parsed.Host
+			}
+			clientCopy.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				if len(via) > 0 && strings.TrimSpace(firstHost) != "" && req.URL != nil && req.URL.Host != firstHost {
+					req.Header.Del("Cookie")
+				}
+				return nil
+			}
+			return clientCopy.Do(req)
+		}
+
 		return a.douyinDownloader.api.httpClient.Do(req)
 	}
 
@@ -1384,9 +1502,31 @@ func (a *App) handleDouyinDownloadHead(w http.ResponseWriter, r *http.Request, k
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-		req.Header.Set("Referer", "https://www.douyin.com/")
+		req.Header.Set("User-Agent", userAgent)
+		req.Header.Set("Referer", douyinDefaultReferer)
+		req.Header.Set("Origin", douyinDefaultOrigin)
 		req.Header.Set("Range", "bytes=0-0")
+
+		parsed, _ := url.Parse(urlValue)
+		needCookie := parsed != nil && isDouyinHost(parsed.Host)
+		if needCookie {
+			if c := getCookie(); c != "" {
+				req.Header.Set("Cookie", c)
+			}
+			clientCopy := *a.douyinDownloader.api.httpClient
+			firstHost := ""
+			if parsed != nil {
+				firstHost = parsed.Host
+			}
+			clientCopy.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				if len(via) > 0 && strings.TrimSpace(firstHost) != "" && req.URL != nil && req.URL.Host != firstHost {
+					req.Header.Del("Cookie")
+				}
+				return nil
+			}
+			return clientCopy.Do(req)
+		}
+
 		return a.douyinDownloader.api.httpClient.Do(req)
 	}
 
@@ -1557,13 +1697,51 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userAgent := effectiveDouyinUserAgent(r)
+
+	cookieValue := ""
+	cookieFetched := false
+	getCookie := func() string {
+		if cookieFetched {
+			return cookieValue
+		}
+		cookieFetched = true
+		v, err := a.douyinDownloader.effectiveCookie(r.Context(), "")
+		if err == nil {
+			cookieValue = strings.TrimSpace(v)
+		}
+		return cookieValue
+	}
+
 	doImportDownload := func(urlValue string) (*http.Response, error) {
 		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, urlValue, nil)
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-		req.Header.Set("Referer", "https://www.douyin.com/")
+		req.Header.Set("User-Agent", userAgent)
+		req.Header.Set("Referer", douyinDefaultReferer)
+		req.Header.Set("Origin", douyinDefaultOrigin)
+
+		parsed, _ := url.Parse(urlValue)
+		needCookie := parsed != nil && isDouyinHost(parsed.Host)
+		if needCookie {
+			if c := getCookie(); c != "" {
+				req.Header.Set("Cookie", c)
+			}
+			clientCopy := *a.douyinDownloader.api.httpClient
+			firstHost := ""
+			if parsed != nil {
+				firstHost = parsed.Host
+			}
+			clientCopy.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				if len(via) > 0 && strings.TrimSpace(firstHost) != "" && req.URL != nil && req.URL.Host != firstHost {
+					req.Header.Del("Cookie")
+				}
+				return nil
+			}
+			return clientCopy.Do(req)
+		}
+
 		return a.douyinDownloader.api.httpClient.Do(req)
 	}
 

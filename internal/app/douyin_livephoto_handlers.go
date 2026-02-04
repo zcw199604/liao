@@ -311,8 +311,9 @@ func downloadDouyinResourceToFile(ctx context.Context, client *http.Client, remo
 	if err != nil {
 		return "", fmt.Errorf("remoteURL 非法")
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-	req.Header.Set("Referer", "https://www.douyin.com/")
+	req.Header.Set("User-Agent", douyinDefaultUserAgent)
+	req.Header.Set("Referer", douyinDefaultReferer)
+	req.Header.Set("Origin", douyinDefaultOrigin)
 
 	resp, err := client.Do(req)
 	if err != nil {
