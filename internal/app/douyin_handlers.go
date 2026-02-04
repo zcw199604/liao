@@ -1133,34 +1133,77 @@ func (a *App) handleDouyinDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodHead {
-		a.handleDouyinDownloadHead(w, r, cached, index, remoteURL)
+		a.handleDouyinDownloadHead(w, r, key, cached, index, remoteURL)
 		return
 	}
 
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, remoteURL, nil)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "下载链接非法"})
-		return
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-	req.Header.Set("Referer", "https://www.douyin.com/")
-	if rangeValue := strings.TrimSpace(r.Header.Get("Range")); rangeValue != "" {
-		req.Header.Set("Range", rangeValue)
+	rangeValue := strings.TrimSpace(r.Header.Get("Range"))
+
+	doDownload := func(urlValue string) (*http.Response, error) {
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, urlValue, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+		req.Header.Set("Referer", "https://www.douyin.com/")
+		if rangeValue != "" {
+			req.Header.Set("Range", rangeValue)
+		}
+		return a.douyinDownloader.api.httpClient.Do(req)
 	}
 
-	resp, err := a.douyinDownloader.api.httpClient.Do(req)
+	resp, err := doDownload(remoteURL)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "下载失败: " + err.Error()})
 		return
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		statusText := resp.Status
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("下载失败: %s %s", resp.Status, strings.TrimSpace(string(body)))})
+		_ = resp.Body.Close()
+
+		// 兼容：收藏用户作品列表中的 downloads 可能是历史快照，CDN 链接会过期导致 403。
+		// 这里 best-effort 自动刷新一次（调用上游 /douyin/detail 获取新的 downloads），避免用户手动“重新解析”。
+		if resp.StatusCode == http.StatusForbidden {
+			refreshed, refreshErr := a.douyinDownloader.RefreshDetailBestEffort(cached.DetailID)
+			if refreshErr == nil && refreshed != nil && index < len(refreshed.Downloads) {
+				newURL := strings.TrimSpace(refreshed.Downloads[index])
+				if newURL != "" {
+					// Update cache under the same key so subsequent range requests reuse the refreshed URL set.
+					if a.douyinDownloader.cache != nil {
+						a.douyinDownloader.cache.Set(key, *refreshed)
+					}
+
+					remoteURL = newURL
+					cached = refreshed
+
+					resp2, err2 := doDownload(remoteURL)
+					if err2 != nil {
+						writeJSON(w, http.StatusBadRequest, map[string]any{"error": "下载失败: " + err2.Error()})
+						return
+					}
+					if resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
+						resp = resp2
+						defer resp.Body.Close()
+						goto writeBody
+					}
+
+					body2, _ := io.ReadAll(io.LimitReader(resp2.Body, 1024))
+					_ = resp2.Body.Close()
+					writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("下载失败: %s %s", resp2.Status, strings.TrimSpace(string(body2)))})
+					return
+				}
+			}
+		}
+
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("下载失败: %s %s", statusText, strings.TrimSpace(string(body)))})
 		return
 	}
 
+	defer resp.Body.Close()
+
+writeBody:
 	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
 	ext := guessExtFromContentType(contentType)
 	if ext == "" {
@@ -1226,27 +1269,62 @@ func (a *App) handleDouyinCover(w http.ResponseWriter, r *http.Request) {
 	if method != http.MethodGet && method != http.MethodHead {
 		method = http.MethodGet
 	}
-	req, err := http.NewRequestWithContext(r.Context(), method, remoteURL, nil)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "封面链接非法"})
-		return
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-	req.Header.Set("Referer", "https://www.douyin.com/")
 
-	resp, err := a.douyinDownloader.api.httpClient.Do(req)
+	doCover := func(urlValue string) (*http.Response, error) {
+		req, err := http.NewRequestWithContext(r.Context(), method, urlValue, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+		req.Header.Set("Referer", "https://www.douyin.com/")
+		return a.douyinDownloader.api.httpClient.Do(req)
+	}
+
+	resp, err := doCover(remoteURL)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "获取封面失败: " + err.Error()})
 		return
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		statusText := resp.Status
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("获取封面失败: %s %s", resp.Status, strings.TrimSpace(string(body)))})
+		_ = resp.Body.Close()
+
+		// Best-effort: cover URL might also expire (same root cause as downloads).
+		if resp.StatusCode == http.StatusForbidden {
+			refreshed, refreshErr := a.douyinDownloader.RefreshDetailBestEffort(cached.DetailID)
+			if refreshErr == nil && refreshed != nil && strings.TrimSpace(refreshed.CoverURL) != "" {
+				if a.douyinDownloader.cache != nil {
+					a.douyinDownloader.cache.Set(key, *refreshed)
+				}
+				remoteURL = strings.TrimSpace(refreshed.CoverURL)
+				cached = refreshed
+
+				resp2, err2 := doCover(remoteURL)
+				if err2 != nil {
+					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "获取封面失败: " + err2.Error()})
+					return
+				}
+				if resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
+					resp = resp2
+					defer resp.Body.Close()
+					goto writeCover
+				}
+				body2, _ := io.ReadAll(io.LimitReader(resp2.Body, 1024))
+				_ = resp2.Body.Close()
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("获取封面失败: %s %s", resp2.Status, strings.TrimSpace(string(body2)))})
+				return
+			}
+		}
+
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("获取封面失败: %s %s", statusText, strings.TrimSpace(string(body)))})
 		return
 	}
 
+	defer resp.Body.Close()
+
+writeCover:
 	w.Header().Set("Cache-Control", "no-store")
 	if ct := strings.TrimSpace(resp.Header.Get("Content-Type")); ct != "" {
 		w.Header().Set("Content-Type", ct)
@@ -1262,50 +1340,96 @@ func (a *App) handleDouyinCover(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, resp.Body)
 }
 
-func (a *App) handleDouyinDownloadHead(w http.ResponseWriter, r *http.Request, cached *douyinCachedDetail, index int, remoteURL string) {
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodHead, remoteURL, nil)
-	var resp *http.Response
-	if err == nil {
+func (a *App) handleDouyinDownloadHead(w http.ResponseWriter, r *http.Request, key string, cached *douyinCachedDetail, index int, remoteURL string) {
+	triedRefresh := false
+
+	// Keep backward-compatible error message for malformed URLs (e.g. "http://[::1").
+	if _, err := http.NewRequestWithContext(r.Context(), http.MethodGet, remoteURL, nil); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "下载链接非法"})
+		return
+	}
+
+	doHead := func(urlValue string) (*http.Response, error) {
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodHead, urlValue, nil)
+		if err != nil {
+			return nil, err
+		}
 		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 		req.Header.Set("Referer", "https://www.douyin.com/")
+		return a.douyinDownloader.api.httpClient.Do(req)
+	}
 
-		resp, err = a.douyinDownloader.api.httpClient.Do(req)
-		if err == nil && resp != nil && resp.Body != nil {
-			defer resp.Body.Close()
+	doRange := func(urlValue string) (*http.Response, error) {
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, urlValue, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+		req.Header.Set("Referer", "https://www.douyin.com/")
+		req.Header.Set("Range", "bytes=0-0")
+		return a.douyinDownloader.api.httpClient.Do(req)
+	}
+
+retryHead:
+	resp, err := doHead(remoteURL)
+	if err == nil && resp != nil && resp.Body != nil {
+		// HEAD response body is typically empty, but still needs closing.
+		defer resp.Body.Close()
+	}
+	if err == nil && resp != nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		a.writeDouyinDownloadHeaders(w, cached, index, remoteURL, resp.Header, false)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if !triedRefresh && resp != nil && resp.StatusCode == http.StatusForbidden {
+		triedRefresh = true
+		refreshed, refreshErr := a.douyinDownloader.RefreshDetailBestEffort(cached.DetailID)
+		if refreshErr == nil && refreshed != nil && index < len(refreshed.Downloads) {
+			newURL := strings.TrimSpace(refreshed.Downloads[index])
+			if newURL != "" {
+				if a.douyinDownloader.cache != nil && strings.TrimSpace(key) != "" {
+					a.douyinDownloader.cache.Set(strings.TrimSpace(key), *refreshed)
+				}
+				cached = refreshed
+				remoteURL = newURL
+				goto retryHead
+			}
 		}
 	}
 
 	// 部分 CDN 不支持 HEAD：fallback 到 Range=0-0 的 GET，最佳努力拿到 Content-Length。
-	if err != nil || resp == nil || resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		rangeReq, reqErr := http.NewRequestWithContext(r.Context(), http.MethodGet, remoteURL, nil)
-		if reqErr != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "下载链接非法"})
-			return
-		}
-		rangeReq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-		rangeReq.Header.Set("Referer", "https://www.douyin.com/")
-		rangeReq.Header.Set("Range", "bytes=0-0")
+retryRange:
+	rangeResp, rangeErr := doRange(remoteURL)
+	if rangeErr != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "下载失败: " + rangeErr.Error()})
+		return
+	}
+	defer rangeResp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(rangeResp.Body, 1))
 
-		rangeResp, rangeErr := a.douyinDownloader.api.httpClient.Do(rangeReq)
-		if rangeErr != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "下载失败: " + rangeErr.Error()})
-			return
+	if rangeResp.StatusCode < 200 || rangeResp.StatusCode >= 300 {
+		if !triedRefresh && rangeResp.StatusCode == http.StatusForbidden {
+			triedRefresh = true
+			refreshed, refreshErr := a.douyinDownloader.RefreshDetailBestEffort(cached.DetailID)
+			if refreshErr == nil && refreshed != nil && index < len(refreshed.Downloads) {
+				newURL := strings.TrimSpace(refreshed.Downloads[index])
+				if newURL != "" {
+					if a.douyinDownloader.cache != nil && strings.TrimSpace(key) != "" {
+						a.douyinDownloader.cache.Set(strings.TrimSpace(key), *refreshed)
+					}
+					cached = refreshed
+					remoteURL = newURL
+					goto retryRange
+				}
+			}
 		}
-		defer rangeResp.Body.Close()
-		_, _ = io.Copy(io.Discard, io.LimitReader(rangeResp.Body, 1))
 
-		if rangeResp.StatusCode < 200 || rangeResp.StatusCode >= 300 {
-			body, _ := io.ReadAll(io.LimitReader(rangeResp.Body, 1024))
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("下载失败: %s %s", rangeResp.Status, strings.TrimSpace(string(body)))})
-			return
-		}
-
-		a.writeDouyinDownloadHeaders(w, cached, index, remoteURL, rangeResp.Header, true)
-		w.WriteHeader(http.StatusOK)
+		body, _ := io.ReadAll(io.LimitReader(rangeResp.Body, 1024))
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("下载失败: %s %s", rangeResp.Status, strings.TrimSpace(string(body)))})
 		return
 	}
 
-	a.writeDouyinDownloadHeaders(w, cached, index, remoteURL, resp.Header, false)
+	a.writeDouyinDownloadHeaders(w, cached, index, remoteURL, rangeResp.Header, true)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -1393,26 +1517,62 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	downloadReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, remoteURL, nil)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "下载链接非法"})
-		return
+	doImportDownload := func(urlValue string) (*http.Response, error) {
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, urlValue, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+		req.Header.Set("Referer", "https://www.douyin.com/")
+		return a.douyinDownloader.api.httpClient.Do(req)
 	}
-	downloadReq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-	downloadReq.Header.Set("Referer", "https://www.douyin.com/")
 
-	downloadResp, err := a.douyinDownloader.api.httpClient.Do(downloadReq)
+	downloadResp, err := doImportDownload(remoteURL)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "下载失败: " + err.Error()})
 		return
 	}
-	defer downloadResp.Body.Close()
 	if downloadResp.StatusCode < 200 || downloadResp.StatusCode >= 300 {
+		statusText := downloadResp.Status
 		body, _ := io.ReadAll(io.LimitReader(downloadResp.Body, 1024))
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("下载失败: %s %s", downloadResp.Status, strings.TrimSpace(string(body)))})
+		_ = downloadResp.Body.Close()
+
+		// Best-effort: cached downloads may expire; refresh once on 403 and retry.
+		if downloadResp.StatusCode == http.StatusForbidden {
+			refreshed, refreshErr := a.douyinDownloader.RefreshDetailBestEffort(cached.DetailID)
+			if refreshErr == nil && refreshed != nil && index < len(refreshed.Downloads) {
+				newURL := strings.TrimSpace(refreshed.Downloads[index])
+				if newURL != "" {
+					if a.douyinDownloader.cache != nil && strings.TrimSpace(key) != "" {
+						a.douyinDownloader.cache.Set(strings.TrimSpace(key), *refreshed)
+					}
+					remoteURL = newURL
+					cached = refreshed
+
+					downloadResp2, err2 := doImportDownload(remoteURL)
+					if err2 != nil {
+						writeJSON(w, http.StatusBadRequest, map[string]any{"error": "下载失败: " + err2.Error()})
+						return
+					}
+					if downloadResp2.StatusCode >= 200 && downloadResp2.StatusCode < 300 {
+						downloadResp = downloadResp2
+						defer downloadResp.Body.Close()
+						goto importContinue
+					}
+					body2, _ := io.ReadAll(io.LimitReader(downloadResp2.Body, 1024))
+					_ = downloadResp2.Body.Close()
+					writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("下载失败: %s %s", downloadResp2.Status, strings.TrimSpace(string(body2)))})
+					return
+				}
+			}
+		}
+
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": fmt.Sprintf("下载失败: %s %s", statusText, strings.TrimSpace(string(body)))})
 		return
 	}
+	defer downloadResp.Body.Close()
 
+importContinue:
 	contentType := strings.TrimSpace(downloadResp.Header.Get("Content-Type"))
 	if contentType == "" {
 		contentType = inferContentTypeFromFilename("x" + guessExtFromURL(remoteURL))

@@ -93,15 +93,18 @@
   - 视频：`标题.mp4`
   - 图集：`标题_01.jpg`（按序号追加）
   - 实况：按 `items[].type` 分别命名（视频默认 `.mp4`，图片默认 `.jpg`；若 URL 带扩展名则优先使用）
+- 兼容：当抖音 CDN 返回 `403 Forbidden`（常见于“收藏用户作品”里保存的历史 downloads 直链过期）时，后端会 best-effort 调用上游 `POST /douyin/detail` 刷新 `downloads` 并更新同一 `key` 的缓存，然后自动重试一次下载（避免用户手动“重新解析”）；并发场景下会按 `detail_id` 使用 `singleflight` 合并回源刷新，避免“惊群”。
 
 `HEAD /api/douyin/download?key=...&index=...`：
 - 用于前端“最佳努力”探测 `Content-Length` 展示文件大小徽标（CDN 不支持 `HEAD` 时后端会回退 `Range: bytes=0-0`）。
+- 兼容：同样在 `403` 时 best-effort 刷新一次直链并自动重试（避免 size 探测被过期链接卡死）。
 
 ### 3) 导入到本地（加入媒体库）
 `POST /api/douyin/import`：
 - 后端下载媒体 → 保存到 `./upload/douyin`（`douyin/images/YYYY/MM/DD` 或 `douyin/videos/YYYY/MM/DD`）→ 计算 MD5
 - 若全局已存在同 MD5 的媒体文件（`media_file` 或 `douyin_media_file`），则删除临时落盘文件并复用已有文件（响应 `dedup=true`，同时刷新 `update_time` 便于在“全站图片库”置顶）
 - 写入/更新 `douyin_media_file`（包含 `sec_user_id/detail_id` 元信息；`remote_url/remote_filename` 为空），响应返回 `localPath/localFilename` 与 `uploaded=false`
+- 兼容：当下载直链过期触发 `403` 时，后端会 best-effort 刷新一次 `downloads` 并自动重试下载，减少导入失败概率。
 
 > 说明：当未选择本地身份时，导入会使用 `userid=pre_identity` 作为兜底，不影响按抖音 `sec_user_id` 的筛选与归档。
 

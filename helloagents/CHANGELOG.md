@@ -138,6 +138,7 @@
 - 前端/后端：抖音“实况照片”增强：预览静态图支持长按播放实况视频；`GET /api/douyin/livePhoto` 支持导出 iOS Live Photo（`format=zip`：ZIP 内 `.jpg` + `.mov`，写入同一 `ContentIdentifier`；依赖 `ffmpeg` + `exiftool`）与 Motion Photo（`format=jpg`：单文件 JPG，JPEG 末尾附加 MP4 并写入 XMP `GCamera:MicroVideoOffset`；依赖 `ffmpeg`）。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`
+- 后端：修复“抖音收藏用户 → 作品预览/下载”在 downloads 直链过期时返回 `403 Forbidden (openresty)` 的问题：`/api/douyin/download`、`/api/douyin/import`、`/api/douyin/cover` 在 `403` 时会 best-effort 调用上游 `POST /douyin/detail` 刷新直链并自动重试一次，同时更新同一 `key` 的缓存以复用新链接；并发场景下会按 `detail_id` 使用 `singleflight` 合并回源刷新，避免“惊群”。
 - 后端：修复抖音实况导出在 MIUI 相册不识别为“动态照片”的问题：`format=jpg` 生成改用 `APP1(Exif) → APP1(XMP) → APP0(JFIF)` 段顺序，并在 `EOI` 与 MP4 之间插入 24 字节 gap；同时实况下载文件名与普通图片下载对齐并追加 `_live`。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`

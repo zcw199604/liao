@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -592,6 +594,52 @@ func TestTikTokDownloaderClient_postJSON_MarshalErrorIgnored(t *testing.T) {
 	}
 	if out.URL != "x" {
 		t.Fatalf("out=%v", out)
+	}
+}
+
+func TestDouyinDownloaderService_RefreshDetailBestEffort_Singleflight(t *testing.T) {
+	var hits atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/douyin/detail" {
+			http.NotFound(w, r)
+			return
+		}
+		hits.Add(1)
+		time.Sleep(50 * time.Millisecond)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"message": "ok",
+			"data": map[string]any{
+				"desc":         "t",
+				"type":         "video",
+				"static_cover": "",
+				"downloads":    []any{"https://d1"},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	svc := NewDouyinDownloaderService(srv.URL, "", "", "", time.Second)
+
+	const n = 12
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func(i int) {
+			defer wg.Done()
+			_, err := svc.RefreshDetailBestEffort("123")
+			errs[i] = err
+		}(i)
+	}
+	wg.Wait()
+
+	for _, err := range errs {
+		if err != nil {
+			t.Fatalf("err=%v", err)
+		}
+	}
+	if got := hits.Load(); got != 1 {
+		t.Fatalf("hits=%d", got)
 	}
 }
 

@@ -85,7 +85,7 @@ func TestHandleDouyinDownloadHead_FallbackRangeContentRangeTotal(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodHead, "http://example.com/api/douyin/download?key=x&index=0", nil)
 	rec := httptest.NewRecorder()
-	a.handleDouyinDownloadHead(rec, req, cached, 0, cached.Downloads[0])
+	a.handleDouyinDownloadHead(rec, req, "x", cached, 0, cached.Downloads[0])
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
@@ -113,7 +113,7 @@ func TestHandleDouyinDownloadHead_InvalidURL(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodHead, "http://example.com/api/douyin/download?key=x&index=0", nil)
 	rec := httptest.NewRecorder()
-	a.handleDouyinDownloadHead(rec, req, &douyinCachedDetail{Title: "t", DetailID: "d1", Downloads: []string{"x"}}, 0, "http://[::1")
+	a.handleDouyinDownloadHead(rec, req, "x", &douyinCachedDetail{Title: "t", DetailID: "d1", Downloads: []string{"x"}}, 0, "http://[::1")
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d", rec.Code)
@@ -138,7 +138,7 @@ func TestHandleDouyinDownloadHead_RangeErrors(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodHead, "http://example.com/api/douyin/download?key=x&index=0", nil)
 	rec := httptest.NewRecorder()
-	a.handleDouyinDownloadHead(rec, req, &douyinCachedDetail{Title: "t", DetailID: "d1", Downloads: []string{"http://example.com/media.mp4"}}, 0, "http://example.com/media.mp4")
+	a.handleDouyinDownloadHead(rec, req, "x", &douyinCachedDetail{Title: "t", DetailID: "d1", Downloads: []string{"http://example.com/media.mp4"}}, 0, "http://example.com/media.mp4")
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d", rec.Code)
@@ -163,7 +163,7 @@ func TestHandleDouyinDownloadHead_RangeStatusError(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodHead, "http://example.com/api/douyin/download?key=x&index=0", nil)
 	rec := httptest.NewRecorder()
-	a.handleDouyinDownloadHead(rec, req, &douyinCachedDetail{Title: "t", DetailID: "d1", Downloads: []string{"http://example.com/media.mp4"}}, 0, "http://example.com/media.mp4")
+	a.handleDouyinDownloadHead(rec, req, "x", &douyinCachedDetail{Title: "t", DetailID: "d1", Downloads: []string{"http://example.com/media.mp4"}}, 0, "http://example.com/media.mp4")
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d", rec.Code)

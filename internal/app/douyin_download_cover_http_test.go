@@ -184,6 +184,68 @@ func TestHandleDouyinDownload_HeaderAndExtFallbacks(t *testing.T) {
 	}
 }
 
+func TestHandleDouyinDownload_ForbiddenAutoRefresh(t *testing.T) {
+	a := &App{douyinDownloader: NewDouyinDownloaderService("http://example.com", "", "", "", time.Second)}
+
+	oldURL := "http://media.example.com/old.mp4"
+	newURL := "http://media.example.com/new.mp4"
+	key := a.douyinDownloader.CacheDetail(&douyinCachedDetail{DetailID: "123", Title: "t", Type: "视频", Downloads: []string{oldURL}})
+
+	a.douyinDownloader.api.httpClient = &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.String() == oldURL:
+			return &http.Response{
+				StatusCode: http.StatusForbidden,
+				Status:     "403 Forbidden",
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader("<html>403</html>")),
+			}, nil
+		case r.Method == http.MethodPost && r.URL.Path == "/douyin/detail":
+			// Simulate TikTokDownloader /douyin/detail response providing a refreshed download URL.
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body: io.NopCloser(strings.NewReader(
+					`{"message":"OK","data":{"desc":"t","type":"视频","static_cover":"","downloads":["` + newURL + `"]}}`,
+				)),
+			}, nil
+		case r.Method == http.MethodGet && r.URL.String() == newURL:
+			h := make(http.Header)
+			h.Set("Content-Type", "video/mp4")
+			h.Set("Accept-Ranges", "bytes")
+			h.Set("Content-Length", "1")
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     h,
+				Body:       io.NopCloser(strings.NewReader("x")),
+			}, nil
+		default:
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Status:     "500",
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader("unexpected")),
+			}, nil
+		}
+	})}
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/download?key="+key+"&index=0", nil)
+	rec := httptest.NewRecorder()
+	a.handleDouyinDownload(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	// Cache should be updated so subsequent requests reuse the refreshed URL list.
+	got, ok := a.douyinDownloader.GetCachedDetail(key)
+	if !ok || got == nil || len(got.Downloads) != 1 || strings.TrimSpace(got.Downloads[0]) != newURL {
+		t.Fatalf("cache not refreshed: ok=%v got=%v", ok, got)
+	}
+}
+
 func TestHandleDouyinCover_ErrorBranches(t *testing.T) {
 	t.Run("nil app", func(t *testing.T) {
 		var a *App
