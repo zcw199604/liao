@@ -170,6 +170,7 @@ func (a *App) handleDouyinFavoriteUserAwemeList(w http.ResponseWriter, r *http.R
 			typeLabel := map[string]string{"video": "视频", "image": "图集"}[displayType]
 
 			cached := &douyinCachedDetail{
+				SecUserID: secUserID,
 				DetailID:  it.DetailID,
 				Title:     strings.TrimSpace(it.Desc),
 				Type:      typeLabel,

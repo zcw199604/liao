@@ -398,3 +398,37 @@ func (s *DouyinFavoriteService) ListUserAwemes(ctx context.Context, secUserID st
 	nextCursor := cursor + len(out)
 	return out, nextCursor, hasMore, nil
 }
+
+// UpdateUserAwemeDownloadsCover best-effort updates the cached CDN links in DB so that
+// the next request (or the next server restart) won't immediately hit expired links again.
+//
+// It updates only `downloads` and `cover_url` fields, and does NOT create new rows.
+func (s *DouyinFavoriteService) UpdateUserAwemeDownloadsCover(ctx context.Context, secUserID, awemeID string, downloads []string, coverURL string) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("db not initialized")
+	}
+	secUserID = strings.TrimSpace(secUserID)
+	awemeID = strings.TrimSpace(awemeID)
+	if secUserID == "" || awemeID == "" {
+		return nil
+	}
+
+	downloads = normalizeStringList(downloads)
+	downloadsJSON := ""
+	if len(downloads) > 0 {
+		if b, err := json.Marshal(downloads); err == nil {
+			downloadsJSON = string(b)
+		}
+	}
+	coverURL = strings.TrimSpace(coverURL)
+
+	// Use COALESCE/NULLIF to avoid overwriting existing data with empty values.
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE douyin_favorite_user_aweme
+		SET downloads = COALESCE(NULLIF(?, ''), downloads),
+		    cover_url = COALESCE(NULLIF(?, ''), cover_url)
+		WHERE sec_user_id = ?
+		  AND aweme_id = ?
+	`, downloadsJSON, coverURL, secUserID, awemeID)
+	return err
+}

@@ -93,7 +93,7 @@
   - 视频：`标题.mp4`
   - 图集：`标题_01.jpg`（按序号追加）
   - 实况：按 `items[].type` 分别命名（视频默认 `.mp4`，图片默认 `.jpg`；若 URL 带扩展名则优先使用）
-- 兼容：当抖音 CDN 返回 `403 Forbidden`（常见于“收藏用户作品”里保存的历史 downloads 直链过期）时，后端会 best-effort 调用上游 `POST /douyin/detail` 刷新 `downloads` 并更新同一 `key` 的缓存，然后自动重试一次下载（避免用户手动“重新解析”）；并发场景下会按 `detail_id` 使用 `singleflight` 合并回源刷新，避免“惊群”。
+- 兼容：当抖音 CDN 返回 `403 Forbidden`（常见于“收藏用户作品”里保存的历史 downloads 直链过期）时，后端会 best-effort 调用上游 `POST /douyin/detail` 刷新 `downloads`，更新同一 `key` 的缓存并自动重试一次下载（避免用户手动“重新解析”）；并发场景下会按 `detail_id` 使用 `singleflight` 合并回源刷新，避免“惊群”。刷新成功后还会 best-effort 将 `downloads/cover_url` 回写到 `douyin_favorite_user_aweme`（若存在对应记录），减少短时间内重复回源。
 
 `HEAD /api/douyin/download?key=...&index=...`：
 - 用于前端“最佳努力”探测 `Content-Length` 展示文件大小徽标（CDN 不支持 `HEAD` 时后端会回退 `Range: bytes=0-0`）。
