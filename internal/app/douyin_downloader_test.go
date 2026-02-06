@@ -766,3 +766,131 @@ func TestTikTokDownloaderClient_postJSON_ContextCanceled(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 }
+
+func TestTikTokDownloaderClient_DouyinAccount_PageFieldCompatibility(t *testing.T) {
+	type testCase struct {
+		id          string
+		data        map[string]any
+		wantCursor  int
+		wantHasMore bool
+		wantItems   int
+	}
+
+	cases := []testCase{
+		{
+			id: "canonical",
+			data: map[string]any{
+				"items":       []any{map[string]any{"aweme_id": "1"}},
+				"next_cursor": 123,
+				"has_more":    true,
+			},
+			wantCursor:  123,
+			wantHasMore: true,
+			wantItems:   1,
+		},
+		{
+			id: "fallback_cursor_and_hasMore",
+			data: map[string]any{
+				"items":    "not-array",
+				"cursor":   "45",
+				"has_more": 0,
+				"hasMore":  "yes",
+			},
+			wantCursor:  45,
+			wantHasMore: true,
+			wantItems:   0,
+		},
+		{
+			id: "fallback_max_cursor",
+			data: map[string]any{
+				"items":      []any{},
+				"max_cursor": "67",
+				"has_more":   "false",
+				"hasMore":    false,
+			},
+			wantCursor:  67,
+			wantHasMore: false,
+			wantItems:   0,
+		},
+		{
+			id: "next_cursor_string",
+			data: map[string]any{
+				"items":       []any{"x", "y"},
+				"next_cursor": "88",
+				"has_more":    "1",
+			},
+			wantCursor:  88,
+			wantHasMore: true,
+			wantItems:   2,
+		},
+		{
+			id: "all_cursor_zero",
+			data: map[string]any{
+				"items":       []any{},
+				"next_cursor": 0,
+				"cursor":      "0",
+				"max_cursor":  "0",
+				"has_more":    false,
+			},
+			wantCursor:  0,
+			wantHasMore: false,
+			wantItems:   0,
+		},
+	}
+
+	byID := make(map[string]testCase, len(cases))
+	for _, tc := range cases {
+		byID[tc.id] = tc
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/douyin/account/page" {
+			http.NotFound(w, r)
+			return
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode payload: %v", err)
+		}
+
+		tc, ok := byID[strings.TrimSpace(asString(payload["sec_user_id"]))]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"message": "ok",
+			"data":    tc.data,
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	client := NewTikTokDownloaderClient(srv.URL, "", srv.Client())
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.id, func(t *testing.T) {
+			got, err := client.DouyinAccount(t.Context(), tc.id, "post", 0, 18, "", "")
+			if err != nil {
+				t.Fatalf("DouyinAccount err=%v", err)
+			}
+
+			if gotCursor := asInt(got["cursor"]); gotCursor != tc.wantCursor {
+				t.Fatalf("cursor=%d, want %d, got=%v", gotCursor, tc.wantCursor, got)
+			}
+			if gotHasMore := asBool(got["has_more"]); gotHasMore != tc.wantHasMore {
+				t.Fatalf("has_more=%v, want %v, got=%v", gotHasMore, tc.wantHasMore, got)
+			}
+
+			items, ok := got["aweme_list"].([]any)
+			if !ok {
+				t.Fatalf("aweme_list type=%T, want []any", got["aweme_list"])
+			}
+			if len(items) != tc.wantItems {
+				t.Fatalf("len(aweme_list)=%d, want %d", len(items), tc.wantItems)
+			}
+		})
+	}
+}

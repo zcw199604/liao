@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -265,5 +266,60 @@ func TestRedisChatHistoryCacheService_FlushPending_PipelineError(t *testing.T) {
 	mr.Close()
 	if err := svc.flushPending(context.Background()); err == nil {
 		t.Fatalf("expected error")
+	}
+}
+
+func TestRedisChatHistoryCacheService_SaveMessages_LargeTidPrecisionRisk(t *testing.T) {
+	mr := miniredis.RunT(t)
+	svc, err := NewRedisChatHistoryCacheService(
+		"redis://"+mr.Addr(),
+		"",
+		0,
+		"",
+		0,
+		"test:ch:",
+		1,
+		10,
+		1,
+	)
+	if err != nil {
+		t.Fatalf("NewRedisChatHistoryCacheService: %v", err)
+	}
+	t.Cleanup(func() { _ = svc.Close() })
+
+	conv := "big_tid_conv"
+	tidA := "7330000000000000001"
+	tidB := "7330000000000000002"
+
+	svc.SaveMessages(context.Background(), conv, []map[string]any{
+		{"Tid": tidA, "content": "A"},
+		{"Tid": tidB, "content": "B"},
+	})
+
+	parsedA, err := strconv.ParseInt(tidA, 10, 64)
+	if err != nil {
+		t.Fatalf("ParseInt(tidA): %v", err)
+	}
+	parsedB, err := strconv.ParseInt(tidB, 10, 64)
+	if err != nil {
+		t.Fatalf("ParseInt(tidB): %v", err)
+	}
+	if parsedB-parsedA != 1 {
+		t.Fatalf("unexpected tid gap: %d", parsedB-parsedA)
+	}
+
+	svc.pendingMu.Lock()
+	msgA, okA := svc.pending[conv+"|"+tidA]
+	msgB, okB := svc.pending[conv+"|"+tidB]
+	svc.pendingMu.Unlock()
+
+	if !okA || !okB {
+		t.Fatalf("expected both pending messages to exist, okA=%v okB=%v", okA, okB)
+	}
+	if msgA.tid == msgB.tid {
+		t.Fatalf("expected different tids")
+	}
+	if msgA.score != msgB.score {
+		t.Fatalf("expected precision-risk score collision for adjacent 19-digit tid, got %v vs %v", msgA.score, msgB.score)
 	}
 }

@@ -218,3 +218,113 @@ func TestHandleAuthVerify_ValidToken(t *testing.T) {
 		t.Fatalf("msg=%q, want %q", got, "Token有效")
 	}
 }
+
+func TestHandleAuthLogin_AllowsGetWithQueryAccessCode(t *testing.T) {
+	a := &App{
+		cfg: config.Config{AuthAccessCode: "code-1"},
+		jwt: NewJWTService("secret-1", 1),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/auth/login?accessCode=code-1", nil)
+	rr := httptest.NewRecorder()
+
+	a.handleAuthLogin(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if got, _ := resp["msg"].(string); got != "登录成功" {
+		t.Fatalf("msg=%q, want %q", got, "登录成功")
+	}
+	if got, _ := resp["token"].(string); got == "" {
+		t.Fatalf("token should not be empty")
+	}
+}
+
+func TestHandleAuthVerify_MalformedAuthorizationHeaders(t *testing.T) {
+	a := &App{jwt: NewJWTService("secret-1", 1)}
+
+	type testCase struct {
+		name      string
+		header    string
+		wantMsg   string
+		wantValid *bool
+	}
+
+	falseValue := false
+	cases := []testCase{
+		{
+			name:      "BearerWithoutSpaceSuffix",
+			header:    "Bearer",
+			wantMsg:   "Token缺失",
+			wantValid: nil,
+		},
+		{
+			name:      "NonBearerPrefix",
+			header:    "bad-token",
+			wantMsg:   "Token缺失",
+			wantValid: nil,
+		},
+		{
+			name:      "BearerWithTab",
+			header:    "Bearer	abc",
+			wantMsg:   "Token缺失",
+			wantValid: nil,
+		},
+		{
+			name:      "BearerWithOnlySpaces",
+			header:    "Bearer   ",
+			wantMsg:   "Token无效",
+			wantValid: &falseValue,
+		},
+		{
+			name:      "BearerWithTwoTokens",
+			header:    "Bearer token another",
+			wantMsg:   "Token无效",
+			wantValid: &falseValue,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "http://example.com/api/auth/verify", nil)
+			req.Header.Set("Authorization", tc.header)
+			rr := httptest.NewRecorder()
+
+			a.handleAuthVerify(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status=%d, want %d", rr.Code, http.StatusOK)
+			}
+
+			var resp map[string]any
+			if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("unmarshal failed: %v", err)
+			}
+			if got, _ := resp["msg"].(string); got != tc.wantMsg {
+				t.Fatalf("msg=%q, want %q", got, tc.wantMsg)
+			}
+
+			if tc.wantValid == nil {
+				if _, exists := resp["valid"]; exists {
+					t.Fatalf("valid should be absent for header=%q", tc.header)
+				}
+				return
+			}
+
+			gotValid, ok := resp["valid"].(bool)
+			if !ok {
+				t.Fatalf("valid type=%T, want bool", resp["valid"])
+			}
+			if gotValid != *tc.wantValid {
+				t.Fatalf("valid=%v, want %v", gotValid, *tc.wantValid)
+			}
+		})
+	}
+}
