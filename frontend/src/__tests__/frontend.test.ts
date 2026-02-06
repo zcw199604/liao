@@ -88,6 +88,10 @@ describe('utils/time', () => {
     const timeStr = new Date(2026, 0, 4, 9, 5, 6).toISOString()
     expect(formatFullTime(timeStr)).toBe('2026-01-04 09:05:06')
   })
+
+  it('formatFullTime returns empty string when input is empty', () => {
+    expect(formatFullTime('')).toBe('')
+  })
 })
 
 describe('composables/useToast', () => {

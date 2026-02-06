@@ -491,6 +491,9 @@ describe('stores/identity + user', () => {
 
     vi.mocked(identityApi.createIdentity).mockResolvedValue({ code: 1 } as any)
     expect(await store.createIdentity({ name: 'A', sex: '男' })).toBe(false)
+
+    vi.mocked(identityApi.deleteIdentity).mockResolvedValueOnce({ code: 1 } as any)
+    expect(await store.deleteIdentity('x2')).toBe(false)
   })
 
   it('user store edit flow and cookie saving', () => {

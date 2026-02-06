@@ -60,6 +60,82 @@ func TestConvertToLocalURL(t *testing.T) {
 	}
 }
 
+func TestMediaUploadService_GetAllUploadImagesCount(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	svc := &MediaUploadService{db: wrapMySQLDB(db)}
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM media_file`).
+		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(2))
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM douyin_media_file`).
+		WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(3))
+
+	got, err := svc.GetAllUploadImagesCount(context.Background())
+	if err != nil {
+		t.Fatalf("err=%v", err)
+	}
+	if got != 5 {
+		t.Fatalf("got=%d, want 5", got)
+	}
+}
+
+func TestMediaUploadService_GetAllUploadImagesCountBySource(t *testing.T) {
+	t.Run("local", func(t *testing.T) {
+		db, mock, cleanup := newSQLMock(t)
+		defer cleanup()
+
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM media_file`).
+			WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(7))
+
+		got, err := svc.GetAllUploadImagesCountBySource(context.Background(), "local", "")
+		if err != nil {
+			t.Fatalf("err=%v", err)
+		}
+		if got != 7 {
+			t.Fatalf("got=%d", got)
+		}
+	})
+
+	t.Run("douyin with secUserID filter", func(t *testing.T) {
+		db, mock, cleanup := newSQLMock(t)
+		defer cleanup()
+
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM douyin_media_file WHERE sec_user_id = \?`).
+			WithArgs("sec1").
+			WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(9))
+
+		got, err := svc.GetAllUploadImagesCountBySource(context.Background(), "douyin", "sec1")
+		if err != nil {
+			t.Fatalf("err=%v", err)
+		}
+		if got != 9 {
+			t.Fatalf("got=%d", got)
+		}
+	})
+
+	t.Run("unknown source behaves as all", func(t *testing.T) {
+		db, mock, cleanup := newSQLMock(t)
+		defer cleanup()
+
+		svc := &MediaUploadService{db: wrapMySQLDB(db)}
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM media_file`).
+			WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(1))
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM douyin_media_file`).
+			WillReturnRows(sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(4))
+
+		got, err := svc.GetAllUploadImagesCountBySource(context.Background(), "x", "")
+		if err != nil {
+			t.Fatalf("err=%v", err)
+		}
+		if got != 5 {
+			t.Fatalf("got=%d, want 5", got)
+		}
+	})
+}
+
 func TestMediaUploadService_DeleteMediaByPath_Success(t *testing.T) {
 	tempDir := t.TempDir()
 	db, mock, cleanup := newSQLMock(t)

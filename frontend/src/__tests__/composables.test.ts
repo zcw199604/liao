@@ -95,6 +95,30 @@ describe('composables/useMessage', () => {
     })
   })
 
+  it('sendText falls back to timestamp-based clientId when crypto.randomUUID is unavailable', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date(2026, 0, 1, 0, 0, 0))
+      vi.stubGlobal('crypto', {} as any)
+      vi.spyOn(Math, 'random').mockReturnValue(0.5)
+
+      const userStore = useUserStore()
+      userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+      const messageStore = useMessageStore()
+      sendMock.mockReturnValue(true)
+
+      useMessage().sendText('hi', { id: 'u1', nickname: 'U1' })
+
+      const first = messageStore.getMessages('u1')[0] as any
+      expect(String(first.clientId || '')).toMatch(/^c_\d+_[0-9a-f]+$/)
+    } finally {
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+      vi.useRealTimers()
+    }
+  })
+
   it('sendText inserts optimistic message and marks failed on timeout', () => {
     vi.useFakeTimers()
     try {

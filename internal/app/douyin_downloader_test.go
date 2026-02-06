@@ -15,6 +15,10 @@ import (
 	"time"
 )
 
+type cookieProviderFunc func(ctx context.Context) (string, error)
+
+func (f cookieProviderFunc) GetCookie(ctx context.Context) (string, error) { return f(ctx) }
+
 func TestNewTikTokDownloaderClient_Trims(t *testing.T) {
 	c := NewTikTokDownloaderClient(" http://example.com/ ", " t ", nil)
 	if c.baseURL != "http://example.com" {
@@ -372,6 +376,71 @@ func TestDouyinDownloaderService_EffectiveDefaults(t *testing.T) {
 	if got := s.effectiveProxy(" x "); got != "x" {
 		t.Fatalf("got=%q", got)
 	}
+}
+
+func TestDouyinDownloaderService_SetCookieProvider_NilReceiver(t *testing.T) {
+	var svc *DouyinDownloaderService
+	svc.SetCookieProvider(cookieProviderFunc(func(ctx context.Context) (string, error) {
+		return "a=1", nil
+	}))
+}
+
+func TestDouyinDownloaderService_EffectiveCookie_WithProvider(t *testing.T) {
+	t.Run("provider returns cookie", func(t *testing.T) {
+		svc := &DouyinDownloaderService{defaultCookie: "fallback"}
+		svc.SetCookieProvider(cookieProviderFunc(func(ctx context.Context) (string, error) {
+			return "  a=1; b=2  ", nil
+		}))
+
+		got, err := svc.effectiveCookie(context.Background(), "")
+		if err != nil {
+			t.Fatalf("err=%v", err)
+		}
+		if got != "a=1; b=2" {
+			t.Fatalf("got=%q", got)
+		}
+	})
+
+	t.Run("provider returns empty cookie falls back to default", func(t *testing.T) {
+		svc := &DouyinDownloaderService{defaultCookie: "fallback"}
+		svc.SetCookieProvider(cookieProviderFunc(func(ctx context.Context) (string, error) {
+			return "   ", nil
+		}))
+
+		got, err := svc.effectiveCookie(context.Background(), "")
+		if err != nil {
+			t.Fatalf("err=%v", err)
+		}
+		if got != "fallback" {
+			t.Fatalf("got=%q", got)
+		}
+	})
+
+	t.Run("provider error with no fallback propagates error", func(t *testing.T) {
+		svc := &DouyinDownloaderService{defaultCookie: ""}
+		svc.SetCookieProvider(cookieProviderFunc(func(ctx context.Context) (string, error) {
+			return "", errors.New("boom")
+		}))
+
+		if _, err := svc.effectiveCookie(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "boom") {
+			t.Fatalf("err=%v", err)
+		}
+	})
+
+	t.Run("provider error with fallback returns default", func(t *testing.T) {
+		svc := &DouyinDownloaderService{defaultCookie: "fallback"}
+		svc.SetCookieProvider(cookieProviderFunc(func(ctx context.Context) (string, error) {
+			return "", errors.New("boom")
+		}))
+
+		got, err := svc.effectiveCookie(context.Background(), "")
+		if err != nil {
+			t.Fatalf("err=%v", err)
+		}
+		if got != "fallback" {
+			t.Fatalf("got=%q", got)
+		}
+	})
 }
 
 func TestDouyinDownloaderService_Flows(t *testing.T) {

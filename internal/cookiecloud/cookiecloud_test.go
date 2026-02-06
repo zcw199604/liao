@@ -137,6 +137,32 @@ func TestClient_GetCookieHeader(t *testing.T) {
 	}
 }
 
+func TestClient_WithHTTPClient(t *testing.T) {
+	c, err := NewClient("https://example.com/api")
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	if c.httpClient == nil {
+		t.Fatalf("expected default httpClient")
+	}
+
+	orig := c.httpClient
+	if got := c.WithHTTPClient(nil); got != c {
+		t.Fatalf("expected chainable receiver")
+	}
+	if c.httpClient != orig {
+		t.Fatalf("expected nil http client to keep the original")
+	}
+
+	hc := &http.Client{}
+	if got := c.WithHTTPClient(hc); got != c {
+		t.Fatalf("expected chainable receiver")
+	}
+	if c.httpClient != hc {
+		t.Fatalf("expected http client to be replaced")
+	}
+}
+
 func encryptFixed(t *testing.T, uuid, password string, plain []byte) string {
 	t.Helper()
 
