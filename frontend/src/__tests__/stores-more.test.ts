@@ -271,6 +271,51 @@ describe('stores/media', () => {
     expect(store.allUploadLoading).toBe(false)
   })
 
+
+
+  it('loadCachedImages clears uploadedMedia when api throws', async () => {
+    vi.mocked(mediaApi.getCachedImages).mockRejectedValue(new Error('boom'))
+
+    const store = useMediaStore()
+    store.uploadedMedia = [{ url: 'x', type: 'image' } as any]
+    await store.loadCachedImages('me')
+
+    expect(store.uploadedMedia).toEqual([])
+  })
+
+  it('loadCachedImages covers defensive non-array guard with unstable payload getter', async () => {
+    let access = 0
+    const unstable: any = {}
+    Object.defineProperty(unstable, 'data', {
+      get() {
+        access += 1
+        // First access (for Array.isArray check) is array, second access (assignment) is not.
+        return access === 1 ? ['/upload/images/2026/01/a.png'] : { not: 'array' }
+      }
+    })
+    vi.mocked(mediaApi.getCachedImages).mockResolvedValue(unstable)
+
+    const store = useMediaStore()
+    store.uploadedMedia = [{ url: 'keep', type: 'image' } as any]
+
+    await store.loadCachedImages('me')
+    expect(store.uploadedMedia).toEqual([])
+  })
+
+  it('removeUploadedMedia and clearUploadedMedia mutate list as expected', () => {
+    const store = useMediaStore()
+    store.uploadedMedia = [
+      { url: 'u1', type: 'image' } as any,
+      { url: 'u2', type: 'video' } as any
+    ]
+
+    store.removeUploadedMedia('u1')
+    expect(store.uploadedMedia.map(i => i.url)).toEqual(['u2'])
+
+    store.clearUploadedMedia()
+    expect(store.uploadedMedia).toEqual([])
+  })
+
   it('loadAllUploadImages falls back to default source and pagination fields', async () => {
     vi.mocked(mediaApi.getAllUploadImages).mockResolvedValue({ data: [], total: 0 } as any)
     const store = useMediaStore()

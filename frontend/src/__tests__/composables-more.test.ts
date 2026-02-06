@@ -362,6 +362,25 @@ describe('composables/useSettings', () => {
       expect(routerPush).toHaveBeenCalledWith('/list')
     })
 
+
+
+    it('loadList delegates to identityStore.loadList', async () => {
+      const identityStore = useIdentityStore()
+      const loadSpy = vi.spyOn(identityStore, 'loadList').mockResolvedValue(undefined as any)
+
+      await useIdentity().loadList()
+      expect(loadSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('deleteIdentity delegates to identityStore.deleteIdentity', async () => {
+      const identityStore = useIdentityStore()
+      const deleteSpy = vi.spyOn(identityStore, 'deleteIdentity').mockResolvedValue(true as any)
+
+      const ok = await useIdentity().deleteIdentity('i-delete')
+      expect(ok).toBe(true)
+      expect(deleteSpy).toHaveBeenCalledWith('i-delete')
+    })
+
     it('quickCreate generates name/sex and calls createIdentity', async () => {
       const identityStore = useIdentityStore()
       const createSpy = vi.spyOn(identityStore, 'createIdentity').mockResolvedValue(true as any)

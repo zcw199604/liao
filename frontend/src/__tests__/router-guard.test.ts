@@ -6,21 +6,31 @@ import { useUserStore } from '@/stores/user'
 
 const routerHarness = vi.hoisted(() => {
   let guard: any
+  let routes: any[] = []
   return {
     setGuard(cb: any) {
       guard = cb
     },
     getGuard() {
       return guard
+    },
+    setRoutes(v: any[]) {
+      routes = v
+    },
+    getRoutes() {
+      return routes
     }
   }
 })
 
 vi.mock('vue-router', () => ({
   createWebHistory: vi.fn(),
-  createRouter: vi.fn(() => ({
-    beforeEach: (cb: any) => routerHarness.setGuard(cb)
-  }))
+  createRouter: vi.fn((options: any) => {
+    routerHarness.setRoutes(options?.routes || [])
+    return {
+      beforeEach: (cb: any) => routerHarness.setGuard(cb)
+    }
+  })
 }))
 
 import '@/router'
@@ -44,6 +54,20 @@ beforeEach(() => {
 })
 
 describe('router guard', () => {
+
+
+  it('defines lazy-loaded component functions for login and identity routes', async () => {
+    const routes = routerHarness.getRoutes()
+    const login = routes.find((r: any) => r.path === '/login')
+    const identity = routes.find((r: any) => r.path === '/identity')
+
+    expect(typeof login?.component).toBe('function')
+    expect(typeof identity?.component).toBe('function')
+
+    await expect(login.component()).resolves.toBeTruthy()
+    await expect(identity.component()).resolves.toBeTruthy()
+  })
+
   it('redirects to /login when requiresAuth and token is invalid', async () => {
     const guard = routerHarness.getGuard()
 
