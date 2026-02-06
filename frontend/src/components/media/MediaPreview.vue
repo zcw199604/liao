@@ -30,7 +30,7 @@
               <button
                 v-if="hasMediaDetails"
                 @click.stop="handleShowDetails"
-                class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition backdrop-blur-sm"
+                class="ui-overlay-icon-btn-light"
                 title="查看详细信息"
               >
                 <i class="fas fa-info-circle text-sm"></i>
@@ -39,7 +39,7 @@
               <!-- 倍速/慢放（仅视频） -->
               <div v-if="currentMedia.type === 'video' && !isVideoFullscreen" ref="speedMenuRef" class="relative">
                 <button
-                  class="h-10 px-3 rounded-full bg-white/10 hover:bg-white/20 flex items-center gap-2 text-white transition backdrop-blur-sm select-none"
+                  class="ui-overlay-pill-btn-light"
                   :title="isTempSpeedBoosting ? '临时 2x 播放中，松开恢复' : '播放倍速（长按临时 x2）'"
                   @click.stop="handleToggleSpeedMenu"
                   @pointerdown="handleSpeedPressStart"
@@ -59,7 +59,7 @@
 
                 <div
                   v-if="showSpeedMenu"
-                  class="absolute right-0 top-12 min-w-[120px] bg-[#111113]/95 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50"
+                  class="absolute right-0 top-12 min-w-[120px] ui-overlay-menu-light z-50"
                   @click.stop
                 >
                   <button
@@ -76,7 +76,7 @@
 
               <!-- 下载按钮 -->
               <button
-                class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition backdrop-blur-sm"
+                class="ui-overlay-icon-btn-light"
                 title="下载"
                 @click.stop="handleDownload"
               >
@@ -86,7 +86,7 @@
               <!-- 实况下载（Douyin Live Photo） -->
               <button
                 v-if="canDownloadLivePhoto"
-                class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition backdrop-blur-sm"
+                class="ui-overlay-icon-btn-light"
                 title="下载实况：点击导出 JPG；右键导出 ZIP（iOS Live Photo）"
                 @click.stop="handleDownloadLivePhoto('jpg')"
                 @contextmenu.prevent.stop="handleDownloadLivePhoto('zip')"
@@ -97,7 +97,7 @@
               <!-- 关闭按钮 -->
               <button
                 @click="handleClose"
-                class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition backdrop-blur-sm"
+                class="ui-overlay-icon-btn-light"
               >
                 <i class="fas fa-times text-lg"></i>
               </button>
@@ -107,7 +107,7 @@
         <!-- 左右切换按钮 -->
         <template v-if="realMediaList.length > 1">
           <button 
-            class="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/10 hover:bg-white/20 text-white/70 hover:text-white flex items-center justify-center backdrop-blur-md transition z-30 focus:outline-none"
+            class="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 ui-overlay-icon-btn-light text-white/80 hover:text-white z-30 focus:outline-none"
             @click.stop="prev"
             title="上一张 (←)"
           >
@@ -115,7 +115,7 @@
           </button>
           
           <button 
-            class="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/10 hover:bg-white/20 text-white/70 hover:text-white flex items-center justify-center backdrop-blur-md transition z-30 focus:outline-none"
+            class="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 ui-overlay-icon-btn-light text-white/80 hover:text-white z-30 focus:outline-none"
             @click.stop="next"
             title="下一张 (→)"
           >
@@ -192,7 +192,7 @@
 		            >
 		              <div class="relative pointer-events-auto" @pointerdown.stop>
 		                <button
-		                  class="h-10 px-3 rounded-full bg-black/35 hover:bg-black/45 flex items-center gap-2 text-white transition backdrop-blur-md border border-white/15 shadow-xl select-none"
+		                  class="ui-overlay-pill-btn"
 		                  :title="isTempSpeedBoosting ? '临时 2x 播放中，松开恢复' : '播放倍速（长按临时 x2）'"
 		                  @click.stop="handleToggleSpeedMenu"
 		                  @pointerdown="handleSpeedPressStart"
@@ -212,7 +212,7 @@
 
 		                <div
 		                  v-if="showSpeedMenu"
-		                  class="absolute left-0 top-12 min-w-[120px] bg-[#111113]/95 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50"
+		                  class="absolute left-0 top-12 min-w-[120px] ui-overlay-menu z-50"
 		                  @click.stop
 		                >
 		                  <button

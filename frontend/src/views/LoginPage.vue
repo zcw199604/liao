@@ -9,7 +9,7 @@
         </div>
 
         <!-- 登录表单 -->
-        <div class="bg-surface/80 backdrop-blur-xl ring-1 ring-line rounded-2xl p-8 shadow-2xl shadow-indigo-500/10">
+        <div class="ui-card p-8">
           <div class="mb-6">
             <label class="block text-fg-muted text-sm font-medium mb-2">访问码</label>
             <input
@@ -17,7 +17,7 @@
               type="password"
               placeholder="请输入访问码"
               @keyup.enter="handleLogin"
-              class="w-full px-4 py-3 bg-surface-2 text-fg rounded-lg border border-line-strong focus:border-line-strong focus:ring-1 focus:ring-indigo-500/50 focus:bg-surface-hover focus:outline-none transition placeholder-fg-subtle"
+              class="ui-input"
               :disabled="loading"
               autofocus
             />
@@ -26,7 +26,7 @@
           <button
             @click="handleLogin"
             :disabled="loading || !accessCode"
-            class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-indigo-500/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]"
+            class="ui-btn-primary w-full py-3"
           >
             <span v-if="!loading">登录</span>
             <span v-else class="flex items-center justify-center">

@@ -1,12 +1,12 @@
 <template>
   <div class="flex flex-col h-full bg-canvas relative">
     <!-- 顶部切换栏 -->
-    <div class="flex items-center justify-between pt-4 pb-2 px-4 bg-canvas z-10 shrink-0">
+    <div class="ui-glass-topbar flex items-center justify-between pt-4 pb-2 px-4 z-10 shrink-0">
       <!-- 左侧：菜单按钮（下拉） -->
       <div class="relative">
         <button
           @click.stop="handleToggleTopMenu"
-          class="w-10 h-10 flex items-center justify-center text-fg-muted hover:text-fg transition"
+          class="ui-icon-btn ui-icon-btn-ghost text-fg-muted"
         >
           <i class="fas fa-bars text-xl"></i>
         </button>
@@ -15,7 +15,7 @@
         <div
           v-if="showTopMenu"
           @click.stop
-          class="absolute left-0 top-12 w-48 bg-surface rounded-xl shadow-2xl border border-line-strong z-50"
+          class="absolute left-0 top-12 w-48 ui-card-sm z-50"
         >
           <button
             @click="handleOpenSettings"
@@ -121,7 +121,7 @@
 	            @mouseup="endLongPress"
 	            @mouseleave="cancelLongPress"
 	            @contextmenu.prevent="handleContextMenu(user, $event)"
-	            class="flex items-center p-4 mb-3 bg-surface rounded-2xl active:scale-[0.98] transition-transform duration-100 cursor-pointer select-none"
+	            class="ui-list-item flex items-center p-4 mb-3 cursor-pointer"
 	            :class="[
 	              { 'border border-blue-500/30': currentUserId === user.id && !selectionMode },
 	              selectionMode && isSelected(user.id) ? 'ring-2 ring-blue-500/30 border border-blue-500/30' : ''
@@ -190,7 +190,7 @@
 	          <!-- 空状态提示 -->
 	          <div
 	            v-if="(!chatStore.displayList || chatStore.displayList.length === 0) && !isInitialLoadingUsers"
-	            class="flex flex-col items-center justify-center mt-20 text-fg-subtle"
+	            class="ui-empty-state mt-20"
 	          >
 	            <i class="far fa-comments text-5xl mb-4 opacity-50"></i>
 	            <p class="text-sm">暂无{{ chatStore.activeTab === 'history' ? '消息' : '收藏' }}</p>
@@ -205,14 +205,14 @@
         <div class="flex items-center gap-2">
           <button
             @click="toggleSelectAll"
-            class="px-4 py-2 bg-surface-3 text-fg rounded-lg hover:bg-surface-hover transition text-sm border border-line"
+            class="ui-btn-secondary px-4 py-2 text-sm"
           >
             {{ isAllSelected ? '取消全选' : '全选当前列表' }}
           </button>
 
           <button
             @click="openDaySelector"
-            class="px-4 py-2 bg-surface-3 text-fg rounded-lg hover:bg-surface-hover transition text-sm border border-line flex items-center gap-2"
+            class="ui-btn-secondary px-4 py-2 text-sm flex items-center gap-2"
           >
             <i class="fas fa-calendar-alt text-xs text-purple-400"></i>
             <span>按天...</span>
@@ -222,7 +222,7 @@
         <div class="flex items-center gap-2">
           <button
             @click="exitSelectionMode"
-            class="px-3 py-2 bg-surface-3 text-fg rounded-lg hover:bg-surface-hover transition text-sm border border-line"
+            class="ui-btn-secondary px-3 py-2 text-sm"
           >
             取消
           </button>
@@ -242,7 +242,7 @@
     <!-- 上下文菜单 (长按/右键触发) -->
     <div
       v-if="showContextMenu && contextMenuUser"
-      class="fixed z-50 w-32 bg-surface-3 rounded-lg shadow-xl border border-line-strong overflow-hidden"
+      class="fixed z-50 w-32 ui-card-sm bg-surface-3/95 overflow-hidden p-0"
       :style="{ top: contextMenuPos.y + 'px', left: contextMenuPos.x + 'px' }"
       @click.stop
     >

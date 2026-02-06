@@ -104,6 +104,12 @@
 - 文档：历史 Java(Spring Boot) 源码已移除；同步清理仓库文档/知识库中对旧 Java 路径与 Maven 构建指令的引用。
 
 ### 变更
+- 前端：聊天核心界面样式统一与轻量美化（`frontend/src/index.css`、`App.vue`、`LoginPage.vue`、`ChatHeader.vue`、`ChatInput.vue`、`Dialog.vue`）：新增复用 UI 组件类（`ui-card/ui-input/ui-input-shell/ui-btn-primary/ui-btn-secondary/ui-icon-btn/ui-fab-primary`），移除 `App.vue` 重复全局 reset，统一头部/输入区的玻璃感与按钮交互反馈，并保持现有文案与事件语义不变。
+  - 验证：`npm run test -- src/__tests__/chat-input.test.ts src/__tests__/components-more.test.ts src/__tests__/components.test.ts src/__tests__/views.test.ts` + `npm run build` 通过。
+- 前端：第二轮样式精修（`ChatSidebar.vue`、`MediaPreview.vue`）：补充列表项/空态/玻璃顶栏/预览浮层按钮等复用类（`ui-list-item/ui-empty-state/ui-glass-topbar/ui-overlay-*`），统一聊天侧栏与媒体预览的层级、边框和交互反馈；同时保留测试依赖的模板类选择器兼容。
+  - 验证：`npm run test -- src/__tests__/chat-sidebar-template-branches.test.ts src/__tests__/chat-sidebar-swipe-and-template.test.ts src/__tests__/chat-sidebar-more.test.ts src/__tests__/chat-sidebar-batch-delete.test.ts src/__tests__/media-preview-more.test.ts src/__tests__/settings-media-components.test.ts src/__tests__/chat-input.test.ts src/__tests__/components-more.test.ts src/__tests__/components.test.ts src/__tests__/views.test.ts` + `npm run build` 通过。
+- 前端：根据 Claude 审查意见完成样式回归修正：新增 `ui-card-sm`（下拉/上下文菜单小圆角卡片）、新增 `ui-overlay-*-light`（恢复媒体预览顶部按钮与菜单的浅色透明风格）、移除 `body` 颜色过渡以规避主题切换潜在闪烁、并消除 `ui-list-item` 与模板类重复定义。
+  - 验证：复跑侧栏/媒体预览/登录与通用组件回归用例（10个测试文件，96项）及 `npm run build` 均通过。
 - 前端：UI 质感统一与美化（暗色主题）：补充 Tailwind 设计 tokens（surface/border/glow），统一边框为 `border-white/5|10` 透明体系；聊天头部/输入区毛玻璃与层级增强；按钮去强渐变并增加内高光；Toast/Dialog 样式升级；消息气泡改为更柔和渐变并增加内发光；滚动条样式优化；MediaTile 默认开启骨架屏并提供加载占位背景。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`

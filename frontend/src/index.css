@@ -103,6 +103,98 @@
     }
 }
 
+@layer components {
+  /* 统一卡片容器：用于登录框、确认弹窗等浮层卡片 */
+  .ui-card {
+    @apply bg-surface/85 backdrop-blur-xl ring-1 ring-line rounded-2xl shadow-2xl shadow-black/10 dark:shadow-black/35;
+  }
+
+  /* 小尺寸卡片：用于下拉菜单/上下文菜单，避免圆角过大 */
+  .ui-card-sm {
+    @apply bg-surface/95 backdrop-blur-xl rounded-xl border border-line-strong shadow-2xl;
+  }
+
+  /* 统一输入框：用于登录表单等基础输入场景 */
+  .ui-input {
+    @apply w-full px-4 py-3 rounded-xl border border-line bg-surface-2/90 text-fg placeholder-fg-subtle transition-colors focus:outline-none focus:bg-surface focus:border-line-strong focus:ring-2 focus:ring-indigo-500/40;
+  }
+
+  /* 输入容器壳：用于聊天输入框外层，统一 focus 视觉反馈 */
+  .ui-input-shell {
+    @apply flex-1 min-h-10 flex items-center rounded-2xl border border-line bg-surface/75 px-4 py-2 transition-colors focus-within:bg-surface focus-within:border-line-strong focus-within:ring-2 focus-within:ring-indigo-500/40;
+  }
+
+  /* 主按钮：高强调动作（如登录） */
+  .ui-btn-primary {
+    @apply rounded-xl bg-indigo-600 text-white font-medium transition-colors hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/20;
+  }
+
+  /* 次按钮：中性动作（如取消） */
+  .ui-btn-secondary {
+    @apply rounded-xl border border-line bg-surface-2 text-fg transition-colors hover:bg-surface-hover;
+  }
+
+  /* 统一图标按钮：用于头部工具按钮、快捷按钮 */
+  .ui-icon-btn {
+    @apply inline-flex h-10 w-10 items-center justify-center rounded-full border border-line bg-surface/70 text-fg/50 transition-colors hover:bg-surface/90 hover:text-fg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  /* 幽灵图标按钮：弱化背景，减少视觉噪音 */
+  .ui-icon-btn-ghost {
+    @apply border-transparent bg-transparent hover:bg-surface/60;
+  }
+
+  /* 浮动主操作按钮（发送） */
+  .ui-fab-primary {
+    @apply inline-flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 text-white transition-colors hover:bg-indigo-500 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/20;
+  }
+
+  /* 会话列表项：统一卡片层级和 hover 反馈 */
+  .ui-list-item {
+    @apply rounded-2xl bg-surface/90 border border-line shadow-sm hover:bg-surface-hover active:scale-[0.98] transition-all duration-150 select-none;
+  }
+
+  /* 通用空态容器：统一留白与文本层级 */
+  .ui-empty-state {
+    @apply flex flex-col items-center justify-center text-fg-subtle;
+  }
+
+  /* 轻玻璃顶栏：用于侧边栏/悬浮头部 */
+  .ui-glass-topbar {
+    @apply bg-glass backdrop-blur-xl border-b border-line;
+  }
+
+  /* 预览层圆形图标按钮：统一视频/图片预览顶部按钮视觉 */
+  .ui-overlay-icon-btn {
+    @apply w-10 h-10 rounded-full bg-black/35 hover:bg-black/45 text-white flex items-center justify-center transition backdrop-blur-md border border-white/15 shadow-xl;
+  }
+
+  /* 预览层胶囊按钮：用于倍速等带文案按钮 */
+  .ui-overlay-pill-btn {
+    @apply h-10 px-3 rounded-full bg-black/35 hover:bg-black/45 flex items-center gap-2 text-white transition backdrop-blur-md border border-white/15 shadow-xl select-none;
+  }
+
+  /* 预览层下拉面板：统一边框与模糊质感 */
+  .ui-overlay-menu {
+    @apply bg-black/80 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl overflow-hidden;
+  }
+
+  /* 预览层浅色按钮：用于顶部工具栏（保持原有白色半透明质感） */
+  .ui-overlay-icon-btn-light {
+    @apply w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition backdrop-blur-sm border border-white/15;
+  }
+
+  /* 预览层浅色胶囊按钮：用于非全屏倍速按钮 */
+  .ui-overlay-pill-btn-light {
+    @apply h-10 px-3 rounded-full bg-white/10 hover:bg-white/20 flex items-center gap-2 text-white transition backdrop-blur-sm border border-white/15 select-none;
+  }
+
+  /* 预览层浅色下拉菜单：恢复原近黑高不透明背景 */
+  .ui-overlay-menu-light {
+    @apply bg-[#111113]/95 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl overflow-hidden;
+  }
+}
+
 /* 全局样式 - 恢复丢失的核心样式 */
 body {
   background-color: rgb(var(--canvas));

@@ -34,3 +34,56 @@
 
 典型场景：`frontend/src/components/media/AllUploadImageModal.vue` 的头部区域。
 
+
+
+## 4. 统一 UI 复用类（2026-02 样式收敛）
+
+为减少组件内重复 Tailwind 组合、提升视觉一致性，新增以下全局复用类（定义于 `frontend/src/index.css` 的 `@layer components`）：
+
+- `ui-card`：统一毛玻璃卡片容器（用于登录卡片、确认弹窗）
+- `ui-input`：统一普通输入框
+- `ui-input-shell`：统一聊天输入框外壳（含 `focus-within` 反馈）
+- `ui-btn-primary`：统一高强调主按钮（如“登录”）
+- `ui-btn-secondary`：统一中性按钮（如“取消”）
+- `ui-icon-btn`：统一图标按钮底座
+- `ui-icon-btn-ghost`：弱化背景的图标按钮变体
+- `ui-fab-primary`：统一圆形主操作按钮（如“发送”）
+
+落地原则：
+- 组件优先复用以上类，不在 SFC 内重复拼接同构样式。
+- 若确有业务差异，仅在组件内追加最小差异类（例如 `hover:text-yellow-500`）。
+- 需要全局视觉调整时，优先改 `index.css` 的复用类，避免批量改动多个组件模板。
+
+
+## 5. 第二轮精修：列表与媒体预览复用类
+
+为进一步统一“聊天侧栏 + 媒体预览”视觉语言，新增并落地以下复用类：
+
+- `ui-list-item`：会话列表项统一卡片样式（边框/阴影/hover/active）
+- `ui-empty-state`：空状态统一布局与文字层级
+- `ui-glass-topbar`：侧栏顶部玻璃化栏位
+- `ui-overlay-icon-btn`：媒体预览顶部/侧边圆形工具按钮
+- `ui-overlay-pill-btn`：媒体预览倍速等胶囊按钮
+- `ui-overlay-menu`：媒体预览下拉菜单容器
+
+落地文件：
+- `frontend/src/components/chat/ChatSidebar.vue`
+- `frontend/src/components/media/MediaPreview.vue`
+
+兼容约束（测试稳定性）：
+- 对测试中依赖的模板选择器类（如 `div.flex.items-center.p-4`、`div.cursor-pointer`）保留显式类名；
+- 复用类用于收敛样式组合，不改变现有事件名、文案和交互流程。
+
+
+## 6. 审查后回归修正（Claude Review Follow-up）
+
+针对外部审查提出的视觉一致性与副作用风险，追加以下约束：
+
+- 小尺寸菜单（如侧栏顶部菜单、会话右键菜单）优先使用 `ui-card-sm`，避免在窄容器使用 `rounded-2xl` 导致圆角比例失衡。
+- 媒体预览顶部工具区使用浅色半透明变体：
+  - `ui-overlay-icon-btn-light`
+  - `ui-overlay-pill-btn-light`
+  - `ui-overlay-menu-light`
+  以保持原有“白色半透明”视觉语言；全屏覆盖控件继续使用深色变体。
+- 全局 `body` 默认不启用颜色过渡动画，避免主题切换初始阶段可能出现闪烁。
+- 复用类设计避免与模板类重复堆叠：布局/结构类留在模板，复用类侧重视觉 token 收敛。

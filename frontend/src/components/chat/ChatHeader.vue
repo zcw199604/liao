@@ -1,11 +1,11 @@
 <template>
-  <div class="bg-surface/60 backdrop-blur-md border-b border-line sticky top-0 z-20 px-4 py-2 shadow-sm">
+  <div class="bg-glass border-b border-line sticky top-0 z-20 px-4 py-2 backdrop-blur-xl shadow-sm">
     <div class="flex items-center justify-between mb-1">
       <div class="flex items-center shrink-0">
         <!-- 侧边栏开关 -->
         <button
           @click="$emit('toggleSidebar')"
-          class="w-10 h-10 -ml-2 flex items-center justify-center text-fg/70 hover:text-fg hover:bg-surface/60 rounded-full transition mr-1"
+          class="ui-icon-btn ui-icon-btn-ghost -ml-2 mr-1"
           aria-label="显示列表"
         >
           <i class="fas fa-bars text-lg"></i>
@@ -14,7 +14,7 @@
         <!-- 返回按钮 -->
         <button
           @click="$emit('back')"
-          class="w-10 h-10 flex items-center justify-center text-fg/70 hover:text-fg hover:bg-surface/60 rounded-full transition"
+          class="ui-icon-btn ui-icon-btn-ghost"
           aria-label="返回"
         >
           <i class="fas fa-chevron-left text-lg"></i>
@@ -57,7 +57,7 @@
         <!-- 清空记录按钮 -->
         <button
           @click="$emit('clearAndReload')"
-          class="w-10 h-10 flex items-center justify-center text-fg/40 hover:text-fg hover:bg-surface/60 rounded-full transition"
+          class="ui-icon-btn ui-icon-btn-ghost"
           title="清空并重新加载聊天记录"
         >
           <i class="fas fa-sync-alt text-sm"></i>
@@ -66,7 +66,7 @@
         <!-- 收藏按钮 -->
         <button
           @click="$emit('toggleFavorite')"
-          class="w-10 h-10 flex items-center justify-center hover:bg-surface/60 rounded-full transition"
+          class="ui-icon-btn ui-icon-btn-ghost"
         >
           <i
             class="text-lg transition-transform active:scale-125"

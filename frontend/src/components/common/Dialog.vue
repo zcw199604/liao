@@ -5,7 +5,7 @@
     @click="$emit('update:visible', false)"
   >
     <div class="page-container justify-center items-center overflow-y-auto p-4">
-      <div class="w-full max-w-xs bg-surface/90 ring-1 ring-line rounded-2xl p-6 shadow-2xl" @click.stop>
+      <div class="ui-card w-full max-w-xs p-6" @click.stop>
         <div class="text-center mb-4">
           <i class="fas fa-exclamation-triangle text-4xl text-yellow-500 mb-3"></i>
           <h3 class="text-lg font-bold text-fg mb-2">{{ title }}</h3>
@@ -20,13 +20,13 @@
           <button
             v-if="showCancel"
             @click="handleCancel"
-            class="flex-1 py-3 bg-surface-2 hover:bg-surface-hover text-fg rounded-xl border border-line transition-colors"
+            class="ui-btn-secondary flex-1 py-3"
           >
             {{ cancelText }}
           </button>
           <button
             @click="handleConfirm"
-            class="flex-1 py-3 rounded-xl font-medium text-white"
+            class="flex-1 py-3 rounded-xl font-medium text-white transition-colors"
             :class="confirmButtonClass"
           >
             {{ confirmText }}
@@ -54,7 +54,7 @@ withDefaults(defineProps<Props>(), {
   cancelText: '取消',
   showCancel: true,
   showWarning: false,
-  confirmButtonClass: 'bg-red-600'
+  confirmButtonClass: 'bg-red-600 hover:bg-red-500'
 })
 
 const emit = defineEmits<{
