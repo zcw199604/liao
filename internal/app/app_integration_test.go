@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -314,4 +315,60 @@ func TestNew_Success_MemoryCacheAndShutdown(t *testing.T) {
 	}
 
 	application.Shutdown(context.Background())
+}
+
+func TestGetQueryParamCI(t *testing.T) {
+	if got := getQueryParamCI(nil, "timezone"); got != "" {
+		t.Fatalf("nil values got=%q", got)
+	}
+	if got := getQueryParamCI(url.Values{"TimeZone": {" UTC ", "Asia/Shanghai"}}, "timezone"); got != "UTC" {
+		t.Fatalf("ci lookup got=%q", got)
+	}
+	if got := getQueryParamCI(url.Values{"timezone": {"  ", "Asia/Shanghai"}}, "timezone"); got != "Asia/Shanghai" {
+		t.Fatalf("first non-empty got=%q", got)
+	}
+	if got := getQueryParamCI(url.Values{"timezone": {"  "}}, "timezone"); got != "" {
+		t.Fatalf("all empty got=%q", got)
+	}
+}
+
+func TestFilterPostgresParams(t *testing.T) {
+	in := url.Values{
+		"useSSL":                  {"false"},
+		"serverTimezone":          {"Asia/Shanghai"},
+		"characterEncoding":       {"utf8"},
+		"allowPublicKeyRetrieval": {"true"},
+		"application_name":        {"liao"},
+		"timezone":                {"Asia/Shanghai"},
+	}
+	out := filterPostgresParams(in)
+
+	if out.Get("application_name") != "liao" || out.Get("timezone") != "Asia/Shanghai" {
+		t.Fatalf("out=%v", out)
+	}
+	for _, dropped := range []string{"useSSL", "serverTimezone", "characterEncoding", "allowPublicKeyRetrieval"} {
+		if _, ok := out[dropped]; ok {
+			t.Fatalf("expected dropped param %q", dropped)
+		}
+	}
+	// output copy should not share backing slice with input
+	in["application_name"][0] = "changed"
+	if out.Get("application_name") != "liao" {
+		t.Fatalf("out should be independent copy: %v", out)
+	}
+}
+
+func TestIsTruthy(t *testing.T) {
+	trueValues := []string{"1", "true", "t", "yes", "y", "on", "require", "required", " YES "}
+	for _, v := range trueValues {
+		if !isTruthy(v) {
+			t.Fatalf("expected true for %q", v)
+		}
+	}
+	falseValues := []string{"", "0", "false", "off", "none", "random"}
+	for _, v := range falseValues {
+		if isTruthy(v) {
+			t.Fatalf("expected false for %q", v)
+		}
+	}
 }

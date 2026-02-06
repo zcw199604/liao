@@ -389,3 +389,155 @@ func TestHandleDouyinCover_ErrorBranches(t *testing.T) {
 		}
 	})
 }
+
+func TestHandleDouyinCover_ForbiddenRefreshSuccess(t *testing.T) {
+	a := &App{douyinDownloader: NewDouyinDownloaderService("http://upstream.local", "", "", "", time.Second)}
+
+	oldCover := "http://media.example.com/cover-old.jpg"
+	newCover := "http://media.example.com/cover-new.jpg"
+	key := a.douyinDownloader.CacheDetail(&douyinCachedDetail{DetailID: "123", Title: "t", Type: "视频", CoverURL: oldCover, Downloads: []string{"http://media.example.com/v1.mp4"}})
+
+	var oldCoverHits, detailHits, newCoverHits int
+	a.douyinDownloader.api.httpClient = &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.String() == oldCover:
+			oldCoverHits++
+			return &http.Response{
+				StatusCode: http.StatusForbidden,
+				Status:     "403 Forbidden",
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader("403-old")),
+				Request:    r,
+			}, nil
+		case r.Method == http.MethodPost && r.URL.Path == "/douyin/detail":
+			detailHits++
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body: io.NopCloser(strings.NewReader(
+					`{"message":"OK","data":{"desc":"t","type":"视频","static_cover":"` + newCover + `","downloads":["http://media.example.com/v1.mp4"]}}`,
+				)),
+				Request: r,
+			}, nil
+		case r.Method == http.MethodGet && r.URL.String() == newCover:
+			newCoverHits++
+			h := make(http.Header)
+			h.Set("Content-Type", "image/jpeg")
+			h.Set("Content-Length", "1")
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     h,
+				Body:       io.NopCloser(strings.NewReader("x")),
+				Request:    r,
+			}, nil
+		default:
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Status:     "500 Internal Server Error",
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader("unexpected")),
+				Request:    r,
+			}, nil
+		}
+	})}
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/cover?key="+key, nil)
+	rec := httptest.NewRecorder()
+	a.handleDouyinCover(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if oldCoverHits != 1 || detailHits != 1 || newCoverHits != 1 {
+		t.Fatalf("hits old=%d detail=%d new=%d", oldCoverHits, detailHits, newCoverHits)
+	}
+
+	updated, ok := a.douyinDownloader.GetCachedDetail(key)
+	if !ok || updated == nil || strings.TrimSpace(updated.CoverURL) != newCover {
+		t.Fatalf("cover not refreshed: ok=%v updated=%v", ok, updated)
+	}
+}
+
+func TestHandleDouyinCover_ForbiddenRefreshRetryFailed(t *testing.T) {
+	a := &App{douyinDownloader: NewDouyinDownloaderService("http://upstream.local", "", "", "", time.Second)}
+
+	oldCover := "http://media.example.com/cover-old.jpg"
+	newCover := "http://media.example.com/cover-new.jpg"
+	key := a.douyinDownloader.CacheDetail(&douyinCachedDetail{DetailID: "123", Title: "t", Type: "视频", CoverURL: oldCover, Downloads: []string{"http://media.example.com/v1.mp4"}})
+
+	a.douyinDownloader.api.httpClient = &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.String() == oldCover:
+			return &http.Response{StatusCode: http.StatusForbidden, Status: "403 Forbidden", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("403-old")), Request: r}, nil
+		case r.Method == http.MethodPost && r.URL.Path == "/douyin/detail":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body: io.NopCloser(strings.NewReader(
+					`{"message":"OK","data":{"desc":"t","type":"视频","static_cover":"` + newCover + `","downloads":["http://media.example.com/v1.mp4"]}}`,
+				)),
+				Request: r,
+			}, nil
+		case r.Method == http.MethodGet && r.URL.String() == newCover:
+			return &http.Response{StatusCode: http.StatusBadGateway, Status: "502 Bad Gateway", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("bad-gateway")), Request: r}, nil
+		default:
+			return &http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("unexpected")), Request: r}, nil
+		}
+	})}
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/cover?key="+key, nil)
+	rec := httptest.NewRecorder()
+	a.handleDouyinCover(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	body := decodeJSONBody(t, rec.Body)
+	if !strings.Contains(body["error"].(string), "502 Bad Gateway") || !strings.Contains(body["error"].(string), "bad-gateway") {
+		t.Fatalf("body=%v", body)
+	}
+}
+
+func TestHandleDouyinCover_CrossHostRedirectDropsCookie(t *testing.T) {
+	a := &App{douyinDownloader: NewDouyinDownloaderService("http://unused.local", "", "sid=abc", "", time.Second)}
+
+	firstURL := "http://www.douyin.com/cover.jpg"
+	finalURL := "http://cdn.example.com/final.jpg"
+	key := a.douyinDownloader.CacheDetail(&douyinCachedDetail{DetailID: "d1", Title: "t", Type: "视频", CoverURL: firstURL, Downloads: []string{"http://x"}})
+
+	var firstCookie, finalCookie string
+	a.douyinDownloader.api.httpClient = &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.String() {
+		case firstURL:
+			firstCookie = strings.TrimSpace(r.Header.Get("Cookie"))
+			h := make(http.Header)
+			h.Set("Location", finalURL)
+			return &http.Response{StatusCode: http.StatusFound, Status: "302 Found", Header: h, Body: io.NopCloser(strings.NewReader("")), Request: r}, nil
+		case finalURL:
+			finalCookie = strings.TrimSpace(r.Header.Get("Cookie"))
+			h := make(http.Header)
+			h.Set("Content-Type", "image/jpeg")
+			h.Set("Content-Length", "1")
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Header: h, Body: io.NopCloser(strings.NewReader("x")), Request: r}, nil
+		default:
+			return &http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("unexpected")), Request: r}, nil
+		}
+	})}
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/api/douyin/cover?key="+key, nil)
+	rec := httptest.NewRecorder()
+	a.handleDouyinCover(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if firstCookie != "sid=abc" {
+		t.Fatalf("first cookie=%q", firstCookie)
+	}
+	if finalCookie != "" {
+		t.Fatalf("final cookie should be dropped, got %q", finalCookie)
+	}
+}

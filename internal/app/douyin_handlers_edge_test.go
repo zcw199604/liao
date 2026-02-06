@@ -174,6 +174,186 @@ func TestHandleDouyinDownloadHead_RangeStatusError(t *testing.T) {
 	}
 }
 
+func TestHandleDouyinDownloadHead_ForbiddenRefreshSuccess(t *testing.T) {
+	a := &App{douyinDownloader: NewDouyinDownloaderService("http://upstream.local", "", "", "", 60*time.Second)}
+
+	oldURL := "http://media.example.com/old.mp4"
+	newURL := "http://media.example.com/new.mp4"
+	key := a.douyinDownloader.CacheDetail(&douyinCachedDetail{DetailID: "d1", Title: "t", Downloads: []string{oldURL}})
+	cached, ok := a.douyinDownloader.GetCachedDetail(key)
+	if !ok || cached == nil {
+		t.Fatalf("cache miss")
+	}
+
+	var oldHeadHits, detailHits, newHeadHits int
+	a.douyinDownloader.api.httpClient = &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case r.Method == http.MethodHead && r.URL.String() == oldURL:
+			oldHeadHits++
+			return &http.Response{
+				StatusCode: http.StatusForbidden,
+				Status:     "403 Forbidden",
+				Header:     make(http.Header),
+				Body:       ioNopCloser("forbidden-old"),
+				Request:    r,
+			}, nil
+		case r.Method == http.MethodPost && r.URL.Path == "/douyin/detail":
+			detailHits++
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       ioNopCloser(`{"message":"OK","data":{"desc":"t","type":"视频","static_cover":"","downloads":["` + newURL + `"]}}`),
+				Request:    r,
+			}, nil
+		case r.Method == http.MethodHead && r.URL.String() == newURL:
+			newHeadHits++
+			h := make(http.Header)
+			h.Set("Content-Type", "video/mp4")
+			h.Set("Content-Length", "123")
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     h,
+				Body:       ioNopCloser(""),
+				Request:    r,
+			}, nil
+		default:
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Status:     "500 Internal Server Error",
+				Header:     make(http.Header),
+				Body:       ioNopCloser("unexpected"),
+				Request:    r,
+			}, nil
+		}
+	})}
+
+	req := httptest.NewRequest(http.MethodHead, "http://example.com/api/douyin/download?key="+key+"&index=0", nil)
+	rec := httptest.NewRecorder()
+	a.handleDouyinDownloadHead(rec, req, key, cached, 0, oldURL)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Content-Length"); got != "123" {
+		t.Fatalf("content-length=%q", got)
+	}
+	if oldHeadHits != 1 || detailHits != 1 || newHeadHits != 1 {
+		t.Fatalf("hits oldHead=%d detail=%d newHead=%d", oldHeadHits, detailHits, newHeadHits)
+	}
+
+	updated, ok := a.douyinDownloader.GetCachedDetail(key)
+	if !ok || updated == nil || len(updated.Downloads) != 1 || strings.TrimSpace(updated.Downloads[0]) != newURL {
+		t.Fatalf("cache not refreshed: ok=%v updated=%v", ok, updated)
+	}
+}
+
+func TestHandleDouyinDownloadHead_RangeForbiddenRefreshSuccess(t *testing.T) {
+	a := &App{douyinDownloader: NewDouyinDownloaderService("http://upstream.local", "", "", "", 60*time.Second)}
+
+	oldURL := "http://media.example.com/old.mp4"
+	newURL := "http://media.example.com/new.mp4"
+	key := a.douyinDownloader.CacheDetail(&douyinCachedDetail{DetailID: "d1", Title: "t", Downloads: []string{oldURL}})
+	cached, ok := a.douyinDownloader.GetCachedDetail(key)
+	if !ok || cached == nil {
+		t.Fatalf("cache miss")
+	}
+
+	var oldHeadHits, oldRangeHits, detailHits, newRangeHits int
+	a.douyinDownloader.api.httpClient = &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case r.Method == http.MethodHead && r.URL.String() == oldURL:
+			oldHeadHits++
+			return &http.Response{StatusCode: http.StatusMethodNotAllowed, Status: "405 Method Not Allowed", Header: make(http.Header), Body: ioNopCloser(""), Request: r}, nil
+		case r.Method == http.MethodGet && r.URL.String() == oldURL && strings.TrimSpace(r.Header.Get("Range")) == "bytes=0-0":
+			oldRangeHits++
+			return &http.Response{StatusCode: http.StatusForbidden, Status: "403 Forbidden", Header: make(http.Header), Body: ioNopCloser("forbidden-range"), Request: r}, nil
+		case r.Method == http.MethodPost && r.URL.Path == "/douyin/detail":
+			detailHits++
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       ioNopCloser(`{"message":"OK","data":{"desc":"t","type":"视频","static_cover":"","downloads":["` + newURL + `"]}}`),
+				Request:    r,
+			}, nil
+		case r.Method == http.MethodGet && r.URL.String() == newURL && strings.TrimSpace(r.Header.Get("Range")) == "bytes=0-0":
+			newRangeHits++
+			h := make(http.Header)
+			h.Set("Content-Type", "video/mp4")
+			h.Set("Accept-Ranges", "bytes")
+			h.Set("Content-Range", "bytes 0-0/321")
+			h.Set("Content-Length", "1")
+			return &http.Response{StatusCode: http.StatusPartialContent, Status: "206 Partial Content", Header: h, Body: ioNopCloser("x"), Request: r}, nil
+		default:
+			return &http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error", Header: make(http.Header), Body: ioNopCloser("unexpected"), Request: r}, nil
+		}
+	})}
+
+	req := httptest.NewRequest(http.MethodHead, "http://example.com/api/douyin/download?key="+key+"&index=0", nil)
+	rec := httptest.NewRecorder()
+	a.handleDouyinDownloadHead(rec, req, key, cached, 0, oldURL)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Content-Length"); got != "321" {
+		t.Fatalf("content-length=%q", got)
+	}
+	if got := rec.Header().Get("Accept-Ranges"); got != "bytes" {
+		t.Fatalf("accept-ranges=%q", got)
+	}
+	if oldHeadHits != 1 || oldRangeHits != 1 || detailHits != 1 || newRangeHits != 1 {
+		t.Fatalf("hits oldHead=%d oldRange=%d detail=%d newRange=%d", oldHeadHits, oldRangeHits, detailHits, newRangeHits)
+	}
+
+	updated, ok := a.douyinDownloader.GetCachedDetail(key)
+	if !ok || updated == nil || len(updated.Downloads) != 1 || strings.TrimSpace(updated.Downloads[0]) != newURL {
+		t.Fatalf("cache not refreshed: ok=%v updated=%v", ok, updated)
+	}
+}
+
+func TestHandleDouyinDownloadHead_CrossHostRedirectDropsCookie(t *testing.T) {
+	a := &App{douyinDownloader: NewDouyinDownloaderService("http://unused.local", "", "sid=abc", "", 60*time.Second)}
+
+	oldURL := "http://www.douyin.com/video/123"
+	finalURL := "http://cdn.example.com/final.mp4"
+
+	var firstCookie, finalCookie string
+	a.douyinDownloader.api.httpClient = &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case r.URL.String() == oldURL:
+			firstCookie = strings.TrimSpace(r.Header.Get("Cookie"))
+			h := make(http.Header)
+			h.Set("Location", finalURL)
+			return &http.Response{StatusCode: http.StatusFound, Status: "302 Found", Header: h, Body: ioNopCloser(""), Request: r}, nil
+		case r.URL.String() == finalURL:
+			finalCookie = strings.TrimSpace(r.Header.Get("Cookie"))
+			h := make(http.Header)
+			h.Set("Content-Type", "video/mp4")
+			h.Set("Content-Length", "9")
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Header: h, Body: ioNopCloser(""), Request: r}, nil
+		default:
+			return &http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error", Header: make(http.Header), Body: ioNopCloser("unexpected"), Request: r}, nil
+		}
+	})}
+
+	req := httptest.NewRequest(http.MethodHead, "http://example.com/api/douyin/download?key=x&index=0", nil)
+	rec := httptest.NewRecorder()
+	a.handleDouyinDownloadHead(rec, req, "x", &douyinCachedDetail{Title: "t", DetailID: "d1", Downloads: []string{oldURL}}, 0, oldURL)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if firstCookie != "sid=abc" {
+		t.Fatalf("first cookie=%q", firstCookie)
+	}
+	if finalCookie != "" {
+		t.Fatalf("final cookie should be dropped, got %q", finalCookie)
+	}
+}
+
 func TestDouyinFilenameHelpers(t *testing.T) {
 	if got := guessExtFromURL(" "); got != "" {
 		t.Fatalf("got=%q", got)
