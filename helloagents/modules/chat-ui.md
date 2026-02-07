@@ -11,6 +11,15 @@
 ## 规范
 
 ### 上传菜单: 聊天页“+”支持直达抖音收藏作者
+
+### 上传菜单: 操作区宫格化（减负）
+**模块:** Chat UI
+聊天页上传菜单的操作区由纵向按钮堆叠调整为宫格布局（`grid-cols-3`），顶部“已上传待发送”缩略图区保持不变。
+
+交互约束：
+- 操作按钮采用“图标在上、文案在下”的卡片样式，优先保证移动端点击热区
+- 功能链路不变：历史/所有上传/mtPhoto/抖音收藏作者的事件语义保持一致
+
 **模块:** Chat UI
 在 `ChatRoomView` 的上传菜单（`UploadMenu`）新增“抖音收藏作者”入口，用于从聊天场景快速跳转到抖音收藏作者列表。
 
@@ -245,6 +254,7 @@ lastMsg 预览（与后端缓存增强对齐）：
 - `frontend/src/__tests__/components.test.ts`
 
 ## 变更历史
+- [202602071430_chat-uploadmenu-grid] - 聊天页上传菜单操作区改为宫格布局，降低视觉拥挤
 - [202602071149_chat-uploadmenu-douyin-favorites] - 聊天页“+”上传菜单新增“抖音收藏作者”入口，直达收藏作者列表
 - [202602070506_chat_sidebar_highlight_theme_adaptive] - 搜索高亮改为浅色/深色主题自适应（统一 search-highlight 语义类）
 - [202602070450_chat_sidebar_search_position] - 搜索框移入可滚动列表区域，避免始终固定在顶部

@@ -43,47 +43,47 @@
       暂无已上传的文件
     </div>
 
-    <!-- 区域2：操作按钮 -->
-    <div class="space-y-2">
+    <!-- 区域2：操作按钮（宫格布局，降低纵向菜单拥挤感） -->
+    <div class="grid grid-cols-3 gap-2">
       <button
         @click="$emit('uploadFile')"
-        class="w-full py-3 bg-surface/70 hover:bg-surface/90 text-fg rounded-xl transition-colors flex items-center justify-center gap-2 border border-line"
+        class="min-h-[82px] px-2 py-3 bg-surface/70 hover:bg-surface/90 text-fg rounded-xl transition-colors border border-line flex flex-col items-center justify-center gap-1"
       >
-        <i class="fas fa-folder-open"></i>
-        <span>选择文件上传</span>
+        <i class="fas fa-folder-open text-base"></i>
+        <span class="text-xs leading-tight text-center">选择文件上传</span>
       </button>
 
       <button
         v-if="canOpenChatHistory"
         @click="$emit('openChatHistory')"
-        class="w-full py-3 bg-surface/70 hover:bg-surface/90 text-fg rounded-xl border border-line flex items-center justify-center gap-2 transition-colors"
+        class="min-h-[82px] px-2 py-3 bg-surface/70 hover:bg-surface/90 text-fg rounded-xl border border-line flex flex-col items-center justify-center gap-1 transition-colors"
       >
-        <i class="fas fa-history"></i>
-        <span>历史聊天图片</span>
+        <i class="fas fa-history text-base"></i>
+        <span class="text-xs leading-tight text-center">历史聊天图片</span>
       </button>
 
       <button
         @click="$emit('openAllUploads')"
-        class="w-full py-3 bg-surface/70 hover:bg-surface/90 text-fg rounded-xl border border-line flex items-center justify-center gap-2 transition-colors"
+        class="min-h-[82px] px-2 py-3 bg-surface/70 hover:bg-surface/90 text-fg rounded-xl border border-line flex flex-col items-center justify-center gap-1 transition-colors"
       >
-        <i class="fas fa-images"></i>
-        <span>所有上传图片</span>
+        <i class="fas fa-images text-base"></i>
+        <span class="text-xs leading-tight text-center">所有上传图片</span>
       </button>
 
       <button
         @click="$emit('openMtPhoto')"
-        class="w-full py-3 bg-surface/70 hover:bg-surface/90 text-fg rounded-xl border border-line flex items-center justify-center gap-2 transition-colors"
+        class="min-h-[82px] px-2 py-3 bg-surface/70 hover:bg-surface/90 text-fg rounded-xl border border-line flex flex-col items-center justify-center gap-1 transition-colors"
       >
-        <i class="fas fa-photo-video"></i>
-        <span>mtPhoto 相册</span>
+        <i class="fas fa-photo-video text-base"></i>
+        <span class="text-xs leading-tight text-center">mtPhoto 相册</span>
       </button>
 
       <button
         @click="$emit('openDouyinFavoriteAuthors')"
-        class="w-full py-3 bg-surface/70 hover:bg-surface/90 text-fg rounded-xl border border-line flex items-center justify-center gap-2 transition-colors"
+        class="min-h-[82px] px-2 py-3 bg-surface/70 hover:bg-surface/90 text-fg rounded-xl border border-line flex flex-col items-center justify-center gap-1 transition-colors"
       >
-        <i class="fas fa-star"></i>
-        <span>抖音收藏作者</span>
+        <i class="fas fa-star text-base"></i>
+        <span class="text-xs leading-tight text-center">抖音收藏作者</span>
       </button>
     </div>
   </div>
