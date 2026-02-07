@@ -84,6 +84,28 @@
        <div class="h-full bg-blue-500 animate-progress-indeterminate"></div>
     </div>
 
+    <!-- 列表搜索：仅过滤当前 tab 的本地列表，不触发后端请求 -->
+    <div class="px-4 pt-3 pb-1 shrink-0">
+      <div class="relative">
+        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-fg-muted"></i>
+        <input
+          v-model="searchKeyword"
+          data-testid="chat-sidebar-search-input"
+          type="text"
+          placeholder="搜索用户（昵称/名称/ID/地址）"
+          class="w-full rounded-xl border border-line bg-surface-2 py-2 pl-9 pr-9 text-sm text-fg placeholder:text-fg-muted outline-none focus:ring-2 focus:ring-blue-500/30"
+        />
+        <button
+          v-if="searchKeyword"
+          @click="searchKeyword = ''"
+          class="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-surface-3 text-fg-muted hover:text-fg transition"
+          aria-label="清空搜索"
+        >
+          <i class="fas fa-times text-[10px]"></i>
+        </button>
+      </div>
+    </div>
+
     <!-- 列表内容 -->
 	    <PullToRefresh :on-refresh="refreshCurrentTab" class="flex-1 min-h-0">
 	      <div 
@@ -111,7 +133,7 @@
 
 	        <template v-else>
 	          <div
-	            v-for="user in chatStore.displayList"
+	            v-for="user in filteredDisplayList"
 	            :key="user.id"
 	            @click="handleClick(user, $event)"
 	            @touchstart="startLongPress(user, $event)"
@@ -186,10 +208,17 @@
 	                />
 	            </div>
 	          </div>
-	  
+	          
 	          <!-- 空状态提示 -->
 	          <div
-	            v-if="(!chatStore.displayList || chatStore.displayList.length === 0) && !isInitialLoadingUsers"
+	            v-if="showNoSearchMatch"
+	            class="ui-empty-state mt-20"
+	          >
+	            <i class="fas fa-search text-5xl mb-4 opacity-50"></i>
+	            <p class="text-sm">未找到匹配用户</p>
+	          </div>
+	          <div
+	            v-else-if="(!chatStore.displayList || chatStore.displayList.length === 0) && !isInitialLoadingUsers"
 	            class="ui-empty-state mt-20"
 	          >
 	            <i class="far fa-comments text-5xl mb-4 opacity-50"></i>
@@ -388,10 +417,30 @@ const showSettings = ref(false)
 const settingsMode = ref<'identity' | 'system' | 'media' | 'favorites'>('identity')
 const showSwitchIdentityDialog = ref(false)
 const showDeleteUserDialog = ref(false)
-	const userToDelete = ref<User | null>(null)
-	const listAreaRef = ref<HTMLElement | null>(null)
+const userToDelete = ref<User | null>(null)
+const listAreaRef = ref<HTMLElement | null>(null)
 const isRefreshing = ref(false)
-	const isInitialLoadingUsers = ref(false)
+const isInitialLoadingUsers = ref(false)
+
+// 列表搜索：仅在当前 tab 的本地用户列表中过滤
+const searchKeyword = ref('')
+const normalizedSearchKeyword = computed(() => searchKeyword.value.trim().toLowerCase())
+const filteredDisplayList = computed(() => {
+  const keyword = normalizedSearchKeyword.value
+  if (!keyword) return chatStore.displayList
+
+  return chatStore.displayList.filter((user) => {
+    const fields = [user.nickname, user.name, user.id, user.address]
+    return fields.some((field) => String(field || '').toLowerCase().includes(keyword))
+  })
+})
+
+const showNoSearchMatch = computed(() => {
+  return normalizedSearchKeyword.value.length > 0 &&
+    chatStore.displayList.length > 0 &&
+    filteredDisplayList.value.length === 0 &&
+    !isInitialLoadingUsers.value
+})
 
 // 批量删除（多选）状态
 const selectionMode = ref(false)
@@ -400,8 +449,9 @@ const showBatchDeleteDialog = ref(false)
 
 const isSelected = (userId: string) => selectedUserIds.value.includes(userId)
 const isAllSelected = computed(() => {
-  const total = chatStore.displayList?.length || 0
-  return total > 0 && selectedUserIds.value.length === total
+  const visibleIds = filteredDisplayList.value.map(user => user.id)
+  if (visibleIds.length === 0) return false
+  return visibleIds.every(id => selectedUserIds.value.includes(id))
 })
 
 const handleEnterSelectionMode = (preselect?: User) => {
@@ -431,12 +481,16 @@ const toggleSelection = (userId: string) => {
 }
 
 const toggleSelectAll = () => {
-  const ids = chatStore.displayList.map(u => u.id)
-  if (selectedUserIds.value.length === ids.length) {
-    selectedUserIds.value = []
+  const visibleIds = filteredDisplayList.value.map(user => user.id)
+  if (visibleIds.length === 0) return
+
+  const isVisibleAllSelected = visibleIds.every(id => selectedUserIds.value.includes(id))
+  if (isVisibleAllSelected) {
+    selectedUserIds.value = selectedUserIds.value.filter(id => !visibleIds.includes(id))
     return
   }
-  selectedUserIds.value = ids
+
+  selectedUserIds.value = Array.from(new Set([...selectedUserIds.value, ...visibleIds]))
 }
 
 const confirmBatchDelete = () => {
@@ -484,7 +538,7 @@ const getYesterdayKey = () => {
 
 const dayDeleteGroupMap = computed(() => {
   const map = new Map<string, string[]>()
-  for (const user of chatStore.displayList) {
+  for (const user of filteredDisplayList.value) {
     const key = getDayKeyFromLastTime(user.lastTime || '')
     const arr = map.get(key)
     if (arr) {
@@ -524,7 +578,7 @@ const openDaySelector = () => {
 const applyDaySelection = (dayKeys: string[]) => {
   const keySet = new Set(dayKeys)
   const ids: string[] = []
-  for (const user of chatStore.displayList) {
+  for (const user of filteredDisplayList.value) {
     const key = getDayKeyFromLastTime(user.lastTime || '')
     if (keySet.has(key)) ids.push(user.id)
   }
@@ -821,6 +875,12 @@ const handleTabSwitch = async (tab: 'history' | 'favorite') => {
   }
   chatStore.activeTab = tab
 }
+
+
+// 切换 tab 后清空搜索，避免把上一个 tab 的筛选条件带到新列表
+watch(() => chatStore.activeTab, () => {
+  searchKeyword.value = ''
+})
 
 const handleMatchSuccess = (e: any) => {
   const matchedUser = e.detail as User

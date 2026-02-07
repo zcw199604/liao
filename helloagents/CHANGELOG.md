@@ -7,6 +7,9 @@
 ## [Unreleased]
 
 ### 新增
+- 前端：会话列表 `ChatSidebar` 新增本地用户搜索能力（按 `nickname/name/id/address` 大小写不敏感过滤当前 Tab 列表），支持空关键词恢复全量、无匹配时显示“未找到匹配用户”；并同步调整多选“全选当前列表/按天选择”基于可见过滤结果执行，避免误选隐藏项；补充 Vitest 组件用例覆盖过滤匹配与无结果提示。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
 - 后端：数据库支持 MySQL + PostgreSQL 双栈；运行时仅通过 `DB_URL` 的 scheme 选择数据库类型（兼容 `jdbc:` 前缀），并新增 `internal/database` 方言层以统一占位符与 Upsert/InsertIgnore/Returning 等差异；同时引入 `schema_migrations` + `sql/{dialect}/*.sql` 版本化迁移机制（启动时自动执行）。
   - PostgreSQL 连接会过滤常见 MySQL-only query 参数，并在未显式提供时 best-effort 映射 `serverTimezone`→`timezone`、`useSSL`→`sslmode`，以支持仅改 scheme 即可切库。
   - PostgreSQL 对抖音收藏标签名（`douyin_favorite_user_tag.name` / `douyin_favorite_aweme_tag.name`）增加大小写不敏感唯一索引 `UNIQUE (LOWER(name))`，对齐 MySQL 常见 collation 的行为。

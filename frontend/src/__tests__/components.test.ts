@@ -138,6 +138,31 @@ describe('components/chat/ChatSidebar.vue', () => {
     vi.useRealTimers()
   })
 
+  const mountChatSidebar = async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div />' } }]
+    })
+    await router.push('/')
+    await router.isReady()
+
+    return shallowMount(ChatSidebar, {
+      global: {
+        plugins: [pinia, router],
+        stubs: {
+          Toast: true,
+          SettingsDrawer: true,
+          Dialog: true,
+          MatchButton: true,
+          MatchOverlay: true,
+          PullToRefresh: {
+            template: '<div><slot /></div>'
+          }
+        }
+      }
+    })
+  }
+
   it('formats lastTime and emits select on click', async () => {
     const chatStore = useChatStore()
     chatStore.activeTab = 'history'
@@ -155,28 +180,7 @@ describe('components/chat/ChatSidebar.vue', () => {
       unreadCount: 0
     })
 
-    const router = createRouter({
-      history: createMemoryHistory(),
-      routes: [{ path: '/', component: { template: '<div />' } }]
-    })
-    await router.push('/')
-    await router.isReady()
-
-    const wrapper = shallowMount(ChatSidebar, {
-      global: {
-        plugins: [pinia, router],
-        stubs: {
-          Toast: true,
-          SettingsDrawer: true,
-          Dialog: true,
-          MatchButton: true,
-          MatchOverlay: true,
-          PullToRefresh: {
-            template: '<div><slot /></div>'
-          }
-        }
-      }
-    })
+    const wrapper = await mountChatSidebar()
 
     expect(wrapper.text()).toContain('Alice')
     expect(wrapper.text()).toContain('09:05')
@@ -184,4 +188,94 @@ describe('components/chat/ChatSidebar.vue', () => {
     await wrapper.get('div.cursor-pointer').trigger('click')
     expect(wrapper.emitted('select')?.[0]?.[0]).toEqual(expect.objectContaining({ id: 'u1' }))
   })
+
+  it('filters users by keyword and supports nickname/name/id/address matching', async () => {
+    const chatStore = useChatStore()
+    chatStore.activeTab = 'history'
+    chatStore.historyUserIds = ['u1', 'USER-BETA-02']
+    chatStore.favoriteUserIds = []
+    chatStore.upsertUser({
+      id: 'u1',
+      name: 'Alice Name',
+      nickname: 'Ali',
+      sex: '未知',
+      ip: '',
+      address: 'Hangzhou',
+      isFavorite: false,
+      lastMsg: 'hello',
+      lastTime: new Date(2026, 0, 4, 9, 5, 0).toISOString(),
+      unreadCount: 0
+    })
+    chatStore.upsertUser({
+      id: 'USER-BETA-02',
+      name: 'Beta Name',
+      nickname: 'Bobby',
+      sex: '未知',
+      ip: '',
+      address: 'Shenzhen',
+      isFavorite: false,
+      lastMsg: 'hi',
+      lastTime: new Date(2026, 0, 4, 9, 6, 0).toISOString(),
+      unreadCount: 0
+    })
+
+    const wrapper = await mountChatSidebar()
+    const searchInput = wrapper.get('[data-testid="chat-sidebar-search-input"]')
+
+    expect(wrapper.text()).toContain('Ali')
+    expect(wrapper.text()).toContain('Bobby')
+
+    await searchInput.setValue('boB')
+    expect(wrapper.text()).toContain('Bobby')
+    expect(wrapper.text()).not.toContain('Ali')
+
+    await searchInput.setValue('alice name')
+    expect(wrapper.text()).toContain('Ali')
+    expect(wrapper.text()).not.toContain('Bobby')
+
+    await searchInput.setValue('user-beta-02')
+    expect(wrapper.text()).toContain('Bobby')
+    expect(wrapper.text()).not.toContain('Ali')
+
+    await searchInput.setValue('SHENZHEN')
+    expect(wrapper.text()).toContain('Bobby')
+    expect(wrapper.text()).not.toContain('Ali')
+
+    await wrapper.get('div.cursor-pointer').trigger('click')
+    expect(wrapper.emitted('select')?.[0]?.[0]).toEqual(expect.objectContaining({ id: 'USER-BETA-02' }))
+
+    await searchInput.setValue('')
+    expect(wrapper.text()).toContain('Ali')
+    expect(wrapper.text()).toContain('Bobby')
+  })
+
+  it('shows no-match message when keyword has no results', async () => {
+    const chatStore = useChatStore()
+    chatStore.activeTab = 'history'
+    chatStore.historyUserIds = ['u1']
+    chatStore.favoriteUserIds = []
+    chatStore.upsertUser({
+      id: 'u1',
+      name: 'Alice',
+      nickname: 'Alice',
+      sex: '未知',
+      ip: '',
+      address: 'Hangzhou',
+      isFavorite: false,
+      lastMsg: 'hello',
+      lastTime: new Date(2026, 0, 4, 9, 5, 0).toISOString(),
+      unreadCount: 0
+    })
+
+    const wrapper = await mountChatSidebar()
+    const searchInput = wrapper.get('[data-testid="chat-sidebar-search-input"]')
+
+    await searchInput.setValue('not-exist-user')
+    expect(wrapper.text()).toContain('未找到匹配用户')
+    expect(wrapper.text()).not.toContain('暂无消息')
+
+    await searchInput.setValue('')
+    expect(wrapper.text()).toContain('Alice')
+  })
 })
+

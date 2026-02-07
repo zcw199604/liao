@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** 会话列表/聊天页/侧边栏抽屉的手势交互与弹层关闭行为
 - **状态:** ✅稳定
-- **最后更新:** 2026-01-19
+- **最后更新:** 2026-02-07
 
 ## 规范
 
@@ -36,6 +36,23 @@ WebSocket 连接在浏览器侧为全局单例；Go 后端会将下游连接与�
 实现约定:
 - `useSwipeAction.onSwipeEnd`：仅在超阈值时触发（用于 Tab 切换等业务动作）
 - `useSwipeAction.onSwipeFinish`：手势结束必触发（用于位移复位/收尾清理）
+
+### 列表搜索: 当前 Tab 内按用户字段过滤
+**模块:** Chat UI
+在 `ChatSidebar` 顶部提供搜索输入框（本地过滤，不触发后端请求）：
+- 过滤范围：仅当前 Tab（`history` 或 `favorite`）的 `displayList`
+- 匹配字段：`nickname`、`name`、`id`、`address`
+- 匹配规则：关键词与字段统一转小写后执行 `includes`，实现大小写不敏感
+
+交互约束：
+- 关键词为空时显示完整列表
+- 关键词非空且无匹配时显示“未找到匹配用户”
+- 与默认空态区分：仅当源列表为空时才显示“暂无消息/暂无收藏”
+- Tab 切换（按钮或手势）后清空搜索关键词，避免跨列表遗留筛选条件
+
+兼容性约束：
+- 不改变用户项点击进入聊天行为
+- 批量操作（全选、按天选择）以过滤后的可见列表为准，避免“看不见却被选中”
 
 ### 手势: 聊天页左边缘右滑返回列表
 **模块:** Chat UI
@@ -204,8 +221,10 @@ lastMsg 预览（与后端缓存增强对齐）：
 - `frontend/src/types/message.ts`
 - `frontend/src/stores/systemConfig.ts`
 - `frontend/src/components/settings/SystemSettings.vue`
+- `frontend/src/__tests__/components.test.ts`
 
 ## 变更历史
+- [202602070215_chat_sidebar_user_search] - 会话列表新增本地搜索（昵称/名称/ID/地址）与无结果提示，并补充组件测试
 - [202601060948_chat_gesture_ux](../../history/2026-01/202601060948_chat_gesture_ux/) - 聊天手势与弹层交互增强
 - [202601062010_fix_unread_badge_list](../../history/2026-01/202601062010_fix_unread_badge_list/) - 修复列表页未读气泡误判不显示（路由判定 + 会话状态清理双保险）
 - [202601062034_refine_unread_route_cleanup](../../history/2026-01/202601062034_refine_unread_route_cleanup/) - 未读判定改用路由实例，并简化聊天页卸载清理逻辑
