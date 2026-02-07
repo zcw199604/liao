@@ -159,6 +159,11 @@
     @apply flex flex-col items-center justify-center text-fg-subtle;
   }
 
+  /* 搜索命中高亮：浅色/深色主题下保持可读对比 */
+  .search-highlight {
+    @apply bg-yellow-300/50 text-yellow-900 dark:bg-yellow-500/30 dark:text-yellow-200 transition-colors;
+  }
+
   /* 轻玻璃顶栏：用于侧边栏/悬浮头部 */
   .ui-glass-topbar {
     @apply bg-glass backdrop-blur-xl border-b border-line;

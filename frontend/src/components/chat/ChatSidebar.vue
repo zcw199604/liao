@@ -172,7 +172,7 @@
 	                <div class="flex items-center gap-2 truncate">
 	                  <span class="font-bold text-base text-fg truncate">
 	                    <template v-for="(part, index) in getHighlightParts(user.nickname)" :key="`nickname-${user.id}-${index}`">
-	                      <span :class="part.match ? 'search-highlight rounded px-0.5 bg-yellow-500/20 text-yellow-300' : ''">{{ part.text }}</span>
+	                      <span :class="part.match ? 'search-highlight rounded px-0.5' : ''">{{ part.text }}</span>
 	                    </template>
 	                  </span>
 	                  <!-- 性别年龄标签 -->
@@ -194,12 +194,12 @@
 	                   <!-- 地址显示 (如果有) -->
 	                   <span v-if="user.address && user.address !== '未知' && user.address !== '保密'" class="px-1.5 py-0.5 bg-surface-3/70 rounded text-[10px] text-fg-muted truncate max-w-[80px]">
 	                     <template v-for="(part, index) in getHighlightParts(user.address)" :key="`address-${user.id}-${index}`">
-	                       <span :class="part.match ? 'search-highlight rounded px-0.5 bg-yellow-500/20 text-yellow-300' : ''">{{ part.text }}</span>
+	                       <span :class="part.match ? 'search-highlight rounded px-0.5' : ''">{{ part.text }}</span>
 	                     </template>
 	                   </span>
 	                   <p class="text-sm text-fg-muted truncate flex-1">
 	                     <template v-for="(part, index) in getHighlightParts(user.lastMsg)" :key="`lastmsg-${user.id}-${index}`">
-	                       <span :class="part.match ? 'search-highlight rounded px-0.5 bg-yellow-500/20 text-yellow-300' : ''">{{ part.text }}</span>
+	                       <span :class="part.match ? 'search-highlight rounded px-0.5' : ''">{{ part.text }}</span>
 	                     </template>
 	                   </p>
 	                </div>

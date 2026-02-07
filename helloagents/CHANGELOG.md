@@ -7,6 +7,9 @@
 ## [Unreleased]
 
 ### 新增
+- 前端：搜索高亮样式改为主题自适应（浅色/深色），移除 `ChatSidebar` 中硬编码黄色类并统一为 `search-highlight` 语义类（样式由 `index.css` 统一维护）。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
 - 前端：会话列表 `ChatSidebar` 新增本地用户搜索能力（按 `nickname/name/id/address` 大小写不敏感过滤当前 Tab 列表），支持空关键词恢复全量、无匹配时显示“未找到匹配用户”；并同步调整多选“全选当前列表/按天选择”基于可见过滤结果执行，避免误选隐藏项；补充 Vitest 组件用例覆盖过滤匹配与无结果提示。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`

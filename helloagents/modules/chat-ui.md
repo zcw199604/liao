@@ -39,7 +39,7 @@ WebSocket 连接在浏览器侧为全局单例；Go 后端会将下游连接与�
 
 ### 列表搜索: 当前 Tab 内按用户字段过滤
 **模块:** Chat UI
-在 `ChatSidebar` 顶部提供搜索输入框（本地过滤，不触发后端请求）：
+在 `ChatSidebar` 的列表滚动区域顶部提供搜索输入框（本地过滤，不触发后端请求）：
 - 过滤范围：仅当前 Tab（`history` 或 `favorite`）的 `displayList`
 - 匹配字段：`nickname`、`name`、`id`、`address`
 - 匹配规则：关键词与字段统一转小写后执行 `includes`，实现大小写不敏感
@@ -54,6 +54,7 @@ WebSocket 连接在浏览器侧为全局单例；Go 后端会将下游连接与�
 
 高亮约束：
 - 列表中的昵称/地址/最后消息按关键词高亮，便于快速定位命中原因
+- 高亮颜色需对浅色/深色主题自适应，保证对比度与可读性
 - 高亮渲染使用“文本片段 + `v-for`”方式，禁止使用 `v-html`（避免 XSS）
 
 兼容性约束：
@@ -230,6 +231,7 @@ lastMsg 预览（与后端缓存增强对齐）：
 - `frontend/src/__tests__/components.test.ts`
 
 ## 变更历史
+- [202602070506_chat_sidebar_highlight_theme_adaptive] - 搜索高亮改为浅色/深色主题自适应（统一 search-highlight 语义类）
 - [202602070450_chat_sidebar_search_position] - 搜索框移入可滚动列表区域，避免始终固定在顶部
 - [202602070430_chat_sidebar_search_highlight] - 搜索增强：收藏 Tab 搜索确认 + 关键词高亮（安全分段渲染，禁用 v-html）
 - [202602070215_chat_sidebar_user_search] - 会话列表新增本地搜索（昵称/名称/ID/地址）与无结果提示，并补充组件测试
