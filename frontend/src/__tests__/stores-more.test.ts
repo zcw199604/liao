@@ -598,13 +598,21 @@ describe('stores/douyin', () => {
     store.open('x')
     expect(store.showModal).toBe(true)
     expect(store.draftInput).toBe('x')
+    expect(store.entryMode).toBe('default')
+    expect(store.favoritesTab).toBe('users')
 
     store.open('y')
     expect(store.draftInput).toBe('x')
 
+    store.open({ entryMode: 'favorites', favoritesTab: 'awemes' })
+    expect(store.entryMode).toBe('favorites')
+    expect(store.favoritesTab).toBe('awemes')
+
     store.close()
     expect(store.showModal).toBe(false)
     expect(store.draftInput).toBe('')
+    expect(store.entryMode).toBe('default')
+    expect(store.favoritesTab).toBe('users')
   })
 })
 

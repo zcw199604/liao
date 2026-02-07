@@ -7,6 +7,10 @@
 ## [Unreleased]
 
 ### 新增
+- 前端：聊天页“+”上传菜单新增“抖音收藏作者”入口，点击后直达抖音收藏“用户收藏”列表；可继续点击作者查看其全部已入库作品并在预览中导入本地服务器。
+  - 方案: [202602071149_chat-uploadmenu-douyin-favorites](archive/2026-02/202602071149_chat-uploadmenu-douyin-favorites/)
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
 - 前端：搜索高亮样式改为主题自适应（浅色/深色），移除 `ChatSidebar` 中硬编码黄色类并统一为 `search-highlight` 语义类（样式由 `index.css` 统一维护）。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`

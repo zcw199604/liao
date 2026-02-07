@@ -72,6 +72,7 @@
         @open-chat-history="handleOpenChatHistory"
         @open-all-uploads="handleOpenAllUploads"
         @open-mt-photo="handleOpenMtPhoto"
+        @open-douyin-favorite-authors="handleOpenDouyinFavoriteAuthors"
       />
 
       <!-- 表情面板 -->
@@ -198,6 +199,7 @@ import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
 import { useMediaStore } from '@/stores/media'
 import { useMtPhotoStore } from '@/stores/mtphoto'
+import { useDouyinStore } from '@/stores/douyin'
 import { useUserStore } from '@/stores/user'
 import { useMessage } from '@/composables/useMessage'
 import { useUpload } from '@/composables/useUpload'
@@ -235,6 +237,7 @@ const chatStore = useChatStore()
 	const messageStore = useMessageStore()
 	const mediaStore = useMediaStore()
 const mtPhotoStore = useMtPhotoStore()
+const douyinStore = useDouyinStore()
 	const systemConfigStore = useSystemConfigStore()
 	const userStore = useUserStore()
 const { sendText, sendImage, sendVideo, retryMessage, sendTypingStatus } = useMessage()
@@ -793,6 +796,14 @@ const handleOpenAllUploads = async () => {
 const handleOpenMtPhoto = async () => {
   if (!userStore.currentUser) return
   await mtPhotoStore.open()
+}
+
+const handleOpenDouyinFavoriteAuthors = () => {
+  showUploadMenu.value = false
+  douyinStore.open({
+    entryMode: 'favorites',
+    favoritesTab: 'users'
+  })
 }
 
 const handleStartMatch = () => {

@@ -1898,6 +1898,9 @@ watch(
   () => douyinStore.showModal,
   async (v) => {
     if (v) {
+      const isFavoritesEntry = douyinStore.entryMode === 'favorites'
+      const entryFavoritesTab = douyinStore.favoritesTab === 'awemes' ? 'awemes' : 'users'
+
       restoreLocalConfig()
       error.value = ''
       detail.value = null
@@ -1908,39 +1911,45 @@ watch(
       highlightConfig.value = false
       resetDetailStates()
       showPreview.value = false
-	      previewUrl.value = ''
-	      previewMediaList.value = []
-	      previewIndex.value = 0
-	      favoritesTab.value = 'users'
-        favoriteUserTags.value = []
-        favoriteAwemeTags.value = []
-        favoriteUserTagFilter.value = null
-        favoriteAwemeTagFilter.value = null
-        favoritesSelectionMode.value = false
-        selectedFavoriteUserIds.clear()
-        selectedFavoriteAwemeIds.clear()
-        tagManagerOpen.value = false
-        tagManagerKind.value = 'users'
-        tagManagerNameInput.value = ''
-        tagManagerSaving.value = false
-        tagManagerError.value = ''
-        editingTagId.value = null
-        editingTagName.value = ''
-        confirmDeleteTagOpen.value = false
-        confirmDeleteTag.value = null
-        tagSheetOpen.value = false
-        tagSheetKind.value = 'users'
-        tagSheetMode.value = 'single'
-        tagSheetTargetIds.value = []
-        tagSheetSelectedTagIds.clear()
-        tagSheetApplying.value = false
-        tagSheetError.value = ''
-	      favoriteUserDetailOpen.value = false
-	      favoriteUserDetailId.value = ''
-        favoriteUserDetailSecUserIdShowFull.value = false
-	      favoriteUserDetailLoading.value = false
-	      favoriteUserAvatarError.clear()
-	      void refreshFavorites()
+      previewUrl.value = ''
+      previewMediaList.value = []
+      previewIndex.value = 0
+      activeMode.value = isFavoritesEntry ? 'favorites' : 'detail'
+      favoritesTab.value = isFavoritesEntry ? entryFavoritesTab : 'users'
+      favoriteUserTags.value = []
+      favoriteAwemeTags.value = []
+      favoriteUserTagFilter.value = null
+      favoriteAwemeTagFilter.value = null
+      favoritesSelectionMode.value = false
+      selectedFavoriteUserIds.clear()
+      selectedFavoriteAwemeIds.clear()
+      tagManagerOpen.value = false
+      tagManagerKind.value = 'users'
+      tagManagerNameInput.value = ''
+      tagManagerSaving.value = false
+      tagManagerError.value = ''
+      editingTagId.value = null
+      editingTagName.value = ''
+      confirmDeleteTagOpen.value = false
+      confirmDeleteTag.value = null
+      tagSheetOpen.value = false
+      tagSheetKind.value = 'users'
+      tagSheetMode.value = 'single'
+      tagSheetTargetIds.value = []
+      tagSheetSelectedTagIds.clear()
+      tagSheetApplying.value = false
+      tagSheetError.value = ''
+      favoriteUserDetailOpen.value = false
+      favoriteUserDetailId.value = ''
+      favoriteUserDetailSecUserIdShowFull.value = false
+      favoriteUserDetailLoading.value = false
+      favoriteUserAvatarError.clear()
+      void refreshFavorites()
+
+      // 从聊天上传菜单进入“收藏作者”时，强制落在收藏视图，不读取剪贴板覆盖当前模式。
+      if (isFavoritesEntry) {
+        return
+      }
 
       // 优先使用调用方传入的预填内容；否则按设置尝试读取剪贴板
       const hasInput = () => !!String(inputText.value || '').trim() || !!String(accountInput.value || '').trim()
@@ -1964,6 +1973,7 @@ watch(
     }
   }
 )
+
 
 const close = () => {
   persistLocalConfig()

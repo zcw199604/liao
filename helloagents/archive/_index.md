@@ -7,6 +7,7 @@
 
 | 时间戳 | 名称 | 类型 | 涉及模块 | 决策 | 结果 |
 |--------|------|------|---------|------|------|
+| 202602071149 | chat-uploadmenu-douyin-favorites | - | - | - | ✅完成 |
 | 202602011533 | db-dualstack-mysql-postgres | 重构 | DB/internal/database | db-dualstack-mysql-postgres#D001, db-dualstack-mysql-postgres#D002, db-dualstack-mysql-postgres#D003, db-dualstack-mysql-postgres#D004 | ✅完成 |
 | 202602011343 | douyin-cookiecloud-cookie | - | - | - | ✅完成 |
 | 202601311525 | ui-theme-media-menu-fix | 修复 | Frontend/Settings/Media | ui-theme-media-menu-fix#D001, ui-theme-media-menu-fix#D002 | ✅完成 |
@@ -18,6 +19,7 @@
 ## 按月归档
 
 ### 2026-02
+- [202602071149_chat-uploadmenu-douyin-favorites](./2026-02/202602071149_chat-uploadmenu-douyin-favorites/) - 聊天页“+”上传菜单新增“抖音收藏作者”入口，直达收藏作者列表并浏览作品
 - [202602011533_db-dualstack-mysql-postgres](./2026-02/202602011533_db-dualstack-mysql-postgres/) - 数据库支持 MySQL + PostgreSQL 双栈（仅通过 `DB_URL` scheme 切换）
 - [202602011343_douyin-cookiecloud-cookie](./2026-02/202602011343_douyin-cookiecloud-cookie/) - 抖音上游请求支持从 CookieCloud 懒加载获取并缓存 Cookie
 

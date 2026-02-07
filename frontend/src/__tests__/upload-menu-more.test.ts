@@ -66,18 +66,20 @@ describe('components/chat/UploadMenu.vue (more branches)', () => {
     expect(tiles[2]!.attributes('data-type')).toBe('image')
     expect(tiles[2]!.attributes('data-fit')).toBe('cover')
 
-    // Action buttons: uploadFile, openChatHistory, openAllUploads, openMtPhoto
+    // Action buttons: uploadFile, openChatHistory, openAllUploads, openMtPhoto, openDouyinFavoriteAuthors
     const buttons = wrapper.findAll('button')
-    expect(buttons.length).toBeGreaterThanOrEqual(4)
+    expect(buttons.length).toBeGreaterThanOrEqual(5)
     await buttons[0]!.trigger('click')
     await buttons[1]!.trigger('click')
     await buttons[2]!.trigger('click')
     await buttons[3]!.trigger('click')
+    await buttons[4]!.trigger('click')
 
     expect(wrapper.emitted('uploadFile')).toBeTruthy()
     expect(wrapper.emitted('openChatHistory')).toBeTruthy()
     expect(wrapper.emitted('openAllUploads')).toBeTruthy()
     expect(wrapper.emitted('openMtPhoto')).toBeTruthy()
+    expect(wrapper.emitted('openDouyinFavoriteAuthors')).toBeTruthy()
   })
 })
 

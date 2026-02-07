@@ -677,4 +677,46 @@ describe('components/media/DouyinDownloadModal.vue (modes)', () => {
     expect(vm.accountInput).toBe('SU1')
     expect(vm.favoriteUserDetailOpen).toBe(false)
   })
+
+  it('applies chat entry favorites/users context and keeps default entry unchanged after close', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          MediaPreview: MediaPreviewStub,
+          MediaTile: MediaTileStub,
+          MediaTileBadge: MediaTileBadgeStub,
+          MediaTileSelectMark: MediaTileSelectMarkStub
+        }
+      }
+    })
+
+    const douyinStore = useDouyinStore()
+    douyinStore.open({
+      entryMode: 'favorites',
+      favoritesTab: 'users'
+    })
+    await flushAsync()
+    await flushAsync()
+
+    const vm = wrapper.vm as any
+    expect(vm.activeMode).toBe('favorites')
+    expect(vm.favoritesTab).toBe('users')
+
+    vm.close()
+    await flushAsync()
+    expect(douyinStore.showModal).toBe(false)
+    expect(douyinStore.entryMode).toBe('default')
+    expect(douyinStore.favoritesTab).toBe('users')
+
+    douyinStore.open()
+    await flushAsync()
+    await flushAsync()
+    expect(vm.activeMode).toBe('detail')
+  })
+
 })

@@ -62,6 +62,7 @@ import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
 import { useMediaStore } from '@/stores/media'
 import { useMtPhotoStore } from '@/stores/mtphoto'
+import { useDouyinStore } from '@/stores/douyin'
 import { useUserStore } from '@/stores/user'
 import { useSystemConfigStore } from '@/stores/systemConfig'
 import * as mediaApi from '@/api/media'
@@ -107,7 +108,7 @@ const createStubs = (opts?: { isAtBottom?: boolean }) => {
   const UploadMenu = {
     name: 'UploadMenu',
     props: ['visible', 'uploadedMedia', 'canOpenChatHistory'],
-    emits: ['update:visible', 'send', 'upload-file', 'open-chat-history', 'open-all-uploads', 'open-mt-photo'],
+    emits: ['update:visible', 'send', 'upload-file', 'open-chat-history', 'open-all-uploads', 'open-mt-photo', 'open-douyin-favorite-authors'],
     template: '<div data-testid=\"upload-menu\"></div>'
   }
 
@@ -424,6 +425,15 @@ describe('views/ChatRoomView.vue (more coverage)', () => {
     await flushAsync()
     expect((wrapper.vm as any).showUploadMenu).toBe(false)
     expect((wrapper.vm as any).showEmojiPanel).toBe(false)
+
+    const douyinStore = useDouyinStore()
+    ;(wrapper.vm as any).showUploadMenu = true
+    wrapper.findComponent({ name: 'UploadMenu' }).vm.$emit('open-douyin-favorite-authors')
+    await flushAsync()
+    expect((wrapper.vm as any).showUploadMenu).toBe(false)
+    expect(douyinStore.showModal).toBe(true)
+    expect(douyinStore.entryMode).toBe('favorites')
+    expect(douyinStore.favoritesTab).toBe('users')
   })
 
   it('uploads file and handles send media branch', async () => {

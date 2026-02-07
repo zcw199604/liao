@@ -77,6 +77,14 @@
         <i class="fas fa-photo-video"></i>
         <span>mtPhoto 相册</span>
       </button>
+
+      <button
+        @click="$emit('openDouyinFavoriteAuthors')"
+        class="w-full py-3 bg-surface/70 hover:bg-surface/90 text-fg rounded-xl border border-line flex items-center justify-center gap-2 transition-colors"
+      >
+        <i class="fas fa-star"></i>
+        <span>抖音收藏作者</span>
+      </button>
     </div>
   </div>
 </template>
@@ -101,5 +109,6 @@ defineEmits<{
   'openChatHistory': []
   'openAllUploads': []
   'openMtPhoto': []
+  'openDouyinFavoriteAuthors': []
 }>()
 </script>

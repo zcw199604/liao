@@ -158,6 +158,12 @@ describe('components/chat/UploadMenu.vue', () => {
 
     await buttons[2]?.trigger('click')
     expect(wrapper.emitted('openAllUploads')).toBeTruthy()
+
+    await buttons[3]?.trigger('click')
+    expect(wrapper.emitted('openMtPhoto')).toBeTruthy()
+
+    await buttons[4]?.trigger('click')
+    expect(wrapper.emitted('openDouyinFavoriteAuthors')).toBeTruthy()
   })
 })
 

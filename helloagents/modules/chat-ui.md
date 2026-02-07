@@ -10,6 +10,19 @@
 
 ## 规范
 
+### 上传菜单: 聊天页“+”支持直达抖音收藏作者
+**模块:** Chat UI
+在 `ChatRoomView` 的上传菜单（`UploadMenu`）新增“抖音收藏作者”入口，用于从聊天场景快速跳转到抖音收藏作者列表。
+
+交互约束：
+- 点击后关闭当前上传菜单，避免与抖音弹窗叠层冲突
+- 打开抖音弹窗时携带入口上下文：`entryMode=favorites`、`favoritesTab=users`
+- 该入口语义为“收藏作者 -> 查看作者全部作品”，不直接落到“作品收藏”页
+
+状态约束：
+- 仅改变本次弹窗的默认模式，不影响设置页等其他入口
+- 弹窗关闭后重置入口上下文，防止下次从其他入口打开时状态污染
+
 ### WebSocket: 身份切换时重建下游连接
 **模块:** Chat UI
 WebSocket 连接在浏览器侧为全局单例；Go 后端会将下游连接与首次 `act=sign` 的 `userId` 绑定，并按该 `userId` 广播上游消息。
@@ -223,6 +236,7 @@ lastMsg 预览（与后端缓存增强对齐）：
 - `frontend/src/composables/useMessage.ts`
 - `frontend/src/composables/useWebSocket.ts`
 - `frontend/src/views/ChatRoomView.vue`
+- `frontend/src/components/chat/UploadMenu.vue`
 - `frontend/src/components/common/PullToRefresh.vue`
 - `frontend/src/stores/message.ts`
 - `frontend/src/types/message.ts`
@@ -231,6 +245,7 @@ lastMsg 预览（与后端缓存增强对齐）：
 - `frontend/src/__tests__/components.test.ts`
 
 ## 变更历史
+- [202602071149_chat-uploadmenu-douyin-favorites] - 聊天页“+”上传菜单新增“抖音收藏作者”入口，直达收藏作者列表
 - [202602070506_chat_sidebar_highlight_theme_adaptive] - 搜索高亮改为浅色/深色主题自适应（统一 search-highlight 语义类）
 - [202602070450_chat_sidebar_search_position] - 搜索框移入可滚动列表区域，避免始终固定在顶部
 - [202602070430_chat_sidebar_search_highlight] - 搜索增强：收藏 Tab 搜索确认 + 关键词高亮（安全分段渲染，禁用 v-html）
