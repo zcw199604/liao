@@ -84,28 +84,6 @@
        <div class="h-full bg-blue-500 animate-progress-indeterminate"></div>
     </div>
 
-    <!-- 列表搜索：仅过滤当前 tab 的本地列表，不触发后端请求 -->
-    <div class="px-4 pt-3 pb-1 shrink-0">
-      <div class="relative">
-        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-fg-muted"></i>
-        <input
-          v-model="searchKeyword"
-          data-testid="chat-sidebar-search-input"
-          type="text"
-          placeholder="搜索用户（昵称/名称/ID/地址）"
-          class="w-full rounded-xl border border-line bg-surface-2 py-2 pl-9 pr-9 text-sm text-fg placeholder:text-fg-muted outline-none focus:ring-2 focus:ring-blue-500/30"
-        />
-        <button
-          v-if="searchKeyword"
-          @click="searchKeyword = ''"
-          class="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-surface-3 text-fg-muted hover:text-fg transition"
-          aria-label="清空搜索"
-        >
-          <i class="fas fa-times text-[10px]"></i>
-        </button>
-      </div>
-    </div>
-
     <!-- 列表内容 -->
 	    <PullToRefresh :on-refresh="refreshCurrentTab" class="flex-1 min-h-0">
 	      <div 
@@ -117,6 +95,28 @@
 	          transition: isAnimating ? listSwipeTransition : 'none' 
 	        }"
 	      >
+	        <!-- 列表搜索：位于滚动区域顶部，向下滚动时不固定在顶栏 -->
+	        <div class="pb-2">
+	          <div class="relative">
+	            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-fg-muted"></i>
+	            <input
+	              v-model="searchKeyword"
+	              data-testid="chat-sidebar-search-input"
+	              type="text"
+	              placeholder="搜索用户（昵称/名称/ID/地址）"
+	              class="w-full rounded-xl border border-line bg-surface-2 py-2 pl-9 pr-9 text-sm text-fg placeholder:text-fg-muted outline-none focus:ring-2 focus:ring-blue-500/30"
+	            />
+	            <button
+	              v-if="searchKeyword"
+	              @click="searchKeyword = ''"
+	              class="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-surface-3 text-fg-muted hover:text-fg transition"
+	              aria-label="清空搜索"
+	            >
+	              <i class="fas fa-times text-[10px]"></i>
+	            </button>
+	          </div>
+	        </div>
+	
 	        <!-- 骨架屏：首次加载用户列表时占位，减少跳动 -->
 	        <template v-if="isInitialLoadingUsers && (!chatStore.displayList || chatStore.displayList.length === 0)">
 	          <div v-for="i in 8" :key="'sk-user-' + i" class="flex items-center p-4 mb-3 bg-surface rounded-2xl">
@@ -170,7 +170,11 @@
 	            <div class="ml-4 flex-1 min-w-0">
 	              <div class="flex justify-between items-baseline mb-1">
 	                <div class="flex items-center gap-2 truncate">
-	                  <span class="font-bold text-base text-fg truncate">{{ user.nickname }}</span>
+	                  <span class="font-bold text-base text-fg truncate">
+	                    <template v-for="(part, index) in getHighlightParts(user.nickname)" :key="`nickname-${user.id}-${index}`">
+	                      <span :class="part.match ? 'search-highlight rounded px-0.5 bg-yellow-500/20 text-yellow-300' : ''">{{ part.text }}</span>
+	                    </template>
+	                  </span>
 	                  <!-- 性别年龄标签 -->
 	                  <span 
 	                    v-if="user.sex !== '未知' || (user.age && user.age !== '0')"
@@ -189,9 +193,15 @@
 	                <div class="flex items-center gap-2 min-w-0 flex-1">
 	                   <!-- 地址显示 (如果有) -->
 	                   <span v-if="user.address && user.address !== '未知' && user.address !== '保密'" class="px-1.5 py-0.5 bg-surface-3/70 rounded text-[10px] text-fg-muted truncate max-w-[80px]">
-	                     {{ user.address }}
+	                     <template v-for="(part, index) in getHighlightParts(user.address)" :key="`address-${user.id}-${index}`">
+	                       <span :class="part.match ? 'search-highlight rounded px-0.5 bg-yellow-500/20 text-yellow-300' : ''">{{ part.text }}</span>
+	                     </template>
 	                   </span>
-	                   <p class="text-sm text-fg-muted truncate flex-1">{{ user.lastMsg }}</p>
+	                   <p class="text-sm text-fg-muted truncate flex-1">
+	                     <template v-for="(part, index) in getHighlightParts(user.lastMsg)" :key="`lastmsg-${user.id}-${index}`">
+	                       <span :class="part.match ? 'search-highlight rounded px-0.5 bg-yellow-500/20 text-yellow-300' : ''">{{ part.text }}</span>
+	                     </template>
+	                   </p>
 	                </div>
 	                <!-- 收藏标识 -->
 	                <i v-if="user.isFavorite && chatStore.activeTab === 'history'" class="fas fa-star text-xs text-yellow-500 ml-2 shrink-0"></i>
@@ -441,6 +451,65 @@ const showNoSearchMatch = computed(() => {
     filteredDisplayList.value.length === 0 &&
     !isInitialLoadingUsers.value
 })
+
+interface HighlightPart {
+  text: string
+  match: boolean
+}
+
+/**
+ * 将文本拆分为“普通片段 + 高亮片段”，用于模板安全渲染。
+ * Args:
+ *   raw: 原始文本（支持空值）
+ * Returns:
+ *   HighlightPart[]: 可直接 v-for 渲染的文本片段数组
+ */
+const getHighlightParts = (raw: string | null | undefined): HighlightPart[] => {
+  const text = String(raw || '')
+  if (!text) {
+    return [{ text: '', match: false }]
+  }
+
+  const keyword = normalizedSearchKeyword.value
+  if (!keyword) {
+    return [{ text, match: false }]
+  }
+
+  const lowerText = text.toLowerCase()
+  if (!lowerText.includes(keyword)) {
+    return [{ text, match: false }]
+  }
+
+  const parts: HighlightPart[] = []
+  let lastIndex = 0
+  let index = lowerText.indexOf(keyword)
+
+  while (index !== -1) {
+    if (index > lastIndex) {
+      parts.push({
+        text: text.slice(lastIndex, index),
+        match: false
+      })
+    }
+
+    parts.push({
+      text: text.slice(index, index + keyword.length),
+      match: true
+    })
+
+    lastIndex = index + keyword.length
+    index = lowerText.indexOf(keyword, lastIndex)
+  }
+
+  if (lastIndex < text.length) {
+    parts.push({
+      text: text.slice(lastIndex),
+      match: false
+    })
+  }
+
+  return parts
+}
 
 // 批量删除（多选）状态
 const selectionMode = ref(false)

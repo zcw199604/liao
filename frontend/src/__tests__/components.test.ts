@@ -189,6 +189,18 @@ describe('components/chat/ChatSidebar.vue', () => {
     expect(wrapper.emitted('select')?.[0]?.[0]).toEqual(expect.objectContaining({ id: 'u1' }))
   })
 
+  it('renders search input inside scrollable list area', async () => {
+    const chatStore = useChatStore()
+    chatStore.activeTab = 'history'
+    chatStore.historyUserIds = []
+    chatStore.favoriteUserIds = []
+
+    const wrapper = await mountChatSidebar()
+    const searchInput = wrapper.get('[data-testid="chat-sidebar-search-input"]')
+
+    expect(searchInput.element.closest('.overflow-y-auto')).not.toBeNull()
+  })
+
   it('filters users by keyword and supports nickname/name/id/address matching', async () => {
     const chatStore = useChatStore()
     chatStore.activeTab = 'history'
@@ -247,6 +259,69 @@ describe('components/chat/ChatSidebar.vue', () => {
     await searchInput.setValue('')
     expect(wrapper.text()).toContain('Ali')
     expect(wrapper.text()).toContain('Bobby')
+  })
+
+  it('supports searching in favorite tab and highlights matched keyword', async () => {
+    const chatStore = useChatStore()
+    chatStore.activeTab = 'favorite'
+    chatStore.historyUserIds = ['h1']
+    chatStore.favoriteUserIds = ['f1', 'f2']
+
+    chatStore.upsertUser({
+      id: 'h1',
+      name: 'History User',
+      nickname: 'History User',
+      sex: '未知',
+      ip: '',
+      address: 'Nanjing',
+      isFavorite: false,
+      lastMsg: 'history only',
+      lastTime: new Date(2026, 0, 4, 9, 4, 0).toISOString(),
+      unreadCount: 0
+    })
+
+    chatStore.upsertUser({
+      id: 'f1',
+      name: 'Alice Favorite',
+      nickname: 'AliFav',
+      sex: '未知',
+      ip: '',
+      address: 'Chengdu',
+      isFavorite: true,
+      lastMsg: '今天一起聊天',
+      lastTime: new Date(2026, 0, 4, 9, 5, 0).toISOString(),
+      unreadCount: 0
+    })
+
+    chatStore.upsertUser({
+      id: 'f2',
+      name: 'Bob Favorite',
+      nickname: 'BobFav',
+      sex: '未知',
+      ip: '',
+      address: 'Shenzhen',
+      isFavorite: true,
+      lastMsg: '收藏会话测试',
+      lastTime: new Date(2026, 0, 4, 9, 6, 0).toISOString(),
+      unreadCount: 0
+    })
+
+    const wrapper = await mountChatSidebar()
+    const searchInput = wrapper.get('[data-testid="chat-sidebar-search-input"]')
+
+    expect(wrapper.text()).toContain('AliFav')
+    expect(wrapper.text()).toContain('BobFav')
+    expect(wrapper.text()).not.toContain('History User')
+
+    await searchInput.setValue('fav')
+    expect(wrapper.findAll('.search-highlight').length).toBeGreaterThan(0)
+
+    await searchInput.setValue('shenzhen')
+    expect(wrapper.text()).toContain('BobFav')
+    expect(wrapper.text()).not.toContain('AliFav')
+
+    const highlightedTexts = wrapper.findAll('.search-highlight').map(node => node.text())
+    expect(highlightedTexts.some(text => text.toLowerCase().includes('shenzhen'))).toBe(true)
   })
 
   it('shows no-match message when keyword has no results', async () => {
