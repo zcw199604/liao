@@ -131,6 +131,7 @@
 - 后端：抖音用户作品列表抓取改为调用 TikTokDownloader 包装镜像的单页分页接口 `/douyin/account/page`，与游标分页行为对齐。
 
 ### 修复
+- 前端：修复媒体工具弹窗在浅色主题下未生效的问题（`DuplicateCheckModal.vue`、`DouyinDownloadModal.vue`、`MediaDetailPanel.vue`），将大量硬编码深色样式迁移为语义化主题 token（`bg-surface*`/`text-fg*`/`border-line*`），并同步统一滚动条与表单输入的主题色。
 - 前端：修复登录页 Toast 可能被 `z-index` 遮挡导致提示不可见的问题（Toast 提升至 `z-[300]`）。
 - 前端：修复媒体预览视频在“单击出现浮层→快速点击暂停/快进/快退”等操作下，因单击延迟切换定时器导致播放状态被反转的问题；现在单击时捕获播放意图，并在浮层按钮交互时取消 pending 切换，确保暂停后不会自动恢复播放，快进/快退在暂停时保持暂停。
 - 后端：VideoExtract `runTask` 在 ffmpeg 失败时优先使用 stderr 最后一行作为错误信息（避免仅返回 `exit status`）。

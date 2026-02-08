@@ -87,3 +87,17 @@
   以保持原有“白色半透明”视觉语言；全屏覆盖控件继续使用深色变体。
 - 全局 `body` 默认不启用颜色过渡动画，避免主题切换初始阶段可能出现闪烁。
 - 复用类设计避免与模板类重复堆叠：布局/结构类留在模板，复用类侧重视觉 token 收敛。
+
+## 7. 媒体工具弹窗主题适配基线（2026-02）
+
+本轮修复将以下组件从“硬编码暗色”迁移到语义 token 体系：
+
+- `frontend/src/components/media/DuplicateCheckModal.vue`
+- `frontend/src/components/media/DouyinDownloadModal.vue`
+- `frontend/src/components/media/MediaDetailPanel.vue`
+
+约束：
+- 普通容器/表单/列表项必须使用 `bg-surface*`、`text-fg*`、`border-line*`，避免 `bg-[#18181b]` / `text-gray-*` / `border-white/10`。
+- 可保留固定深色的场景仅限“语义性遮罩/媒体覆盖层”（如 `bg-black/60` 的全屏遮罩、加载蒙层）。
+- 交互按钮遵循：中性按钮 `bg-surface-3 + text-fg`，品牌/危险按钮可继续使用 `bg-emerald-*`/`bg-red-* + text-white`。
+

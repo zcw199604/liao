@@ -6,20 +6,20 @@
       @click="close"
     >
       <div 
-        class="w-full max-w-5xl h-[85vh] bg-[#18181b] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-white/10" 
+        class="w-full max-w-5xl h-[85vh] bg-surface rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-line" 
         @click.stop
       >
         <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-[#1f1f23]">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-line bg-surface-2">
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
               <i class="fas fa-search text-blue-400"></i>
             </div>
-            <h3 class="text-lg font-bold text-white">图片查重工具</h3>
+            <h3 class="text-lg font-bold text-fg">图片查重工具</h3>
           </div>
           <button
             @click="close"
-            class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition rounded-lg hover:bg-[#27272a]"
+            class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
           >
             <i class="fas fa-times"></i>
           </button>
@@ -27,13 +27,13 @@
 
         <div class="flex flex-1 overflow-hidden flex-col md:flex-row">
           <!-- Left Panel: Input & Settings -->
-          <div class="w-full md:w-1/3 md:min-w-[320px] bg-[#1f1f23] flex flex-col border-b md:border-b-0 md:border-r border-white/5 p-6 overflow-y-auto shrink-0">
+          <div class="w-full md:w-1/3 md:min-w-[320px] bg-surface-2 flex flex-col border-b md:border-b-0 md:border-r border-line p-6 overflow-y-auto shrink-0">
             
             <!-- File Upload -->
             <div class="mb-6">
-              <label class="block text-sm font-medium text-gray-400 mb-2">待检测文件</label>
+              <label class="block text-sm font-medium text-fg-muted mb-2">待检测文件</label>
               <div
-                class="relative w-full aspect-square md:aspect-square h-48 md:h-auto rounded-xl border-2 border-dashed border-white/10 hover:border-blue-500 transition-colors bg-[#18181b] flex flex-col items-center justify-center overflow-hidden cursor-pointer group"
+                class="relative w-full aspect-square md:aspect-square h-48 md:h-auto rounded-xl border-2 border-dashed border-line hover:border-blue-500 transition-colors bg-surface flex flex-col items-center justify-center overflow-hidden cursor-pointer group"
                 @click="triggerFileSelect"
                 @drop.prevent="handleDrop"
                 @dragover.prevent
@@ -48,14 +48,14 @@
                   :lazy="false"
                 />
                 <div v-else-if="selectedFile" class="text-center p-4">
-                  <i class="fas fa-file-alt text-4xl text-gray-600 group-hover:text-blue-500 mb-3 transition-colors"></i>
-                  <p class="text-sm text-gray-300 font-medium truncate max-w-[200px]">{{ selectedFile.name }}</p>
-                  <p class="text-xs text-gray-500 mt-1">{{ (selectedFile.size / 1024).toFixed(1) }} KB</p>
+                  <i class="fas fa-file-alt text-4xl text-fg-subtle group-hover:text-blue-500 mb-3 transition-colors"></i>
+                  <p class="text-sm text-fg-muted font-medium truncate max-w-[200px]">{{ selectedFile.name }}</p>
+                  <p class="text-xs text-fg-subtle mt-1">{{ (selectedFile.size / 1024).toFixed(1) }} KB</p>
                 </div>
                 <div v-else class="text-center p-4">
-                  <i class="fas fa-cloud-upload-alt text-4xl text-gray-600 group-hover:text-blue-500 mb-3 transition-colors"></i>
-                  <p class="text-sm text-gray-400">点击或拖拽文件到此处</p>
-                  <p class="text-xs text-gray-600 mt-1">支持任意格式文件</p>
+                  <i class="fas fa-cloud-upload-alt text-4xl text-fg-subtle group-hover:text-blue-500 mb-3 transition-colors"></i>
+                  <p class="text-sm text-fg-muted">点击或拖拽文件到此处</p>
+                  <p class="text-xs text-fg-subtle mt-1">支持任意格式文件</p>
                 </div>
                 
                 <!-- Overlay for change -->
@@ -76,7 +76,7 @@
             <div class="space-y-6">
               <div>
                 <div class="flex justify-between mb-2">
-                  <label class="text-sm font-medium text-gray-400">相似度阈值 (Similarity)</label>
+                  <label class="text-sm font-medium text-fg-muted">相似度阈值 (Similarity)</label>
                   <span class="text-sm text-blue-400 font-bold">{{ (similarityThreshold * 100).toFixed(0) }}%</span>
                 </div>
                 <input
@@ -85,15 +85,15 @@
                   max="1"
                   step="0.01"
                   v-model.number="similarityThreshold"
-                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                  class="w-full h-2 bg-surface-3 rounded-lg appearance-none cursor-pointer accent-blue-500"
                 />
-                <p class="text-xs text-gray-500 mt-1">越接近 100% 越严格，建议 85% 以上</p>
+                <p class="text-xs text-fg-subtle mt-1">越接近 100% 越严格，建议 85% 以上</p>
               </div>
 
               <div>
                 <div class="flex justify-between mb-2">
-                  <label class="text-sm font-medium text-gray-400">最大返回数量 (Limit)</label>
-                  <span class="text-sm text-gray-300">{{ limit }}</span>
+                  <label class="text-sm font-medium text-fg-muted">最大返回数量 (Limit)</label>
+                  <span class="text-sm text-fg-muted">{{ limit }}</span>
                 </div>
                 <input
                   type="range"
@@ -101,7 +101,7 @@
                   max="100"
                   step="1"
                   v-model.number="limit"
-                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                  class="w-full h-2 bg-surface-3 rounded-lg appearance-none cursor-pointer accent-blue-500"
                 />
               </div>
             </div>
@@ -121,26 +121,26 @@
           </div>
 
           <!-- Right Panel: Results -->
-          <div ref="resultsPanelRef" class="flex-1 bg-[#18181b] flex flex-col overflow-hidden relative min-h-[300px] md:min-h-0">
+          <div ref="resultsPanelRef" class="flex-1 bg-surface flex flex-col overflow-hidden relative min-h-[300px] md:min-h-0">
             
             <!-- Empty State -->
-            <div v-if="!result && !loading" class="flex-1 flex flex-col items-center justify-center text-gray-600">
-              <div class="w-20 h-20 rounded-full bg-[#1f1f23] flex items-center justify-center mb-4">
+            <div v-if="!result && !loading" class="flex-1 flex flex-col items-center justify-center text-fg-subtle">
+              <div class="w-20 h-20 rounded-full bg-surface-2 flex items-center justify-center mb-4">
                 <i class="fas fa-search text-3xl opacity-50"></i>
               </div>
               <p class="text-sm">上传图片并点击查重查看结果</p>
             </div>
 
             <!-- Loading State -->
-            <div v-if="loading" class="absolute inset-0 z-10 bg-[#18181b]/80 flex flex-col items-center justify-center backdrop-blur-sm">
+            <div v-if="loading" class="absolute inset-0 z-10 bg-surface/80 flex flex-col items-center justify-center backdrop-blur-sm">
               <div class="radar-spinner mb-4"></div>
-              <p class="text-gray-400 animate-pulse">正在比对特征库...</p>
+              <p class="text-fg-muted animate-pulse">正在比对特征库...</p>
             </div>
 
             <!-- Results List -->
             <div v-if="result" class="flex-1 flex flex-col h-full overflow-hidden">
               <!-- Result Header -->
-              <div class="px-6 py-4 bg-[#1f1f23]/50 border-b border-white/5 shrink-0">
+              <div class="px-6 py-4 bg-surface-2/80 border-b border-line shrink-0">
                 <div class="flex items-center gap-3">
                   <div 
                     class="px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider"
@@ -152,10 +152,10 @@
                   >
                     {{ getMatchTypeText(result.matchType) }}
                   </div>
-                  <span class="text-gray-400 text-sm">
-                    共找到 <strong class="text-white">{{ (result.items || []).length }}</strong> 个相似结果
+                  <span class="text-fg-muted text-sm">
+                    共找到 <strong class="text-fg">{{ (result.items || []).length }}</strong> 个相似结果
                   </span>
-                  <span v-if="result.pHash" class="ml-auto text-xs text-gray-600 font-mono">
+                  <span v-if="result.pHash" class="ml-auto text-xs text-fg-subtle font-mono">
                     pHash: {{ result.pHash }}
                   </span>
                 </div>
@@ -166,7 +166,7 @@
                 <div 
                   v-for="(item, idx) in (result.items || [])" 
                   :key="item.id"
-                  class="bg-[#1f1f23] rounded-xl p-3 flex gap-4 hover:bg-[#27272a] transition border border-transparent hover:border-white/10 group"
+                  class="bg-surface-2 rounded-xl p-3 flex gap-4 hover:bg-surface-3 transition border border-transparent hover:border-line group"
                 >
                   <!-- Thumb -->
                   <div
@@ -195,7 +195,7 @@
                   <!-- Info -->
                   <div class="flex-1 min-w-0 flex flex-col justify-center">
                     <div class="flex justify-between items-start mb-1">
-                      <h4 class="text-white font-medium truncate pr-4 text-sm" :title="item.fileName">
+                      <h4 class="text-fg font-medium truncate pr-4 text-sm" :title="item.fileName">
                         {{ item.fileName }}
                       </h4>
                       <span 
@@ -206,10 +206,10 @@
                       </span>
                     </div>
 
-                    <div class="text-xs text-gray-500 space-y-1">
-                      <p>MD5: <span class="font-mono text-gray-600">{{ item.md5Hash.substring(0, 16) }}...</span></p>
+                    <div class="text-xs text-fg-subtle space-y-1">
+                      <p>MD5: <span class="font-mono text-fg-muted">{{ item.md5Hash.substring(0, 16) }}...</span></p>
                       <p>日期: {{ item.createdAt || '未知' }}</p>
-                      <p>路径: <span class="text-gray-600 truncate block max-w-xs" :title="item.filePath">{{ item.filePath }}</span></p>
+                      <p>路径: <span class="text-fg-muted truncate block max-w-xs" :title="item.filePath">{{ item.filePath }}</span></p>
                     </div>
                   </div>
 
@@ -217,7 +217,7 @@
                   <div class="flex flex-col justify-center gap-2">
                     <button
                       @click="openDetail(item)"
-                      class="p-2 rounded-lg bg-[#27272a] hover:bg-gray-600 text-gray-400 hover:text-white transition"
+                      class="p-2 rounded-lg bg-surface-3 hover:bg-surface-hover text-fg-muted hover:text-fg transition"
                       title="查看详情"
                     >
                       <i class="fas fa-exclamation-circle text-blue-400"></i>
@@ -225,7 +225,7 @@
                     <a 
                       :href="getImgUrl(item.filePath)" 
                       target="_blank"
-                      class="p-2 rounded-lg bg-[#27272a] hover:bg-blue-600 text-gray-400 hover:text-white transition"
+                      class="p-2 rounded-lg bg-surface-3 hover:bg-blue-600 text-fg-muted hover:text-white transition"
                       title="打开原图"
                     >
                       <i class="fas fa-external-link-alt"></i>
@@ -235,7 +235,7 @@
 
                 <div v-if="!result.items || result.items.length === 0" class="text-center py-10">
                    <p class="text-green-500 font-medium mb-2">未发现重复图片</p>
-                   <p class="text-gray-500 text-xs">{{ result.reason || '该图片在数据库中是唯一的' }}</p>
+                   <p class="text-fg-subtle text-xs">{{ result.reason || '该图片在数据库中是唯一的' }}</p>
                 </div>
               </div>
             </div>
@@ -265,12 +265,12 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
 import { useToast } from '@/composables/useToast'
-	import { checkDuplicateMedia } from '@/api/media'
-	import type { CheckDuplicateData, DuplicateCheckItem, UploadedMedia } from '@/types'
-	import { useMediaStore } from '@/stores/media'
-	import MediaTile from '@/components/common/MediaTile.vue'
-	import MediaDetailPanel from './MediaDetailPanel.vue'
-	import MediaPreview from './MediaPreview.vue'
+import { checkDuplicateMedia } from '@/api/media'
+import type { CheckDuplicateData, DuplicateCheckItem, UploadedMedia } from '@/types'
+import { useMediaStore } from '@/stores/media'
+import MediaTile from '@/components/common/MediaTile.vue'
+import MediaDetailPanel from './MediaDetailPanel.vue'
+import MediaPreview from './MediaPreview.vue'
 
 const props = defineProps<{
   visible: boolean
@@ -484,10 +484,10 @@ watch(() => props.visible, (val) => {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+  background: rgb(var(--scrollbar) / var(--scrollbar-a));
   border-radius: 3px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
+  background: rgb(var(--scrollbar) / var(--scrollbar-a-hover));
 }
 </style>

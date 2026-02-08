@@ -4,15 +4,15 @@
       <div v-if="visible" class="fixed inset-0 z-[110] flex items-end justify-center" @click.self="close">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="close"></div>
 
-        <div class="relative w-full max-w-lg bg-[#18181b] rounded-t-3xl shadow-2xl p-6 max-h-[70vh] overflow-y-auto" @click.stop>
-          <button @click="close" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors">
+        <div class="relative w-full max-w-lg bg-surface rounded-t-3xl shadow-2xl p-6 max-h-[70vh] overflow-y-auto border-t border-line" @click.stop>
+          <button @click="close" class="absolute top-4 right-4 text-fg-muted hover:text-fg transition-colors rounded-lg hover:bg-surface-3">
             <i class="fas fa-times text-lg"></i>
           </button>
 
-          <h3 class="text-xl font-bold text-white mb-6">文件详细信息</h3>
+          <h3 class="text-xl font-bold text-fg mb-6">文件详细信息</h3>
 
           <div v-if="douyinWork" class="mb-6">
-            <h4 class="text-base font-semibold text-white/90 mb-3">作品信息</h4>
+            <h4 class="text-base font-semibold text-fg mb-3">作品信息</h4>
             <div class="space-y-4">
               <div v-if="douyinWork.detailId" class="detail-item">
                 <label>作品ID</label>
@@ -52,7 +52,7 @@
               <div v-if="douyinWork.isPinned !== undefined" class="detail-item">
                 <label>是否置顶</label>
                 <div class="value">
-                  <span :class="douyinWork.isPinned ? 'text-emerald-300' : 'text-gray-300'">
+                  <span :class="douyinWork.isPinned ? 'text-emerald-600 dark:text-emerald-300' : 'text-fg-muted'">
                     {{ douyinWork.isPinned ? '是' : '否' }}
                   </span>
                 </div>
@@ -80,7 +80,7 @@
             </div>
           </div>
 
-          <h4 class="text-base font-semibold text-white/90 mb-3">文件信息</h4>
+          <h4 class="text-base font-semibold text-fg mb-3">文件信息</h4>
           <div class="space-y-4">
             <div v-if="media.originalFilename" class="detail-item">
               <label>原始文件名</label>
@@ -89,7 +89,7 @@
 
             <div v-if="media.localFilename" class="detail-item">
               <label>本地存储名</label>
-              <div class="value text-gray-500 text-sm">{{ media.localFilename || '未知' }}</div>
+              <div class="value text-fg-subtle text-sm">{{ media.localFilename || '未知' }}</div>
             </div>
 
             <div v-if="media.fileSize !== undefined" class="detail-item">
@@ -101,7 +101,7 @@
               <label>文件格式</label>
               <div class="value">
                 <span class="text-blue-400">{{ media.fileExtension?.toUpperCase() || 'N/A' }}</span>
-                <span v-if="media.fileType" class="text-gray-500 text-sm ml-2">({{ media.fileType }})</span>
+                <span v-if="media.fileType" class="text-fg-subtle text-sm ml-2">({{ media.fileType }})</span>
               </div>
             </div>
 
@@ -193,16 +193,16 @@ const douyinWork = computed(() => {
 
 <style scoped>
 .detail-item {
-  @apply border-b border-white/5 pb-3;
+  @apply border-b border-line pb-3;
 }
 .detail-item:last-child {
   @apply border-b-0;
 }
 .detail-item label {
-  @apply text-gray-500 text-sm mb-1 block font-medium;
+  @apply text-fg-subtle text-sm mb-1 block font-medium;
 }
 .detail-item .value {
-  @apply text-white break-all;
+  @apply text-fg break-all;
 }
 
 .slide-up-enter-active,
