@@ -135,6 +135,10 @@
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`
 - 测试：补充前端 `douyin-download-modal-modes.test.ts`（分组索引下 `liveVideoIndex` 映射）与后端 `douyin_livephoto_handlers*_test.go`（多实况 rank 配对 + 单侧错误类型）覆盖。
+- 前端/后端：补充多视频非等长场景配对策略——前端优先按 rank 配对并仅在候选合法时回退，后端在 rank 越界时返回“未找到对应资源”而非强行复用最后/第一段视频，避免尾部非实况图片被误判为 Live 图。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 测试：新增“尾部非实况图片不应配对”用例（前端预览上下文 + 后端配对函数）。
 - 前端：修复媒体工具弹窗在浅色主题下未生效的问题（`DuplicateCheckModal.vue`、`DouyinDownloadModal.vue`、`MediaDetailPanel.vue`），将大量硬编码深色样式迁移为语义化主题 token（`bg-surface*`/`text-fg*`/`border-line*`），并同步统一滚动条与表单输入的主题色。
 - 前端：修复登录页 Toast 可能被 `z-index` 遮挡导致提示不可见的问题（Toast 提升至 `z-[300]`）。
 - 前端：修复媒体预览视频在“单击出现浮层→快速点击暂停/快进/快退”等操作下，因单击延迟切换定时器导致播放状态被反转的问题；现在单击时捕获播放意图，并在浮层按钮交互时取消 pending 切换，确保暂停后不会自动恢复播放，快进/快退在暂停时保持暂停。

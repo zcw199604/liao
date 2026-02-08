@@ -3322,16 +3322,8 @@ const buildPreviewMediaList = (
   const videos = sorted.filter((it) => it.type === 'video')
   const liveVideoIndexByImageIndex = new Map<number, number>()
   if (images.length > 0 && videos.length > 0) {
-    // 实况作品常见为「图片区 + 视频区」分组返回：
-    // 当图片数与视频数一致时，按出现顺序一一配对，避免多张图片都命中同一个“后继第一个视频”。
-    if (images.length === videos.length) {
-      for (let i = 0; i < images.length; i += 1) {
-        const img = images[i]
-        const vid = videos[i]
-        if (!img || !vid) continue
-        liveVideoIndexByImageIndex.set(Number(img.index), Number(vid.index))
-      }
-    } else if (videos.length === 1) {
+    if (videos.length === 1) {
+      // 单视频场景：保持兼容，所有图片共享该动态视频。
       const onlyVideo = videos[0]
       if (onlyVideo) {
         for (const img of images) {
@@ -3339,17 +3331,24 @@ const buildPreviewMediaList = (
         }
       }
     } else {
-      for (const img of images) {
+      // 多视频场景：优先按 rank 一一配对（第 N 张图 -> 第 N 个视频）。
+      // 这样可覆盖「图片区 + 视频区」分组返回，避免多张图都命中同一个“后继第一个视频”。
+      for (let i = 0; i < images.length; i += 1) {
+        const img = images[i]
+        if (!img) continue
+
         const imgIdx = Number(img.index)
+        const rankVideo = i < videos.length ? videos[i] : undefined
+        if (rankVideo && Number(rankVideo.index) > imgIdx) {
+          liveVideoIndexByImageIndex.set(imgIdx, Number(rankVideo.index))
+          continue
+        }
+
+        // 兜底：若 rank 候选不成立，再尝试“当前位置之后的第一个视频”。
         const nextVid = videos.find((v) => Number(v.index) > imgIdx)
         if (nextVid) {
           liveVideoIndexByImageIndex.set(imgIdx, Number(nextVid.index))
-          continue
         }
-        // 兜底：按顺序 rank 近似配对，减少完全未匹配导致的“无法下载实况”。
-        const rank = images.findIndex((x) => Number(x.index) === imgIdx)
-        const byRank = rank >= 0 && rank < videos.length ? videos[rank] : undefined
-        if (byRank) liveVideoIndexByImageIndex.set(imgIdx, Number(byRank.index))
       }
     }
   }

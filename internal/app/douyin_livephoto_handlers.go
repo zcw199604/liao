@@ -255,17 +255,15 @@ func selectDouyinLivePhotoPair(downloads []string, imageIndex, videoIndex *int) 
 		if rank < 0 {
 			return 0, 0, "imageIndex 不是图片资源"
 		}
+
+		if len(videoPositions) == 1 {
+			// 兼容单视频场景：默认认为所有图片共享同一段动态视频。
+			return imgIdx, videoPositions[0], ""
+		}
 		if rank < len(videoPositions) {
 			return imgIdx, videoPositions[rank], ""
 		}
-
-		// 兜底：当图片数量大于视频数量时，优先找该图之后的最近视频；再退化到最后一个视频。
-		for _, p := range videoPositions {
-			if p > imgIdx {
-				return imgIdx, p, ""
-			}
-		}
-		return imgIdx, videoPositions[len(videoPositions)-1], ""
+		return 0, 0, "未找到与该图片对应的视频资源"
 	}
 
 	if videoIndex != nil {
@@ -274,18 +272,15 @@ func selectDouyinLivePhotoPair(downloads []string, imageIndex, videoIndex *int) 
 		if rank < 0 {
 			return 0, 0, "videoIndex 不是视频资源"
 		}
+
+		if len(imagePositions) == 1 {
+			// 兼容单图片场景：默认认为所有视频共享同一张静态图。
+			return imagePositions[0], vidIdx, ""
+		}
 		if rank < len(imagePositions) {
 			return imagePositions[rank], vidIdx, ""
 		}
-
-		// 兜底：当视频数量大于图片数量时，优先找该视频之前的最近图片；再退化到第一张图片。
-		for i := len(imagePositions) - 1; i >= 0; i-- {
-			p := imagePositions[i]
-			if p < vidIdx {
-				return p, vidIdx, ""
-			}
-		}
-		return imagePositions[0], vidIdx, ""
+		return 0, 0, "未找到与该视频对应的图片资源"
 	}
 
 	// 无显式索引时，默认返回第一组可用配对。

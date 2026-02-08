@@ -65,6 +65,7 @@ func TestSelectDouyinLivePhotoPair_GroupedLiveResourcesUseRankPairing(t *testing
 		"https://example.com/img2.jpg",
 		"https://example.com/aweme/v1/play/?video_id=1",
 		"https://example.com/aweme/v1/play/?video_id=2",
+		"https://example.com/non_live_tail.jpg",
 	}
 
 	image0 := 0
@@ -83,6 +84,11 @@ func TestSelectDouyinLivePhotoPair_GroupedLiveResourcesUseRankPairing(t *testing
 	}
 	if img != 1 || vid != 3 {
 		t.Fatalf("image1 should pair video3, got img=%d vid=%d", img, vid)
+	}
+
+	nonLiveTail := 4
+	if _, _, msg := selectDouyinLivePhotoPair(downloads, &nonLiveTail, nil); msg == "" {
+		t.Fatalf("non-live tail image should be unpaired")
 	}
 
 	video2 := 2

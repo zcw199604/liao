@@ -114,6 +114,19 @@ func TestSelectDouyinLivePhotoPair_MoreBranches(t *testing.T) {
 		t.Fatalf("auto select: img=%d vid=%d msg=%q", gotImg, gotVid, msg)
 	}
 
+	// 多视频场景下，尾部非实况图片不应被强行配对
+	downloads3 := []string{
+		"https://example.com/i1.jpg",
+		"https://example.com/i2.jpg",
+		"https://example.com/v1.mp4",
+		"https://example.com/v2.mp4",
+		"https://example.com/i_tail.jpg",
+	}
+	tailIdx := 4
+	if _, _, msg := selectDouyinLivePhotoPair(downloads3, &tailIdx, nil); msg == "" {
+		t.Fatalf("expected unpaired error for tail image")
+	}
+
 	// missing either image or video
 	if _, _, msg := selectDouyinLivePhotoPair([]string{"https://example.com/x.jpg"}, nil, nil); msg == "" {
 		t.Fatalf("expected error for image-only downloads")

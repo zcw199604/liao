@@ -546,7 +546,7 @@ describe('components/media/DouyinDownloadModal.vue (modes)', () => {
   })
 
 
-  it('maps grouped live-photo resources to distinct liveVideoIndex by rank', async () => {
+  it('maps grouped live-photo resources by rank and leaves trailing non-live image unpaired', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
 
@@ -577,7 +577,8 @@ describe('components/media/DouyinDownloadModal.vue (modes)', () => {
         { index: 0, type: 'image', url: 'u0', downloadUrl: '/api/douyin/download?key=k-live&index=0' },
         { index: 1, type: 'image', url: 'u1', downloadUrl: '/api/douyin/download?key=k-live&index=1' },
         { index: 2, type: 'video', url: 'u2', downloadUrl: '/api/douyin/download?key=k-live&index=2' },
-        { index: 3, type: 'video', url: 'u3', downloadUrl: '/api/douyin/download?key=k-live&index=3' }
+        { index: 3, type: 'video', url: 'u3', downloadUrl: '/api/douyin/download?key=k-live&index=3' },
+        { index: 10, type: 'image', url: 'u10', downloadUrl: '/api/douyin/download?key=k-live&index=10' }
       ]
     }
 
@@ -589,9 +590,11 @@ describe('components/media/DouyinDownloadModal.vue (modes)', () => {
     const medias = vm.previewMediaList as any[]
     const img0 = medias.find((m) => m?.type === 'image' && Number(m?.context?.index) === 0)
     const img1 = medias.find((m) => m?.type === 'image' && Number(m?.context?.index) === 1)
+    const img10 = medias.find((m) => m?.type === 'image' && Number(m?.context?.index) === 10)
 
     expect(Number(img0?.context?.liveVideoIndex)).toBe(2)
     expect(Number(img1?.context?.liveVideoIndex)).toBe(3)
+    expect(img10?.context?.liveVideoIndex).toBeUndefined()
   })
 
   it('tag manager and tag sheet error branches populate error fields', async () => {
