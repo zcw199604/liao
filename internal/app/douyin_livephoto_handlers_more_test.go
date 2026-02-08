@@ -70,6 +70,14 @@ func TestSelectDouyinLivePhotoPair_MoreBranches(t *testing.T) {
 		t.Fatalf("expected error for mismatched types")
 	}
 
+	// single-side provided but wrong type should also error
+	if _, _, msg := selectDouyinLivePhotoPair(downloads, &imgIdx, nil); msg == "" {
+		t.Fatalf("expected error for imageIndex points to video")
+	}
+	if _, _, msg := selectDouyinLivePhotoPair(downloads, nil, &vidIdx); msg == "" {
+		t.Fatalf("expected error for videoIndex points to image")
+	}
+
 	// only imageIndex provided -> prefer next video, else fallback search
 	imgIdx = 0
 	gotImg, gotVid, msg := selectDouyinLivePhotoPair(downloads, &imgIdx, nil)

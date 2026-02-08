@@ -229,71 +229,89 @@ func selectDouyinLivePhotoPair(downloads []string, imageIndex, videoIndex *int) 
 		return 0, 0, "videoIndex 越界"
 	}
 
-	if imageIndex != nil && videoIndex != nil {
+	imagePositions, videoPositions := collectDouyinMediaPositions(downloads)
+	if len(imagePositions) == 0 || len(videoPositions) == 0 {
+		return 0, 0, "未找到图片/视频资源，无法生成实况"
+	}
+
+	if imageIndex != nil {
 		if guessDouyinMediaTypeFromURL(downloads[*imageIndex]) != "image" {
 			return 0, 0, "imageIndex 不是图片资源"
 		}
+	}
+	if videoIndex != nil {
 		if guessDouyinMediaTypeFromURL(downloads[*videoIndex]) != "video" {
 			return 0, 0, "videoIndex 不是视频资源"
 		}
+	}
+
+	if imageIndex != nil && videoIndex != nil {
 		return *imageIndex, *videoIndex, ""
 	}
 
-	// 若只提供其中一个：尽量推断另一个（best-effort）
-	imgIdx = -1
-	vidIdx = -1
-
 	if imageIndex != nil {
 		imgIdx = *imageIndex
-		for i := imgIdx + 1; i < len(downloads); i++ {
-			if guessDouyinMediaTypeFromURL(downloads[i]) == "video" {
-				vidIdx = i
-				break
+		rank := findDouyinMediaRank(imagePositions, imgIdx)
+		if rank < 0 {
+			return 0, 0, "imageIndex 不是图片资源"
+		}
+		if rank < len(videoPositions) {
+			return imgIdx, videoPositions[rank], ""
+		}
+
+		// 兜底：当图片数量大于视频数量时，优先找该图之后的最近视频；再退化到最后一个视频。
+		for _, p := range videoPositions {
+			if p > imgIdx {
+				return imgIdx, p, ""
 			}
 		}
-		if vidIdx < 0 {
-			for i := 0; i < len(downloads); i++ {
-				if guessDouyinMediaTypeFromURL(downloads[i]) == "video" {
-					vidIdx = i
-					break
-				}
-			}
-		}
-	} else if videoIndex != nil {
-		vidIdx = *videoIndex
-		for i := 0; i < vidIdx; i++ {
-			if guessDouyinMediaTypeFromURL(downloads[i]) == "image" {
-				imgIdx = i
-				break
-			}
-		}
-		if imgIdx < 0 {
-			for i := 0; i < len(downloads); i++ {
-				if guessDouyinMediaTypeFromURL(downloads[i]) == "image" {
-					imgIdx = i
-					break
-				}
-			}
-		}
-	} else {
-		for i := 0; i < len(downloads); i++ {
-			if guessDouyinMediaTypeFromURL(downloads[i]) == "image" {
-				imgIdx = i
-				break
-			}
-		}
-		for i := 0; i < len(downloads); i++ {
-			if guessDouyinMediaTypeFromURL(downloads[i]) == "video" {
-				vidIdx = i
-				break
-			}
-		}
+		return imgIdx, videoPositions[len(videoPositions)-1], ""
 	}
 
-	if imgIdx < 0 || vidIdx < 0 {
-		return 0, 0, "未找到图片/视频资源，无法生成实况"
+	if videoIndex != nil {
+		vidIdx = *videoIndex
+		rank := findDouyinMediaRank(videoPositions, vidIdx)
+		if rank < 0 {
+			return 0, 0, "videoIndex 不是视频资源"
+		}
+		if rank < len(imagePositions) {
+			return imagePositions[rank], vidIdx, ""
+		}
+
+		// 兜底：当视频数量大于图片数量时，优先找该视频之前的最近图片；再退化到第一张图片。
+		for i := len(imagePositions) - 1; i >= 0; i-- {
+			p := imagePositions[i]
+			if p < vidIdx {
+				return p, vidIdx, ""
+			}
+		}
+		return imagePositions[0], vidIdx, ""
 	}
-	return imgIdx, vidIdx, ""
+
+	// 无显式索引时，默认返回第一组可用配对。
+	return imagePositions[0], videoPositions[0], ""
+}
+
+func collectDouyinMediaPositions(downloads []string) (imagePositions []int, videoPositions []int) {
+	imagePositions = make([]int, 0, len(downloads))
+	videoPositions = make([]int, 0, len(downloads))
+	for i, raw := range downloads {
+		if guessDouyinMediaTypeFromURL(raw) == "video" {
+			videoPositions = append(videoPositions, i)
+			continue
+		}
+		imagePositions = append(imagePositions, i)
+	}
+	return imagePositions, videoPositions
+}
+
+func findDouyinMediaRank(positions []int, target int) int {
+	for i, p := range positions {
+		if p == target {
+			return i
+		}
+	}
+	return -1
 }
 
 func downloadDouyinResourceToFile(ctx context.Context, client *http.Client, remoteURL, dstPath string) (contentType string, err error) {

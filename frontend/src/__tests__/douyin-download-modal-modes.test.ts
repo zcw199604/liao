@@ -545,6 +545,55 @@ describe('components/media/DouyinDownloadModal.vue (modes)', () => {
     expect(vm.previewIndex).toBe(7)
   })
 
+
+  it('maps grouped live-photo resources to distinct liveVideoIndex by rank', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          MediaPreview: MediaPreviewStub,
+          MediaTile: MediaTileStub,
+          MediaTileBadge: MediaTileBadgeStub,
+          MediaTileSelectMark: MediaTileSelectMarkStub
+        }
+      }
+    })
+
+    const douyinStore = useDouyinStore()
+    douyinStore.showModal = true
+    await flushAsync()
+    await flushAsync()
+
+    const vm = wrapper.vm as any
+    const accountItem = {
+      detailId: 'aw-live',
+      key: 'k-live',
+      desc: 'live',
+      items: [
+        { index: 0, type: 'image', url: 'u0', downloadUrl: '/api/douyin/download?key=k-live&index=0' },
+        { index: 1, type: 'image', url: 'u1', downloadUrl: '/api/douyin/download?key=k-live&index=1' },
+        { index: 2, type: 'video', url: 'u2', downloadUrl: '/api/douyin/download?key=k-live&index=2' },
+        { index: 3, type: 'video', url: 'u3', downloadUrl: '/api/douyin/download?key=k-live&index=3' }
+      ]
+    }
+
+    vm.accountItems = [accountItem]
+    await flushAsync()
+    vm.openPreviewFromAccount(accountItem)
+    await flushAsync()
+
+    const medias = vm.previewMediaList as any[]
+    const img0 = medias.find((m) => m?.type === 'image' && Number(m?.context?.index) === 0)
+    const img1 = medias.find((m) => m?.type === 'image' && Number(m?.context?.index) === 1)
+
+    expect(Number(img0?.context?.liveVideoIndex)).toBe(2)
+    expect(Number(img1?.context?.liveVideoIndex)).toBe(3)
+  })
+
   it('tag manager and tag sheet error branches populate error fields', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
