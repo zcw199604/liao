@@ -597,6 +597,102 @@ describe('components/media/DouyinDownloadModal.vue (modes)', () => {
     expect(img10?.context?.liveVideoIndex).toBeUndefined()
   })
 
+
+  it('maps interleaved media by fallback when rank candidate index is not after image', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          MediaPreview: MediaPreviewStub,
+          MediaTile: MediaTileStub,
+          MediaTileBadge: MediaTileBadgeStub,
+          MediaTileSelectMark: MediaTileSelectMarkStub
+        }
+      }
+    })
+
+    const douyinStore = useDouyinStore()
+    douyinStore.showModal = true
+    await flushAsync()
+    await flushAsync()
+
+    const vm = wrapper.vm as any
+    const accountItem = {
+      detailId: 'aw-interleaved',
+      key: 'k-interleaved',
+      desc: 'live',
+      items: [
+        { index: 0, type: 'video', url: 'v0', downloadUrl: '/api/douyin/download?key=k-interleaved&index=0' },
+        { index: 1, type: 'image', url: 'i1', downloadUrl: '/api/douyin/download?key=k-interleaved&index=1' },
+        { index: 2, type: 'video', url: 'v2', downloadUrl: '/api/douyin/download?key=k-interleaved&index=2' },
+        { index: 3, type: 'image', url: 'i3', downloadUrl: '/api/douyin/download?key=k-interleaved&index=3' }
+      ]
+    }
+
+    vm.accountItems = [accountItem]
+    await flushAsync()
+    vm.openPreviewFromAccount(accountItem)
+    await flushAsync()
+
+    const medias = vm.previewMediaList as any[]
+    const img1 = medias.find((m) => m?.type === 'image' && Number(m?.context?.index) === 1)
+    const img3 = medias.find((m) => m?.type === 'image' && Number(m?.context?.index) === 3)
+
+    expect(Number(img1?.context?.liveVideoIndex)).toBe(2)
+    expect(img3?.context?.liveVideoIndex).toBeUndefined()
+  })
+
+  it('maps single-video live photo by sharing the only motion video for all images', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          MediaPreview: MediaPreviewStub,
+          MediaTile: MediaTileStub,
+          MediaTileBadge: MediaTileBadgeStub,
+          MediaTileSelectMark: MediaTileSelectMarkStub
+        }
+      }
+    })
+
+    const douyinStore = useDouyinStore()
+    douyinStore.showModal = true
+    await flushAsync()
+    await flushAsync()
+
+    const vm = wrapper.vm as any
+    const accountItem = {
+      detailId: 'aw-single-video',
+      key: 'k-single-video',
+      desc: 'live',
+      items: [
+        { index: 0, type: 'image', url: 'i0', downloadUrl: '/api/douyin/download?key=k-single-video&index=0' },
+        { index: 1, type: 'image', url: 'i1', downloadUrl: '/api/douyin/download?key=k-single-video&index=1' },
+        { index: 2, type: 'video', url: 'v2', downloadUrl: '/api/douyin/download?key=k-single-video&index=2' }
+      ]
+    }
+
+    vm.accountItems = [accountItem]
+    await flushAsync()
+    vm.openPreviewFromAccount(accountItem)
+    await flushAsync()
+
+    const medias = vm.previewMediaList as any[]
+    const img0 = medias.find((m) => m?.type === 'image' && Number(m?.context?.index) === 0)
+    const img1 = medias.find((m) => m?.type === 'image' && Number(m?.context?.index) === 1)
+
+    expect(Number(img0?.context?.liveVideoIndex)).toBe(2)
+    expect(Number(img1?.context?.liveVideoIndex)).toBe(2)
+  })
+
   it('tag manager and tag sheet error branches populate error fields', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)

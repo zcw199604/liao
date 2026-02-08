@@ -109,3 +109,55 @@ func TestSelectDouyinLivePhotoPair_GroupedLiveResourcesUseRankPairing(t *testing
 		t.Fatalf("video3 should pair image1, got img=%d vid=%d", img, vid)
 	}
 }
+
+func TestSelectDouyinLivePhotoPair_SingleVideoSharedAcrossImages(t *testing.T) {
+	downloads := []string{
+		"https://example.com/img1.jpg",
+		"https://example.com/img2.jpg",
+		"https://example.com/img3.jpg",
+		"https://example.com/aweme/v1/play/?video_id=only",
+	}
+
+	imageIndex := 2
+	img, vid, errMsg := selectDouyinLivePhotoPair(downloads, &imageIndex, nil)
+	if errMsg != "" {
+		t.Fatalf("err=%q", errMsg)
+	}
+	if img != 2 || vid != 3 {
+		t.Fatalf("single video should be shared, got img=%d vid=%d", img, vid)
+	}
+}
+
+func TestSelectDouyinLivePhotoPair_SingleImageSharedAcrossVideos(t *testing.T) {
+	downloads := []string{
+		"https://example.com/cover.jpg",
+		"https://example.com/v1.mp4",
+		"https://example.com/v2.mp4",
+	}
+
+	videoIndex := 2
+	img, vid, errMsg := selectDouyinLivePhotoPair(downloads, nil, &videoIndex)
+	if errMsg != "" {
+		t.Fatalf("err=%q", errMsg)
+	}
+	if img != 0 || vid != 2 {
+		t.Fatalf("single image should be shared, got img=%d vid=%d", img, vid)
+	}
+}
+
+func TestSelectDouyinLivePhotoPair_NegativeIndexes(t *testing.T) {
+	downloads := []string{
+		"https://example.com/a.jpg",
+		"https://example.com/v.mp4",
+	}
+
+	negImage := -1
+	if _, _, msg := selectDouyinLivePhotoPair(downloads, &negImage, nil); msg != "imageIndex 越界" {
+		t.Fatalf("unexpected image msg=%q", msg)
+	}
+
+	negVideo := -1
+	if _, _, msg := selectDouyinLivePhotoPair(downloads, nil, &negVideo); msg != "videoIndex 越界" {
+		t.Fatalf("unexpected video msg=%q", msg)
+	}
+}
