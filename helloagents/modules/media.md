@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** 上传/重传媒体；记录发送日志；分页查询上传/发送历史；全站媒体库分页；删除与批量删除；历史数据修复（repair）
 - **状态:** ✅稳定
-- **最后更新:** 2026-01-23
+- **最后更新:** 2026-02-09
 
 ## 入口与交互
 - **聊天页上传菜单:** “所有上传图片”（浏览后发送）/“mtPhoto 相册”
@@ -53,6 +53,7 @@
 - 支持无限滚动加载更多，复用 `InfiniteMediaGrid` 组件统一滚动/加载/空态/结束态逻辑
 - 缩略图使用 `MediaTile` 统一渲染图片/视频（懒加载 + 错误兜底 + 统一的 overlay slot 布局），角落按钮/徽标统一使用 `MediaTileActionButton` / `MediaTileSelectMark` / `MediaTileBadge`；桌面端可按需设置“hover 才显示”，触屏设备默认可见可点；预览背景采用毛玻璃（`backdrop-blur`）提升沉浸感
 - 弹窗展示区域针对大屏做放宽：弹窗宽度上限提升（`max-w-[1600px]`），高度提升至 `90vh`（支持 `90dvh`），列表容器内边距下调至 `p-2`，并在网格模式下将间距调整为 `gap-2` 以减少留白
+- 抖音来源媒体（`source=douyin`）在“查看详情”中展示作者快照（`authorName/authorUniqueId/authorSecUserId`）；当 `authorSecUserId` 存在时，作者区域可点击并一键打开“抖音下载”弹窗，自动切换到“用户作品”模式并拉取该作者作品列表。
 
 ### 需求: 删除兼容性（localPath 归一化）
 **模块:** Media
@@ -124,6 +125,13 @@
 - `source`：数据来源（`all/local/douyin`，默认 `all`）
 - `douyinSecUserId`：抖音 `sec_user_id`（仅 `source=douyin` 时生效）
 
+**Response item（新增兼容字段）**
+- `source?: "local" | "douyin"`
+- `douyinSecUserId?: string`
+- `douyinDetailId?: string`
+- `douyinAuthorUniqueId?: string`
+- `douyinAuthorName?: string`
+
 ### [POST] /api/deleteMedia
 **描述:** 删除单个媒体（DB 记录 + 可能的物理文件删除）
 
@@ -162,6 +170,10 @@
 - 前端：
   - `frontend/src/components/media/AllUploadImageModal.vue`
   - `frontend/src/components/media/MediaPreview.vue`
+  - `frontend/src/components/media/MediaDetailPanel.vue`
+  - `frontend/src/components/media/DouyinDownloadModal.vue`
+  - `frontend/src/stores/media.ts`
+  - `frontend/src/stores/douyin.ts`
   - `frontend/src/components/media/VideoExtractTaskModal.vue`
   - `frontend/src/components/common/InfiniteMediaGrid.vue`
   - `frontend/src/components/common/MediaTile.vue`
@@ -184,6 +196,7 @@
   - `internal/app/user_history_media_handlers_test.go`
 
 ## 变更历史
+- [202602082347_douyin-import-author-link-works] - 抖音导入作者快照落库；媒体详情支持点击作者一键打开其全部作品
 - [202601201117_video_pause_capture_frame](../../history/2026-01/202601201117_video_pause_capture_frame/) - 视频预览支持倍速/慢放与暂停抓帧（下载 + 上传到图片库）
 - [202601210322_media_preview_plyr](../../history/2026-01/202601210322_media_preview_plyr/) - 媒体预览主视频播放器升级为 Plyr（控制栏美化，功能保持一致）
 - [202601210422_media_preview_video_click_hold_x2](../../history/2026-01/202601210422_media_preview_video_click_hold_x2/) - MediaPreview 视频交互增强（单击浮现三按钮/滑动快进&音量/长按临时 2x/抓帧抽帧按钮美化）

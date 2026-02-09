@@ -37,8 +37,8 @@ func TestMediaUploadService_SaveDouyinUploadRecord_MD5HitUpdatesTime(t *testing.
 			sql.NullTime{Time: now, Valid: true},
 		))
 
-	mock.ExpectExec(`UPDATE douyin_media_file SET update_time = \? WHERE id = \?`).
-		WithArgs(sqlmock.AnyArg(), int64(7)).
+	mock.ExpectExec(`(?s)UPDATE douyin_media_file.*author_name = COALESCE\(NULLIF\(\?, ''\), author_name\).*WHERE id = \?`).
+		WithArgs(sqlmock.AnyArg(), "", "", "", "", int64(7)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	got, err := svc.SaveDouyinUploadRecord(context.Background(), DouyinUploadRecord{
@@ -62,6 +62,8 @@ func TestMediaUploadService_SaveDouyinUploadRecord_InsertWhenMD5Missing(t *testi
 
 	expectInsertReturningID(mock, `INSERT INTO douyin_media_file`, 9,
 		"u2",
+		nil,
+		nil,
 		nil,
 		nil,
 		"orig.mp4",

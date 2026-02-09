@@ -404,7 +404,11 @@
     </transition>
 
     <!-- 详情面板 -->
-    <MediaDetailPanel v-model:visible="showDetails" :media="currentMedia" />
+    <MediaDetailPanel
+      v-model:visible="showDetails"
+      :media="currentMedia"
+      @open-author-works="handleOpenAuthorWorks"
+    />
   </teleport>
 </template>
 
@@ -412,11 +416,12 @@
 // 媒体预览弹窗：支持图片/视频/文件的全屏预览与画廊切换，并增强视频播放交互体验。
 import { ref, watch, computed, onUnmounted, nextTick } from 'vue'
 import { RecycleScroller } from 'vue-virtual-scroller'
-	import type { UploadedMedia } from '@/types'
-	import { useToast } from '@/composables/useToast'
-	import { useUpload } from '@/composables/useUpload'
-	import { useUserStore } from '@/stores/user'
-	import MediaTile from '@/components/common/MediaTile.vue'
+import type { UploadedMedia } from '@/types'
+import { useToast } from '@/composables/useToast'
+import { useUpload } from '@/composables/useUpload'
+import { useUserStore } from '@/stores/user'
+import { useDouyinStore } from '@/stores/douyin'
+import MediaTile from '@/components/common/MediaTile.vue'
 import { useVideoExtractStore } from '@/stores/videoExtract'
 import Plyr from 'plyr'
 import 'plyr/dist/plyr.css'
@@ -450,6 +455,7 @@ const emit = defineEmits<{
 
 const { show } = useToast()
 const userStore = useUserStore()
+const douyinStore = useDouyinStore()
 const videoExtractStore = useVideoExtractStore()
 const { uploadFile } = useUpload()
 
@@ -1244,6 +1250,20 @@ const resolveCurrentOriginalFilename = async () => {
 const handleShowDetails = async () => {
   await resolveCurrentOriginalFilename()
   showDetails.value = true
+}
+
+const handleOpenAuthorWorks = (secUserId: string) => {
+  const safeSecUserId = String(secUserId || '').trim()
+  if (!safeSecUserId) return
+
+  showDetails.value = false
+  douyinStore.open({
+    entryMode: 'default',
+    targetMode: 'account',
+    prefill: safeSecUserId,
+    accountSecUserId: safeSecUserId,
+    autoFetchAccount: true
+  })
 }
 
 const handleExtractFrames = async () => {

@@ -3,11 +3,15 @@ import { ref } from 'vue'
 
 export type DouyinEntryMode = 'default' | 'favorites'
 export type DouyinFavoritesTab = 'users' | 'awemes'
+export type DouyinTargetMode = 'detail' | 'account' | 'favorites'
 
 export interface DouyinOpenOptions {
   prefill?: string
   entryMode?: DouyinEntryMode
   favoritesTab?: DouyinFavoritesTab
+  targetMode?: DouyinTargetMode
+  accountSecUserId?: string
+  autoFetchAccount?: boolean
 }
 
 const normalizeOpenOptions = (input?: string | DouyinOpenOptions): DouyinOpenOptions => {
@@ -29,6 +33,11 @@ export const useDouyinStore = defineStore('douyin', () => {
   const entryMode = ref<DouyinEntryMode>('default')
   const favoritesTab = ref<DouyinFavoritesTab>('users')
 
+  // 弹窗打开行为扩展：支持直达“用户作品”并自动拉取
+  const targetMode = ref<DouyinTargetMode>('detail')
+  const accountSecUserId = ref('')
+  const autoFetchAccount = ref(false)
+
   const open = (input?: string | DouyinOpenOptions) => {
     const opts = normalizeOpenOptions(input)
 
@@ -38,6 +47,19 @@ export const useDouyinStore = defineStore('douyin', () => {
 
     entryMode.value = opts.entryMode === 'favorites' ? 'favorites' : 'default'
     favoritesTab.value = opts.favoritesTab === 'awemes' ? 'awemes' : 'users'
+
+    // 若显式要求直达收藏模式，优先落到 favorites。
+    if (opts.targetMode === 'favorites') {
+      targetMode.value = 'favorites'
+    } else if (opts.targetMode === 'account') {
+      targetMode.value = 'account'
+    } else {
+      targetMode.value = 'detail'
+    }
+
+    accountSecUserId.value = String(opts.accountSecUserId || '').trim()
+    autoFetchAccount.value = !!opts.autoFetchAccount
+
     showModal.value = true
   }
 
@@ -46,6 +68,9 @@ export const useDouyinStore = defineStore('douyin', () => {
     draftInput.value = ''
     entryMode.value = 'default'
     favoritesTab.value = 'users'
+    targetMode.value = 'detail'
+    accountSecUserId.value = ''
+    autoFetchAccount.value = false
   }
 
   return {
@@ -53,6 +78,9 @@ export const useDouyinStore = defineStore('douyin', () => {
     draftInput,
     entryMode,
     favoritesTab,
+    targetMode,
+    accountSecUserId,
+    autoFetchAccount,
     open,
     close
   }

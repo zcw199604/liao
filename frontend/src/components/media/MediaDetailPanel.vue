@@ -24,19 +24,27 @@
                 <div class="value text-sm">{{ douyinWork.desc }}</div>
               </div>
 
-              <div v-if="douyinWork.authorName" class="detail-item">
+              <div v-if="douyinWork.authorSecUserId" class="detail-item">
+                <label>作者</label>
+                <button class="detail-action" type="button" @click="handleOpenAuthorWorks">
+                  <div class="value font-medium">{{ authorPrimaryText }}</div>
+                  <div v-if="douyinWork.authorUniqueId" class="value text-xs font-mono text-fg-subtle mt-1">@{{ douyinWork.authorUniqueId }}</div>
+                  <div class="value text-xs font-mono text-fg-subtle mt-1">{{ douyinWork.authorSecUserId }}</div>
+                  <div class="mt-2 text-xs text-emerald-500 flex items-center gap-1">
+                    <i class="fas fa-arrow-up-right-from-square"></i>
+                    <span>查看该作者全部作品</span>
+                  </div>
+                </button>
+              </div>
+
+              <div v-else-if="douyinWork.authorName" class="detail-item">
                 <label>作者名称</label>
                 <div class="value">{{ douyinWork.authorName }}</div>
               </div>
 
-              <div v-if="douyinWork.authorUniqueId" class="detail-item">
+              <div v-if="!douyinWork.authorSecUserId && douyinWork.authorUniqueId" class="detail-item">
                 <label>抖音号</label>
                 <div class="value font-mono text-xs">{{ douyinWork.authorUniqueId }}</div>
-              </div>
-
-              <div v-if="douyinWork.authorSecUserId" class="detail-item">
-                <label>作者ID（sec_user_id）</label>
-                <div class="value font-mono text-xs">{{ douyinWork.authorSecUserId }}</div>
               </div>
 
               <div v-if="douyinWork.status" class="detail-item">
@@ -163,9 +171,24 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-const emit = defineEmits<{ 'update:visible': [value: boolean] }>()
+const emit = defineEmits<{
+  'update:visible': [value: boolean]
+  'open-author-works': [secUserId: string]
+}>()
 
 const close = () => emit('update:visible', false)
+
+const handleOpenAuthorWorks = () => {
+  const secUserId = String(douyinWork.value?.authorSecUserId || '').trim()
+  if (!secUserId) return
+  emit('open-author-works', secUserId)
+}
+
+const authorPrimaryText = computed(() => {
+  const work = douyinWork.value
+  if (!work) return ''
+  return String(work.authorName || work.authorUniqueId || work.authorSecUserId || '').trim()
+})
 
 const douyinWork = computed(() => {
   const media = props.media
@@ -203,6 +226,9 @@ const douyinWork = computed(() => {
 }
 .detail-item .value {
   @apply text-fg break-all;
+}
+.detail-action {
+  @apply w-full text-left rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 transition hover:border-emerald-400/60 hover:bg-emerald-500/10;
 }
 
 .slide-up-enter-active,

@@ -263,6 +263,36 @@ describe('stores/media', () => {
     expect(store.allUploadTotalPages).toBe(2)
   })
 
+  it('loadAllUploadImages maps douyin author metadata into context.work', async () => {
+    vi.mocked(mediaApi.getAllUploadImages).mockResolvedValue({
+      data: [
+        {
+          url: 'u-dy-1',
+          type: 'image',
+          localFilename: 'dy-1.jpg',
+          source: 'douyin',
+          douyinSecUserId: 'sec-888',
+          douyinDetailId: 'detail-1',
+          douyinAuthorUniqueId: 'dy_author_1',
+          douyinAuthorName: '作者A'
+        }
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20
+    } as any)
+
+    const store = useMediaStore()
+    await store.loadAllUploadImages(1)
+
+    expect(store.allUploadImages).toHaveLength(1)
+    expect(store.allUploadImages[0]?.context?.provider).toBe('douyin')
+    expect(store.allUploadImages[0]?.context?.work?.authorSecUserId).toBe('sec-888')
+    expect(store.allUploadImages[0]?.context?.work?.detailId).toBe('detail-1')
+    expect(store.allUploadImages[0]?.context?.work?.authorUniqueId).toBe('dy_author_1')
+    expect(store.allUploadImages[0]?.context?.work?.authorName).toBe('作者A')
+  })
+
   it('loadAllUploadImages ignores non-array response payloads', async () => {
     vi.mocked(mediaApi.getAllUploadImages).mockResolvedValue({ data: { nope: true } } as any)
     const store = useMediaStore()
@@ -593,26 +623,41 @@ describe('stores/favorite', () => {
 })
 
 describe('stores/douyin', () => {
-  it('open respects existing draft and close resets state', () => {
+  it('open respects existing draft, supports account jump options, and close resets state', () => {
     const store = useDouyinStore()
     store.open('x')
     expect(store.showModal).toBe(true)
     expect(store.draftInput).toBe('x')
     expect(store.entryMode).toBe('default')
     expect(store.favoritesTab).toBe('users')
+    expect(store.targetMode).toBe('detail')
+    expect(store.accountSecUserId).toBe('')
+    expect(store.autoFetchAccount).toBe(false)
 
     store.open('y')
     expect(store.draftInput).toBe('x')
 
-    store.open({ entryMode: 'favorites', favoritesTab: 'awemes' })
+    store.open({
+      entryMode: 'favorites',
+      favoritesTab: 'awemes',
+      targetMode: 'account',
+      accountSecUserId: ' sec-2 ',
+      autoFetchAccount: true
+    })
     expect(store.entryMode).toBe('favorites')
     expect(store.favoritesTab).toBe('awemes')
+    expect(store.targetMode).toBe('account')
+    expect(store.accountSecUserId).toBe('sec-2')
+    expect(store.autoFetchAccount).toBe(true)
 
     store.close()
     expect(store.showModal).toBe(false)
     expect(store.draftInput).toBe('')
     expect(store.entryMode).toBe('default')
     expect(store.favoritesTab).toBe('users')
+    expect(store.targetMode).toBe('detail')
+    expect(store.accountSecUserId).toBe('')
+    expect(store.autoFetchAccount).toBe(false)
   })
 })
 

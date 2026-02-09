@@ -213,7 +213,10 @@ type douyinCachedDetail struct {
 	Title     string
 	Type      string
 	CoverURL  string
-	Downloads []string
+	// 作者快照信息（best-effort）：用于导入落库与详情展示。
+	AuthorUniqueID string
+	AuthorName     string
+	Downloads      []string
 }
 
 func NewDouyinDownloaderService(baseURL, token, defaultCookie, defaultProxy string, upstreamTimeout time.Duration) *DouyinDownloaderService {
@@ -488,6 +491,13 @@ func (s *DouyinDownloaderService) FetchDetail(ctx context.Context, detailID, coo
 	if cover == "" {
 		cover = strings.TrimSpace(asString(data["dynamic_cover"]))
 	}
+	authorUniqueID, authorName := extractDouyinAccountAuthorMeta(data)
+	if authorUniqueID == "" {
+		authorUniqueID = strings.TrimSpace(asString(data["author_unique_id"]))
+	}
+	if authorName == "" {
+		authorName = strings.TrimSpace(asString(data["author_name"]))
+	}
 
 	downloads := extractStringSlice(data["downloads"])
 	if len(downloads) == 0 {
@@ -501,12 +511,14 @@ func (s *DouyinDownloaderService) FetchDetail(ctx context.Context, detailID, coo
 	}
 
 	return &douyinCachedDetail{
-		SecUserID: secUserID,
-		DetailID:  detailID,
-		Title:     title,
-		Type:      typeValue,
-		CoverURL:  cover,
-		Downloads: downloads,
+		SecUserID:      secUserID,
+		DetailID:       detailID,
+		Title:          title,
+		Type:           typeValue,
+		CoverURL:       cover,
+		AuthorUniqueID: authorUniqueID,
+		AuthorName:     authorName,
+		Downloads:      downloads,
 	}, nil
 }
 

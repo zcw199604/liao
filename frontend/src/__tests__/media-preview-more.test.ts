@@ -61,6 +61,7 @@ vi.mock('plyr', () => {
 
 import MediaPreview from '@/components/media/MediaPreview.vue'
 import { useUserStore } from '@/stores/user'
+import { useDouyinStore } from '@/stores/douyin'
 
 const flushAsync = async () => {
   await Promise.resolve()
@@ -120,6 +121,51 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
     const wrapperCustom = mountWith('image', '自定义上传')
     await flushAsync()
     expect(wrapperCustom.findAll('button').some((b) => b.text().includes('自定义上传'))).toBe(true)
+  })
+
+  it('opens douyin account works when detail panel emits open-author-works', async () => {
+    const wrapper = mount(MediaPreview, {
+      props: {
+        visible: true,
+        url: '/upload/images/2026/01/a.jpg',
+        type: 'image',
+        mediaList: [
+          {
+            url: '/upload/images/2026/01/a.jpg',
+            type: 'image',
+            context: {
+              provider: 'douyin',
+              work: {
+                detailId: 'detail-1',
+                authorSecUserId: 'sec-from-media'
+              }
+            }
+          }
+        ]
+      },
+      global: {
+        stubs: {
+          teleport: true,
+          MediaDetailPanel: {
+            template: '<button class="emit-open-author" @click="$emit(\'open-author-works\', \'sec-999\')">emit</button>'
+          }
+        }
+      }
+    })
+
+    await flushAsync()
+
+    const douyinStore = useDouyinStore()
+    expect(douyinStore.showModal).toBe(false)
+
+    await wrapper.get('button.emit-open-author').trigger('click')
+    await flushAsync()
+
+    expect(douyinStore.showModal).toBe(true)
+    expect(douyinStore.targetMode).toBe('account')
+    expect(douyinStore.accountSecUserId).toBe('sec-999')
+    expect(douyinStore.autoFetchAccount).toBe(true)
+    expect(douyinStore.draftInput).toBe('sec-999')
   })
 
   it('image click toggles zoom and swipe-drag navigates next/prev', async () => {

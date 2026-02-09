@@ -7,6 +7,10 @@
 ## [Unreleased]
 
 ### 新增
+- 抖音导入链路新增作者快照落库：`douyin_media_file` 增加 `author_unique_id`、`author_name` 字段；导入时写入并在 MD5 命中复用时执行非空回填。
+- 全站媒体接口 `GET /api/getAllUploadImages` 新增抖音元信息返回字段：`source`、`douyinSecUserId`、`douyinDetailId`、`douyinAuthorUniqueId`、`douyinAuthorName`（兼容追加）。
+- 前端媒体详情支持“点击作者查看全部作品”：在 `MediaDetailPanel` 点击作者可直接打开 `DouyinDownloadModal` 并自动切到“用户作品”模式拉取该作者列表。
+  - 方案: [202602082347_douyin-import-author-link-works](archive/2026-02/202602082347_douyin-import-author-link-works/)
 - 前端：聊天页“+”上传菜单改为宫格操作区（保留顶部“已上传待发送”托盘），降低纵向堆叠带来的视觉拥挤，提升移动端点击效率。
 - 前端：聊天页“+”上传菜单新增“抖音收藏作者”入口，点击后直达抖音收藏“用户收藏”列表；可继续点击作者查看其全部已入库作品并在预览中导入本地服务器。
   - 方案: [202602071149_chat-uploadmenu-douyin-favorites](archive/2026-02/202602071149_chat-uploadmenu-douyin-favorites/)

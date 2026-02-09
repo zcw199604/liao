@@ -1900,6 +1900,8 @@ watch(
     if (v) {
       const isFavoritesEntry = douyinStore.entryMode === 'favorites'
       const entryFavoritesTab = douyinStore.favoritesTab === 'awemes' ? 'awemes' : 'users'
+      const entryTargetMode = douyinStore.targetMode
+      const shouldEnterFavorites = isFavoritesEntry || entryTargetMode === 'favorites'
 
       restoreLocalConfig()
       error.value = ''
@@ -1914,8 +1916,16 @@ watch(
       previewUrl.value = ''
       previewMediaList.value = []
       previewIndex.value = 0
-      activeMode.value = isFavoritesEntry ? 'favorites' : 'detail'
-      favoritesTab.value = isFavoritesEntry ? entryFavoritesTab : 'users'
+
+      if (shouldEnterFavorites) {
+        activeMode.value = 'favorites'
+      } else if (entryTargetMode === 'account') {
+        activeMode.value = 'account'
+      } else {
+        activeMode.value = 'detail'
+      }
+      favoritesTab.value = shouldEnterFavorites ? entryFavoritesTab : 'users'
+
       favoriteUserTags.value = []
       favoriteAwemeTags.value = []
       favoriteUserTagFilter.value = null
@@ -1947,7 +1957,19 @@ watch(
       void refreshFavorites()
 
       // 从聊天上传菜单进入“收藏作者”时，强制落在收藏视图，不读取剪贴板覆盖当前模式。
-      if (isFavoritesEntry) {
+      if (shouldEnterFavorites) {
+        return
+      }
+
+      // 从外部入口直达用户作品时，优先使用显式 sec_user_id，并按需自动获取。
+      if (entryTargetMode === 'account') {
+        const accountPrefill = String(douyinStore.accountSecUserId || douyinStore.draftInput || '').trim()
+        if (accountPrefill) {
+          accountInput.value = accountPrefill
+        }
+        if (douyinStore.autoFetchAccount && String(accountInput.value || '').trim()) {
+          await handleFetchAccount()
+        }
         return
       }
 

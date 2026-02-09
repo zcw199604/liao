@@ -41,16 +41,21 @@ type MediaUploadHistory struct {
 }
 
 type MediaFileDTO struct {
-	URL              string `json:"url"`
-	Type             string `json:"type"`
-	PosterURL        string `json:"posterUrl,omitempty"`
-	LocalFilename    string `json:"localFilename,omitempty"`
-	OriginalFilename string `json:"originalFilename,omitempty"`
-	FileSize         int64  `json:"fileSize,omitempty"`
-	FileType         string `json:"fileType,omitempty"`
-	FileExtension    string `json:"fileExtension,omitempty"`
-	UploadTime       string `json:"uploadTime,omitempty"`
-	UpdateTime       string `json:"updateTime,omitempty"`
+	URL                  string `json:"url"`
+	Type                 string `json:"type"`
+	PosterURL            string `json:"posterUrl,omitempty"`
+	LocalFilename        string `json:"localFilename,omitempty"`
+	OriginalFilename     string `json:"originalFilename,omitempty"`
+	FileSize             int64  `json:"fileSize,omitempty"`
+	FileType             string `json:"fileType,omitempty"`
+	FileExtension        string `json:"fileExtension,omitempty"`
+	UploadTime           string `json:"uploadTime,omitempty"`
+	UpdateTime           string `json:"updateTime,omitempty"`
+	Source               string `json:"source,omitempty"`
+	DouyinSecUserID      string `json:"douyinSecUserId,omitempty"`
+	DouyinDetailID       string `json:"douyinDetailId,omitempty"`
+	DouyinAuthorUniqueID string `json:"douyinAuthorUniqueId,omitempty"`
+	DouyinAuthorName     string `json:"douyinAuthorName,omitempty"`
 }
 
 type MediaUploadService struct {
@@ -446,13 +451,25 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 	)
 	switch source {
 	case "local":
-		rows, err = s.db.QueryContext(ctx, `SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time
+		rows, err = s.db.QueryContext(ctx, `SELECT
+			local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time,
+			NULL AS sec_user_id,
+			NULL AS detail_id,
+			NULL AS author_unique_id,
+			NULL AS author_name,
+			'local' AS source
 			FROM media_file
 			ORDER BY update_time DESC
 			LIMIT ? OFFSET ?`, pageSize, offset)
 	case "douyin":
 		args := make([]any, 0, 3)
-		query := `SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time
+		query := `SELECT
+			local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time,
+			sec_user_id,
+			detail_id,
+			author_unique_id,
+			author_name,
+			'douyin' AS source
 			FROM douyin_media_file`
 		if strings.TrimSpace(douyinSecUserID) != "" {
 			query += " WHERE sec_user_id = ?"
@@ -463,12 +480,23 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 		rows, err = s.db.QueryContext(ctx, query, args...)
 	default:
 		if s.db.Dialect().Name() == "postgres" {
-			// MySQL needs a collation workaround for UNION across tables; Postgres doesn't.
 			rows, err = s.db.QueryContext(ctx, `(
-				SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time
+				SELECT
+					local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time,
+					NULL::varchar(128) AS sec_user_id,
+					NULL::varchar(64) AS detail_id,
+					NULL::varchar(64) AS author_unique_id,
+					NULL::varchar(128) AS author_name,
+					'local'::text AS source
 				FROM media_file
 			) UNION ALL (
-				SELECT local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time
+				SELECT
+					local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time,
+					sec_user_id,
+					detail_id,
+					author_unique_id,
+					author_name,
+					'douyin'::text AS source
 				FROM douyin_media_file
 			)
 			ORDER BY update_time DESC
@@ -482,7 +510,12 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 					file_size,
 					CONVERT(file_type USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_type,
 					CONVERT(file_extension USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_extension,
-					upload_time, update_time
+					upload_time, update_time,
+					CAST(NULL AS CHAR(128)) COLLATE utf8mb4_unicode_ci AS sec_user_id,
+					CAST(NULL AS CHAR(64)) COLLATE utf8mb4_unicode_ci AS detail_id,
+					CAST(NULL AS CHAR(64)) COLLATE utf8mb4_unicode_ci AS author_unique_id,
+					CAST(NULL AS CHAR(128)) COLLATE utf8mb4_unicode_ci AS author_name,
+					'local' COLLATE utf8mb4_unicode_ci AS source
 				FROM media_file
 			) UNION ALL (
 				SELECT
@@ -492,7 +525,12 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 					file_size,
 					CONVERT(file_type USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_type,
 					CONVERT(file_extension USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_extension,
-					upload_time, update_time
+					upload_time, update_time,
+					CONVERT(sec_user_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AS sec_user_id,
+					CONVERT(detail_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AS detail_id,
+					CONVERT(author_unique_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AS author_unique_id,
+					CONVERT(author_name USING utf8mb4) COLLATE utf8mb4_unicode_ci AS author_name,
+					'douyin' COLLATE utf8mb4_unicode_ci AS source
 				FROM douyin_media_file
 			)
 			ORDER BY update_time DESC
@@ -504,14 +542,42 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 	}
 	defer rows.Close()
 
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	useExtendedScan := len(columns) >= 13
+
 	var out []MediaFileDTO
 	for rows.Next() {
 		var localFilename, originalFilename, localPath, fileType, fileExtension string
 		var fileSize int64
 		var uploadTime time.Time
 		var updateTime sql.NullTime
-		if err := rows.Scan(&localFilename, &originalFilename, &localPath, &fileSize, &fileType, &fileExtension, &uploadTime, &updateTime); err != nil {
-			return nil, err
+
+		var secUserID, detailID, authorUniqueID, authorName, sourceValue sql.NullString
+		if useExtendedScan {
+			if err := rows.Scan(
+				&localFilename,
+				&originalFilename,
+				&localPath,
+				&fileSize,
+				&fileType,
+				&fileExtension,
+				&uploadTime,
+				&updateTime,
+				&secUserID,
+				&detailID,
+				&authorUniqueID,
+				&authorName,
+				&sourceValue,
+			); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := rows.Scan(&localFilename, &originalFilename, &localPath, &fileSize, &fileType, &fileExtension, &uploadTime, &updateTime); err != nil {
+				return nil, err
+			}
 		}
 
 		dto := MediaFileDTO{
@@ -524,6 +590,21 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 			FileExtension:    fileExtension,
 			UploadTime:       uploadTime.Format("2006-01-02T15:04:05"),
 			UpdateTime:       "",
+		}
+		if sourceValue.Valid {
+			dto.Source = strings.TrimSpace(sourceValue.String)
+		}
+		if secUserID.Valid {
+			dto.DouyinSecUserID = strings.TrimSpace(secUserID.String)
+		}
+		if detailID.Valid {
+			dto.DouyinDetailID = strings.TrimSpace(detailID.String)
+		}
+		if authorUniqueID.Valid {
+			dto.DouyinAuthorUniqueID = strings.TrimSpace(authorUniqueID.String)
+		}
+		if authorName.Valid {
+			dto.DouyinAuthorName = strings.TrimSpace(authorName.String)
 		}
 		if dto.Type == "video" && s.fileStore != nil {
 			posterLocalPath := buildVideoPosterLocalPath(localPath)

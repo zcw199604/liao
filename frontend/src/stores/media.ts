@@ -87,18 +87,48 @@ export const useMediaStore = defineStore('media', () => {
       })
       if (res && Array.isArray(res.data)) {
         // 后端现在返回MediaFileDTO对象数组，直接使用
-        const newItems: UploadedMedia[] = res.data.map((item: any) => ({
-          url: item.url,
-          type: item.type,
-          posterUrl: item.posterUrl,
-          localFilename: item.localFilename,
-          originalFilename: item.originalFilename,
-          fileSize: item.fileSize,
-          fileType: item.fileType,
-          fileExtension: item.fileExtension,
-          uploadTime: item.uploadTime,
-          updateTime: item.updateTime
-        }))
+        const newItems: UploadedMedia[] = res.data.map((item: any) => {
+          const sourceValue = String(item?.source || '').trim().toLowerCase()
+          const douyinSecUserId = String(item?.douyinSecUserId || '').trim()
+          const douyinDetailId = String(item?.douyinDetailId || '').trim()
+          const douyinAuthorUniqueId = String(item?.douyinAuthorUniqueId || '').trim()
+          const douyinAuthorName = String(item?.douyinAuthorName || '').trim()
+
+          const hasDouyinMeta =
+            sourceValue === 'douyin' ||
+            !!douyinSecUserId ||
+            !!douyinDetailId ||
+            !!douyinAuthorUniqueId ||
+            !!douyinAuthorName
+
+          const work = hasDouyinMeta
+            ? {
+                detailId: douyinDetailId || undefined,
+                authorSecUserId: douyinSecUserId || undefined,
+                authorUniqueId: douyinAuthorUniqueId || undefined,
+                authorName: douyinAuthorName || undefined
+              }
+            : undefined
+
+          return {
+            url: item.url,
+            type: item.type,
+            posterUrl: item.posterUrl,
+            localFilename: item.localFilename,
+            originalFilename: item.originalFilename,
+            fileSize: item.fileSize,
+            fileType: item.fileType,
+            fileExtension: item.fileExtension,
+            uploadTime: item.uploadTime,
+            updateTime: item.updateTime,
+            context: work
+              ? {
+                  provider: 'douyin',
+                  work
+                }
+              : undefined
+          }
+        })
 
         if (page === 1) {
           allUploadImages.value = newItems

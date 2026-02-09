@@ -860,12 +860,14 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, secUserID string, dat
 		coverDownloadURL := ""
 		if s != nil && len(downloads) > 0 {
 			cached := &douyinCachedDetail{
-				SecUserID: secUserID,
-				DetailID:  id,
-				Title:     desc,
-				Type:      defaultString(typeLabel, map[string]string{"video": "视频", "image": "图集"}[displayType]),
-				CoverURL:  cover,
-				Downloads: downloads,
+				SecUserID:      secUserID,
+				DetailID:       id,
+				Title:          desc,
+				Type:           defaultString(typeLabel, map[string]string{"video": "视频", "image": "图集"}[displayType]),
+				CoverURL:       cover,
+				AuthorUniqueID: authorUniqueID,
+				AuthorName:     authorName,
+				Downloads:      downloads,
 			}
 			key = s.CacheDetail(cached)
 			if key != "" {
@@ -2386,6 +2388,8 @@ importContinue:
 		UserID:           userID,
 		SecUserID:        strings.TrimSpace(cached.SecUserID),
 		DetailID:         strings.TrimSpace(cached.DetailID),
+		AuthorUniqueID:   strings.TrimSpace(cached.AuthorUniqueID),
+		AuthorName:       strings.TrimSpace(cached.AuthorName),
 		OriginalFilename: originalFilename,
 		LocalFilename:    localFilename,
 		RemoteFilename:   "",

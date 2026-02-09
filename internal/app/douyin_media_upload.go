@@ -25,6 +25,8 @@ type DouyinUploadRecord struct {
 	UserID           string
 	SecUserID        string
 	DetailID         string
+	AuthorUniqueID   string
+	AuthorName       string
 	OriginalFilename string
 	LocalFilename    string
 	RemoteFilename   string
@@ -45,7 +47,20 @@ func (s *MediaUploadService) SaveDouyinUploadRecord(ctx context.Context, record 
 		}
 		if existing != nil {
 			now := time.Now()
-			if _, err := s.db.ExecContext(ctx, "UPDATE douyin_media_file SET update_time = ? WHERE id = ?", now, existing.ID); err != nil {
+			if _, err := s.db.ExecContext(ctx, `UPDATE douyin_media_file
+				SET update_time = ?,
+					sec_user_id = COALESCE(NULLIF(?, ''), sec_user_id),
+					detail_id = COALESCE(NULLIF(?, ''), detail_id),
+					author_unique_id = COALESCE(NULLIF(?, ''), author_unique_id),
+					author_name = COALESCE(NULLIF(?, ''), author_name)
+				WHERE id = ?`,
+				now,
+				strings.TrimSpace(record.SecUserID),
+				strings.TrimSpace(record.DetailID),
+				strings.TrimSpace(record.AuthorUniqueID),
+				strings.TrimSpace(record.AuthorName),
+				existing.ID,
+			); err != nil {
 				return nil, err
 			}
 			existing.UpdateTime = now.Format("2006-01-02 15:04:05")
@@ -55,11 +70,13 @@ func (s *MediaUploadService) SaveDouyinUploadRecord(ctx context.Context, record 
 
 	now := time.Now()
 	id, err := database.InsertReturningID(ctx, s.db, `INSERT INTO douyin_media_file
-		(user_id, sec_user_id, detail_id, original_filename, local_filename, remote_filename, remote_url, local_path, file_size, file_type, file_extension, file_md5, upload_time, update_time, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		(user_id, sec_user_id, detail_id, author_unique_id, author_name, original_filename, local_filename, remote_filename, remote_url, local_path, file_size, file_type, file_extension, file_md5, upload_time, update_time, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		record.UserID,
 		nullStringIfEmpty(record.SecUserID),
 		nullStringIfEmpty(record.DetailID),
+		nullStringIfEmpty(record.AuthorUniqueID),
+		nullStringIfEmpty(record.AuthorName),
 		record.OriginalFilename,
 		record.LocalFilename,
 		record.RemoteFilename,

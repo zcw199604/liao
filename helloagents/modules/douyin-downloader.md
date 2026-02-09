@@ -17,6 +17,7 @@
 ## 入口与交互
 - 入口A：侧边栏顶部菜单 → “图片管理” → “抖音下载”（打开弹窗，默认“作品解析”）
 - 入口B：聊天页“+”上传菜单 → “抖音收藏作者”（打开弹窗并默认“收藏/用户收藏”）
+- 入口C：全站媒体库（AllUploadImageModal）→ 媒体详情面板（MediaDetailPanel）点击作者（当 `authorSecUserId` 存在时）→ 打开抖音弹窗并直达“用户作品”模式，自动拉取该作者作品列表
 - 交互：
   - 模式A：作品解析
     1) 粘贴分享文本/短链/URL/作品ID
@@ -109,7 +110,8 @@
 `POST /api/douyin/import`：
 - 后端下载媒体 → 保存到 `./upload/douyin`（`douyin/images/YYYY/MM/DD` 或 `douyin/videos/YYYY/MM/DD`）→ 计算 MD5
 - 若全局已存在同 MD5 的媒体文件（`media_file` 或 `douyin_media_file`），则删除临时落盘文件并复用已有文件（响应 `dedup=true`，同时刷新 `update_time` 便于在“全站图片库”置顶）
-- 写入/更新 `douyin_media_file`（包含 `sec_user_id/detail_id` 元信息；`remote_url/remote_filename` 为空），响应返回 `localPath/localFilename` 与 `uploaded=false`
+- 写入/更新 `douyin_media_file`（包含 `sec_user_id/detail_id/author_unique_id/author_name` 导入快照；`remote_url/remote_filename` 为空），响应返回 `localPath/localFilename` 与 `uploaded=false`
+  - 当 MD5 命中现有记录时，除 `update_time` 外会对上述抖音元信息执行“非空回填”（`COALESCE(NULLIF(...), old_value)`），避免历史记录长期缺失作者信息。
 - 兼容：当下载直链过期触发 `403` 时，后端会 best-effort 刷新一次 `downloads` 并自动重试下载，减少导入失败概率。
 
 > 说明：当未选择本地身份时，导入会使用 `userid=pre_identity` 作为兜底，不影响按抖音 `sec_user_id` 的筛选与归档。
@@ -162,6 +164,7 @@
 - 前端：`npm run build`（作为编译验证）
 
 ## 变更历史
+- [202602082347_douyin-import-author-link-works] - 导入记录新增作者快照字段；媒体详情点击作者可直达其全部作品
 - [202602071149_chat-uploadmenu-douyin-favorites] - 新增聊天页“抖音收藏作者”入口，默认进入收藏作者列表并查看作者作品
 - [202601211132_douyin_downloader](../../history/2026-01/202601211132_douyin_downloader/) - 抖音抓取/下载/导入上传对接
 - [202601211234_douyin_downloader_ux](../../history/2026-01/202601211234_douyin_downloader_ux/) - 抖音下载弹窗交互增强（批量/剪贴板预填/文件大小探测/导入状态与去重提示）
