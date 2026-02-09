@@ -1954,7 +1954,26 @@ watch(
       favoriteUserDetailSecUserIdShowFull.value = false
       favoriteUserDetailLoading.value = false
       favoriteUserAvatarError.clear()
-      void refreshFavorites()
+
+      // 从外部“作者跳转”进入时，优先打开本地收藏用户详情（不触发再次解析）。
+      const favoriteSecUserIdFromEntry = String(douyinStore.favoriteSecUserId || '').trim()
+      const shouldAutoOpenFavoriteUser =
+        shouldEnterFavorites &&
+        entryFavoritesTab === 'users' &&
+        douyinStore.autoOpenFavoriteUserDetail &&
+        !!favoriteSecUserIdFromEntry
+
+      if (shouldAutoOpenFavoriteUser) {
+        await refreshFavorites()
+        const hit = favoriteUsers.value.find((u) => String(u.secUserId || '').trim() === favoriteSecUserIdFromEntry)
+        if (hit) {
+          openFavoriteUserDetail(hit)
+        } else {
+          show('本地收藏中未找到该作者，已停留在“收藏作者”列表，可手动切到“用户作品”解析')
+        }
+      } else {
+        void refreshFavorites()
+      }
 
       // 从聊天上传菜单进入“收藏作者”时，强制落在收藏视图，不读取剪贴板覆盖当前模式。
       if (shouldEnterFavorites) {

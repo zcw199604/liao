@@ -123,7 +123,9 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
     expect(wrapperCustom.findAll('button').some((b) => b.text().includes('自定义上传'))).toBe(true)
   })
 
-  it('opens douyin account works when detail panel emits open-author-works', async () => {
+  it('opens local favorite douyin works when detail panel emits open-author-works', async () => {
+    vi.useFakeTimers()
+
     const wrapper = mount(MediaPreview, {
       props: {
         visible: true,
@@ -159,14 +161,22 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
     expect(douyinStore.showModal).toBe(false)
 
     await wrapper.get('button.emit-open-author').trigger('click')
+    await vi.advanceTimersByTimeAsync(230)
     await flushAsync()
 
+    expect(wrapper.emitted('update:visible')?.[0]).toEqual([false])
     expect(douyinStore.showModal).toBe(true)
-    expect(douyinStore.targetMode).toBe('account')
-    expect(douyinStore.accountSecUserId).toBe('sec-999')
-    expect(douyinStore.autoFetchAccount).toBe(true)
-    expect(douyinStore.draftInput).toBe('sec-999')
+    expect(douyinStore.entryMode).toBe('favorites')
+    expect(douyinStore.favoritesTab).toBe('users')
+    expect(douyinStore.targetMode).toBe('favorites')
+    expect(douyinStore.favoriteSecUserId).toBe('sec-999')
+    expect(douyinStore.autoOpenFavoriteUserDetail).toBe(true)
+    expect(douyinStore.accountSecUserId).toBe('')
+    expect(douyinStore.autoFetchAccount).toBe(false)
+
+    vi.useRealTimers()
   })
+
 
   it('image click toggles zoom and swipe-drag navigates next/prev', async () => {
     const wrapper = mount(MediaPreview, {

@@ -623,7 +623,7 @@ describe('stores/favorite', () => {
 })
 
 describe('stores/douyin', () => {
-  it('open respects existing draft, supports account jump options, and close resets state', () => {
+  it('open respects existing draft, supports account/favorite jump options, and close resets state', () => {
     const store = useDouyinStore()
     store.open('x')
     expect(store.showModal).toBe(true)
@@ -633,6 +633,10 @@ describe('stores/douyin', () => {
     expect(store.targetMode).toBe('detail')
     expect(store.accountSecUserId).toBe('')
     expect(store.autoFetchAccount).toBe(false)
+    expect(store.favoriteSecUserId).toBe('')
+    expect(store.autoOpenFavoriteUserDetail).toBe(false)
+    expect(store.favoriteSecUserId).toBe('')
+    expect(store.autoOpenFavoriteUserDetail).toBe(false)
 
     store.open('y')
     expect(store.draftInput).toBe('x')
@@ -642,13 +646,17 @@ describe('stores/douyin', () => {
       favoritesTab: 'awemes',
       targetMode: 'account',
       accountSecUserId: ' sec-2 ',
-      autoFetchAccount: true
+      autoFetchAccount: true,
+      favoriteSecUserId: ' sec-fav-1 ',
+      autoOpenFavoriteUserDetail: true
     })
     expect(store.entryMode).toBe('favorites')
     expect(store.favoritesTab).toBe('awemes')
     expect(store.targetMode).toBe('account')
     expect(store.accountSecUserId).toBe('sec-2')
     expect(store.autoFetchAccount).toBe(true)
+    expect(store.favoriteSecUserId).toBe('sec-fav-1')
+    expect(store.autoOpenFavoriteUserDetail).toBe(true)
 
     store.close()
     expect(store.showModal).toBe(false)
@@ -658,6 +666,8 @@ describe('stores/douyin', () => {
     expect(store.targetMode).toBe('detail')
     expect(store.accountSecUserId).toBe('')
     expect(store.autoFetchAccount).toBe(false)
+    expect(store.favoriteSecUserId).toBe('')
+    expect(store.autoOpenFavoriteUserDetail).toBe(false)
   })
 })
 

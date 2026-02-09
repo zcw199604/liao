@@ -12,6 +12,8 @@ export interface DouyinOpenOptions {
   targetMode?: DouyinTargetMode
   accountSecUserId?: string
   autoFetchAccount?: boolean
+  favoriteSecUserId?: string
+  autoOpenFavoriteUserDetail?: boolean
 }
 
 const normalizeOpenOptions = (input?: string | DouyinOpenOptions): DouyinOpenOptions => {
@@ -38,6 +40,10 @@ export const useDouyinStore = defineStore('douyin', () => {
   const accountSecUserId = ref('')
   const autoFetchAccount = ref(false)
 
+  // 收藏入口增强：支持打开后自动定位到某个本地收藏作者详情。
+  const favoriteSecUserId = ref('')
+  const autoOpenFavoriteUserDetail = ref(false)
+
   const open = (input?: string | DouyinOpenOptions) => {
     const opts = normalizeOpenOptions(input)
 
@@ -59,6 +65,8 @@ export const useDouyinStore = defineStore('douyin', () => {
 
     accountSecUserId.value = String(opts.accountSecUserId || '').trim()
     autoFetchAccount.value = !!opts.autoFetchAccount
+    favoriteSecUserId.value = String(opts.favoriteSecUserId || '').trim()
+    autoOpenFavoriteUserDetail.value = !!opts.autoOpenFavoriteUserDetail
 
     showModal.value = true
   }
@@ -71,6 +79,8 @@ export const useDouyinStore = defineStore('douyin', () => {
     targetMode.value = 'detail'
     accountSecUserId.value = ''
     autoFetchAccount.value = false
+    favoriteSecUserId.value = ''
+    autoOpenFavoriteUserDetail.value = false
   }
 
   return {
@@ -81,6 +91,8 @@ export const useDouyinStore = defineStore('douyin', () => {
     targetMode,
     accountSecUserId,
     autoFetchAccount,
+    favoriteSecUserId,
+    autoOpenFavoriteUserDetail,
     open,
     close
   }

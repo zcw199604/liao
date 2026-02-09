@@ -135,6 +135,8 @@
 - 后端：抖音用户作品列表抓取改为调用 TikTokDownloader 包装镜像的单页分页接口 `/douyin/account/page`，与游标分页行为对齐。
 
 ### 修复
+- 前端：修复“媒体预览 → 详情 → 作者跳转”时被预览层遮挡的问题；跳转前会先关闭 `MediaPreview`，避免 `z-index` 覆盖。
+- 前端：修复作者跳转默认行为，改为优先进入本地“收藏作者（users）”并自动定位对应作者详情，不再直接触发“用户作品”再次解析。
 - 前端/后端：修复抖音多 Live 图下载配对错误。`buildPreviewMediaList` 在图片数与视频数一致时改为按顺序 rank 一一映射（避免多个图片命中同一个视频）；`selectDouyinLivePhotoPair` 增加 rank 配对与单侧索引类型校验，减少异常索引下的误配。
   - ⚠️ EHRB: 主分支推送 - 用户已确认风险
   - 检测依据: `master(分支)` + `git push`

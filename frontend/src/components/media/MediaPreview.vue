@@ -1256,14 +1256,19 @@ const handleOpenAuthorWorks = (secUserId: string) => {
   const safeSecUserId = String(secUserId || '').trim()
   if (!safeSecUserId) return
 
-  showDetails.value = false
-  douyinStore.open({
-    entryMode: 'default',
-    targetMode: 'account',
-    prefill: safeSecUserId,
-    accountSecUserId: safeSecUserId,
-    autoFetchAccount: true
-  })
+  // 先关闭当前预览，避免预览层（z-index 更高）覆盖抖音弹窗。
+  handleClose()
+
+  // 业务期望：优先进入“本地收藏用户作品”视图，而不是立即触发再次解析。
+  window.setTimeout(() => {
+    douyinStore.open({
+      entryMode: 'favorites',
+      targetMode: 'favorites',
+      favoritesTab: 'users',
+      favoriteSecUserId: safeSecUserId,
+      autoOpenFavoriteUserDetail: true
+    })
+  }, 220)
 }
 
 const handleExtractFrames = async () => {
