@@ -9,6 +9,8 @@
 ### 新增
 - mtPhoto 新增“文件夹模式”能力：支持根目录/子目录逐级浏览（`/api/getMtPhotoFolderRoot`、`/api/getMtPhotoFolderContent`、`/api/getMtPhotoFolderBreadcrumbs`），并可在同一弹窗内直接预览目录图片与下载原图。
 - mtPhoto 新增“文件夹级收藏”能力：支持按 `folderId` 收藏目录并维护标签、备注（`/api/getMtPhotoFolderFavorites`、`/api/upsertMtPhotoFolderFavorite`、`/api/removeMtPhotoFolderFavorite`）；后端新增迁移表 `mtphoto_folder_favorite`（MySQL/PostgreSQL 同步）。
+- mtPhoto 收藏管理增强：收藏列表支持按标签筛选（任一/全部匹配）、排序（更新时间/目录名/标签数）与常用标签 chips；收藏卡片支持直接编辑标签与备注（无需先进入目录）。
+- mtPhoto 收藏接口预留可选 query 参数（`tagKeyword/tagMode/sortBy/sortOrder/groupBy`）并保持兼容，当前 V1 由前端本地执行筛选排序，后续可平滑演进到服务端筛选。
 - 抖音导入链路新增作者快照落库：`douyin_media_file` 增加 `author_unique_id`、`author_name` 字段；导入时写入并在 MD5 命中复用时执行非空回填。
 - 全站媒体接口 `GET /api/getAllUploadImages` 新增抖音元信息返回字段：`source`、`douyinSecUserId`、`douyinDetailId`、`douyinAuthorUniqueId`、`douyinAuthorName`（兼容追加）。
 - 前端媒体详情支持“点击作者查看全部作品”：在 `MediaDetailPanel` 点击作者可直接打开 `DouyinDownloadModal` 并自动切到“用户作品”模式拉取该作者列表。
@@ -137,6 +139,7 @@
 - 后端：抖音用户作品列表抓取改为调用 TikTokDownloader 包装镜像的单页分页接口 `/douyin/account/page`，与游标分页行为对齐。
 
 ### 修复
+- mtPhoto 文件夹模式移动端可用性修复：新增“收藏夹”抽屉入口与遮罩关闭，避免 `<1024px` 下收藏功能不可达；子目录区高度改为响应式上限，减少内容区挤压。
 - 前端：修复“媒体预览 → 详情 → 作者跳转”时被预览层遮挡的问题；跳转前会先关闭 `MediaPreview`，避免 `z-index` 覆盖。
 - 前端：修复作者跳转默认行为，改为优先进入本地“收藏作者（users）”并自动定位对应作者详情，不再直接触发“用户作品”再次解析。
 - 前端/后端：修复抖音多 Live 图下载配对错误。`buildPreviewMediaList` 在图片数与视频数一致时改为按顺序 rank 一一映射（避免多个图片命中同一个视频）；`selectDouyinLivePhotoPair` 增加 rank 配对与单侧索引类型校验，减少异常索引下的误配。

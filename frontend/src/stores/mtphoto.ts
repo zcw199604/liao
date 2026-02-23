@@ -62,6 +62,16 @@ type MtPhotoFolderHistoryItem = {
   coverMd5?: string
 }
 
+type MtPhotoFavoriteFilterMode = 'any' | 'all'
+type MtPhotoFavoriteSortBy = 'updatedAt' | 'name' | 'tagCount'
+type MtPhotoFavoriteSortOrder = 'asc' | 'desc'
+type MtPhotoFavoriteGroupBy = 'none' | 'tag'
+
+type MtPhotoFavoriteGroup = {
+  key: string
+  items: MtPhotoFolderFavorite[]
+}
+
 const inferMediaType = (fileType: unknown): 'image' | 'video' => {
   const normalized = String(fileType ?? '')
     .trim()
@@ -91,6 +101,11 @@ const normalizeTags = (tags: unknown): string[] => {
     output.push(value)
   }
   return output
+}
+
+const toTimestamp = (value?: string): number => {
+  const ts = Date.parse(String(value || '').trim())
+  return Number.isFinite(ts) ? ts : 0
 }
 
 const firstCoverMD5 = (cover?: string, sCover?: string | null) => {
@@ -223,10 +238,87 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
   const folderFavorites = ref<MtPhotoFolderFavorite[]>([])
   const folderFavoritesLoading = ref(false)
   const folderFavoriteSaving = ref(false)
+  const favoriteFilterInputKeyword = ref('')
+  const favoriteFilterKeyword = ref('')
+  const favoriteFilterMode = ref<MtPhotoFavoriteFilterMode>('any')
+  const favoriteSortBy = ref<MtPhotoFavoriteSortBy>('updatedAt')
+  const favoriteSortOrder = ref<MtPhotoFavoriteSortOrder>('desc')
+  const favoriteGroupBy = ref<MtPhotoFavoriteGroupBy>('none')
+  const favoriteEditingFolderId = ref<number | null>(null)
+  const favoriteDraftTags = ref('')
+  const favoriteDraftNote = ref('')
+  let favoriteFilterDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
   const currentFolderFavorite = computed(() => {
     if (!folderCurrentId.value) return null
     return folderFavorites.value.find(item => item.folderId === folderCurrentId.value) || null
+  })
+
+  const allUniqueTags = computed(() => {
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const item of folderFavorites.value) {
+      for (const rawTag of item.tags) {
+        const tag = String(rawTag || '').trim()
+        if (!tag || seen.has(tag)) continue
+        seen.add(tag)
+        out.push(tag)
+      }
+    }
+    return out
+  })
+
+  const filteredFolderFavorites = computed(() => {
+    const keyword = favoriteFilterKeyword.value.trim().toLowerCase()
+    if (!keyword) return folderFavorites.value
+
+    const tokens = keyword
+      .split(/[\s,，]+/)
+      .map(v => v.trim())
+      .filter(Boolean)
+    if (tokens.length === 0) return folderFavorites.value
+
+    return folderFavorites.value.filter(item => {
+      const tags = item.tags.map(tag => String(tag || '').toLowerCase())
+      if (favoriteFilterMode.value === 'all') {
+        return tokens.every(token => tags.some(tag => tag.includes(token)))
+      }
+      return tokens.some(token => tags.some(tag => tag.includes(token)))
+    })
+  })
+
+  const sortedFolderFavorites = computed(() => {
+    const list = [...filteredFolderFavorites.value]
+    const order = favoriteSortOrder.value === 'asc' ? 1 : -1
+    list.sort((a, b) => {
+      let compared = 0
+      if (favoriteSortBy.value === 'name') {
+        compared = a.folderName.localeCompare(b.folderName, 'zh-CN')
+      } else if (favoriteSortBy.value === 'tagCount') {
+        compared = a.tags.length - b.tags.length
+      } else {
+        compared = toTimestamp(a.updateTime || a.createTime) - toTimestamp(b.updateTime || b.createTime)
+      }
+      if (compared === 0) compared = a.folderId - b.folderId
+      return compared * order
+    })
+    return list
+  })
+
+  const groupedFolderFavorites = computed<MtPhotoFavoriteGroup[]>(() => {
+    if (favoriteGroupBy.value !== 'tag') {
+      return [{ key: '全部', items: sortedFolderFavorites.value }]
+    }
+
+    const grouped = new Map<string, MtPhotoFolderFavorite[]>()
+    for (const item of sortedFolderFavorites.value) {
+      const tags = item.tags.length ? item.tags : ['未标记']
+      for (const tag of tags) {
+        if (!grouped.has(tag)) grouped.set(tag, [])
+        grouped.get(tag)!.push(item)
+      }
+    }
+    return Array.from(grouped.entries()).map(([key, items]) => ({ key, items }))
   })
 
   const resetAlbumState = () => {
@@ -252,6 +344,22 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     folderHistory.value = [{ folderId: null, folderName: '根目录' }]
   }
 
+  const resetFavoriteViewState = () => {
+    if (favoriteFilterDebounceTimer) {
+      clearTimeout(favoriteFilterDebounceTimer)
+      favoriteFilterDebounceTimer = null
+    }
+    favoriteFilterInputKeyword.value = ''
+    favoriteFilterKeyword.value = ''
+    favoriteFilterMode.value = 'any'
+    favoriteSortBy.value = 'updatedAt'
+    favoriteSortOrder.value = 'desc'
+    favoriteGroupBy.value = 'none'
+    favoriteEditingFolderId.value = null
+    favoriteDraftTags.value = ''
+    favoriteDraftNote.value = ''
+  }
+
   const open = async () => {
     showModal.value = true
     mode.value = 'albums'
@@ -259,10 +367,12 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     lastError.value = ''
     resetAlbumState()
     resetFolderState()
+    resetFavoriteViewState()
     await loadAlbums()
   }
 
   const close = () => {
+    resetFavoriteViewState()
     showModal.value = false
   }
 
@@ -514,14 +624,20 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     }
   }
 
-  const loadFolderFavorites = async () => {
+  const loadFolderFavorites = async (query?: mtphotoApi.MtPhotoFolderFavoritesQuery) => {
     folderFavoritesLoading.value = true
     try {
-      const res = await mtphotoApi.getMtPhotoFolderFavorites()
+      const res = await mtphotoApi.getMtPhotoFolderFavorites(query)
       const list = Array.isArray(res?.items) ? res.items : []
       folderFavorites.value = list
         .map((item: any) => mapFavoriteItem(item))
         .filter((item: MtPhotoFolderFavorite | null): item is MtPhotoFolderFavorite => item !== null)
+      if (
+        favoriteEditingFolderId.value &&
+        !folderFavorites.value.some(item => item.folderId === favoriteEditingFolderId.value)
+      ) {
+        cancelEditFavorite()
+      }
       lastError.value = ''
     } catch (e: any) {
       console.error('加载目录收藏失败:', e)
@@ -543,22 +659,76 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     return true
   }
 
-  const upsertCurrentFolderFavorite = async (payload: { tags?: string[]; note?: string } = {}) => {
-    if (!folderCurrentId.value) return false
+  const setFavoriteFilterKeyword = (value: string, options: { debounceMs?: number; immediate?: boolean } = {}) => {
+    const nextKeyword = String(value || '')
+    favoriteFilterInputKeyword.value = nextKeyword
+    const debounceMs = Number(options.debounceMs ?? 200)
+    if (favoriteFilterDebounceTimer) {
+      clearTimeout(favoriteFilterDebounceTimer)
+      favoriteFilterDebounceTimer = null
+    }
+    if (options.immediate || debounceMs <= 0) {
+      favoriteFilterKeyword.value = nextKeyword.trim()
+      return
+    }
+    favoriteFilterDebounceTimer = setTimeout(() => {
+      favoriteFilterKeyword.value = nextKeyword.trim()
+      favoriteFilterDebounceTimer = null
+    }, debounceMs)
+  }
+
+  const resetFavoriteFilter = () => {
+    setFavoriteFilterKeyword('', { immediate: true })
+    favoriteFilterMode.value = 'any'
+    favoriteSortBy.value = 'updatedAt'
+    favoriteSortOrder.value = 'desc'
+    favoriteGroupBy.value = 'none'
+  }
+
+  const startEditFavorite = (favorite: MtPhotoFolderFavorite) => {
+    if (!favorite || !favorite.folderId) return
+    favoriteEditingFolderId.value = favorite.folderId
+    favoriteDraftTags.value = favorite.tags.join(', ')
+    favoriteDraftNote.value = favorite.note || ''
+  }
+
+  const cancelEditFavorite = () => {
+    favoriteEditingFolderId.value = null
+    favoriteDraftTags.value = ''
+    favoriteDraftNote.value = ''
+  }
+
+  const upsertFolderFavorite = async (payload: {
+    folderId: number
+    folderName: string
+    folderPath: string
+    coverMd5?: string
+    tags?: string[]
+    note?: string
+  }) => {
+    const folderID = Number(payload.folderId)
+    if (!Number.isFinite(folderID) || folderID <= 0) {
+      lastError.value = 'folderId 参数非法'
+      return false
+    }
+
+    const folderName = String(payload.folderName || '').trim() || `目录 ${folderID}`
+    const path = String(payload.folderPath || '').trim()
+    if (!path) {
+      lastError.value = 'folderPath 不能为空'
+      return false
+    }
 
     folderFavoriteSaving.value = true
     try {
       const tags = normalizeTags(payload.tags ?? [])
       const note = String(payload.note ?? '').trim()
-      const folderName =
-        String(folderCurrentName.value || '').trim() ||
-        normalizeFolderName(folderPath.value, `目录 ${folderCurrentId.value}`)
-      const coverMd5 = String(folderCurrentCoverMd5.value || '').trim()
+      const coverMd5 = String(payload.coverMd5 || '').trim()
 
       const res = await mtphotoApi.upsertMtPhotoFolderFavorite({
-        folderId: folderCurrentId.value,
+        folderId: folderID,
         folderName,
-        folderPath: String(folderPath.value || '').trim(),
+        folderPath: path,
         coverMd5: coverMd5 || undefined,
         tags,
         note
@@ -566,10 +736,21 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
 
       const mapped = mapFavoriteItem(res?.item)
       if (res?.success && mapped) {
-        const next = folderFavorites.value.filter(item => item.folderId !== mapped.folderId)
-        next.unshift(mapped)
-        folderFavorites.value = next
-        folderCurrentCoverMd5.value = mapped.coverMd5 || folderCurrentCoverMd5.value
+        const index = folderFavorites.value.findIndex(item => item.folderId === mapped.folderId)
+        if (index >= 0) {
+          const next = [...folderFavorites.value]
+          next[index] = mapped
+          folderFavorites.value = next
+        } else {
+          folderFavorites.value = [mapped, ...folderFavorites.value]
+        }
+
+        if (folderCurrentId.value === mapped.folderId) {
+          folderCurrentCoverMd5.value = mapped.coverMd5 || folderCurrentCoverMd5.value
+        }
+
+        cancelEditFavorite()
+        lastError.value = ''
         return true
       }
 
@@ -584,6 +765,29 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     }
   }
 
+  const upsertCurrentFolderFavorite = async (payload: { tags?: string[]; note?: string } = {}) => {
+    if (!folderCurrentId.value) return false
+
+    const folderName =
+      String(folderCurrentName.value || '').trim() ||
+      normalizeFolderName(folderPath.value, `目录 ${folderCurrentId.value}`)
+    const coverMd5 = String(folderCurrentCoverMd5.value || '').trim()
+    const ok = await upsertFolderFavorite({
+      folderId: folderCurrentId.value,
+      folderName,
+      folderPath: String(folderPath.value || '').trim(),
+      coverMd5: coverMd5 || undefined,
+      tags: normalizeTags(payload.tags ?? []),
+      note: String(payload.note ?? '').trim()
+    })
+    if (ok) {
+      const current = folderFavorites.value.find(item => item.folderId === folderCurrentId.value)
+      favoriteDraftTags.value = current?.tags.join(', ') || ''
+      favoriteDraftNote.value = current?.note || ''
+    }
+    return ok
+  }
+
   const removeFolderFavorite = async (folderID: number) => {
     if (!Number.isFinite(folderID) || folderID <= 0) return false
     folderFavoriteSaving.value = true
@@ -591,6 +795,9 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
       const res = await mtphotoApi.removeMtPhotoFolderFavorite(folderID)
       if (res?.success) {
         folderFavorites.value = folderFavorites.value.filter(item => item.folderId !== folderID)
+        if (favoriteEditingFolderId.value === folderID) {
+          cancelEditFavorite()
+        }
         return true
       }
       return false
@@ -611,6 +818,7 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     if (nextMode === 'albums') {
       view.value = 'albums'
       resetFolderState()
+      cancelEditFavorite()
       return
     }
 
@@ -648,6 +856,19 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     folderFavorites,
     folderFavoritesLoading,
     folderFavoriteSaving,
+    favoriteFilterInputKeyword,
+    favoriteFilterKeyword,
+    favoriteFilterMode,
+    favoriteSortBy,
+    favoriteSortOrder,
+    favoriteGroupBy,
+    favoriteEditingFolderId,
+    favoriteDraftTags,
+    favoriteDraftNote,
+    allUniqueTags,
+    filteredFolderFavorites,
+    sortedFolderFavorites,
+    groupedFolderFavorites,
     currentFolderFavorite,
     isCurrentFolderFavorited,
     open,
@@ -663,6 +884,11 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     loadFolderMore,
     loadFolderFavorites,
     openFavoriteFolder,
+    setFavoriteFilterKeyword,
+    resetFavoriteFilter,
+    startEditFavorite,
+    cancelEditFavorite,
+    upsertFolderFavorite,
     upsertCurrentFolderFavorite,
     removeFolderFavorite
   }

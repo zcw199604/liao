@@ -13,13 +13,54 @@ func (a *App) handleGetMtPhotoFolderFavorites(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	items, err := a.mtPhotoFolderFavorite.List(r.Context())
+	options := parseMtPhotoFolderFavoriteListOptions(r)
+	items, err := a.mtPhotoFolderFavorite.ListWithOptions(r.Context(), options)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "查询收藏失败: " + err.Error()})
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func parseMtPhotoFolderFavoriteListOptions(r *http.Request) MtPhotoFolderFavoriteListOptions {
+	if r == nil {
+		return MtPhotoFolderFavoriteListOptions{}
+	}
+
+	query := r.URL.Query()
+	options := MtPhotoFolderFavoriteListOptions{
+		TagKeyword: strings.TrimSpace(query.Get("tagKeyword")),
+		TagMode:    strings.ToLower(strings.TrimSpace(query.Get("tagMode"))),
+		SortBy:     strings.TrimSpace(query.Get("sortBy")),
+		SortOrder:  strings.ToLower(strings.TrimSpace(query.Get("sortOrder"))),
+		GroupBy:    strings.TrimSpace(query.Get("groupBy")),
+	}
+
+	switch options.TagMode {
+	case "all", "any":
+	default:
+		options.TagMode = "any"
+	}
+
+	switch options.SortBy {
+	case "updatedAt", "name", "tagCount":
+	default:
+		options.SortBy = "updatedAt"
+	}
+
+	switch options.SortOrder {
+	case "asc", "desc":
+	default:
+		options.SortOrder = "desc"
+	}
+
+	switch options.GroupBy {
+	case "none", "tag":
+	default:
+		options.GroupBy = "none"
+	}
+	return options
 }
 
 func sanitizeMtPhotoFolderFavoriteUpsertInput(in *MtPhotoFolderFavoriteUpsertInput) error {

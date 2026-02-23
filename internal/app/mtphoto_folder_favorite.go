@@ -39,6 +39,16 @@ type MtPhotoFolderFavoriteUpsertInput struct {
 	Note       string   `json:"note"`
 }
 
+// MtPhotoFolderFavoriteListOptions 为收藏列表查询预留的可选参数。
+// 当前 V1 仅做参数结构承接，查询仍返回全量结果并在应用层排序。
+type MtPhotoFolderFavoriteListOptions struct {
+	TagKeyword string
+	TagMode    string
+	SortBy     string
+	SortOrder  string
+	GroupBy    string
+}
+
 type MtPhotoFolderFavoriteService struct {
 	db *database.DB
 }
@@ -115,9 +125,16 @@ func (s *MtPhotoFolderFavoriteService) validateUpsertInput(in MtPhotoFolderFavor
 
 // List 按更新时间倒序返回文件夹收藏列表。
 func (s *MtPhotoFolderFavoriteService) List(ctx context.Context) ([]MtPhotoFolderFavorite, error) {
+	return s.ListWithOptions(ctx, MtPhotoFolderFavoriteListOptions{})
+}
+
+// ListWithOptions 按更新时间倒序返回文件夹收藏列表。
+// 说明：V1 为兼容实现，options 仅完成结构预留，不改变 SQL 行为。
+func (s *MtPhotoFolderFavoriteService) ListWithOptions(ctx context.Context, options MtPhotoFolderFavoriteListOptions) ([]MtPhotoFolderFavorite, error) {
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("db not initialized")
 	}
+	_ = options
 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, folder_id, folder_name, folder_path, cover_md5, tags_json, note, created_at, updated_at

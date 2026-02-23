@@ -52,6 +52,14 @@ export interface MtPhotoFolderFavoriteItem {
   updateTime?: string
 }
 
+export interface MtPhotoFolderFavoritesQuery {
+  tagKeyword?: string
+  tagMode?: 'any' | 'all'
+  sortBy?: 'updatedAt' | 'name' | 'tagCount'
+  sortOrder?: 'asc' | 'desc'
+  groupBy?: 'none' | 'tag'
+}
+
 export const getMtPhotoAlbums = () => {
   return request.get<any, any>('/getMtPhotoAlbums')
 }
@@ -78,8 +86,10 @@ export const getMtPhotoFolderBreadcrumbs = (folderId: number) => {
   })
 }
 
-export const getMtPhotoFolderFavorites = () => {
-  return request.get<any, { items: MtPhotoFolderFavoriteItem[] }>('/getMtPhotoFolderFavorites')
+export const getMtPhotoFolderFavorites = (params?: MtPhotoFolderFavoritesQuery) => {
+  return request.get<any, { items: MtPhotoFolderFavoriteItem[] }>('/getMtPhotoFolderFavorites', {
+    params: params || undefined
+  })
 }
 
 export const upsertMtPhotoFolderFavorite = (data: {

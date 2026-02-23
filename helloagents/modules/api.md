@@ -1073,10 +1073,22 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 #### [GET] /api/getMtPhotoFolderFavorites
 **描述**：获取本地保存的 mtPhoto 文件夹收藏列表（按更新时间倒序）。
 
+**请求（query，可选，V1 兼容预留）**
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| tagKeyword | 否 | 标签关键字（V1 默认前端本地筛选，后端参数预留） |
+| tagMode | 否 | `any` / `all`（默认 `any`） |
+| sortBy | 否 | `updatedAt` / `name` / `tagCount`（默认 `updatedAt`） |
+| sortOrder | 否 | `asc` / `desc`（默认 `desc`） |
+| groupBy | 否 | `none` / `tag`（默认 `none`） |
+
 **响应（HTTP 200）**
 ```json
 {"items":[{"id":1,"folderId":644,"folderName":"我的照片","folderPath":"/photo/我的照片","coverMd5":"e38c...","tags":["常用","人像"],"note":"每周更新","createTime":"2026-02-23T04:10:00","updateTime":"2026-02-23T04:10:00"}]}
 ```
+
+**备注**
+- 兼容策略：当前后端仍返回全量收藏列表，筛选/排序在前端本地完成；query 参数用于后续服务端筛选演进时保持接口稳定。
 
 #### [POST] /api/upsertMtPhotoFolderFavorite
 **描述**：新增或更新 mtPhoto 文件夹收藏（按 `folderId` 唯一）。

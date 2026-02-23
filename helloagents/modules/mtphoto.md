@@ -14,7 +14,7 @@
 - **身份选择页（Identity）:** 登录后、选择身份前可通过“图片管理”进入相册；未选择身份时仅支持浏览/下载，导入需先选择身份
 - **相册弹窗:** 顶部支持“相册 / 文件夹”模式切换。
   - 相册模式：相册列表（首项“收藏夹”，封面预览为空）→ 相册媒体（网格/瀑布流可切换，无限滚动；瀑布流按行从左到右渲染以保证时间顺序直觉）。
-  - 文件夹模式：根目录/子目录逐级浏览 + 图片列表；左侧收藏区支持一键跳转；当前目录可保存收藏并维护标签、备注。
+  - 文件夹模式：根目录/子目录逐级浏览 + 图片列表；左侧收藏区支持一键跳转、标签筛选（任一/全部匹配）与排序（更新时间/目录名/标签数）；收藏卡片支持直接编辑标签、备注（无需先进入目录），并兼容移动端抽屉 + 弹层编辑。
   - 预览：图片支持左右切换浏览；预览顶部可查看详情并展示真实文件名等元信息；下载按钮下载原图；点击“上传”触发导入（以当前预览图片为准）。
   - 交互：支持弹窗“全屏/退出全屏”（按钮或快捷键 `F`，偏好持久化 localStorage：`media_modal_fullscreen`，`Esc` 优先退出全屏）；弹窗展示区域放宽并紧凑化列表边距/间距以提升大屏浏览体验。
 
@@ -35,8 +35,9 @@
 ### 3) 文件夹级收藏（标签/备注）
 1. 前端调用 `POST /api/upsertMtPhotoFolderFavorite` 收藏/更新当前目录（`folderId/folderName/folderPath/coverMd5/tags/note`）
 2. 后端写入本地表 `mtphoto_folder_favorite`（`folder_id` 唯一），并执行 tags/note 校验（tags 去重、数量上限 20、单标签上限 32、note 上限 500）
-3. 前端通过 `GET /api/getMtPhotoFolderFavorites` 渲染收藏区，可一键跳转到目录
-4. 取消收藏调用 `POST /api/removeMtPhotoFolderFavorite`
+3. 前端通过 `GET /api/getMtPhotoFolderFavorites` 渲染收藏区，支持标签筛选、排序与快速标签 chips（V1 前端本地筛选，后端 query 参数结构预留）
+4. 收藏卡片可直接编辑标签/备注并保存（复用 `upsert` 接口，不要求先进入目录）
+5. 取消收藏调用 `POST /api/removeMtPhotoFolderFavorite`
 
 ### 4) 浏览相册媒体（懒加载）
 1. 前端滚动触底触发 `GET /api/getMtPhotoAlbumFiles?albumId=...&page=...&pageSize=...`
@@ -120,6 +121,7 @@
 ## 变更历史
 - [202601191522_media_gallery_expand](../../history/2026-01/202601191522_media_gallery_expand/) - 放宽相册弹窗与图片列表展示区域，减少留白
 - [202602230406_mtphoto-folder-preview-favorites](../plan/202602230406_mtphoto-folder-preview-favorites/) - 新增 mtPhoto 文件夹预览与文件夹级收藏（标签/备注）
+- [202602231046_mtphoto-favorites-management-enhance](../plan/202602231046_mtphoto-favorites-management-enhance/) - 增强收藏管理：收藏列表直接编辑标签/备注、按标签筛选与排序、移动端抽屉编辑优化
 - [202601181444_mtphoto_album](../../history/2026-01/202601181444_mtphoto_album/) - 接入 mtPhoto 相册并支持按相册浏览与一键导入上传
 - [202601181549_mtphoto_preview_gallery](../../history/2026-01/202601181549_mtphoto_preview_gallery/) - 相册图片预览支持左右切换浏览（切换后导入目标对齐）
 - [202601190055_mtphoto_refresh_token](../../history/2026-01/202601190055_mtphoto_refresh_token/) - mtPhoto 续期支持 refresh_token（优先 `/auth/refresh`，失败回退 `/auth/login`）

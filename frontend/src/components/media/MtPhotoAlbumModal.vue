@@ -188,7 +188,7 @@
               <div class="flex items-center gap-2">
                 <button
                   class="text-xs text-fg-subtle hover:text-fg"
-                  @click="mtPhotoStore.loadFolderFavorites"
+                  @click="mtPhotoStore.loadFolderFavorites()"
                   :disabled="mtPhotoStore.folderFavoritesLoading"
                 >
                   刷新
@@ -203,39 +203,102 @@
               </div>
             </div>
 
+            <div class="px-3 py-2 border-b border-line space-y-2">
+              <input
+                v-model="favoriteFilterInputProxy"
+                class="w-full rounded-md border border-line-strong bg-surface-3 px-2.5 py-1.5 text-xs text-fg placeholder:text-fg-subtle focus:outline-none focus:border-pink-500"
+                placeholder="按标签筛选（逗号/空格分隔）"
+              />
+              <div class="flex items-center gap-1.5">
+                <button
+                  class="px-2 py-1 text-[11px] rounded border"
+                  :class="
+                    mtPhotoStore.favoriteFilterMode === 'any'
+                      ? 'border-pink-500/60 text-pink-300 bg-pink-500/10'
+                      : 'border-line-strong text-fg-subtle hover:text-fg'
+                  "
+                  @click="mtPhotoStore.favoriteFilterMode = 'any'"
+                >
+                  任一标签
+                </button>
+                <button
+                  class="px-2 py-1 text-[11px] rounded border"
+                  :class="
+                    mtPhotoStore.favoriteFilterMode === 'all'
+                      ? 'border-pink-500/60 text-pink-300 bg-pink-500/10'
+                      : 'border-line-strong text-fg-subtle hover:text-fg'
+                  "
+                  @click="mtPhotoStore.favoriteFilterMode = 'all'"
+                >
+                  全部匹配
+                </button>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <select
+                  v-model="mtPhotoStore.favoriteSortBy"
+                  class="flex-1 rounded-md border border-line-strong bg-surface-3 px-2 py-1 text-[11px] text-fg focus:outline-none focus:border-pink-500"
+                >
+                  <option value="updatedAt">按更新时间</option>
+                  <option value="name">按目录名</option>
+                  <option value="tagCount">按标签数</option>
+                </select>
+                <button
+                  class="px-2 py-1 text-[11px] rounded border border-line-strong text-fg-subtle hover:text-fg"
+                  @click="toggleFavoriteSortOrder"
+                >
+                  {{ mtPhotoStore.favoriteSortOrder === 'asc' ? '升序' : '降序' }}
+                </button>
+              </div>
+              <div v-if="mtPhotoStore.allUniqueTags.length" class="flex flex-wrap gap-1">
+                <button
+                  v-for="tag in mtPhotoStore.allUniqueTags.slice(0, 20)"
+                  :key="`favorite-tag-${tag}`"
+                  class="px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 text-[11px] hover:bg-pink-500/25"
+                  @click="appendFavoriteFilterTag(tag)"
+                >
+                  #{{ tag }}
+                </button>
+              </div>
+            </div>
+
             <div v-if="mtPhotoStore.folderFavoritesLoading" class="p-4 text-xs text-fg-subtle">加载中...</div>
             <div v-else-if="mtPhotoStore.folderFavorites.length === 0" class="p-4 text-xs text-fg-subtle">
               暂无收藏目录
             </div>
+            <div v-else-if="mtPhotoStore.sortedFolderFavorites.length === 0" class="p-4 text-xs text-fg-subtle">
+              无匹配收藏目录
+            </div>
             <div v-else class="flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
-              <button
-                v-for="item in mtPhotoStore.folderFavorites"
+              <div
+                v-for="item in mtPhotoStore.sortedFolderFavorites"
                 :key="item.folderId"
-                class="w-full text-left rounded-lg border border-line-strong bg-surface-3 hover:border-pink-500 transition-colors p-3"
-                @click="handleOpenFavorite(item)"
+                class="rounded-lg border border-line-strong bg-surface-3 hover:border-pink-500 transition-colors p-3"
               >
-                <div class="text-sm font-medium text-fg truncate">{{ item.folderName }}</div>
-                <div class="text-[11px] text-fg-subtle truncate mt-1">{{ item.folderPath || '/' }}</div>
-                <div v-if="item.tags.length" class="mt-2 flex flex-wrap gap-1">
-                  <span
-                    v-for="tag in item.tags.slice(0, 3)"
-                    :key="`${item.folderId}-${tag}`"
-                    class="px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 text-[11px]"
-                  >
-                    #{{ tag }}
-                  </span>
-                  <span v-if="item.tags.length > 3" class="text-[11px] text-fg-subtle">+{{ item.tags.length - 3 }}</span>
-                </div>
-                <div v-if="item.note" class="mt-2 text-[11px] text-fg-subtle line-clamp-2">{{ item.note }}</div>
-                <div class="mt-2 flex justify-end">
-                  <button
-                    class="text-[11px] text-red-300 hover:text-red-200"
-                    @click.stop="removeFavorite(item.folderId)"
-                  >
+                <button class="w-full text-left" @click="handleOpenFavorite(item)">
+                  <div class="text-sm font-medium text-fg truncate">{{ item.folderName }}</div>
+                  <div class="text-[11px] text-fg-subtle truncate mt-1">{{ item.folderPath || '/' }}</div>
+                  <div v-if="item.tags.length" class="mt-2 flex flex-wrap gap-1">
+                    <span
+                      v-for="tag in item.tags.slice(0, 3)"
+                      :key="`${item.folderId}-${tag}`"
+                      class="px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 text-[11px]"
+                    >
+                      #{{ tag }}
+                    </span>
+                    <span v-if="item.tags.length > 3" class="text-[11px] text-fg-subtle">+{{ item.tags.length - 3 }}</span>
+                  </div>
+                  <div v-if="item.note" class="mt-2 text-[11px] text-fg-subtle line-clamp-2">{{ item.note }}</div>
+                  <div v-if="item.updateTime" class="mt-2 text-[11px] text-fg-subtle">更新：{{ item.updateTime }}</div>
+                </button>
+                <div class="mt-2 flex items-center justify-end gap-3">
+                  <button class="text-[11px] text-pink-300 hover:text-pink-200" @click="openFavoriteEditor(item)">
+                    编辑
+                  </button>
+                  <button class="text-[11px] text-red-300 hover:text-red-200" @click="removeFavorite(item.folderId)">
                     移除
                   </button>
                 </div>
-              </button>
+              </div>
             </div>
           </aside>
 
@@ -380,6 +443,65 @@
         </div>
       </div>
 
+      <div
+        v-if="isFavoriteEditorOpen && favoriteEditorTarget"
+        class="fixed inset-0 z-[95] bg-black/60 flex items-center justify-center p-4"
+        @click="closeFavoriteEditor"
+      >
+        <div
+          class="w-full max-w-lg rounded-xl border border-line-strong bg-surface p-4 lg:p-5 shadow-2xl"
+          @click.stop
+        >
+          <div class="flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <div class="text-sm font-semibold text-fg truncate">编辑收藏目录</div>
+              <div class="text-xs text-fg-subtle truncate mt-1">{{ favoriteEditorTarget.folderName }}</div>
+            </div>
+            <button class="w-7 h-7 rounded-md text-fg-subtle hover:text-fg hover:bg-surface-3" @click="closeFavoriteEditor">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <div class="mt-4 space-y-3">
+            <div>
+              <div class="text-xs text-fg-subtle mb-1">标签（逗号分隔）</div>
+              <input
+                v-model="mtPhotoStore.favoriteDraftTags"
+                class="w-full rounded-lg border border-line-strong bg-surface-3 px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:outline-none focus:border-pink-500"
+                placeholder="例如：旅行, 常用, 人像"
+              />
+            </div>
+
+            <div>
+              <div class="text-xs text-fg-subtle mb-1">备注</div>
+              <textarea
+                v-model="mtPhotoStore.favoriteDraftNote"
+                rows="3"
+                class="w-full rounded-lg border border-line-strong bg-surface-3 px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:outline-none focus:border-pink-500 resize-y"
+                placeholder="可选备注"
+              />
+            </div>
+          </div>
+
+          <div class="mt-4 flex items-center justify-end gap-2">
+            <button
+              class="px-3 py-2 rounded-lg border border-line-strong text-sm text-fg-subtle hover:text-fg"
+              :disabled="mtPhotoStore.folderFavoriteSaving"
+              @click="closeFavoriteEditor"
+            >
+              取消
+            </button>
+            <button
+              class="px-3 py-2 rounded-lg bg-pink-500 text-white text-sm hover:bg-pink-600 disabled:opacity-60"
+              :disabled="mtPhotoStore.folderFavoriteSaving"
+              @click="saveFavoriteEditor"
+            >
+              保存
+            </button>
+          </div>
+        </div>
+      </div>
+
       <MediaPreview
         v-model:visible="showPreview"
         :url="previewUrl"
@@ -427,6 +549,18 @@ const filteredFolderList = computed(() => {
   const keyword = folderFilter.value.trim().toLowerCase()
   if (!keyword) return mtPhotoStore.folderList
   return mtPhotoStore.folderList.filter(folder => String(folder.name || '').toLowerCase().includes(keyword))
+})
+
+const favoriteFilterInputProxy = computed({
+  get: () => mtPhotoStore.favoriteFilterInputKeyword,
+  set: (value: string) => mtPhotoStore.setFavoriteFilterKeyword(value, { debounceMs: 200 })
+})
+
+const isFavoriteEditorOpen = computed(() => mtPhotoStore.favoriteEditingFolderId !== null)
+
+const favoriteEditorTarget = computed(() => {
+  if (!mtPhotoStore.favoriteEditingFolderId) return null
+  return mtPhotoStore.folderFavorites.find(item => item.folderId === mtPhotoStore.favoriteEditingFolderId) || null
 })
 
 // 真实文件名解析缓存：md5 -> basename(filename)
@@ -525,6 +659,7 @@ watch(
     folderFilter.value = ''
     isMobileFavoritesOpen.value = false
     isFavoriteEditOpen.value = false
+    mtPhotoStore.cancelEditFavorite()
     if (!mtPhotoStore.currentFolderFavorite) {
       favoriteTagsInput.value = ''
       favoriteNoteInput.value = ''
@@ -544,6 +679,50 @@ const splitTags = (raw: string) => {
       out.push(tag)
     })
   return out
+}
+
+const toggleFavoriteSortOrder = () => {
+  mtPhotoStore.favoriteSortOrder = mtPhotoStore.favoriteSortOrder === 'asc' ? 'desc' : 'asc'
+}
+
+const appendFavoriteFilterTag = (tag: string) => {
+  const current = String(mtPhotoStore.favoriteFilterInputKeyword || '')
+    .split(/[\s,，]+/)
+    .map(v => v.trim())
+    .filter(Boolean)
+  if (current.includes(tag)) return
+  const next = [...current, tag].join(', ')
+  mtPhotoStore.setFavoriteFilterKeyword(next, { immediate: true })
+}
+
+const openFavoriteEditor = (favorite: MtPhotoFolderFavorite) => {
+  mtPhotoStore.startEditFavorite(favorite)
+}
+
+const closeFavoriteEditor = () => {
+  mtPhotoStore.cancelEditFavorite()
+}
+
+const saveFavoriteEditor = async () => {
+  const target = favoriteEditorTarget.value
+  if (!target) return
+
+  const ok = await mtPhotoStore.upsertFolderFavorite({
+    folderId: target.folderId,
+    folderName: target.folderName,
+    folderPath: target.folderPath,
+    coverMd5: target.coverMd5,
+    tags: splitTags(mtPhotoStore.favoriteDraftTags),
+    note: mtPhotoStore.favoriteDraftNote
+  })
+  if (ok) {
+    if (mtPhotoStore.folderCurrentId === target.folderId) {
+      syncFavoriteDraft()
+    }
+    show('收藏标签已更新')
+  } else {
+    show(mtPhotoStore.lastError || '更新失败')
+  }
 }
 
 const saveCurrentFolderFavorite = async () => {
@@ -589,6 +768,7 @@ const handleOpenFavorite = async (favorite: MtPhotoFolderFavorite) => {
   const ok = await mtPhotoStore.openFavoriteFolder(favorite)
   if (ok) {
     isMobileFavoritesOpen.value = false
+    closeFavoriteEditor()
   } else {
     show('该收藏目录可能已失效（目录被删除或无权限），可直接移除该收藏')
   }
@@ -598,6 +778,7 @@ const switchMode = async (mode: 'albums' | 'folders') => {
   if (mode !== 'folders') {
     isMobileFavoritesOpen.value = false
     isFavoriteEditOpen.value = false
+    closeFavoriteEditor()
   }
   await mtPhotoStore.switchMode(mode)
 }
@@ -621,6 +802,7 @@ const close = () => {
   previewMD5.value = ''
   isMobileFavoritesOpen.value = false
   isFavoriteEditOpen.value = false
+  closeFavoriteEditor()
 }
 
 const { isFullscreen, toggleFullscreen } = useModalFullscreen({
