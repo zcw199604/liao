@@ -343,6 +343,32 @@ const deleteConfirmContent = computed(() => {
   return `确定要删除选中的 ${deleteTargets.value.length} 个媒体文件吗？此操作无法撤销。`
 })
 
+const resolveReuploadErrorMessage = (payload: unknown): string | undefined => {
+  if (payload == null) return undefined
+  if (typeof payload === 'string') {
+    const trimmed = payload.trim()
+    if (!trimmed) return undefined
+    const looksLikeJson =
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'))
+    if (looksLikeJson) {
+      try {
+        return resolveReuploadErrorMessage(JSON.parse(trimmed)) || trimmed
+      } catch {
+        return trimmed
+      }
+    }
+    return trimmed
+  }
+  if (typeof payload === 'object') {
+    const data = payload as Record<string, unknown>
+    if (typeof data.msg === 'string' && data.msg.trim()) return data.msg.trim()
+    if (typeof data.error === 'string' && data.error.trim()) return data.error.trim()
+    if (typeof data.message === 'string' && data.message.trim()) return data.message.trim()
+  }
+  return undefined
+}
+
 const loadMore = async () => {
   if (mediaStore.allUploadLoading) return
   if (mediaStore.allUploadPage >= mediaStore.allUploadTotalPages) return
@@ -436,10 +462,12 @@ const confirmPreviewUpload = async () => {
       return
     }
 
-    show(`重新上传失败: ${res?.msg || res?.error || '未知错误'}`)
+    show(`重新上传失败: ${resolveReuploadErrorMessage(res) || '未知错误'}`)
   } catch (e: any) {
     console.error('重新上传失败:', e)
-    show('重新上传失败')
+    const responseText = resolveReuploadErrorMessage(e?.response?.data)
+    const fallbackText = resolveReuploadErrorMessage(e)
+    show(`重新上传失败: ${responseText || fallbackText || '未知错误'}`)
   }
 }
 

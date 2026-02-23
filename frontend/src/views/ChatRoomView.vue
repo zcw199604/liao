@@ -279,6 +279,32 @@ const chatAreaBasePaddingPx = 15
 // 让最后一条消息更贴近输入框：底部只留一个小间隙，避免出现类似 pb-32 的过大留白
 const messageListBottomGapPx = 8
 
+const resolveReuploadErrorMessage = (payload: unknown): string | undefined => {
+  if (payload == null) return undefined
+  if (typeof payload === 'string') {
+    const trimmed = payload.trim()
+    if (!trimmed) return undefined
+    const looksLikeJson =
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'))
+    if (looksLikeJson) {
+      try {
+        return resolveReuploadErrorMessage(JSON.parse(trimmed)) || trimmed
+      } catch {
+        return trimmed
+      }
+    }
+    return trimmed
+  }
+  if (typeof payload === 'object') {
+    const data = payload as Record<string, unknown>
+    if (typeof data.msg === 'string' && data.msg.trim()) return data.msg.trim()
+    if (typeof data.error === 'string' && data.error.trim()) return data.error.trim()
+    if (typeof data.message === 'string' && data.message.trim()) return data.message.trim()
+  }
+  return undefined
+}
+
 const refreshLayoutMeasurements = () => {
   // getBoundingClientRect 在部分环境可能为 0；这里用 offsetHeight 做兜底
   const headerRectH = chatHeaderWrapRef.value?.getBoundingClientRect().height ?? 0
@@ -777,10 +803,12 @@ const confirmPreviewUpload = async () => {
       return
     }
 
-    show(`重新上传失败: ${res?.msg || res?.error || '未知错误'}`)
-  } catch (e) {
+    show(`重新上传失败: ${resolveReuploadErrorMessage(res) || '未知错误'}`)
+  } catch (e: any) {
     console.error('重新上传失败:', e)
-    show('重新上传失败')
+    const responseText = resolveReuploadErrorMessage(e?.response?.data)
+    const fallbackText = resolveReuploadErrorMessage(e)
+    show(`重新上传失败: ${responseText || fallbackText || '未知错误'}`)
   }
 }
 

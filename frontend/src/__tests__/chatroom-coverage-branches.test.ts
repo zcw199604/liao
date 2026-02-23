@@ -508,7 +508,7 @@ describe('views/ChatRoomView.vue (branch coverage gaps)', () => {
     })
     await flushAsync()
 
-    // confirmPreviewUpload: failure message branches (msg, error, default)
+    // confirmPreviewUpload: failure message branches (msg, error, plain text, default)
     ;(wrapper.vm as any).previewTarget = { url: '/upload/images/a.png', type: 'image' }
     vi.mocked(mediaApi.reuploadHistoryImage).mockResolvedValueOnce({ state: 'NO', msg: 'm' } as any)
     await (wrapper.vm as any).confirmPreviewUpload()
@@ -517,6 +517,10 @@ describe('views/ChatRoomView.vue (branch coverage gaps)', () => {
     vi.mocked(mediaApi.reuploadHistoryImage).mockResolvedValueOnce({ state: 'NO', error: 'e' } as any)
     await (wrapper.vm as any).confirmPreviewUpload()
     expect(toastShow).toHaveBeenCalledWith('重新上传失败: e')
+
+    vi.mocked(mediaApi.reuploadHistoryImage).mockResolvedValueOnce('抖音文件不存在: /douyin/images/404.png' as any)
+    await (wrapper.vm as any).confirmPreviewUpload()
+    expect(toastShow).toHaveBeenCalledWith('重新上传失败: 抖音文件不存在: /douyin/images/404.png')
 
     vi.mocked(mediaApi.reuploadHistoryImage).mockResolvedValueOnce({ state: 'NO' } as any)
     await (wrapper.vm as any).confirmPreviewUpload()
