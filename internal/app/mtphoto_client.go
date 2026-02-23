@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +46,32 @@ type mtPhotoAlbumFilesCacheEntry struct {
 	expireAt time.Time
 	total    int
 	items    []MtPhotoMediaItem
+}
+
+type mtPhotoStatusError struct {
+	StatusCode int
+	Status     string
+	Action     string
+}
+
+func (e *mtPhotoStatusError) Error() string {
+	if e == nil {
+		return "mtPhoto 请求失败"
+	}
+
+	status := strings.TrimSpace(e.Status)
+	if status == "" && e.StatusCode > 0 {
+		status = fmt.Sprintf("HTTP %d", e.StatusCode)
+	}
+
+	action := strings.TrimSpace(e.Action)
+	if action == "" {
+		action = "mtPhoto 请求失败"
+	}
+	if status == "" {
+		return action
+	}
+	return fmt.Sprintf("%s: %s", action, status)
 }
 
 func NewMtPhotoService(baseURL, username, password, otp, lspRoot string, httpClient *http.Client) *MtPhotoService {
@@ -248,6 +275,8 @@ func (s *MtPhotoService) resetCachesLocked() {
 
 func (s *MtPhotoService) doRequest(ctx context.Context, method, urlStr string, headers map[string]string, body []byte, useJWT, useCookie bool) (*http.Response, error) {
 	// 尝试两次：首次使用现有 token；401/403 后强制续期再试一次
+	lastAuthStatusCode := 0
+	lastAuthStatus := ""
 	for attempt := 0; attempt < 2; attempt++ {
 		force := attempt == 1
 		token, authCode, err := s.ensureLogin(ctx, force)
@@ -285,12 +314,21 @@ func (s *MtPhotoService) doRequest(ctx context.Context, method, urlStr string, h
 		}
 
 		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			lastAuthStatusCode = resp.StatusCode
+			lastAuthStatus = resp.Status
 			_ = resp.Body.Close()
 			continue
 		}
 		return resp, nil
 	}
 
+	if lastAuthStatusCode > 0 {
+		return nil, &mtPhotoStatusError{
+			StatusCode: lastAuthStatusCode,
+			Status:     lastAuthStatus,
+			Action:     "mtPhoto 请求鉴权失败",
+		}
+	}
 	return nil, fmt.Errorf("mtPhoto 请求鉴权失败")
 }
 
@@ -360,6 +398,212 @@ func (s *MtPhotoService) GetAlbums(ctx context.Context) ([]MtPhotoAlbum, error) 
 	s.mu.Unlock()
 
 	return parsed, nil
+}
+
+type MtPhotoFolderItem struct {
+	ID               int64   `json:"id"`
+	Name             string  `json:"name"`
+	Hide             bool    `json:"hide,omitempty"`
+	GalleryName      string  `json:"galleryName,omitempty"`
+	GalleryFolderNum int     `json:"galleryFolderNum,omitempty"`
+	Path             string  `json:"path,omitempty"`
+	Cover            string  `json:"cover,omitempty"`
+	SCover           *string `json:"s_cover"`
+	SubFolderNum     int     `json:"subFolderNum,omitempty"`
+	SubFileNum       int     `json:"subFileNum,omitempty"`
+	TrashNum         int     `json:"trashNum,omitempty"`
+	FileType         string  `json:"fileType,omitempty"`
+}
+
+type mtPhotoFolderFileItemRaw struct {
+	ID       int64    `json:"id"`
+	FileName string   `json:"fileName"`
+	FileType string   `json:"fileType"`
+	Size     any      `json:"size"`
+	TokenAt  string   `json:"tokenAt"`
+	MD5      string   `json:"MD5"`
+	MD5Lower string   `json:"md5"`
+	Width    int      `json:"width,omitempty"`
+	Height   int      `json:"height,omitempty"`
+	Duration *float64 `json:"duration"`
+	Status   int      `json:"status"`
+}
+
+type MtPhotoFolderFileItem struct {
+	ID       int64    `json:"id"`
+	FileName string   `json:"fileName"`
+	FileType string   `json:"fileType"`
+	Size     string   `json:"size"`
+	TokenAt  string   `json:"tokenAt"`
+	MD5      string   `json:"md5"`
+	Width    int      `json:"width,omitempty"`
+	Height   int      `json:"height,omitempty"`
+	Duration *float64 `json:"duration"`
+	Status   int      `json:"status"`
+	Type     string   `json:"type"`
+}
+
+type mtPhotoFolderResponse struct {
+	Path       string                     `json:"path"`
+	FolderList []MtPhotoFolderItem        `json:"folderList"`
+	FileList   []mtPhotoFolderFileItemRaw `json:"fileList"`
+	TrashNum   int                        `json:"trashNum"`
+}
+
+type MtPhotoFolderContent struct {
+	Path       string                  `json:"path"`
+	FolderList []MtPhotoFolderItem     `json:"folderList"`
+	FileList   []MtPhotoFolderFileItem `json:"fileList"`
+	TrashNum   int                     `json:"trashNum,omitempty"`
+}
+
+func normalizeMtPhotoSize(value any) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(v)
+	case json.Number:
+		return v.String()
+	case float64:
+		if v < 0 {
+			return ""
+		}
+		return strconv.FormatInt(int64(v), 10)
+	default:
+		return strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+}
+
+func mapMtPhotoFolderFiles(items []mtPhotoFolderFileItemRaw) []MtPhotoFolderFileItem {
+	if len(items) == 0 {
+		return []MtPhotoFolderFileItem{}
+	}
+
+	out := make([]MtPhotoFolderFileItem, 0, len(items))
+	for _, item := range items {
+		md5Value := strings.TrimSpace(item.MD5)
+		if md5Value == "" {
+			md5Value = strings.TrimSpace(item.MD5Lower)
+		}
+		if md5Value == "" {
+			continue
+		}
+		out = append(out, MtPhotoFolderFileItem{
+			ID:       item.ID,
+			FileName: strings.TrimSpace(item.FileName),
+			FileType: strings.TrimSpace(item.FileType),
+			Size:     normalizeMtPhotoSize(item.Size),
+			TokenAt:  strings.TrimSpace(item.TokenAt),
+			MD5:      md5Value,
+			Width:    item.Width,
+			Height:   item.Height,
+			Duration: item.Duration,
+			Status:   item.Status,
+			Type:     inferMtPhotoType(item.FileType),
+		})
+	}
+	if out == nil {
+		return []MtPhotoFolderFileItem{}
+	}
+	return out
+}
+
+func (s *MtPhotoService) getFolderData(ctx context.Context, pathname string, action string) (*MtPhotoFolderContent, error) {
+	if !s.configured() {
+		return nil, fmt.Errorf("mtPhoto 未配置")
+	}
+
+	urlStr, err := s.buildURL(pathname, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := s.doRequest(ctx, http.MethodGet, urlStr, map[string]string{
+		"Accept": "application/json",
+	}, nil, true, false)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, &mtPhotoStatusError{
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
+			Action:     action,
+		}
+	}
+
+	var parsed mtPhotoFolderResponse
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return nil, fmt.Errorf("%s 响应解析失败: %w", strings.TrimSpace(action), err)
+	}
+
+	folderList := parsed.FolderList
+	if folderList == nil {
+		folderList = []MtPhotoFolderItem{}
+	}
+
+	return &MtPhotoFolderContent{
+		Path:       strings.TrimSpace(parsed.Path),
+		FolderList: folderList,
+		FileList:   mapMtPhotoFolderFiles(parsed.FileList),
+		TrashNum:   parsed.TrashNum,
+	}, nil
+}
+
+func (s *MtPhotoService) GetFolderRoot(ctx context.Context) (*MtPhotoFolderContent, error) {
+	return s.getFolderData(ctx, "/gateway/folders/root", "mtPhoto 获取目录根节点失败")
+}
+
+func (s *MtPhotoService) GetFolderBreadcrumbs(ctx context.Context, folderID int64) (*MtPhotoFolderContent, error) {
+	if folderID <= 0 {
+		return nil, fmt.Errorf("folderId 非法")
+	}
+	return s.getFolderData(ctx, fmt.Sprintf("/gateway/folderBreadcrumbs/%d", folderID), "mtPhoto 获取目录面包屑失败")
+}
+
+func paginateMtPhotoFolderItems(all []MtPhotoFolderFileItem, page, pageSize int) []MtPhotoFolderFileItem {
+	if len(all) == 0 || pageSize <= 0 {
+		return []MtPhotoFolderFileItem{}
+	}
+	start := (page - 1) * pageSize
+	if start >= len(all) {
+		return []MtPhotoFolderFileItem{}
+	}
+	end := start + pageSize
+	if end > len(all) {
+		end = len(all)
+	}
+	out := make([]MtPhotoFolderFileItem, 0, end-start)
+	out = append(out, all[start:end]...)
+	return out
+}
+
+func (s *MtPhotoService) GetFolderContentPage(ctx context.Context, folderID int64, page, pageSize int) (content *MtPhotoFolderContent, total int, totalPages int, err error) {
+	if folderID <= 0 {
+		return nil, 0, 0, fmt.Errorf("folderId 非法")
+	}
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 60
+	}
+	if pageSize > 200 {
+		pageSize = 200
+	}
+
+	content, err = s.getFolderData(ctx, fmt.Sprintf("/gateway/foldersV2/%d", folderID), "mtPhoto 获取目录内容失败")
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	total = len(content.FileList)
+	totalPages = calcTotalPages(total, pageSize)
+	content.FileList = paginateMtPhotoFolderItems(content.FileList, page, pageSize)
+	return content, total, totalPages, nil
 }
 
 type mtPhotoAlbumFilesV2Response struct {

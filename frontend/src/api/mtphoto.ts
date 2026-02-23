@@ -1,5 +1,57 @@
 import request, { createFormData } from './request'
 
+export interface MtPhotoFolderNode {
+  id: number
+  name: string
+  hide?: boolean
+  galleryName?: string
+  galleryFolderNum?: number
+  path?: string
+  cover?: string
+  s_cover?: string | null
+  subFolderNum?: number
+  subFileNum?: number
+  trashNum?: number
+  fileType?: string
+}
+
+export interface MtPhotoFolderFile {
+  id: number
+  fileName: string
+  fileType?: string
+  size?: string
+  tokenAt?: string
+  md5: string
+  width?: number
+  height?: number
+  duration?: number | null
+  status?: number
+  type?: 'image' | 'video'
+}
+
+export interface MtPhotoFolderContentResponse {
+  path: string
+  folderList: MtPhotoFolderNode[]
+  fileList: MtPhotoFolderFile[]
+  trashNum?: number
+  total?: number
+  page?: number
+  pageSize?: number
+  totalPages?: number
+}
+
+export interface MtPhotoFolderFavoriteItem {
+  id: number
+  folderId: number
+  folderName: string
+  folderPath: string
+  coverMd5?: string
+  tags: string[]
+  note?: string
+  createTime?: string
+  updateTime?: string
+}
+
 export const getMtPhotoAlbums = () => {
   return request.get<any, any>('/getMtPhotoAlbums')
 }
@@ -8,6 +60,44 @@ export const getMtPhotoAlbumFiles = (albumId: number, page: number, pageSize: nu
   return request.get<any, any>('/getMtPhotoAlbumFiles', {
     params: { albumId, page, pageSize }
   })
+}
+
+export const getMtPhotoFolderRoot = () => {
+  return request.get<any, MtPhotoFolderContentResponse>('/getMtPhotoFolderRoot')
+}
+
+export const getMtPhotoFolderContent = (folderId: number, page: number, pageSize: number) => {
+  return request.get<any, MtPhotoFolderContentResponse>('/getMtPhotoFolderContent', {
+    params: { folderId, page, pageSize }
+  })
+}
+
+export const getMtPhotoFolderBreadcrumbs = (folderId: number) => {
+  return request.get<any, MtPhotoFolderContentResponse>('/getMtPhotoFolderBreadcrumbs', {
+    params: { folderId }
+  })
+}
+
+export const getMtPhotoFolderFavorites = () => {
+  return request.get<any, { items: MtPhotoFolderFavoriteItem[] }>('/getMtPhotoFolderFavorites')
+}
+
+export const upsertMtPhotoFolderFavorite = (data: {
+  folderId: number
+  folderName: string
+  folderPath: string
+  coverMd5?: string
+  tags?: string[]
+  note?: string
+}) => {
+  return request.post<any, { success: boolean; item: MtPhotoFolderFavoriteItem | null }>(
+    '/upsertMtPhotoFolderFavorite',
+    data
+  )
+}
+
+export const removeMtPhotoFolderFavorite = (folderId: number) => {
+  return request.post<any, { success: boolean }>('/removeMtPhotoFolderFavorite', { folderId })
 }
 
 export const resolveMtPhotoFilePath = (md5: string) => {
@@ -26,4 +116,3 @@ export const importMtPhotoMedia = (data: {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
   })
 }
-

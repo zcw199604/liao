@@ -89,21 +89,22 @@ type App struct {
 	systemConfig      *SystemConfigService
 	imagePortResolver *ImagePortResolver
 
-	identityService  *IdentityService
-	favoriteService  *FavoriteService
-	douyinFavorite   *DouyinFavoriteService
-	fileStorage      *FileStorageService
-	imageServer      *ImageServerService
-	imageCache       *ImageCacheService
-	imageHash        *ImageHashService
-	mediaUpload      *MediaUploadService
-	douyinDownloader *DouyinDownloaderService
-	mtPhoto          *MtPhotoService
-	videoExtract     *VideoExtractService
-	userInfoCache    UserInfoCacheService
-	chatHistoryCache ChatHistoryCacheService
-	forceoutManager  *ForceoutManager
-	wsManager        *UpstreamWebSocketManager
+	identityService       *IdentityService
+	favoriteService       *FavoriteService
+	douyinFavorite        *DouyinFavoriteService
+	fileStorage           *FileStorageService
+	imageServer           *ImageServerService
+	imageCache            *ImageCacheService
+	imageHash             *ImageHashService
+	mediaUpload           *MediaUploadService
+	douyinDownloader      *DouyinDownloaderService
+	mtPhoto               *MtPhotoService
+	mtPhotoFolderFavorite *MtPhotoFolderFavoriteService
+	videoExtract          *VideoExtractService
+	userInfoCache         UserInfoCacheService
+	chatHistoryCache      ChatHistoryCacheService
+	forceoutManager       *ForceoutManager
+	wsManager             *UpstreamWebSocketManager
 
 	staticDir string
 	handler   http.Handler
@@ -208,6 +209,7 @@ func New(cfg config.Config) (*App, error) {
 		application.douyinDownloader.SetCookieProvider(provider)
 	}
 	application.mtPhoto = NewMtPhotoService(cfg.MtPhotoBaseURL, cfg.MtPhotoLoginUsername, cfg.MtPhotoLoginPassword, cfg.MtPhotoLoginOTP, cfg.LspRoot, application.httpClient)
+	application.mtPhotoFolderFavorite = NewMtPhotoFolderFavoriteService(db)
 	application.videoExtract = NewVideoExtractService(db, cfg, application.fileStorage, application.mtPhoto)
 
 	application.handler = application.buildRouter()

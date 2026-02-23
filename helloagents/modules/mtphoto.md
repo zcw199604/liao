@@ -1,18 +1,22 @@
-# mtPhoto（相册接入与导入）
+# mtPhoto（相册/文件夹接入与导入）
 
 ## 目的
-将外部 mtPhoto 相册系统接入当前应用，使用户可以按“相册 → 媒体（图片/视频）”方式浏览素材，并一键导入到本地媒体库（仅落盘 + 全局去重，不自动上传上游）。需要发送时在聊天页“所有图片/全站图片库”中手动点击“上传此图片”上传到上游后发送。
+将外部 mtPhoto 相册系统接入当前应用，使用户可以按“相册 → 媒体（图片/视频）”或“文件夹树 → 子目录/图片”方式浏览素材，并一键导入到本地媒体库（仅落盘 + 全局去重，不自动上传上游）。需要发送时在聊天页“所有图片/全站图片库”中手动点击“上传此图片”上传到上游后发送。
 
 ## 模块概述
-- **职责:** mtPhoto 登录/续期（优先 refresh_token，失败回退登录）；相册列表；相册媒体分页（后端切片）；gateway 缩略图代理；按 MD5 解析本地文件路径；导入（落盘到 `./upload` + 全局 MD5 去重 + 写入 `media_file`/复用已有记录；不自动上传上游）
+- **职责:** mtPhoto 登录/续期（优先 refresh_token，失败回退登录）；相册列表；相册媒体分页（后端切片）；文件夹树浏览（root/content/breadcrumbs）；文件夹级本地收藏（标签/备注）；gateway 缩略图代理；按 MD5 解析本地文件路径；导入（落盘到 `./upload` + 全局 MD5 去重 + 写入 `media_file`/复用已有记录；不自动上传上游）
 - **状态:** ✅稳定
-- **最后更新:** 2026-01-25
+- **最后更新:** 2026-02-23
 
 ## 入口与交互
 - **聊天页上传菜单:** 新增“mtPhoto 相册”入口，打开相册弹窗
 - **图片管理（Media）:** 新增“mtPhoto 相册”入口，打开相册弹窗（与“所有上传图片/图片查重”同一菜单）
 - **身份选择页（Identity）:** 登录后、选择身份前可通过“图片管理”进入相册；未选择身份时仅支持浏览/下载，导入需先选择身份
-- **相册弹窗:** 相册列表（首项“收藏夹”，封面预览为空）→ 相册媒体（网格/瀑布流可切换，无限滚动；瀑布流按行从左到右渲染以保证时间顺序直觉）→ 预览（图片支持左右切换浏览；预览顶部可查看详情并展示真实文件名等元信息；下载按钮下载原图）→ 点击“上传”触发导入（以当前预览图片为准）；支持弹窗“全屏/退出全屏”（按钮或快捷键 `F`，偏好持久化 localStorage：`media_modal_fullscreen`，`Esc` 优先退出全屏）；弹窗展示区域已放宽并进一步紧凑化列表边距/间距以提升大屏浏览体验
+- **相册弹窗:** 顶部支持“相册 / 文件夹”模式切换。
+  - 相册模式：相册列表（首项“收藏夹”，封面预览为空）→ 相册媒体（网格/瀑布流可切换，无限滚动；瀑布流按行从左到右渲染以保证时间顺序直觉）。
+  - 文件夹模式：根目录/子目录逐级浏览 + 图片列表；左侧收藏区支持一键跳转；当前目录可保存收藏并维护标签、备注。
+  - 预览：图片支持左右切换浏览；预览顶部可查看详情并展示真实文件名等元信息；下载按钮下载原图；点击“上传”触发导入（以当前预览图片为准）。
+  - 交互：支持弹窗“全屏/退出全屏”（按钮或快捷键 `F`，偏好持久化 localStorage：`media_modal_fullscreen`，`Esc` 优先退出全屏）；弹窗展示区域放宽并紧凑化列表边距/间距以提升大屏浏览体验。
 
 ## 核心流程
 
@@ -22,25 +26,37 @@
 3. 返回相册数组（包含 `id/name/cover/count` 等）
 4. 前端在相册列表顶部注入“收藏夹”入口（`albumId=1`），封面预览暂为空；同时异步请求 `GET /api/getMtPhotoAlbumFiles?albumId=1&page=1&pageSize=1` 读取 `total` 作为数量展示；点击后复用相册媒体分页接口加载收藏夹内容
 
-### 2) 浏览相册媒体（懒加载）
+### 2) 浏览文件夹树（懒加载）
+1. 前端切到“文件夹”模式，调用 `GET /api/getMtPhotoFolderRoot` 加载根目录
+2. 点击子目录后调用 `GET /api/getMtPhotoFolderContent?folderId=...&page=...&pageSize=...`
+3. 后端透传 mtPhoto `gateway/foldersV2/{id}`，并对 `fileList` 做分页切片
+4. 目录图片复用统一 `InfiniteMediaGrid` + `MediaPreview`，支持无限滚动加载
+
+### 3) 文件夹级收藏（标签/备注）
+1. 前端调用 `POST /api/upsertMtPhotoFolderFavorite` 收藏/更新当前目录（`folderId/folderName/folderPath/coverMd5/tags/note`）
+2. 后端写入本地表 `mtphoto_folder_favorite`（`folder_id` 唯一），并执行 tags/note 校验（tags 去重、数量上限 20、单标签上限 32、note 上限 500）
+3. 前端通过 `GET /api/getMtPhotoFolderFavorites` 渲染收藏区，可一键跳转到目录
+4. 取消收藏调用 `POST /api/removeMtPhotoFolderFavorite`
+
+### 4) 浏览相册媒体（懒加载）
 1. 前端滚动触底触发 `GET /api/getMtPhotoAlbumFiles?albumId=...&page=...&pageSize=...`
 2. 后端请求 mtPhoto 的 `/api-album/filesV2/{id}?listVer=v2`，将结果扁平化并做分页切片
 3. 前端使用 `InfiniteMediaGrid` 展示相册媒体（支持瀑布流/网格切换，localStorage: `media_layout_mode`；瀑布流按行从左到右渲染以保证视觉顺序与数据顺序一致），并使用 `loading="lazy"` 加载缩略图（`/api/getMtPhotoThumb`）；弹窗尺寸与内边距对齐全站图片库（列表容器 `p-2`、网格间距 `gap-2`），减少留白
 
-### 3) 导入到本地（不自动上传上游）
+### 5) 导入到本地（不自动上传上游）
 1. 前端在预览中点击“上传”，调用 `POST /api/importMtPhotoMedia`（携带 `userid/md5`）
 2. 后端通过 mtPhoto 的 `/gateway/filesInMD5` 获取 `filePath`（形如 `/lsp/...`）
 3. 后端将文件保存到 `./upload`（生成 `/images/...` 或 `/videos/...`），并计算本地 MD5
 4. 后端按 MD5 全局去重：命中则复用已有记录并刷新 `update_time`（便于在“全站图片库”置顶）；未命中则写入 `media_file`（`remote_url/remote_filename` 为空）
 5. 前端提示“已导入到本地”，需要发送时到聊天页“所有图片/全站图片库”中手动点击“上传此图片”上传到上游后发送
 
-### 4) 下载原图（mtPhoto 图片下载）
+### 6) 下载原图（mtPhoto 图片下载）
 1. 预览展示继续使用缩略图（`/api/getMtPhotoThumb`），避免首屏加载过慢
 2. 用户点击预览顶部“下载”按钮时，前端优先使用 `downloadUrl`（`/api/downloadMtPhotoOriginal?id=<id>&md5=<md5>`）
 3. 后端代理 mtPhoto `gateway/fileDownload/{id}/{md5}` 流式透传原图内容并返回 `Content-Disposition: attachment` 以便浏览器保存
 4. 前端下载时解析 `Content-Disposition` 的 `filename*`（RFC 5987）与 `filename`：当 `filename` 为 URL 编码（如 `%E4%B8%AD%E6%96%87.jpg`）时会在保存前解码，确保中文文件名不被编码
 
-### 5) 查看详情（真实文件名）
+### 7) 查看详情（真实文件名）
 1. 用户在预览中点击顶部“查看详情/信息”按钮打开详情面板
 2. 当前媒体缺少 `originalFilename` 时，前端按需调用 `GET /api/resolveMtPhotoFilePath?md5=<md5>` 获取 `filePath`
 3. 前端仅取 `filePath` 的 basename 作为“原始文件名”展示，并按 `md5` 缓存解析结果（不在 UI 中展示完整路径）
@@ -55,11 +71,18 @@
 - **凭证安全:** mtPhoto 登录凭证仅通过环境变量注入；后端日志禁止输出 token/auth_code/refresh_token/password
 - **路径安全:** mtPhoto 返回的 `filePath` 必须以 `/lsp/` 开头，并通过 `LSP_ROOT` 映射到本地目录；禁止 `..` 路径遍历
 - **开放代理防护:** `GET /api/getMtPhotoThumb` 仅允许 `size=s260|h220`，且该接口为前端 `<img>` 加载所需而放行（不要求 JWT）
+- **收藏输入校验:** 文件夹收藏标签会执行 trim/去重；标签数量与长度、备注长度在服务端校验，避免脏数据落库
 
 ## API接口
 详见 `helloagents/modules/api.md` 的 mtPhoto 小节：
 - `GET /api/getMtPhotoAlbums`
 - `GET /api/getMtPhotoAlbumFiles`
+- `GET /api/getMtPhotoFolderRoot`
+- `GET /api/getMtPhotoFolderContent`
+- `GET /api/getMtPhotoFolderBreadcrumbs`
+- `GET /api/getMtPhotoFolderFavorites`
+- `POST /api/upsertMtPhotoFolderFavorite`
+- `POST /api/removeMtPhotoFolderFavorite`
 - `GET /api/getMtPhotoThumb`
 - `GET /api/downloadMtPhotoOriginal`
 - `GET /api/resolveMtPhotoFilePath`
@@ -76,6 +99,8 @@
 - 后端：
   - `internal/app/mtphoto_client.go`
   - `internal/app/mtphoto_handlers.go`
+  - `internal/app/mtphoto_folder_favorite.go`
+  - `internal/app/mtphoto_folder_favorite_handlers.go`
   - `internal/app/static.go`（`/lsp/*` 安全映射）
   - `internal/config/config.go`
 - 前端：
@@ -94,6 +119,7 @@
 
 ## 变更历史
 - [202601191522_media_gallery_expand](../../history/2026-01/202601191522_media_gallery_expand/) - 放宽相册弹窗与图片列表展示区域，减少留白
+- [202602230406_mtphoto-folder-preview-favorites](../plan/202602230406_mtphoto-folder-preview-favorites/) - 新增 mtPhoto 文件夹预览与文件夹级收藏（标签/备注）
 - [202601181444_mtphoto_album](../../history/2026-01/202601181444_mtphoto_album/) - 接入 mtPhoto 相册并支持按相册浏览与一键导入上传
 - [202601181549_mtphoto_preview_gallery](../../history/2026-01/202601181549_mtphoto_preview_gallery/) - 相册图片预览支持左右切换浏览（切换后导入目标对齐）
 - [202601190055_mtphoto_refresh_token](../../history/2026-01/202601190055_mtphoto_refresh_token/) - mtPhoto 续期支持 refresh_token（优先 `/auth/refresh`，失败回退 `/auth/login`）

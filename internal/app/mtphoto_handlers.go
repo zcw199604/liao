@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -51,6 +52,119 @@ func (a *App) handleGetMtPhotoAlbumFiles(w http.ResponseWriter, r *http.Request)
 		"page":       page,
 		"pageSize":   pageSize,
 		"totalPages": totalPages,
+	})
+}
+
+func writeMtPhotoFolderError(w http.ResponseWriter, err error) {
+	if err == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "请求失败"})
+		return
+	}
+
+	var statusErr *mtPhotoStatusError
+	if errors.As(err, &statusErr) {
+		switch statusErr.StatusCode {
+		case http.StatusUnauthorized, http.StatusForbidden:
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "无权限访问该目录，请检查 mtPhoto 登录状态"})
+			return
+		case http.StatusNotFound:
+			writeJSON(w, http.StatusNotFound, map[string]any{"error": "目录不存在或已删除"})
+			return
+		default:
+			writeJSON(w, http.StatusBadGateway, map[string]any{"error": statusErr.Error()})
+			return
+		}
+	}
+
+	writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+}
+
+func (a *App) handleGetMtPhotoFolderRoot(w http.ResponseWriter, r *http.Request) {
+	if a == nil || a.mtPhoto == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "mtPhoto 服务未初始化"})
+		return
+	}
+
+	content, err := a.mtPhoto.GetFolderRoot(r.Context())
+	if err != nil {
+		writeMtPhotoFolderError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"path":       content.Path,
+		"folderList": content.FolderList,
+		"fileList":   content.FileList,
+		"trashNum":   content.TrashNum,
+	})
+}
+
+func (a *App) handleGetMtPhotoFolderContent(w http.ResponseWriter, r *http.Request) {
+	if a == nil || a.mtPhoto == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "mtPhoto 服务未初始化"})
+		return
+	}
+
+	q := r.URL.Query()
+	folderID := int64(parseIntDefault(q.Get("folderId"), 0))
+	if folderID <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "folderId 参数非法"})
+		return
+	}
+
+	page := parseIntDefault(q.Get("page"), 1)
+	pageSize := parseIntDefault(q.Get("pageSize"), 60)
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 60
+	}
+	if pageSize > 200 {
+		pageSize = 200
+	}
+
+	content, total, totalPages, err := a.mtPhoto.GetFolderContentPage(r.Context(), folderID, page, pageSize)
+	if err != nil {
+		writeMtPhotoFolderError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"path":       content.Path,
+		"folderList": content.FolderList,
+		"fileList":   content.FileList,
+		"trashNum":   content.TrashNum,
+		"total":      total,
+		"page":       page,
+		"pageSize":   pageSize,
+		"totalPages": totalPages,
+	})
+}
+
+func (a *App) handleGetMtPhotoFolderBreadcrumbs(w http.ResponseWriter, r *http.Request) {
+	if a == nil || a.mtPhoto == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "mtPhoto 服务未初始化"})
+		return
+	}
+
+	folderID := int64(parseIntDefault(r.URL.Query().Get("folderId"), 0))
+	if folderID <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "folderId 参数非法"})
+		return
+	}
+
+	content, err := a.mtPhoto.GetFolderBreadcrumbs(r.Context(), folderID)
+	if err != nil {
+		writeMtPhotoFolderError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"path":       content.Path,
+		"folderList": content.FolderList,
+		"fileList":   content.FileList,
+		"trashNum":   content.TrashNum,
 	})
 }
 

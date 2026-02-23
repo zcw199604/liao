@@ -10,140 +10,319 @@
           'bg-surface flex flex-col min-h-0 transition-all duration-200 ease-out',
           isFullscreen
             ? 'w-full max-w-none h-full h-[100dvh] rounded-none shadow-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]'
-            : 'w-[95%] max-w-[1600px] h-[90vh] h-[90dvh] rounded-2xl shadow-2xl'
+            : 'w-[95%] max-w-[1680px] h-[90vh] h-[90dvh] rounded-2xl shadow-2xl'
         ]"
         @click.stop
       >
         <!-- 头部 -->
-	        <div class="flex items-center justify-between px-6 py-4 border-b border-line">
-	          <div class="flex items-center gap-2 min-w-0">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-line">
+          <div class="flex items-center gap-2 min-w-0">
             <button
-              v-if="mtPhotoStore.view === 'album'"
+              v-if="showBackButton"
               class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3 flex-shrink-0"
-              @click="mtPhotoStore.backToAlbums"
-              title="返回相册列表"
+              @click="handleBack"
+              :title="mtPhotoStore.mode === 'albums' ? '返回相册列表' : '返回上级目录'"
             >
               <i class="fas fa-arrow-left"></i>
             </button>
 
             <i class="fas fa-photo-video text-pink-400 flex-shrink-0"></i>
-            <h3 class="text-lg font-bold text-fg truncate">
-              {{ titleText }}
-            </h3>
-	            <span v-if="subTitleText" class="text-xs text-fg-subtle ml-2 flex-shrink-0">
-	              {{ subTitleText }}
-	            </span>
-	          </div>
+            <h3 class="text-lg font-bold text-fg truncate">{{ titleText }}</h3>
+            <span v-if="subTitleText" class="text-xs text-fg-subtle ml-2 flex-shrink-0">
+              {{ subTitleText }}
+            </span>
+          </div>
 
-	          <div class="flex items-center gap-2">
-	            <button
-	              v-if="mtPhotoStore.view === 'album'"
-	              @click="toggleLayout"
-	              class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
-	              :title="layoutMode === 'masonry' ? '切换到网格视图' : '切换到瀑布流视图'"
-	            >
-	              <i :class="layoutMode === 'masonry' ? 'fas fa-th' : 'fas fa-stream'"></i>
-	            </button>
-
+          <div class="flex items-center gap-2">
+            <div class="flex items-center bg-surface-3 rounded-lg p-1">
               <button
-                @click="toggleFullscreen"
-                class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
-                :title="isFullscreen ? '退出全屏' : '全屏'"
+                class="px-3 py-1.5 text-xs rounded-md transition"
+                :class="mtPhotoStore.mode === 'albums' ? 'bg-pink-500/20 text-pink-300' : 'text-fg-subtle hover:text-fg'"
+                @click="switchMode('albums')"
               >
-                <i :class="isFullscreen ? 'fas fa-compress' : 'fas fa-expand'"></i>
+                相册
               </button>
+              <button
+                class="px-3 py-1.5 text-xs rounded-md transition"
+                :class="mtPhotoStore.mode === 'folders' ? 'bg-pink-500/20 text-pink-300' : 'text-fg-subtle hover:text-fg'"
+                @click="switchMode('folders')"
+              >
+                文件夹
+              </button>
+            </div>
 
-	            <button
-	              @click="close"
-	              class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
-	            >
-	              <i class="fas fa-times"></i>
-	            </button>
-	          </div>
-	        </div>
+            <button
+              v-if="showLayoutSwitcher"
+              @click="toggleLayout"
+              class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
+              :title="layoutMode === 'masonry' ? '切换到网格视图' : '切换到瀑布流视图'"
+            >
+              <i :class="layoutMode === 'masonry' ? 'fas fa-th' : 'fas fa-stream'"></i>
+            </button>
+
+            <button
+              @click="toggleFullscreen"
+              class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
+              :title="isFullscreen ? '退出全屏' : '全屏'"
+            >
+              <i :class="isFullscreen ? 'fas fa-compress' : 'fas fa-expand'"></i>
+            </button>
+
+            <button
+              @click="close"
+              class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
+            >
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
 
         <!-- 错误提示 -->
         <div v-if="mtPhotoStore.lastError" class="px-6 py-3 text-xs text-red-400 border-b border-line">
           {{ mtPhotoStore.lastError }}
         </div>
 
-        <!-- 相册列表 -->
-        <div v-if="mtPhotoStore.view === 'albums'" class="flex-1 overflow-y-auto p-2 no-scrollbar">
-          <div v-if="mtPhotoStore.albumsLoading" class="flex-1 flex items-center justify-center text-fg-subtle text-sm">
-            加载中...
+        <!-- 相册模式 -->
+        <template v-if="mtPhotoStore.mode === 'albums'">
+          <!-- 相册列表 -->
+          <div v-if="mtPhotoStore.view === 'albums'" class="flex-1 overflow-y-auto p-2 no-scrollbar">
+            <div v-if="mtPhotoStore.albumsLoading" class="flex-1 flex items-center justify-center text-fg-subtle text-sm">
+              加载中...
+            </div>
+
+            <div v-else-if="mtPhotoStore.albums.length > 0" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <button
+                v-for="album in mtPhotoStore.albums"
+                :key="album.id"
+                class="text-left rounded-xl overflow-hidden border border-line-strong hover:border-pink-500 transition-colors bg-surface-deep"
+                @click="mtPhotoStore.openAlbum(album)"
+              >
+                <div class="aspect-square bg-black/30 overflow-hidden">
+                  <MediaTile
+                    v-if="album.cover"
+                    :src="getThumbUrl('s260', album.cover)"
+                    type="image"
+                    class="w-full h-full"
+                    :show-skeleton="false"
+                  />
+                  <div v-else class="w-full h-full flex items-center justify-center text-fg-subtle">
+                    <i class="fas fa-images text-3xl opacity-40"></i>
+                  </div>
+                </div>
+                <div class="p-3">
+                  <div class="text-fg font-medium text-sm truncate">{{ album.name }}</div>
+                  <div class="text-xs text-fg-subtle mt-1">{{ album.count ?? 0 }} 个</div>
+                </div>
+              </button>
+            </div>
+
+            <div v-else class="flex-1 flex items-center justify-center text-fg-subtle text-sm">
+              暂无相册
+            </div>
           </div>
 
-	          <div v-else-if="mtPhotoStore.albums.length > 0" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-	            <button
-	              v-for="album in mtPhotoStore.albums"
-	              :key="album.id"
-	              class="text-left rounded-xl overflow-hidden border border-line-strong hover:border-pink-500 transition-colors bg-surface-deep"
-	              @click="mtPhotoStore.openAlbum(album)"
-	            >
-	              <div class="aspect-square bg-black/30 overflow-hidden">
-	                <MediaTile
-	                  v-if="album.cover"
-	                  :src="getThumbUrl('s260', album.cover)"
-	                  type="image"
-	                  class="w-full h-full"
-	                  :show-skeleton="false"
-	                />
-	                <div v-else class="w-full h-full flex items-center justify-center text-fg-subtle">
-	                  <i class="fas fa-images text-3xl opacity-40"></i>
-	                </div>
-	              </div>
-	              <div class="p-3">
-                <div class="text-fg font-medium text-sm truncate">{{ album.name }}</div>
-                <div class="text-xs text-fg-subtle mt-1">{{ album.count ?? 0 }} 个</div>
+          <!-- 相册媒体 -->
+          <InfiniteMediaGrid
+            v-else
+            :items="mtPhotoStore.mediaItems"
+            :loading="mtPhotoStore.mediaLoading"
+            :finished="mtPhotoStore.mediaTotalPages > 0 && mtPhotoStore.mediaPage >= mtPhotoStore.mediaTotalPages"
+            :total="mtPhotoStore.mediaTotal"
+            :layout-mode="layoutMode"
+            :item-key="(item, idx) => item.md5 + '-' + idx"
+            @load-more="mtPhotoStore.loadMore"
+          >
+            <template #default="{ item }">
+              <MediaTile
+                :src="getThumbUrl('h220', item.md5)"
+                type="image"
+                class="w-full rounded-xl overflow-hidden cursor-pointer border border-line-strong hover:border-pink-500 transition-colors bg-surface-3"
+                :class="layoutMode === 'grid' ? 'h-full' : ''"
+                :aspect-ratio="
+                  layoutMode === 'masonry' && item.width && item.height
+                    ? Number(item.width) / Number(item.height)
+                    : undefined
+                "
+                :style="layoutMode === 'masonry' ? { contain: 'paint' } : {}"
+                :show-skeleton="false"
+                @click="handleMediaClick(item)"
+              >
+                <template v-if="item.type === 'video'" #center>
+                  <div class="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <i class="fas fa-play-circle text-white text-3xl"></i>
+                  </div>
+                </template>
+              </MediaTile>
+            </template>
+
+            <template #empty>
+              <div class="flex items-center justify-center text-fg-subtle text-sm h-full">
+                暂无媒体
               </div>
-            </button>
-          </div>
+            </template>
 
-          <div v-else class="flex-1 flex items-center justify-center text-fg-subtle text-sm">
-            暂无相册
+            <template #finished-text> 已加载全部 </template>
+          </InfiniteMediaGrid>
+        </template>
+
+        <!-- 文件夹模式 -->
+        <div v-else class="flex-1 min-h-0 flex">
+          <aside class="hidden lg:flex w-72 border-r border-line flex-col min-h-0">
+            <div class="px-4 py-3 border-b border-line flex items-center justify-between">
+              <div class="text-sm font-semibold text-fg">目录收藏</div>
+              <button
+                class="text-xs text-fg-subtle hover:text-fg"
+                @click="mtPhotoStore.loadFolderFavorites"
+                :disabled="mtPhotoStore.folderFavoritesLoading"
+              >
+                刷新
+              </button>
+            </div>
+
+            <div v-if="mtPhotoStore.folderFavoritesLoading" class="p-4 text-xs text-fg-subtle">加载中...</div>
+            <div v-else-if="mtPhotoStore.folderFavorites.length === 0" class="p-4 text-xs text-fg-subtle">
+              暂无收藏目录
+            </div>
+            <div v-else class="flex-1 overflow-y-auto no-scrollbar p-2 space-y-2">
+              <button
+                v-for="item in mtPhotoStore.folderFavorites"
+                :key="item.folderId"
+                class="w-full text-left rounded-lg border border-line-strong bg-surface-3 hover:border-pink-500 transition-colors p-3"
+                @click="handleOpenFavorite(item)"
+              >
+                <div class="text-sm font-medium text-fg truncate">{{ item.folderName }}</div>
+                <div class="text-[11px] text-fg-subtle truncate mt-1">{{ item.folderPath || '/' }}</div>
+                <div v-if="item.tags.length" class="mt-2 flex flex-wrap gap-1">
+                  <span
+                    v-for="tag in item.tags.slice(0, 3)"
+                    :key="`${item.folderId}-${tag}`"
+                    class="px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 text-[11px]"
+                  >
+                    #{{ tag }}
+                  </span>
+                  <span v-if="item.tags.length > 3" class="text-[11px] text-fg-subtle">+{{ item.tags.length - 3 }}</span>
+                </div>
+                <div v-if="item.note" class="mt-2 text-[11px] text-fg-subtle line-clamp-2">{{ item.note }}</div>
+                <div class="mt-2 flex justify-end">
+                  <button
+                    class="text-[11px] text-red-300 hover:text-red-200"
+                    @click.stop="removeFavorite(item.folderId)"
+                  >
+                    移除
+                  </button>
+                </div>
+              </button>
+            </div>
+          </aside>
+
+          <div class="flex-1 min-h-0 flex flex-col">
+            <div class="px-4 py-3 border-b border-line bg-surface-2">
+              <div class="flex flex-wrap gap-2 items-center">
+                <span class="text-xs text-fg-subtle">路径：</span>
+                <span class="text-sm text-fg">{{ mtPhotoStore.folderPath || '/' }}</span>
+              </div>
+
+              <div class="mt-3 grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-3 items-start">
+                <div class="space-y-2">
+                  <input
+                    v-model="favoriteTagsInput"
+                    class="w-full rounded-lg border border-line-strong bg-surface-3 px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:outline-none focus:border-pink-500"
+                    placeholder="标签（逗号分隔，例如：旅行, 常用）"
+                    :disabled="!mtPhotoStore.folderCurrentId || mtPhotoStore.folderFavoriteSaving"
+                  />
+                  <textarea
+                    v-model="favoriteNoteInput"
+                    rows="2"
+                    class="w-full rounded-lg border border-line-strong bg-surface-3 px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:outline-none focus:border-pink-500 resize-y"
+                    placeholder="备注（可选）"
+                    :disabled="!mtPhotoStore.folderCurrentId || mtPhotoStore.folderFavoriteSaving"
+                  />
+                </div>
+
+                <div class="flex items-center gap-2 justify-start xl:justify-end">
+                  <button
+                    class="px-3 py-2 rounded-lg bg-pink-500 text-white text-sm hover:bg-pink-600 disabled:opacity-50"
+                    :disabled="!mtPhotoStore.folderCurrentId || mtPhotoStore.folderFavoriteSaving"
+                    @click="saveCurrentFolderFavorite"
+                  >
+                    {{ mtPhotoStore.currentFolderFavorite ? '更新收藏' : '收藏当前目录' }}
+                  </button>
+                  <button
+                    class="px-3 py-2 rounded-lg border border-line-strong text-sm text-fg-subtle hover:text-fg hover:border-red-400 disabled:opacity-50"
+                    :disabled="!mtPhotoStore.currentFolderFavorite || mtPhotoStore.folderFavoriteSaving"
+                    @click="removeCurrentFolderFavorite"
+                  >
+                    取消收藏
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="px-2 pt-2 pb-1">
+              <div class="text-xs text-fg-subtle mb-2">子文件夹</div>
+              <div v-if="mtPhotoStore.folderLoading && mtPhotoStore.folderList.length === 0" class="text-xs text-fg-subtle px-1 py-2">
+                加载中...
+              </div>
+              <div v-else-if="mtPhotoStore.folderList.length === 0" class="text-xs text-fg-subtle px-1 py-2">
+                当前目录无子文件夹
+              </div>
+              <div v-else class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2">
+                <button
+                  v-for="folder in mtPhotoStore.folderList"
+                  :key="folder.id"
+                  class="text-left rounded-lg border border-line-strong bg-surface-3 hover:border-pink-500 transition-colors p-2"
+                  @click="mtPhotoStore.openFolder(folder)"
+                >
+                  <div class="text-sm text-fg truncate">{{ folder.name }}</div>
+                  <div class="text-[11px] text-fg-subtle mt-1">
+                    {{ folder.subFileNum ?? 0 }} 图 · {{ folder.subFolderNum ?? 0 }} 目录
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <InfiniteMediaGrid
+              :items="mtPhotoStore.folderFiles"
+              :loading="mtPhotoStore.folderLoading"
+              :finished="mtPhotoStore.folderTotalPages > 0 && mtPhotoStore.folderPage >= mtPhotoStore.folderTotalPages"
+              :total="mtPhotoStore.folderTotal"
+              :layout-mode="layoutMode"
+              :item-key="(item, idx) => item.md5 + '-' + idx"
+              @load-more="mtPhotoStore.loadFolderMore"
+            >
+              <template #default="{ item }">
+                <MediaTile
+                  :src="getThumbUrl('h220', item.md5)"
+                  type="image"
+                  class="w-full rounded-xl overflow-hidden cursor-pointer border border-line-strong hover:border-pink-500 transition-colors bg-surface-3"
+                  :class="layoutMode === 'grid' ? 'h-full' : ''"
+                  :aspect-ratio="
+                    layoutMode === 'masonry' && item.width && item.height
+                      ? Number(item.width) / Number(item.height)
+                      : undefined
+                  "
+                  :style="layoutMode === 'masonry' ? { contain: 'paint' } : {}"
+                  :show-skeleton="false"
+                  @click="handleMediaClick(item)"
+                >
+                  <template v-if="item.type === 'video'" #center>
+                    <div class="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <i class="fas fa-play-circle text-white text-3xl"></i>
+                    </div>
+                  </template>
+                </MediaTile>
+              </template>
+
+              <template #empty>
+                <div class="flex items-center justify-center text-fg-subtle text-sm h-full">
+                  当前目录暂无图片
+                </div>
+              </template>
+
+              <template #finished-text> 已加载全部 </template>
+            </InfiniteMediaGrid>
           </div>
         </div>
-
-        <!-- 相册媒体 -->
-	        <InfiniteMediaGrid
-	          v-else
-	          :items="mtPhotoStore.mediaItems"
-	          :loading="mtPhotoStore.mediaLoading"
-	          :finished="mtPhotoStore.mediaTotalPages > 0 && mtPhotoStore.mediaPage >= mtPhotoStore.mediaTotalPages"
-	          :total="mtPhotoStore.mediaTotal"
-	          :layout-mode="layoutMode"
-	          :item-key="(item, idx) => item.md5 + '-' + idx"
-	          @load-more="mtPhotoStore.loadMore"
-	        >
-		          <template #default="{ item }">
-		            <MediaTile
-		              :src="getThumbUrl('h220', item.md5)"
-		              type="image"
-		              class="w-full rounded-xl overflow-hidden cursor-pointer border border-line-strong hover:border-pink-500 transition-colors bg-surface-3"
-		              :class="layoutMode === 'grid' ? 'h-full' : ''"
-		              :aspect-ratio="layoutMode === 'masonry' && item.width && item.height ? (Number(item.width) / Number(item.height)) : undefined"
-		              :style="layoutMode === 'masonry' ? { contain: 'paint' } : {}"
-		              :show-skeleton="false"
-		              @click="handleMediaClick(item)"
-		            >
-		              <template v-if="item.type === 'video'" #center>
-		                <div class="absolute inset-0 flex items-center justify-center bg-black/30">
-		                  <i class="fas fa-play-circle text-white text-3xl"></i>
-		                </div>
-		              </template>
-		            </MediaTile>
-	          </template>
-
-          <template #empty>
-            <div class="flex items-center justify-center text-fg-subtle text-sm h-full">
-              暂无媒体
-            </div>
-          </template>
-
-          <template #finished-text>
-            已加载全部
-          </template>
-        </InfiniteMediaGrid>
       </div>
 
       <MediaPreview
@@ -161,16 +340,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useMtPhotoStore, type MtPhotoMediaItem } from '@/stores/mtphoto'
+import { computed, ref, watch } from 'vue'
+import { useMtPhotoStore, type MtPhotoFolderFavorite, type MtPhotoMediaItem } from '@/stores/mtphoto'
 import { useUserStore } from '@/stores/user'
 import { useToast } from '@/composables/useToast'
 import { useModalFullscreen } from '@/composables/useModalFullscreen'
 import * as mtphotoApi from '@/api/mtphoto'
-	import MediaPreview from '@/components/media/MediaPreview.vue'
-	import InfiniteMediaGrid from '@/components/common/InfiniteMediaGrid.vue'
-	import MediaTile from '@/components/common/MediaTile.vue'
-	import type { UploadedMedia } from '@/types'
+import MediaPreview from '@/components/media/MediaPreview.vue'
+import InfiniteMediaGrid from '@/components/common/InfiniteMediaGrid.vue'
+import MediaTile from '@/components/common/MediaTile.vue'
+import type { UploadedMedia } from '@/types'
 
 const mtPhotoStore = useMtPhotoStore()
 const userStore = useUserStore()
@@ -179,63 +358,176 @@ const { show } = useToast()
 const showPreview = ref(false)
 const previewUrl = ref('')
 const previewType = ref<'image' | 'video' | 'file'>('image')
-	const previewCanUpload = ref(true)
-	const previewMediaList = ref<UploadedMedia[]>([])
-	const previewMD5 = ref('')
+const previewCanUpload = ref(true)
+const previewMediaList = ref<UploadedMedia[]>([])
+const previewMD5 = ref('')
 
-	// 真实文件名解析缓存：md5 -> basename(filename)
-	const mtPhotoOriginalFilenameCache = new Map<string, string>()
+const favoriteTagsInput = ref('')
+const favoriteNoteInput = ref('')
 
-	const extractBasename = (value: string): string => {
-	  const raw = String(value || '').trim()
-	  if (!raw) return ''
-	  const normalized = raw.replace(/\\/g, '/')
-	  const withoutQuery = normalized.split('?')[0] || ''
-	  const withoutHash = withoutQuery.split('#')[0] || ''
-	  const parts = withoutHash.split('/').filter(Boolean)
-	  return parts[parts.length - 1] || ''
-	}
+// 真实文件名解析缓存：md5 -> basename(filename)
+const mtPhotoOriginalFilenameCache = new Map<string, string>()
 
-	const resolveMtPhotoOriginalFilename = async (media: UploadedMedia): Promise<string> => {
-	  const md5Value = String(media.md5 || '').trim()
-	  if (!md5Value) return ''
-	  const cached = mtPhotoOriginalFilenameCache.get(md5Value)
-	  if (cached) return cached
+const extractBasename = (value: string): string => {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const normalized = raw.replace(/\\/g, '/')
+  const withoutQuery = normalized.split('?')[0] || ''
+  const withoutHash = withoutQuery.split('#')[0] || ''
+  const parts = withoutHash.split('/').filter(Boolean)
+  return parts[parts.length - 1] || ''
+}
 
-	  try {
-	    const res = await mtphotoApi.resolveMtPhotoFilePath(md5Value)
-	    const filename = extractBasename(String(res?.filePath || ''))
-	    if (filename) {
-	      mtPhotoOriginalFilenameCache.set(md5Value, filename)
-	      return filename
-	    }
-	  } catch (e) {
-	    console.warn('解析 mtPhoto 文件名失败:', e)
-	  }
+const resolveMtPhotoOriginalFilename = async (media: UploadedMedia): Promise<string> => {
+  const md5Value = String(media.md5 || '').trim()
+  if (!md5Value) return ''
+  const cached = mtPhotoOriginalFilenameCache.get(md5Value)
+  if (cached) return cached
 
-	  return ''
-	}
+  try {
+    const res = await mtphotoApi.resolveMtPhotoFilePath(md5Value)
+    const filename = extractBasename(String(res?.filePath || ''))
+    if (filename) {
+      mtPhotoOriginalFilenameCache.set(md5Value, filename)
+      return filename
+    }
+  } catch (e) {
+    console.warn('解析 mtPhoto 文件名失败:', e)
+  }
 
-	// 布局模式：'masonry' | 'grid'（与“全站图片库”保持一致）
-	const layoutMode = ref<'masonry' | 'grid'>(
-	  (localStorage.getItem('media_layout_mode') as 'masonry' | 'grid') || 'masonry'
-	)
+  return ''
+}
 
-	const toggleLayout = () => {
-	  layoutMode.value = layoutMode.value === 'masonry' ? 'grid' : 'masonry'
-	  localStorage.setItem('media_layout_mode', layoutMode.value)
-	}
+// 布局模式：'masonry' | 'grid'（与“全站图片库”保持一致）
+const layoutMode = ref<'masonry' | 'grid'>(
+  (localStorage.getItem('media_layout_mode') as 'masonry' | 'grid') || 'masonry'
+)
 
-	const titleText = computed(() => {
-	  if (mtPhotoStore.view === 'albums') return 'mtPhoto 相册'
-	  return mtPhotoStore.selectedAlbum?.name || 'mtPhoto 相册'
-	})
+const toggleLayout = () => {
+  layoutMode.value = layoutMode.value === 'masonry' ? 'grid' : 'masonry'
+  localStorage.setItem('media_layout_mode', layoutMode.value)
+}
+
+const showBackButton = computed(() => {
+  if (mtPhotoStore.mode === 'albums') return mtPhotoStore.view === 'album'
+  return mtPhotoStore.folderCurrentId !== null
+})
+
+const showLayoutSwitcher = computed(() => {
+  if (mtPhotoStore.mode === 'albums') return mtPhotoStore.view === 'album'
+  return true
+})
+
+const titleText = computed(() => {
+  if (mtPhotoStore.mode === 'albums') {
+    if (mtPhotoStore.view === 'albums') return 'mtPhoto 相册'
+    return mtPhotoStore.selectedAlbum?.name || 'mtPhoto 相册'
+  }
+  return mtPhotoStore.folderCurrentName || 'mtPhoto 文件夹'
+})
 
 const subTitleText = computed(() => {
-  if (mtPhotoStore.view === 'albums') return mtPhotoStore.albums.length ? `(共 ${mtPhotoStore.albums.length} 个)` : ''
-  if (mtPhotoStore.selectedAlbum) return `(共 ${mtPhotoStore.selectedAlbum.count ?? 0} 个)`
-  return ''
+  if (mtPhotoStore.mode === 'albums') {
+    if (mtPhotoStore.view === 'albums') return mtPhotoStore.albums.length ? `(共 ${mtPhotoStore.albums.length} 个)` : ''
+    if (mtPhotoStore.selectedAlbum) return `(共 ${mtPhotoStore.selectedAlbum.count ?? 0} 个)`
+    return ''
+  }
+  return `(共 ${mtPhotoStore.folderTotal || mtPhotoStore.folderFiles.length} 个)`
 })
+
+const currentMediaItems = computed(() =>
+  mtPhotoStore.mode === 'folders' ? mtPhotoStore.folderFiles : mtPhotoStore.mediaItems
+)
+
+const syncFavoriteDraft = () => {
+  const current = mtPhotoStore.currentFolderFavorite
+  favoriteTagsInput.value = current?.tags.join(', ') || ''
+  favoriteNoteInput.value = current?.note || ''
+}
+
+watch(
+  () => mtPhotoStore.currentFolderFavorite,
+  () => {
+    if (mtPhotoStore.mode === 'folders') {
+      syncFavoriteDraft()
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => mtPhotoStore.folderCurrentId,
+  () => {
+    if (!mtPhotoStore.currentFolderFavorite) {
+      favoriteTagsInput.value = ''
+      favoriteNoteInput.value = ''
+    }
+  }
+)
+
+const splitTags = (raw: string) => {
+  const seen = new Set<string>()
+  const out: string[] = []
+  raw
+    .split(/[,，\n]/)
+    .map(v => v.trim())
+    .forEach(tag => {
+      if (!tag || seen.has(tag)) return
+      seen.add(tag)
+      out.push(tag)
+    })
+  return out
+}
+
+const saveCurrentFolderFavorite = async () => {
+  if (!mtPhotoStore.folderCurrentId) {
+    show('请先进入一个具体目录后再收藏')
+    return
+  }
+
+  const ok = await mtPhotoStore.upsertCurrentFolderFavorite({
+    tags: splitTags(favoriteTagsInput.value),
+    note: favoriteNoteInput.value
+  })
+
+  if (ok) {
+    show('目录收藏已保存')
+  } else {
+    show(mtPhotoStore.lastError || '保存目录收藏失败')
+  }
+}
+
+const removeCurrentFolderFavorite = async () => {
+  if (!mtPhotoStore.currentFolderFavorite) return
+  const ok = await mtPhotoStore.removeFolderFavorite(mtPhotoStore.currentFolderFavorite.folderId)
+  if (ok) {
+    favoriteTagsInput.value = ''
+    favoriteNoteInput.value = ''
+    show('已取消目录收藏')
+  } else {
+    show(mtPhotoStore.lastError || '取消收藏失败')
+  }
+}
+
+const removeFavorite = async (folderId: number) => {
+  const ok = await mtPhotoStore.removeFolderFavorite(folderId)
+  if (ok) {
+    show('已移除收藏目录')
+  } else {
+    show(mtPhotoStore.lastError || '移除失败')
+  }
+}
+
+const handleOpenFavorite = async (favorite: MtPhotoFolderFavorite) => {
+  const ok = await mtPhotoStore.openFavoriteFolder(favorite)
+  if (!ok) {
+    show('该收藏目录可能已失效（目录被删除或无权限），可直接移除该收藏')
+  }
+}
+
+const switchMode = async (mode: 'albums' | 'folders') => {
+  await mtPhotoStore.switchMode(mode)
+}
 
 const getThumbUrl = (size: 's260' | 'h220', md5: string) => {
   const safeMD5 = encodeURIComponent(md5 || '')
@@ -262,6 +554,14 @@ const { isFullscreen, toggleFullscreen } = useModalFullscreen({
   onRequestClose: close
 })
 
+const handleBack = async () => {
+  if (mtPhotoStore.mode === 'albums') {
+    mtPhotoStore.backToAlbums()
+    return
+  }
+  await mtPhotoStore.backFolder()
+}
+
 const handleMediaClick = async (item: MtPhotoMediaItem) => {
   previewMD5.value = item.md5
   previewType.value = item.type
@@ -271,18 +571,19 @@ const handleMediaClick = async (item: MtPhotoMediaItem) => {
   previewUrl.value = getThumbUrl('h220', item.md5)
   previewMediaList.value = []
   if (item.type === 'image') {
-    // 仅在“点图片”时启用画廊模式：左右切换浏览当前已加载的相册图片列表。
-    const list: UploadedMedia[] = mtPhotoStore.mediaItems
+    // 仅在“点图片”时启用画廊模式：左右切换浏览当前已加载的图片列表。
+    const list: UploadedMedia[] = currentMediaItems.value
       .filter(m => m.type === 'image')
       .map(m => ({
         url: getThumbUrl('h220', m.md5),
         type: 'image',
         downloadUrl: getOriginalDownloadUrl(m.id, m.md5),
         md5: m.md5,
-        originalFilename: mtPhotoOriginalFilenameCache.get(m.md5),
+        originalFilename: mtPhotoOriginalFilenameCache.get(m.md5) || m.fileName,
         fileExtension: m.fileType ? String(m.fileType).trim().toLowerCase() : undefined,
         width: m.width,
         height: m.height,
+        duration: m.duration ?? undefined,
         day: m.day
       }))
     previewMediaList.value = list
@@ -305,11 +606,11 @@ const handleMediaClick = async (item: MtPhotoMediaItem) => {
         url: previewUrl.value,
         type: 'video',
         md5: item.md5,
-        originalFilename: mtPhotoOriginalFilenameCache.get(item.md5),
+        originalFilename: mtPhotoOriginalFilenameCache.get(item.md5) || item.fileName,
         fileExtension: item.fileType ? String(item.fileType).trim().toLowerCase() : undefined,
         width: item.width,
         height: item.height,
-        duration: item.duration,
+        duration: item.duration ?? undefined,
         day: item.day
       }
     ]

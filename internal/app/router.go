@@ -124,6 +124,12 @@ func (a *App) buildRouter() http.Handler {
 		// mtPhoto 相册
 		api.Get("/getMtPhotoAlbums", a.handleGetMtPhotoAlbums)
 		api.Get("/getMtPhotoAlbumFiles", a.handleGetMtPhotoAlbumFiles)
+		api.Get("/getMtPhotoFolderRoot", a.handleGetMtPhotoFolderRoot)
+		api.Get("/getMtPhotoFolderContent", a.handleGetMtPhotoFolderContent)
+		api.Get("/getMtPhotoFolderBreadcrumbs", a.handleGetMtPhotoFolderBreadcrumbs)
+		api.Get("/getMtPhotoFolderFavorites", a.handleGetMtPhotoFolderFavorites)
+		api.Post("/upsertMtPhotoFolderFavorite", a.handleUpsertMtPhotoFolderFavorite)
+		api.Post("/removeMtPhotoFolderFavorite", a.handleRemoveMtPhotoFolderFavorite)
 		api.Get("/getMtPhotoThumb", a.handleGetMtPhotoThumb)
 		api.Get("/downloadMtPhotoOriginal", a.handleDownloadMtPhotoOriginal)
 		api.Get("/resolveMtPhotoFilePath", a.handleResolveMtPhotoFilePath)

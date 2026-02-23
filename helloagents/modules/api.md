@@ -1030,6 +1030,83 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 {"data":[{"id":1,"md5":"...","type":"image","fileType":"JPEG","width":1200,"height":900,"day":"2026-01-01"}],"total":123,"page":1,"pageSize":60,"totalPages":3}
 ```
 
+#### [GET] /api/getMtPhotoFolderRoot
+**描述**：获取 mtPhoto 文件夹根目录（`/gateway/folders/root` 透传）。
+
+**响应（HTTP 200）**
+```json
+{"path":"","folderList":[{"id":518,"name":"photo","path":"/photo","subFolderNum":16,"subFileNum":0}],"fileList":[]}
+```
+
+#### [GET] /api/getMtPhotoFolderContent
+**描述**：获取指定文件夹内容并分页返回目录图片（后端对上游 `fileList` 切片分页）。
+
+**请求（query）**
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| folderId | 是 | 文件夹 ID |
+| page | 否 | 页码（默认 1） |
+| pageSize | 否 | 每页数量（默认 60，最大 200） |
+
+**响应（HTTP 200）**
+```json
+{"path":"/photo/我的照片","folderList":[],"fileList":[{"id":131967,"fileName":"a.jpg","fileType":"JPEG","size":"1242936","tokenAt":"2024-09-16T18:06:47.000Z","md5":"600e0556...","width":1080,"height":1440,"status":2,"type":"image"}],"total":257,"page":1,"pageSize":60,"totalPages":5}
+```
+
+**错误映射**
+- 上游 401/403：返回 HTTP 403（无权限访问目录）
+- 上游 404：返回 HTTP 404（目录不存在或已删除）
+
+#### [GET] /api/getMtPhotoFolderBreadcrumbs
+**描述**：获取指定文件夹的路径与目录列表（`/gateway/folderBreadcrumbs/{folderId}` 透传）。
+
+**请求（query）**
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| folderId | 是 | 文件夹 ID |
+
+**响应（HTTP 200）**
+```json
+{"path":"/photo","folderList":[{"id":644,"name":"我的照片","subFileNum":257,"subFolderNum":0}],"fileList":[]}
+```
+
+#### [GET] /api/getMtPhotoFolderFavorites
+**描述**：获取本地保存的 mtPhoto 文件夹收藏列表（按更新时间倒序）。
+
+**响应（HTTP 200）**
+```json
+{"items":[{"id":1,"folderId":644,"folderName":"我的照片","folderPath":"/photo/我的照片","coverMd5":"e38c...","tags":["常用","人像"],"note":"每周更新","createTime":"2026-02-23T04:10:00","updateTime":"2026-02-23T04:10:00"}]}
+```
+
+#### [POST] /api/upsertMtPhotoFolderFavorite
+**描述**：新增或更新 mtPhoto 文件夹收藏（按 `folderId` 唯一）。
+
+**请求（application/json）**
+```json
+{"folderId":644,"folderName":"我的照片","folderPath":"/photo/我的照片","coverMd5":"e38c...","tags":["常用","人像"],"note":"每周更新"}
+```
+
+**响应（HTTP 200）**
+```json
+{"success":true,"item":{"id":1,"folderId":644,"folderName":"我的照片","folderPath":"/photo/我的照片","coverMd5":"e38c...","tags":["常用","人像"],"note":"每周更新"}}
+```
+
+**备注**
+- 服务端会对 tags/note 执行校验：`tags` 去重后最多 20 个，单标签最多 32 字符，`note` 最多 500 字符。
+
+#### [POST] /api/removeMtPhotoFolderFavorite
+**描述**：取消收藏一个 mtPhoto 文件夹。
+
+**请求（application/json）**
+```json
+{"folderId":644}
+```
+
+**响应（HTTP 200）**
+```json
+{"success":true}
+```
+
 #### [GET] /api/getMtPhotoThumb
 **描述**：代理 mtPhoto gateway 缩略图（用于相册封面与媒体缩略图，避免跨域与 cookie 暴露）。
 

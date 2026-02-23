@@ -7,6 +7,8 @@
 ## [Unreleased]
 
 ### 新增
+- mtPhoto 新增“文件夹模式”能力：支持根目录/子目录逐级浏览（`/api/getMtPhotoFolderRoot`、`/api/getMtPhotoFolderContent`、`/api/getMtPhotoFolderBreadcrumbs`），并可在同一弹窗内直接预览目录图片与下载原图。
+- mtPhoto 新增“文件夹级收藏”能力：支持按 `folderId` 收藏目录并维护标签、备注（`/api/getMtPhotoFolderFavorites`、`/api/upsertMtPhotoFolderFavorite`、`/api/removeMtPhotoFolderFavorite`）；后端新增迁移表 `mtphoto_folder_favorite`（MySQL/PostgreSQL 同步）。
 - 抖音导入链路新增作者快照落库：`douyin_media_file` 增加 `author_unique_id`、`author_name` 字段；导入时写入并在 MD5 命中复用时执行非空回填。
 - 全站媒体接口 `GET /api/getAllUploadImages` 新增抖音元信息返回字段：`source`、`douyinSecUserId`、`douyinDetailId`、`douyinAuthorUniqueId`、`douyinAuthorName`（兼容追加）。
 - 前端媒体详情支持“点击作者查看全部作品”：在 `MediaDetailPanel` 点击作者可直接打开 `DouyinDownloadModal` 并自动切到“用户作品”模式拉取该作者列表。
