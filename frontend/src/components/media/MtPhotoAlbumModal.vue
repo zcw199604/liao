@@ -166,17 +166,41 @@
         </template>
 
         <!-- 文件夹模式 -->
-        <div v-else class="flex-1 min-h-0 flex">
-          <aside class="hidden lg:flex w-72 border-r border-line flex-col min-h-0">
+        <div v-else class="flex-1 min-h-0 flex relative">
+          <button
+            v-if="isMobileFavoritesOpen"
+            class="lg:hidden absolute inset-0 z-10 bg-black/45"
+            type="button"
+            aria-label="关闭收藏目录面板"
+            @click="isMobileFavoritesOpen = false"
+          />
+
+          <aside
+            :class="[
+              'min-h-0 flex-col',
+              isMobileFavoritesOpen
+                ? 'flex absolute inset-y-0 left-0 z-20 w-[88%] max-w-[360px] bg-surface border-r border-line'
+                : 'hidden lg:flex lg:w-72 lg:border-r lg:border-line'
+            ]"
+          >
             <div class="px-4 py-3 border-b border-line flex items-center justify-between">
               <div class="text-sm font-semibold text-fg">目录收藏</div>
-              <button
-                class="text-xs text-fg-subtle hover:text-fg"
-                @click="mtPhotoStore.loadFolderFavorites"
-                :disabled="mtPhotoStore.folderFavoritesLoading"
-              >
-                刷新
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  class="text-xs text-fg-subtle hover:text-fg"
+                  @click="mtPhotoStore.loadFolderFavorites"
+                  :disabled="mtPhotoStore.folderFavoritesLoading"
+                >
+                  刷新
+                </button>
+                <button
+                  v-if="isMobileFavoritesOpen"
+                  class="lg:hidden text-xs text-fg-subtle hover:text-fg"
+                  @click="isMobileFavoritesOpen = false"
+                >
+                  关闭
+                </button>
+              </div>
             </div>
 
             <div v-if="mtPhotoStore.folderFavoritesLoading" class="p-4 text-xs text-fg-subtle">加载中...</div>
@@ -220,6 +244,12 @@
               <div class="flex items-center gap-2">
                 <span class="text-xs text-fg-subtle shrink-0">路径：</span>
                 <span class="text-sm text-fg truncate flex-1 min-w-0">{{ mtPhotoStore.folderPath || '/' }}</span>
+                <button
+                  class="lg:hidden shrink-0 px-2.5 py-1 text-xs rounded-lg border border-line-strong text-fg-subtle hover:text-fg hover:border-pink-500 transition"
+                  @click="isMobileFavoritesOpen = true"
+                >
+                  收藏夹
+                </button>
                 <button
                   class="shrink-0 px-2.5 py-1 text-xs rounded-lg border border-line-strong hover:border-pink-500 transition"
                   :class="mtPhotoStore.currentFolderFavorite ? 'text-pink-300 border-pink-500/50' : 'text-fg-subtle'"
@@ -280,7 +310,7 @@
                 />
               </div>
 
-              <div class="max-h-[160px] overflow-y-auto no-scrollbar pr-1">
+              <div class="max-h-[28vh] lg:max-h-[34vh] overflow-y-auto pr-1">
                 <div v-if="mtPhotoStore.folderLoading && mtPhotoStore.folderList.length === 0" class="text-xs text-fg-subtle px-1 py-2">
                   加载中...
                 </div>
@@ -390,6 +420,7 @@ const previewMD5 = ref('')
 const favoriteTagsInput = ref('')
 const favoriteNoteInput = ref('')
 const folderFilter = ref('')
+const isMobileFavoritesOpen = ref(false)
 const isFavoriteEditOpen = ref(false)
 
 const filteredFolderList = computed(() => {
@@ -492,6 +523,7 @@ watch(
   () => mtPhotoStore.folderCurrentId,
   () => {
     folderFilter.value = ''
+    isMobileFavoritesOpen.value = false
     isFavoriteEditOpen.value = false
     if (!mtPhotoStore.currentFolderFavorite) {
       favoriteTagsInput.value = ''
@@ -555,12 +587,18 @@ const removeFavorite = async (folderId: number) => {
 
 const handleOpenFavorite = async (favorite: MtPhotoFolderFavorite) => {
   const ok = await mtPhotoStore.openFavoriteFolder(favorite)
-  if (!ok) {
+  if (ok) {
+    isMobileFavoritesOpen.value = false
+  } else {
     show('该收藏目录可能已失效（目录被删除或无权限），可直接移除该收藏')
   }
 }
 
 const switchMode = async (mode: 'albums' | 'folders') => {
+  if (mode !== 'folders') {
+    isMobileFavoritesOpen.value = false
+    isFavoriteEditOpen.value = false
+  }
   await mtPhotoStore.switchMode(mode)
 }
 
@@ -581,6 +619,8 @@ const close = () => {
   previewUrl.value = ''
   previewMediaList.value = []
   previewMD5.value = ''
+  isMobileFavoritesOpen.value = false
+  isFavoriteEditOpen.value = false
 }
 
 const { isFullscreen, toggleFullscreen } = useModalFullscreen({
