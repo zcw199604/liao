@@ -185,3 +185,44 @@ func TestExecInsertIgnore_ReturnsSqlResult(t *testing.T) {
 		t.Fatalf("expectations: %v", err)
 	}
 }
+
+func TestInsertReturningID_PostgresScanError(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	conn := Wrap(sqlDB, PostgresDialect{})
+	wantSQL := PostgresDialect{}.Rebind("INSERT INTO t (a) VALUES (?) RETURNING id")
+	mock.ExpectQuery(regexp.QuoteMeta(wantSQL)).
+		WithArgs(1).
+		WillReturnError(context.DeadlineExceeded)
+
+	if _, err := InsertReturningID(context.Background(), conn, "INSERT INTO t (a) VALUES (?)", 1); err == nil {
+		t.Fatalf("expected scan/query error")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expectations: %v", err)
+	}
+}
+
+func TestInsertReturningID_MySQLExecError(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	conn := Wrap(sqlDB, MySQLDialect{})
+	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO t (a) VALUES (?)")).
+		WithArgs(1).
+		WillReturnError(context.Canceled)
+
+	if _, err := InsertReturningID(context.Background(), conn, "INSERT INTO t (a) VALUES (?)", 1); err == nil {
+		t.Fatalf("expected exec error")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expectations: %v", err)
+	}
+}

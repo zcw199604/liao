@@ -1,11 +1,14 @@
 package app
 
 import (
+	"context"
 	"crypto/md5"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -514,5 +517,422 @@ func TestHandleDouyinImport_LocalOnlySuccess(t *testing.T) {
 	full := filepath.Join(uploadRoot, filepath.FromSlash(strings.TrimPrefix(localPath, "/")))
 	if st, err := os.Stat(full); err != nil || st == nil || st.Size() != int64(len(fileBytes)) {
 		t.Fatalf("file=%s stat=%v size=%v", full, err, st)
+	}
+}
+
+func TestHandleDouyinImport_DefaultUserIDAndCrossHostRedirectDropsCookie(t *testing.T) {
+	oldURL := "http://www.douyin.com/video/old.mp4"
+	finalURL := "http://cdn.example.com/final.jpg"
+
+	svc := NewDouyinDownloaderService("http://upstream.local", "", "sid=abc", "", 60*time.Second)
+	var firstCookie, finalCookie string
+	svc.api.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.String() {
+		case oldURL:
+			firstCookie = strings.TrimSpace(r.Header.Get("Cookie"))
+			h := make(http.Header)
+			h.Set("Location", finalURL)
+			return &http.Response{StatusCode: http.StatusFound, Status: "302 Found", Header: h, Body: io.NopCloser(strings.NewReader("")), Request: r}, nil
+		case finalURL:
+			finalCookie = strings.TrimSpace(r.Header.Get("Cookie"))
+			h := make(http.Header)
+			h.Set("Content-Type", "image/jpeg")
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Header: h, Body: io.NopCloser(strings.NewReader("img")), Request: r}, nil
+		default:
+			return &http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("unexpected")), Request: r}, nil
+		}
+	})}
+
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+	mock.ExpectQuery(`(?s)FROM media_file.*WHERE file_md5 = [?].*LIMIT 1`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`(?s)FROM douyin_media_file.*WHERE file_md5 = [?].*LIMIT 1`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`(?s)FROM douyin_media_file.*WHERE file_md5 = [?].*LIMIT 1`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnError(sql.ErrNoRows)
+	expectInsertReturningID(
+		mock,
+		`(?s)INSERT INTO douyin_media_file`,
+		1,
+		"pre_identity",
+		sqlmock.AnyArg(),
+		"d1",
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+		"t.jpg",
+		sqlmock.AnyArg(),
+		"",
+		"",
+		sqlmock.AnyArg(),
+		int64(3),
+		"image/jpeg",
+		"jpg",
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+	)
+
+	a := &App{
+		douyinDownloader: svc,
+		fileStorage:      &FileStorageService{baseUploadAbs: t.TempDir()},
+		mediaUpload:      &MediaUploadService{db: wrapMySQLDB(db)},
+	}
+	key := svc.CacheDetail(&douyinCachedDetail{DetailID: "d1", Title: "t", Downloads: []string{oldURL}})
+
+	req := newDouyinImportFormRequest(t, url.Values{
+		"key":   {key},
+		"index": {"0"},
+	})
+	rec := httptest.NewRecorder()
+	a.handleDouyinImport(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if firstCookie != "sid=abc" {
+		t.Fatalf("first cookie=%q", firstCookie)
+	}
+	if finalCookie != "" {
+		t.Fatalf("final cookie should be dropped, got=%q", finalCookie)
+	}
+
+	resp := decodeJSONBody(t, rec.Body)
+	if dedup, _ := resp["dedup"].(bool); dedup {
+		t.Fatalf("unexpected dedup response: %v", resp)
+	}
+	if got, _ := resp["localPath"].(string); !strings.HasPrefix(got, "/douyin/images/") {
+		t.Fatalf("localPath=%q", got)
+	}
+}
+
+func TestHandleDouyinImport_ForbiddenRefreshBranches(t *testing.T) {
+	t.Run("refresh detail returns error", func(t *testing.T) {
+		oldURL := "http://www.douyin.com/video/old.mp4"
+		svc := NewDouyinDownloaderService("http://upstream.local", "", "", "", 60*time.Second)
+		svc.SetCookieProvider(cookieProviderFunc(func(ctx context.Context) (string, error) {
+			return "", errors.New("cookie unavailable")
+		}))
+
+		svc.api.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.String() == oldURL:
+				return &http.Response{StatusCode: http.StatusForbidden, Status: "403 Forbidden", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("forbidden-old")), Request: r}, nil
+			case r.Method == http.MethodPost && r.URL.Path == "/douyin/detail":
+				return &http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("refresh-fail")), Request: r}, nil
+			default:
+				return &http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("unexpected")), Request: r}, nil
+			}
+		})}
+
+		a := &App{
+			douyinDownloader: svc,
+			fileStorage:      &FileStorageService{baseUploadAbs: t.TempDir()},
+			mediaUpload:      &MediaUploadService{},
+		}
+		key := svc.CacheDetail(&douyinCachedDetail{DetailID: "d1", Title: "t", Downloads: []string{oldURL}})
+
+		req := newDouyinImportFormRequest(t, url.Values{"userid": {"u1"}, "key": {key}, "index": {"0"}})
+		rec := httptest.NewRecorder()
+		a.handleDouyinImport(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+		}
+		resp := decodeJSONBody(t, rec.Body)
+		if !strings.Contains(asString(resp["error"]), "403") {
+			t.Fatalf("resp=%v", resp)
+		}
+	})
+
+	t.Run("refresh success but refreshed list does not contain requested index", func(t *testing.T) {
+		oldURL0 := "http://www.douyin.com/image/old0.jpg"
+		oldURL1 := "http://www.douyin.com/image/old1.jpg"
+		newURL := "http://cdn.example.com/new-only.jpg"
+
+		svc := NewDouyinDownloaderService("http://upstream.local", "", "sid=abc", "", 60*time.Second)
+		svc.api.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.String() == oldURL1:
+				return &http.Response{StatusCode: http.StatusForbidden, Status: "403 Forbidden", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("forbidden-index")), Request: r}, nil
+			case r.Method == http.MethodPost && r.URL.Path == "/douyin/detail":
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Status:     "200 OK",
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(`{"message":"OK","data":{"desc":"t","type":"图集","downloads":["` + newURL + `"]}}`)),
+					Request:    r,
+				}, nil
+			default:
+				return &http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("unexpected")), Request: r}, nil
+			}
+		})}
+
+		a := &App{douyinDownloader: svc, fileStorage: &FileStorageService{baseUploadAbs: t.TempDir()}, mediaUpload: &MediaUploadService{}}
+		key := svc.CacheDetail(&douyinCachedDetail{DetailID: "d2", Title: "t", Downloads: []string{oldURL0, oldURL1}})
+
+		req := newDouyinImportFormRequest(t, url.Values{"userid": {"u1"}, "key": {key}, "index": {"1"}})
+		rec := httptest.NewRecorder()
+		a.handleDouyinImport(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+		}
+		resp := decodeJSONBody(t, rec.Body)
+		if !strings.Contains(asString(resp["error"]), "403") {
+			t.Fatalf("resp=%v", resp)
+		}
+	})
+
+	t.Run("refresh success but retry request returns error", func(t *testing.T) {
+		oldURL := "http://www.douyin.com/video/old.mp4"
+		newURL := "http://www.douyin.com/video/new.mp4"
+		newCover := "http://www.douyin.com/image/new.jpg"
+
+		svc := NewDouyinDownloaderService("http://upstream.local", "", "sid=abc", "", 60*time.Second)
+		svc.api.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.String() == oldURL:
+				return &http.Response{StatusCode: http.StatusForbidden, Status: "403 Forbidden", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("forbidden-old")), Request: r}, nil
+			case r.Method == http.MethodPost && r.URL.Path == "/douyin/detail":
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Status:     "200 OK",
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body: io.NopCloser(strings.NewReader(
+						`{"message":"OK","data":{"desc":"t","type":"视频","sec_user_id":"sec-new","static_cover":"` + newCover + `","downloads":["` + newURL + `"]}}`,
+					)),
+					Request: r,
+				}, nil
+			case r.Method == http.MethodGet && r.URL.String() == newURL:
+				return nil, io.EOF
+			default:
+				return &http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("unexpected")), Request: r}, nil
+			}
+		})}
+
+		a := &App{
+			douyinDownloader: svc,
+			fileStorage:      &FileStorageService{baseUploadAbs: t.TempDir()},
+			mediaUpload:      &MediaUploadService{},
+			douyinFavorite:   &DouyinFavoriteService{},
+		}
+		key := svc.CacheDetail(&douyinCachedDetail{DetailID: "d3", Title: "t", SecUserID: "", Downloads: []string{oldURL}})
+
+		req := newDouyinImportFormRequest(t, url.Values{"userid": {"u1"}, "key": {key}, "index": {"0"}})
+		rec := httptest.NewRecorder()
+		a.handleDouyinImport(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+		}
+		resp := decodeJSONBody(t, rec.Body)
+		if !strings.Contains(asString(resp["error"]), "EOF") {
+			t.Fatalf("resp=%v", resp)
+		}
+	})
+
+	t.Run("refresh success but retry response still non-2xx", func(t *testing.T) {
+		oldURL := "http://www.douyin.com/video/old2.mp4"
+		newURL := "http://www.douyin.com/video/new2.mp4"
+
+		svc := NewDouyinDownloaderService("http://upstream.local", "", "sid=abc", "", 60*time.Second)
+		svc.api.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.String() == oldURL:
+				return &http.Response{StatusCode: http.StatusForbidden, Status: "403 Forbidden", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("forbidden-old2")), Request: r}, nil
+			case r.Method == http.MethodPost && r.URL.Path == "/douyin/detail":
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Status:     "200 OK",
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(`{"message":"OK","data":{"desc":"t","type":"视频","downloads":["` + newURL + `"]}}`)),
+					Request:    r,
+				}, nil
+			case r.Method == http.MethodGet && r.URL.String() == newURL:
+				h := make(http.Header)
+				h.Set("Content-Type", "text/plain")
+				return &http.Response{StatusCode: http.StatusBadGateway, Status: "502 Bad Gateway", Header: h, Body: io.NopCloser(strings.NewReader("still-bad")), Request: r}, nil
+			default:
+				return &http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("unexpected")), Request: r}, nil
+			}
+		})}
+
+		a := &App{douyinDownloader: svc, fileStorage: &FileStorageService{baseUploadAbs: t.TempDir()}, mediaUpload: &MediaUploadService{}}
+		key := svc.CacheDetail(&douyinCachedDetail{DetailID: "d4", Title: "t", Downloads: []string{oldURL}})
+
+		req := newDouyinImportFormRequest(t, url.Values{"userid": {"u1"}, "key": {key}, "index": {"0"}})
+		rec := httptest.NewRecorder()
+		a.handleDouyinImport(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+		}
+		resp := decodeJSONBody(t, rec.Body)
+		if !strings.Contains(asString(resp["error"]), "still-bad") {
+			t.Fatalf("resp=%v", resp)
+		}
+	})
+}
+
+func TestHandleDouyinImport_ForbiddenNeedCookieInferredFromFinalHost(t *testing.T) {
+	oldURL := "http://cdn.example.com/import-old.mp4"
+	finalURL := "http://www.douyin.com/video/protected.mp4"
+
+	svc := NewDouyinDownloaderService("http://upstream.local", "", "sid=abc", "", 60*time.Second)
+	svc.api.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.String() == oldURL:
+			u, _ := url.Parse(finalURL)
+			r2 := r.Clone(r.Context())
+			r2.URL = u
+			return &http.Response{StatusCode: http.StatusForbidden, Status: "403 Forbidden", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("forbidden")), Request: r2}, nil
+		case r.Method == http.MethodPost && r.URL.Path == "/douyin/detail":
+			return &http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("refresh-fail")), Request: r}, nil
+		default:
+			return &http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("unexpected")), Request: r}, nil
+		}
+	})}
+
+	a := &App{douyinDownloader: svc, fileStorage: &FileStorageService{baseUploadAbs: t.TempDir()}, mediaUpload: &MediaUploadService{}}
+	key := svc.CacheDetail(&douyinCachedDetail{DetailID: "i-final-host", Title: "t", Downloads: []string{oldURL}})
+
+	req := newDouyinImportFormRequest(t, url.Values{"userid": {"u1"}, "key": {key}, "index": {"0"}})
+	rec := httptest.NewRecorder()
+	a.handleDouyinImport(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "403") {
+		t.Fatalf("body=%s", rec.Body.String())
+	}
+}
+
+func TestHandleDouyinImport_RefreshFallbackSkipsBlankAndRetrySuccess(t *testing.T) {
+	oldURL := "http://www.douyin.com/video/import-old-fallback.mp4"
+	newURL := "http://www.douyin.com/video/import-new-fallback.jpg"
+
+	svc := NewDouyinDownloaderService("http://upstream.local", "", "sid=abc", "", 60*time.Second)
+	svc.api.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.String() == oldURL:
+			return &http.Response{StatusCode: http.StatusForbidden, Status: "403 Forbidden", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("forbidden-old")), Request: r}, nil
+		case r.Method == http.MethodPost && r.URL.Path == "/douyin/detail":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"message":"OK","data":{"desc":"t","type":"视频","downloads":["","` + newURL + `"]}}`)),
+				Request:    r,
+			}, nil
+		case r.Method == http.MethodGet && r.URL.String() == newURL:
+			h := make(http.Header)
+			h.Set("Content-Type", "image/jpeg")
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Header: h, Body: io.NopCloser(strings.NewReader("img")), Request: r}, nil
+		default:
+			return &http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("unexpected")), Request: r}, nil
+		}
+	})}
+
+	db := mustNewSQLMockDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	a := &App{
+		douyinDownloader: svc,
+		fileStorage:      &FileStorageService{baseUploadAbs: t.TempDir()},
+		mediaUpload:      &MediaUploadService{db: wrapMySQLDB(db)},
+	}
+	key := svc.CacheDetail(&douyinCachedDetail{DetailID: "i-fallback", Title: "t", Downloads: []string{oldURL}})
+
+	req := newDouyinImportFormRequest(t, url.Values{"userid": {"u1"}, "key": {key}, "index": {"0"}})
+	rec := httptest.NewRecorder()
+	a.handleDouyinImport(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	resp := decodeJSONBody(t, rec.Body)
+	if dedup, _ := resp["dedup"].(bool); dedup {
+		t.Fatalf("resp=%v", resp)
+	}
+	if strings.TrimSpace(asString(resp["localPath"])) == "" {
+		t.Fatalf("resp=%v", resp)
+	}
+}
+
+func TestHandleDouyinImport_EmptyContentTypeCannotInfer(t *testing.T) {
+	oldURL := "http://cdn.example.com/noext"
+
+	svc := NewDouyinDownloaderService("http://upstream.local", "", "", "", 60*time.Second)
+	svc.api.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodGet && r.URL.String() == oldURL {
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("")), Request: r}, nil
+		}
+		return &http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("unexpected")), Request: r}, nil
+	})}
+
+	a := &App{douyinDownloader: svc, fileStorage: &FileStorageService{baseUploadAbs: t.TempDir()}, mediaUpload: &MediaUploadService{}}
+	key := svc.CacheDetail(&douyinCachedDetail{DetailID: "i-no-ct", Title: "t", Downloads: []string{oldURL}})
+
+	req := newDouyinImportFormRequest(t, url.Values{"userid": {"u1"}, "key": {key}, "index": {"0"}})
+	rec := httptest.NewRecorder()
+	a.handleDouyinImport(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "无法识别文件类型") {
+		t.Fatalf("body=%s", rec.Body.String())
+	}
+}
+
+func TestHandleDouyinImport_RefreshFallbackFirstVideoWhenIndexOutOfRange(t *testing.T) {
+	oldURL0 := "http://img.example.com/import-old0.jpg"
+	oldURL1 := "http://www.douyin.com/video/import-old1.mp4"
+	newURL := "http://www.douyin.com/video/import-new1.mp4"
+
+	svc := NewDouyinDownloaderService("http://upstream.local", "", "sid=abc", "", 60*time.Second)
+	svc.api.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.String() == oldURL1:
+			return &http.Response{StatusCode: http.StatusForbidden, Status: "403 Forbidden", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("forbidden-old")), Request: r}, nil
+		case r.Method == http.MethodPost && r.URL.Path == "/douyin/detail":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"message":"OK","data":{"desc":"t","type":"视频","downloads":["` + newURL + `"]}}`)),
+				Request:    r,
+			}, nil
+		case r.Method == http.MethodGet && r.URL.String() == newURL:
+			h := make(http.Header)
+			h.Set("Content-Type", "video/mp4")
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Header: h, Body: io.NopCloser(strings.NewReader("v")), Request: r}, nil
+		default:
+			return &http.Response{StatusCode: http.StatusInternalServerError, Status: "500 Internal Server Error", Header: make(http.Header), Body: io.NopCloser(strings.NewReader("unexpected")), Request: r}, nil
+		}
+	})}
+
+	db := mustNewSQLMockDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	a := &App{
+		douyinDownloader: svc,
+		fileStorage:      &FileStorageService{baseUploadAbs: t.TempDir()},
+		mediaUpload:      &MediaUploadService{db: wrapMySQLDB(db)},
+	}
+	key := svc.CacheDetail(&douyinCachedDetail{DetailID: "i-fallback-index", Title: "t", Downloads: []string{oldURL0, oldURL1}})
+
+	req := newDouyinImportFormRequest(t, url.Values{"userid": {"u1"}, "key": {key}, "index": {"1"}})
+	rec := httptest.NewRecorder()
+	a.handleDouyinImport(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	resp := decodeJSONBody(t, rec.Body)
+	if strings.TrimSpace(asString(resp["localPath"])) == "" {
+		t.Fatalf("resp=%v", resp)
 	}
 }

@@ -281,3 +281,22 @@ func TestParseJDBCMySQLURL_ReturnsParams(t *testing.T) {
 		t.Fatalf("params=%v want=%v", params, want)
 	}
 }
+
+func TestLoad_DefaultCookieCloudCookieExpireHoursWhenNonPositive(t *testing.T) {
+	// 显式设置非正数，验证后置修正逻辑会回填为默认 72 小时。
+	t.Setenv("COOKIECLOUD_COOKIE_EXPIRE_HOURS", "0")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.CookieCloudCookieExpireHours != 72 {
+		t.Fatalf("CookieCloudCookieExpireHours=%d, want 72", cfg.CookieCloudCookieExpireHours)
+	}
+}
+
+func TestParseJDBCURL_UnsupportedScheme(t *testing.T) {
+	if _, _, _, _, _, err := ParseJDBCURL("sqlite://localhost:3306/db"); err == nil {
+		t.Fatalf("expected unsupported scheme error")
+	}
+}

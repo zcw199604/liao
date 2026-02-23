@@ -332,3 +332,40 @@ func TestHandleDouyinDetail_ErrorsAndBranches(t *testing.T) {
 		}
 	})
 }
+
+func TestHandleDouyinDetail_SuccessVideoTypeButImageExt(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/douyin/share":
+			_ = json.NewEncoder(w).Encode(map[string]any{"message": "ok", "url": "https://www.douyin.com/video/123"})
+		case "/douyin/detail":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"message": "ok",
+				"data": map[string]any{
+					"desc":      "t",
+					"type":      "视频",
+					"downloads": []any{"http://example.com/pic.jpg"},
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(upstream.Close)
+
+	a := &App{douyinDownloader: NewDouyinDownloaderService(upstream.URL, "", "", "", time.Second)}
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/douyin/detail", bytes.NewBufferString(`{"input":"short"}`))
+	rec := httptest.NewRecorder()
+	a.handleDouyinDetail(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var resp douyinDetailResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].Type != "image" || !strings.HasSuffix(resp.Items[0].OriginalFilename, ".jpg") {
+		t.Fatalf("resp=%+v", resp)
+	}
+}

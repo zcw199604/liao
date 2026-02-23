@@ -573,3 +573,43 @@ func TestMigrator_Migrate_ReadFileError(t *testing.T) {
 		t.Fatalf("expectations: %v", err)
 	}
 }
+
+func TestMigrator_Migrate_SkipsEmptyStatements(t *testing.T) {
+	tmp := t.TempDir()
+	baseDir := filepath.Join(tmp, "sql")
+	mysqlDir := filepath.Join(baseDir, "mysql")
+	if err := os.MkdirAll(mysqlDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	// 含多个空语句，验证迁移器会跳过 stmt=="" 的分支。
+	sqlText := ";\n  ;\nCREATE TABLE IF NOT EXISTS t_skip_empty (id INT);\n;\n"
+	if err := os.WriteFile(filepath.Join(mysqlDir, "001_skip_empty.sql"), []byte(sqlText), 0o644); err != nil {
+		t.Fatalf("write migration: %v", err)
+	}
+
+	sqlDB, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	db := Wrap(sqlDB, MySQLDialect{})
+	mock.ExpectExec(`CREATE TABLE IF NOT EXISTS schema_migrations`).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`SELECT version FROM schema_migrations`).
+		WillReturnRows(sqlmock.NewRows([]string{"version"}))
+	// 只会执行一条非空 SQL 语句。
+	mock.ExpectExec(`CREATE TABLE IF NOT EXISTS t_skip_empty`).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO schema_migrations`).
+		WithArgs("001_skip_empty", sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	m := NewMigrator(baseDir)
+	if err := m.Migrate(context.Background(), db); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expectations: %v", err)
+	}
+}
