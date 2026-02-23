@@ -13,6 +13,9 @@ import (
 
 const opensslSaltPrefix = "Salted__"
 
+// aesNewCipher 抽成变量以便测试覆盖异常分支。
+var aesNewCipher = aes.NewCipher
+
 // Decrypt decrypts CookieCloud data into its plaintext JSON structure.
 //
 // If cryptoType is empty/unknown, it falls back to legacy for compatibility.
@@ -53,7 +56,7 @@ func decryptFixed(key []byte, encrypted string) ([]byte, error) {
 		return nil, fmt.Errorf("cookiecloud: invalid ciphertext length (fixed): %d", len(ciphertext))
 	}
 
-	block, err := aes.NewCipher(key)
+	block, err := aesNewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("cookiecloud: aes new cipher (fixed): %w", err)
 	}
@@ -90,7 +93,7 @@ func decryptLegacy(passphrase []byte, encrypted string) ([]byte, error) {
 	}
 
 	key, iv := evpBytesToKeyMD5(passphrase, salt, 32, aes.BlockSize)
-	block, err := aes.NewCipher(key)
+	block, err := aesNewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("cookiecloud: aes new cipher (legacy): %w", err)
 	}

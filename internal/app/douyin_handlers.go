@@ -146,9 +146,6 @@ func formatUnixTimestampISO(v int64) string {
 	if v > 1_000_000_000_000 {
 		v = v / 1000
 	}
-	if v <= 0 {
-		return ""
-	}
 	return formatLocalDateTimeISO(time.Unix(v, 0).In(time.Local))
 }
 
@@ -659,9 +656,6 @@ func extractDouyinAccountUserMeta(secUserID string, data map[string]any) (displa
 	}
 
 	updateFrom := func(m map[string]any) {
-		if m == nil {
-			return
-		}
 		if displayName == "" {
 			displayName = extractDouyinDisplayName(m)
 		}
@@ -974,11 +968,6 @@ func (a *App) handleDouyinAccount(w http.ResponseWriter, r *http.Request) {
 	displayName, signature, avatarURL, profileURL, followerCount, followingCount, awemeCount, totalFavorited := extractDouyinAccountUserMeta(secUserID, data)
 
 	nextCursor := asInt(data["cursor"])
-	if nextCursor == 0 {
-		if v := asInt(data["max_cursor"]); v > 0 {
-			nextCursor = v
-		}
-	}
 
 	hasMore := asBool(data["has_more"])
 	if !hasMore {
@@ -1265,8 +1254,6 @@ func (a *App) handleDouyinDownload(w http.ResponseWriter, r *http.Request) {
 			refreshed, refreshErr := a.douyinDownloader.RefreshDetailBestEffort(cached.DetailID)
 			if refreshErr != nil {
 				slog.Warn("抖音直链刷新失败(下载)", "detailID", cached.DetailID, "error", refreshErr)
-			} else if refreshed == nil {
-				slog.Warn("抖音直链刷新失败(下载)", "detailID", cached.DetailID, "error", "refreshed=nil")
 			} else {
 				coverInfo := buildURLLogInfo(refreshed.CoverURL)
 				slog.Info(
@@ -1290,9 +1277,6 @@ func (a *App) handleDouyinDownload(w http.ResponseWriter, r *http.Request) {
 				if newURL == "" && oldType == "video" {
 					for _, u := range refreshed.Downloads {
 						u = strings.TrimSpace(u)
-						if u == "" {
-							continue
-						}
 						if guessDouyinMediaTypeFromURL(u) == "video" {
 							newURL = u
 							pickedBy = "first_video"
@@ -1573,8 +1557,6 @@ func (a *App) handleDouyinCover(w http.ResponseWriter, r *http.Request) {
 			refreshed, refreshErr := a.douyinDownloader.RefreshDetailBestEffort(cached.DetailID)
 			if refreshErr != nil {
 				slog.Warn("抖音直链刷新失败(封面)", "detailID", cached.DetailID, "error", refreshErr)
-			} else if refreshed == nil {
-				slog.Warn("抖音直链刷新失败(封面)", "detailID", cached.DetailID, "error", "refreshed=nil")
 			} else if strings.TrimSpace(refreshed.CoverURL) != "" {
 				oldInfo := buildURLLogInfo(remoteURL)
 				newCover := strings.TrimSpace(refreshed.CoverURL)
@@ -1818,8 +1800,6 @@ retryHead:
 		refreshed, refreshErr := a.douyinDownloader.RefreshDetailBestEffort(cached.DetailID)
 		if refreshErr != nil {
 			slog.Warn("抖音直链刷新失败(HEAD)", "detailID", cached.DetailID, "error", refreshErr)
-		} else if refreshed == nil {
-			slog.Warn("抖音直链刷新失败(HEAD)", "detailID", cached.DetailID, "error", "refreshed=nil")
 		} else {
 			oldURL := remoteURL
 			oldType := guessDouyinMediaTypeFromURL(oldURL)
@@ -1832,9 +1812,6 @@ retryHead:
 			if newURL == "" && oldType == "video" {
 				for _, u := range refreshed.Downloads {
 					u = strings.TrimSpace(u)
-					if u == "" {
-						continue
-					}
 					if guessDouyinMediaTypeFromURL(u) == "video" {
 						newURL = u
 						pickedBy = "first_video"
@@ -1954,8 +1931,6 @@ retryRange:
 		refreshed, refreshErr := a.douyinDownloader.RefreshDetailBestEffort(cached.DetailID)
 		if refreshErr != nil {
 			slog.Warn("抖音直链刷新失败(Range探测)", "detailID", cached.DetailID, "error", refreshErr)
-		} else if refreshed == nil {
-			slog.Warn("抖音直链刷新失败(Range探测)", "detailID", cached.DetailID, "error", "refreshed=nil")
 		} else {
 			oldURL := remoteURL
 			oldType := guessDouyinMediaTypeFromURL(oldURL)
@@ -1968,9 +1943,6 @@ retryRange:
 			if newURL == "" && oldType == "video" {
 				for _, u := range refreshed.Downloads {
 					u = strings.TrimSpace(u)
-					if u == "" {
-						continue
-					}
 					if guessDouyinMediaTypeFromURL(u) == "video" {
 						newURL = u
 						pickedBy = "first_video"
@@ -2224,8 +2196,6 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 			refreshed, refreshErr := a.douyinDownloader.RefreshDetailBestEffort(cached.DetailID)
 			if refreshErr != nil {
 				slog.Warn("抖音直链刷新失败(导入)", "detailID", cached.DetailID, "error", refreshErr)
-			} else if refreshed == nil {
-				slog.Warn("抖音直链刷新失败(导入)", "detailID", cached.DetailID, "error", "refreshed=nil")
 			} else {
 				oldURL := remoteURL
 				oldType := guessDouyinMediaTypeFromURL(oldURL)
@@ -2238,9 +2208,6 @@ func (a *App) handleDouyinImport(w http.ResponseWriter, r *http.Request) {
 				if newURL == "" && oldType == "video" {
 					for _, u := range refreshed.Downloads {
 						u = strings.TrimSpace(u)
-						if u == "" {
-							continue
-						}
 						if guessDouyinMediaTypeFromURL(u) == "video" {
 							newURL = u
 							pickedBy = "first_video"

@@ -83,10 +83,6 @@ func (m *Migrator) Migrate(ctx context.Context, db *DB) error {
 
 		statements := splitSQLStatements(string(content))
 		for _, stmt := range statements {
-			stmt = strings.TrimSpace(stmt)
-			if stmt == "" {
-				continue
-			}
 			if _, err := db.ExecContext(ctx, stmt); err != nil {
 				// Keep migrations restartable across MySQL/PG by tolerating common
 				// already-exists errors (e.g. upgrading from legacy ensureSchema).
