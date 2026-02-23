@@ -5,6 +5,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"image"
+	"image/color"
+	"image/jpeg"
 	"io"
 	"net/http"
 	"os"
@@ -15,6 +18,22 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 )
+
+func newTinyJPEGBytes(t *testing.T) []byte {
+	t.Helper()
+
+	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	img.Set(0, 0, color.RGBA{R: 255, A: 255})
+	img.Set(1, 0, color.RGBA{G: 255, A: 255})
+	img.Set(0, 1, color.RGBA{B: 255, A: 255})
+	img.Set(1, 1, color.RGBA{R: 255, G: 255, A: 255})
+
+	buf := &bytes.Buffer{}
+	if err := jpeg.Encode(buf, img, &jpeg.Options{Quality: 90}); err != nil {
+		t.Fatalf("encode jpeg: %v", err)
+	}
+	return buf.Bytes()
+}
 
 func TestMediaUploadService_FindMediaFileByLocalPath_Empty(t *testing.T) {
 	svc := &MediaUploadService{}
@@ -298,6 +317,91 @@ func TestMediaUploadService_ReuploadLocalFile_AltPathWithoutLeadingSlash(t *test
 	got, err := svc.ReuploadLocalFile(context.Background(), "", "images/x.png", "", "r", "ua")
 	if err != nil || strings.TrimSpace(got) != "OK" {
 		t.Fatalf("got=%q err=%v", got, err)
+	}
+}
+
+func TestMediaUploadService_ReuploadLocalFile_WebPRetryAsJPEGOnUpstreamBitmapFail(t *testing.T) {
+	tempDir := t.TempDir()
+	fileStore := &FileStorageService{baseUploadAbs: tempDir}
+
+	if err := os.MkdirAll(filepath.Join(tempDir, "images"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tempDir, "images", "x.webp"), newTinyJPEGBytes(t), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	uploadTime := time.Now()
+	mock.ExpectQuery(`(?s)FROM media_file.*WHERE local_path = \?.*AND user_id = \?.*LIMIT 1`).
+		WithArgs(sqlmock.AnyArg(), "u1").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "original_filename", "local_filename", "remote_filename", "remote_url", "local_path",
+			"file_size", "file_type", "file_extension", "file_md5", "upload_time", "update_time",
+		}).AddRow(
+			int64(1), "u1", "orig.webp", "x.webp", "remote.webp", "http://x", "/images/x.webp",
+			int64(1), "image/webp", "webp", sql.NullString{Valid: false}, uploadTime, sql.NullTime{Valid: false},
+		))
+
+	mock.ExpectExec(`UPDATE media_file SET update_time = \? WHERE local_path = \?`).
+		WithArgs(sqlmock.AnyArg(), "/images/x.webp").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE media_file SET update_time = \? WHERE local_path = \?`).
+		WithArgs(sqlmock.AnyArg(), "images/x.webp").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	callCount := 0
+	svc := &MediaUploadService{
+		db:        wrapMySQLDB(db),
+		fileStore: fileStore,
+		imageSrv:  NewImageServerService("127.0.0.1", "9003"),
+		httpClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			callCount++
+			body, _ := io.ReadAll(req.Body)
+			bodyText := string(body)
+			switch callCount {
+			case 1:
+				if !strings.Contains(bodyText, `filename="orig.webp"`) {
+					t.Fatalf("first upload filename mismatch, body=%s", bodyText)
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Status:     "200 OK",
+					Body: io.NopCloser(strings.NewReader(
+						`{"state":"Fail","msg":"图片上传失败，请重试 参数无效。在 System.Drawing.Bitmap..ctor(String filename)","code":-3}`,
+					)),
+					Header:  make(http.Header),
+					Request: req,
+				}, nil
+			case 2:
+				if !strings.Contains(bodyText, `filename="orig.jpg"`) {
+					t.Fatalf("retry upload filename mismatch, body=%s", bodyText)
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Status:     "200 OK",
+					Body:       io.NopCloser(strings.NewReader(`{"state":"OK","msg":"ok.jpg"}`)),
+					Header:     make(http.Header),
+					Request:    req,
+				}, nil
+			default:
+				t.Fatalf("unexpected upload call count: %d", callCount)
+				return nil, nil
+			}
+		})},
+	}
+
+	got, err := svc.ReuploadLocalFile(context.Background(), "u1", "/images/x.webp", "", "r", "ua")
+	if err != nil {
+		t.Fatalf("ReuploadLocalFile err: %v", err)
+	}
+	if strings.TrimSpace(got) != `{"state":"OK","msg":"ok.jpg"}` {
+		t.Fatalf("got=%q", got)
+	}
+	if callCount != 2 {
+		t.Fatalf("callCount=%d, want 2", callCount)
 	}
 }
 

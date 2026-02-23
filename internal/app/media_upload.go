@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/jpeg"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -18,6 +20,8 @@ import (
 	"time"
 
 	"liao/internal/database"
+
+	_ "golang.org/x/image/webp"
 )
 
 var ErrDeleteForbidden = errors.New("文件不存在或无权删除")
@@ -377,36 +381,20 @@ func (s *MediaUploadService) ReuploadLocalFile(ctx context.Context, userID, loca
 	imgServerHost := s.imageSrv.GetImgServerHost()
 	uploadURL := fmt.Sprintf("http://%s/asmx/upload.asmx/ProcessRequest?act=uploadImgRandom&userid=%s", imgServerHost, userID)
 
-	bodyBuf := &bytes.Buffer{}
-	writer := multipart.NewWriter(bodyBuf)
-	part, _ := writer.CreateFormFile("upload_file", originalFilename)
-	_, _ = io.Copy(part, bytes.NewReader(fileBytes))
-	_ = writer.Close()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, bodyBuf)
+	respBody, err := s.uploadLocalFileToImageServer(ctx, uploadURL, imgServerHost, referer, userAgent, cookieData, originalFilename, fileBytes)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("Host", strings.Split(imgServerHost, ":")[0])
-	req.Header.Set("Origin", "http://v1.chat2019.cn")
-	req.Header.Set("Referer", referer)
-	req.Header.Set("User-Agent", userAgent)
-	// 兼容 Java：cookieData 为空字符串时也会设置 Cookie 头
-	req.Header.Set("Cookie", cookieData)
 
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("上游响应异常: %s", resp.Status)
+	if shouldRetryWebPAsJPEG(localPath, originalFilename, string(respBody)) {
+		convertedBytes, convertErr := convertImageToJPEG(fileBytes)
+		if convertErr == nil && len(convertedBytes) > 0 {
+			retryFilename := rewriteFilenameExt(originalFilename, ".jpg")
+			retryRespBody, retryErr := s.uploadLocalFileToImageServer(ctx, uploadURL, imgServerHost, referer, userAgent, cookieData, retryFilename, convertedBytes)
+			if retryErr == nil {
+				respBody = retryRespBody
+			}
+		}
 	}
 
 	// 更新时间：不按 user_id 限制，并兼容 local_path 可能无前导 "/" 的情况
@@ -428,6 +416,139 @@ func (s *MediaUploadService) ReuploadLocalFile(ctx context.Context, userID, loca
 	_ = updatedRows
 
 	return string(respBody), nil
+}
+
+func (s *MediaUploadService) uploadLocalFileToImageServer(
+	ctx context.Context,
+	uploadURL string,
+	imgServerHost string,
+	referer string,
+	userAgent string,
+	cookieData string,
+	filename string,
+	fileBytes []byte,
+) ([]byte, error) {
+	bodyBuf := &bytes.Buffer{}
+	writer := multipart.NewWriter(bodyBuf)
+	part, err := writer.CreateFormFile("upload_file", filename)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := io.Copy(part, bytes.NewReader(fileBytes)); err != nil {
+		return nil, err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, bodyBuf)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Host", strings.Split(imgServerHost, ":")[0])
+	req.Header.Set("Origin", "http://v1.chat2019.cn")
+	req.Header.Set("Referer", referer)
+	req.Header.Set("User-Agent", userAgent)
+	// 兼容 Java：cookieData 为空字符串时也会设置 Cookie 头
+	req.Header.Set("Cookie", cookieData)
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("上游响应异常: %s", resp.Status)
+	}
+
+	return respBody, nil
+}
+
+func convertImageToJPEG(input []byte) ([]byte, error) {
+	img, _, err := image.Decode(bytes.NewReader(input))
+	if err != nil {
+		return nil, fmt.Errorf("图片转 JPEG 失败: %w", err)
+	}
+
+	out := &bytes.Buffer{}
+	if err := jpeg.Encode(out, img, &jpeg.Options{Quality: 100}); err != nil {
+		return nil, fmt.Errorf("图片编码 JPEG 失败: %w", err)
+	}
+	return out.Bytes(), nil
+}
+
+func shouldRetryWebPAsJPEG(localPath, originalFilename, uploadResp string) bool {
+	if !isLikelyWebPFile(localPath, originalFilename) {
+		return false
+	}
+
+	resp := strings.TrimSpace(uploadResp)
+	if resp == "" {
+		return false
+	}
+
+	type upstreamResult struct {
+		State string `json:"state"`
+		Code  int    `json:"code"`
+		Msg   string `json:"msg"`
+		Error string `json:"error"`
+	}
+	var result upstreamResult
+	if err := json.Unmarshal([]byte(resp), &result); err == nil {
+		msgLower := strings.ToLower(strings.TrimSpace(result.Msg + " " + result.Error))
+		stateLower := strings.ToLower(strings.TrimSpace(result.State))
+		if (stateLower == "fail" || stateLower == "error" || stateLower == "no") &&
+			(result.Code == -3 ||
+				strings.Contains(msgLower, "bitmap") ||
+				strings.Contains(msgLower, "参数无效")) {
+			return true
+		}
+	}
+
+	respLower := strings.ToLower(resp)
+	return strings.Contains(respLower, "\"code\":-3") ||
+		strings.Contains(respLower, "bitmap..ctor") ||
+		strings.Contains(respLower, "参数无效")
+}
+
+func isLikelyWebPFile(localPath, originalFilename string) bool {
+	checks := []string{
+		strings.TrimSpace(localPath),
+		strings.TrimSpace(originalFilename),
+	}
+	for _, raw := range checks {
+		if raw == "" {
+			continue
+		}
+		withoutQuery := strings.SplitN(raw, "?", 2)[0]
+		ext := strings.ToLower(strings.TrimSpace(filepath.Ext(withoutQuery)))
+		if ext == ".webp" {
+			return true
+		}
+	}
+	return false
+}
+
+func rewriteFilenameExt(filename, targetExt string) string {
+	baseName := strings.TrimSpace(filename)
+	if baseName == "" {
+		baseName = "upload"
+	}
+	targetExt = "." + strings.TrimPrefix(strings.TrimSpace(targetExt), ".")
+	if targetExt == "." {
+		targetExt = ".jpg"
+	}
+	currentExt := filepath.Ext(baseName)
+	if currentExt == "" {
+		return baseName + targetExt
+	}
+	return strings.TrimSuffix(baseName, currentExt) + targetExt
 }
 
 func (s *MediaUploadService) GetAllUploadImagesWithDetails(ctx context.Context, page, pageSize int, hostHeader string) ([]MediaFileDTO, error) {
