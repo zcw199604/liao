@@ -41,6 +41,28 @@ func TestMtPhotoFolderHandlers_RootAndContent(t *testing.T) {
 				"trashNum": 0,
 			})
 			return
+		case "/gateway/folderFiles/518":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"result": []map[string]any{
+					{
+						"day":  "2024-09-16",
+						"addr": "",
+						"list": []map[string]any{
+							{"id": 2, "status": 2, "fileType": "JPEG", "MD5": "m2"},
+						},
+					},
+					{
+						"day":  "2024-09-15",
+						"addr": "",
+						"list": []map[string]any{
+							{"id": 1, "status": 2, "fileType": "JPEG", "MD5": "m1"},
+						},
+					},
+				},
+				"totalCount": 2,
+				"ver":        2,
+			})
+			return
 		case "/gateway/foldersV2/403":
 			w.WriteHeader(http.StatusForbidden)
 			return

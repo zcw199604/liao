@@ -109,6 +109,28 @@ func TestMtPhotoService_GetFolderContentPage_Paginate(t *testing.T) {
 					},
 				},
 			})
+		case "/gateway/folderFiles/644":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"result": []map[string]any{
+					{
+						"day":  "2024-09-15",
+						"addr": "",
+						"list": []map[string]any{
+							{"id": 3, "status": 2, "fileType": "JPEG", "width": 100, "height": 100, "MD5": "m3"},
+							{"id": 1, "status": 2, "fileType": "JPEG", "width": 100, "height": 200, "MD5": "m1"},
+						},
+					},
+					{
+						"day":  "2024-09-16",
+						"addr": "",
+						"list": []map[string]any{
+							{"id": 2, "status": 2, "fileType": "MP4", "duration": 12.5, "MD5": "m2"},
+						},
+					},
+				},
+				"totalCount": 3,
+				"ver":        2,
+			})
 		default:
 			http.NotFound(w, r)
 		}
@@ -129,8 +151,14 @@ func TestMtPhotoService_GetFolderContentPage_Paginate(t *testing.T) {
 	if len(content1.FileList) != 2 {
 		t.Fatalf("page1 fileList len=%d, want 2", len(content1.FileList))
 	}
-	if content1.FileList[1].Type != "video" {
-		t.Fatalf("page1 second type=%q, want video", content1.FileList[1].Type)
+	if content1.FileList[0].MD5 != "m2" || content1.FileList[1].MD5 != "m3" {
+		t.Fatalf("page1 fileList md5=%v, want [m2,m3]", []string{content1.FileList[0].MD5, content1.FileList[1].MD5})
+	}
+	if content1.FileList[0].Type != "video" {
+		t.Fatalf("page1 first type=%q, want video", content1.FileList[0].Type)
+	}
+	if content1.FileList[0].FileName != "b.mp4" {
+		t.Fatalf("page1 first filename=%q, want b.mp4", content1.FileList[0].FileName)
 	}
 
 	content2, total2, pages2, err := svc.GetFolderContentPage(ctx, 644, 2, 2)
@@ -140,8 +168,8 @@ func TestMtPhotoService_GetFolderContentPage_Paginate(t *testing.T) {
 	if total2 != 3 || pages2 != 2 {
 		t.Fatalf("total/pages=%d/%d, want 3/2", total2, pages2)
 	}
-	if len(content2.FileList) != 1 || content2.FileList[0].MD5 != "m3" {
-		t.Fatalf("page2 fileList=%v, want [m3]", content2.FileList)
+	if len(content2.FileList) != 1 || content2.FileList[0].MD5 != "m1" {
+		t.Fatalf("page2 fileList=%v, want [m1]", content2.FileList)
 	}
 }
 

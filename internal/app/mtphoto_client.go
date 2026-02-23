@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -435,6 +436,7 @@ type MtPhotoFolderFileItem struct {
 	FileType string   `json:"fileType"`
 	Size     string   `json:"size"`
 	TokenAt  string   `json:"tokenAt"`
+	Day      string   `json:"day,omitempty"`
 	MD5      string   `json:"md5"`
 	Width    int      `json:"width,omitempty"`
 	Height   int      `json:"height,omitempty"`
@@ -475,6 +477,20 @@ func normalizeMtPhotoSize(value any) string {
 	}
 }
 
+func normalizeMtPhotoDay(value string) string {
+	day := strings.TrimSpace(value)
+	if day == "" {
+		return ""
+	}
+	if len(day) >= 10 {
+		day = day[:10]
+	}
+	if _, err := time.Parse("2006-01-02", day); err == nil {
+		return day
+	}
+	return ""
+}
+
 func mapMtPhotoFolderFiles(items []mtPhotoFolderFileItemRaw) []MtPhotoFolderFileItem {
 	if len(items) == 0 {
 		return []MtPhotoFolderFileItem{}
@@ -495,6 +511,7 @@ func mapMtPhotoFolderFiles(items []mtPhotoFolderFileItemRaw) []MtPhotoFolderFile
 			FileType: strings.TrimSpace(item.FileType),
 			Size:     normalizeMtPhotoSize(item.Size),
 			TokenAt:  strings.TrimSpace(item.TokenAt),
+			Day:      normalizeMtPhotoDay(item.TokenAt),
 			MD5:      md5Value,
 			Width:    item.Width,
 			Height:   item.Height,
@@ -581,6 +598,191 @@ func paginateMtPhotoFolderItems(all []MtPhotoFolderFileItem, page, pageSize int)
 	return out
 }
 
+func cloneDuration(value float64) *float64 {
+	if value <= 0 {
+		return nil
+	}
+	duration := value
+	return &duration
+}
+
+func mapMtPhotoTimelineFiles(groups []mtPhotoFolderFilesGroup) []MtPhotoFolderFileItem {
+	type timelineItem struct {
+		item MtPhotoFolderFileItem
+		seq  int
+	}
+
+	if len(groups) == 0 {
+		return []MtPhotoFolderFileItem{}
+	}
+
+	flattened := make([]timelineItem, 0)
+	seq := 0
+	for _, group := range groups {
+		day := normalizeMtPhotoDay(group.Day)
+		for _, file := range group.List {
+			md5Value := strings.TrimSpace(file.MD5)
+			if md5Value == "" {
+				md5Value = strings.TrimSpace(file.VMD5)
+			}
+			if md5Value == "" {
+				continue
+			}
+
+			fileType := strings.TrimSpace(file.FileType)
+			flattened = append(flattened, timelineItem{
+				item: MtPhotoFolderFileItem{
+					ID:       file.ID,
+					FileType: fileType,
+					Day:      day,
+					MD5:      md5Value,
+					Width:    file.Width,
+					Height:   file.Height,
+					Duration: cloneDuration(file.Duration),
+					Status:   file.Status,
+					Type:     inferMtPhotoType(fileType),
+				},
+				seq: seq,
+			})
+			seq++
+		}
+	}
+
+	sort.SliceStable(flattened, func(i, j int) bool {
+		left := flattened[i].item.Day
+		right := flattened[j].item.Day
+		switch {
+		case left == "" && right == "":
+			return flattened[i].seq < flattened[j].seq
+		case left == "":
+			return false
+		case right == "":
+			return true
+		case left == right:
+			return flattened[i].seq < flattened[j].seq
+		default:
+			return left > right
+		}
+	})
+
+	out := make([]MtPhotoFolderFileItem, 0, len(flattened))
+	for _, item := range flattened {
+		out = append(out, item.item)
+	}
+	return out
+}
+
+func mergeFolderTimelineWithDetail(timelineFiles, detailFiles []MtPhotoFolderFileItem) []MtPhotoFolderFileItem {
+	if len(timelineFiles) == 0 {
+		return []MtPhotoFolderFileItem{}
+	}
+	if len(detailFiles) == 0 {
+		return timelineFiles
+	}
+
+	detailByID := make(map[int64]MtPhotoFolderFileItem, len(detailFiles))
+	detailByMD5 := make(map[string]MtPhotoFolderFileItem, len(detailFiles))
+	for _, item := range detailFiles {
+		if item.ID > 0 {
+			detailByID[item.ID] = item
+		}
+		md5Value := strings.TrimSpace(item.MD5)
+		if md5Value != "" {
+			detailByMD5[md5Value] = item
+		}
+	}
+
+	out := make([]MtPhotoFolderFileItem, 0, len(timelineFiles))
+	for _, timeline := range timelineFiles {
+		merged := timeline
+		var detail MtPhotoFolderFileItem
+		var ok bool
+		if merged.ID > 0 {
+			detail, ok = detailByID[merged.ID]
+		}
+		if !ok {
+			detail, ok = detailByMD5[strings.TrimSpace(merged.MD5)]
+		}
+		if ok {
+			if merged.FileName == "" {
+				merged.FileName = detail.FileName
+			}
+			if merged.Size == "" {
+				merged.Size = detail.Size
+			}
+			if merged.TokenAt == "" {
+				merged.TokenAt = detail.TokenAt
+			}
+			if merged.Day == "" {
+				merged.Day = detail.Day
+			}
+			if merged.FileType == "" {
+				merged.FileType = detail.FileType
+			}
+			if merged.Width <= 0 {
+				merged.Width = detail.Width
+			}
+			if merged.Height <= 0 {
+				merged.Height = detail.Height
+			}
+			if merged.Duration == nil && detail.Duration != nil {
+				duration := *detail.Duration
+				merged.Duration = &duration
+			}
+			if merged.Status == 0 {
+				merged.Status = detail.Status
+			}
+		}
+		if merged.Type == "" {
+			merged.Type = inferMtPhotoType(merged.FileType)
+		}
+		out = append(out, merged)
+	}
+	return out
+}
+
+func (s *MtPhotoService) getFolderTimelineFiles(ctx context.Context, folderID int64) (items []MtPhotoFolderFileItem, total int, err error) {
+	if !s.configured() {
+		return nil, 0, fmt.Errorf("mtPhoto 未配置")
+	}
+	if folderID <= 0 {
+		return nil, 0, fmt.Errorf("folderId 非法")
+	}
+
+	urlStr, err := s.buildURL(fmt.Sprintf("/gateway/folderFiles/%d", folderID), nil)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	resp, err := s.doRequest(ctx, http.MethodGet, urlStr, map[string]string{
+		"Accept": "application/json",
+	}, nil, true, false)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, 0, &mtPhotoStatusError{
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
+			Action:     "mtPhoto 获取目录时间线内容失败",
+		}
+	}
+
+	var parsed mtPhotoFolderFilesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return nil, 0, fmt.Errorf("mtPhoto 目录时间线响应解析失败: %w", err)
+	}
+
+	mapped := mapMtPhotoTimelineFiles(parsed.Result)
+	total = parsed.TotalCount
+	if total <= 0 {
+		total = len(mapped)
+	}
+	return mapped, total, nil
+}
+
 func (s *MtPhotoService) GetFolderContentPage(ctx context.Context, folderID int64, page, pageSize int) (content *MtPhotoFolderContent, total int, totalPages int, err error) {
 	if folderID <= 0 {
 		return nil, 0, 0, fmt.Errorf("folderId 非法")
@@ -601,6 +803,12 @@ func (s *MtPhotoService) GetFolderContentPage(ctx context.Context, folderID int6
 	}
 
 	total = len(content.FileList)
+	timelineItems, _, timelineErr := s.getFolderTimelineFiles(ctx, folderID)
+	if timelineErr == nil && len(timelineItems) > 0 {
+		content.FileList = mergeFolderTimelineWithDetail(timelineItems, content.FileList)
+		total = len(content.FileList)
+	}
+
 	totalPages = calcTotalPages(total, pageSize)
 	content.FileList = paginateMtPhotoFolderItems(content.FileList, page, pageSize)
 	return content, total, totalPages, nil
@@ -626,6 +834,7 @@ type mtPhotoFileItem struct {
 	Height   int     `json:"height,omitempty"`
 	Duration float64 `json:"duration,omitempty"`
 	MD5      string  `json:"MD5"`
+	VMD5     string  `json:"VMD5"`
 }
 
 type MtPhotoMediaItem struct {
@@ -637,6 +846,18 @@ type MtPhotoMediaItem struct {
 	Duration float64 `json:"duration,omitempty"`
 	Day      string  `json:"day,omitempty"`
 	Type     string  `json:"type"` // image/video
+}
+
+type mtPhotoFolderFilesResponse struct {
+	Result     []mtPhotoFolderFilesGroup `json:"result"`
+	TotalCount int                       `json:"totalCount"`
+	Ver        int                       `json:"ver"`
+}
+
+type mtPhotoFolderFilesGroup struct {
+	Day  string            `json:"day"`
+	Addr string            `json:"addr"`
+	List []mtPhotoFileItem `json:"list"`
 }
 
 func inferMtPhotoType(fileType string) string {
