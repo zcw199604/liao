@@ -15,7 +15,7 @@
         @click.stop
       >
         <!-- 头部 -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-line">
+        <div class="flex items-center justify-between px-4 py-2.5 border-b border-line">
           <div class="flex items-center gap-2 min-w-0">
             <button
               v-if="showBackButton"
@@ -27,7 +27,7 @@
             </button>
 
             <i class="fas fa-photo-video text-pink-400 flex-shrink-0"></i>
-            <h3 class="text-lg font-bold text-fg truncate">{{ titleText }}</h3>
+            <h3 class="text-base font-semibold text-fg truncate">{{ titleText }}</h3>
             <span v-if="subTitleText" class="text-xs text-fg-subtle ml-2 flex-shrink-0">
               {{ subTitleText }}
             </span>
@@ -216,13 +216,23 @@
           </aside>
 
           <div class="flex-1 min-h-0 flex flex-col">
-            <div class="px-4 py-3 border-b border-line bg-surface-2">
-              <div class="flex flex-wrap gap-2 items-center">
-                <span class="text-xs text-fg-subtle">路径：</span>
-                <span class="text-sm text-fg">{{ mtPhotoStore.folderPath || '/' }}</span>
+            <div class="px-4 py-2 border-b border-line bg-surface-2 shrink-0">
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-fg-subtle shrink-0">路径：</span>
+                <span class="text-sm text-fg truncate flex-1 min-w-0">{{ mtPhotoStore.folderPath || '/' }}</span>
+                <button
+                  class="shrink-0 px-2.5 py-1 text-xs rounded-lg border border-line-strong hover:border-pink-500 transition"
+                  :class="mtPhotoStore.currentFolderFavorite ? 'text-pink-300 border-pink-500/50' : 'text-fg-subtle'"
+                  :disabled="!mtPhotoStore.folderCurrentId"
+                  @click="isFavoriteEditOpen = !isFavoriteEditOpen"
+                >
+                  {{ mtPhotoStore.currentFolderFavorite ? '★ 已收藏' : '☆ 收藏' }}
+                </button>
               </div>
+            </div>
 
-              <div class="mt-3 grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-3 items-start">
+            <div v-show="isFavoriteEditOpen" class="px-4 py-3 border-b border-line bg-surface-2 shrink-0">
+              <div class="grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-3 items-start">
                 <div class="space-y-2">
                   <input
                     v-model="favoriteTagsInput"
@@ -258,26 +268,41 @@
               </div>
             </div>
 
-            <div class="px-2 pt-2 pb-1">
-              <div class="text-xs text-fg-subtle mb-2">子文件夹</div>
-              <div v-if="mtPhotoStore.folderLoading && mtPhotoStore.folderList.length === 0" class="text-xs text-fg-subtle px-1 py-2">
-                加载中...
+            <div class="px-2 pt-2 pb-1 shrink-0">
+              <div class="flex items-center justify-between gap-2 mb-1.5">
+                <div class="text-xs text-fg-subtle">子文件夹</div>
+                <input
+                  v-if="mtPhotoStore.folderList.length > 1"
+                  v-model="folderFilter"
+                  type="text"
+                  class="h-7 px-2 text-xs rounded-md border border-line-strong bg-surface-3 focus:outline-none focus:border-pink-500 w-40"
+                  placeholder="搜索目录..."
+                />
               </div>
-              <div v-else-if="mtPhotoStore.folderList.length === 0" class="text-xs text-fg-subtle px-1 py-2">
-                当前目录无子文件夹
-              </div>
-              <div v-else class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2">
-                <button
-                  v-for="folder in mtPhotoStore.folderList"
-                  :key="folder.id"
-                  class="text-left rounded-lg border border-line-strong bg-surface-3 hover:border-pink-500 transition-colors p-2"
-                  @click="mtPhotoStore.openFolder(folder)"
-                >
-                  <div class="text-sm text-fg truncate">{{ folder.name }}</div>
-                  <div class="text-[11px] text-fg-subtle mt-1">
-                    {{ folder.subFileNum ?? 0 }} 图 · {{ folder.subFolderNum ?? 0 }} 目录
-                  </div>
-                </button>
+
+              <div class="max-h-[160px] overflow-y-auto no-scrollbar pr-1">
+                <div v-if="mtPhotoStore.folderLoading && mtPhotoStore.folderList.length === 0" class="text-xs text-fg-subtle px-1 py-2">
+                  加载中...
+                </div>
+                <div v-else-if="folderFilter.trim() && filteredFolderList.length === 0" class="text-xs text-fg-subtle px-1 py-2">
+                  无匹配目录
+                </div>
+                <div v-else-if="mtPhotoStore.folderList.length === 0" class="text-xs text-fg-subtle px-1 py-2">
+                  当前目录无子文件夹
+                </div>
+                <div v-else class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2">
+                  <button
+                    v-for="folder in filteredFolderList"
+                    :key="folder.id"
+                    class="text-left rounded-lg border border-line-strong bg-surface-3 hover:border-pink-500 transition-colors p-2"
+                    @click="mtPhotoStore.openFolder(folder)"
+                  >
+                    <div class="text-sm text-fg truncate">{{ folder.name }}</div>
+                    <div class="text-[11px] text-fg-subtle mt-1">
+                      {{ folder.subFileNum ?? 0 }} 图 · {{ folder.subFolderNum ?? 0 }} 目录
+                    </div>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -364,6 +389,14 @@ const previewMD5 = ref('')
 
 const favoriteTagsInput = ref('')
 const favoriteNoteInput = ref('')
+const folderFilter = ref('')
+const isFavoriteEditOpen = ref(false)
+
+const filteredFolderList = computed(() => {
+  const keyword = folderFilter.value.trim().toLowerCase()
+  if (!keyword) return mtPhotoStore.folderList
+  return mtPhotoStore.folderList.filter(folder => String(folder.name || '').toLowerCase().includes(keyword))
+})
 
 // 真实文件名解析缓存：md5 -> basename(filename)
 const mtPhotoOriginalFilenameCache = new Map<string, string>()
@@ -458,6 +491,8 @@ watch(
 watch(
   () => mtPhotoStore.folderCurrentId,
   () => {
+    folderFilter.value = ''
+    isFavoriteEditOpen.value = false
     if (!mtPhotoStore.currentFolderFavorite) {
       favoriteTagsInput.value = ''
       favoriteNoteInput.value = ''
