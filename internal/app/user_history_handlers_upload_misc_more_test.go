@@ -5,7 +5,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"image"
+	"image/color"
+	"image/png"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -425,6 +429,111 @@ func TestHandleUploadMedia_CoversRemainingBranches(t *testing.T) {
 		}
 		if name, _ := got["localFilename"].(string); !strings.HasSuffix(name, ".jpg") {
 			t.Fatalf("localFilename=%v", got["localFilename"])
+		}
+	})
+
+	t.Run("png fail then retry jpg success", func(t *testing.T) {
+		db, mock, cleanup := newSQLMock(t)
+		defer cleanup()
+
+		mock.ExpectQuery(`SELECT local_path FROM media_upload_history WHERE file_md5 = \? LIMIT 1`).
+			WithArgs(sqlmock.AnyArg()).
+			WillReturnError(sql.ErrNoRows)
+		mock.ExpectQuery(`(?s)FROM media_file.*WHERE user_id = \? AND file_md5 = \?.*LIMIT 1`).
+			WithArgs("u1", sqlmock.AnyArg()).
+			WillReturnError(sql.ErrNoRows)
+		expectInsertReturningID(mock, `INSERT INTO media_file`, 1)
+
+		img := image.NewRGBA(image.Rect(0, 0, 4, 4))
+		for y := 0; y < 4; y++ {
+			for x := 0; x < 4; x++ {
+				img.Set(x, y, color.RGBA{R: 200, G: uint8(50 + x*20), B: uint8(10 + y*20), A: 255})
+			}
+		}
+		var pngBuf bytes.Buffer
+		if err := png.Encode(&pngBuf, img); err != nil {
+			t.Fatalf("encode png failed: %v", err)
+		}
+
+		uploadRoot := t.TempDir()
+		req, _ := newMultipartRequest(t, http.MethodPost, "http://example.com/api/uploadMedia", "file", "a.png", "image/png", pngBuf.Bytes(), map[string]string{
+			"userid": "u1",
+		})
+
+		attempts := 0
+		uploadedFilenames := []string{}
+
+		app := &App{
+			fileStorage: &FileStorageService{db: wrapMySQLDB(db), baseUploadAbs: uploadRoot},
+			imageServer: NewImageServerService("example.com", "9003"),
+			imageCache:  NewImageCacheService(),
+			mediaUpload: &MediaUploadService{db: wrapMySQLDB(db)},
+			httpClient: &http.Client{
+				Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+					attempts++
+
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						return nil, err
+					}
+					_, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
+					if err != nil {
+						t.Fatalf("parse content type failed: %v", err)
+					}
+					boundary := params["boundary"]
+					if boundary == "" {
+						t.Fatalf("missing boundary")
+					}
+					reader := multipart.NewReader(bytes.NewReader(body), boundary)
+					part, err := reader.NextPart()
+					if err != nil {
+						t.Fatalf("read multipart part failed: %v", err)
+					}
+					uploadedFilenames = append(uploadedFilenames, part.FileName())
+
+					if attempts == 1 {
+						return &http.Response{
+							StatusCode: http.StatusOK,
+							Status:     "200 OK",
+							Body: io.NopCloser(strings.NewReader(
+								`{"state":"Fail","msg":"图片上传失败,请重试未能找到路径","code":-3}`,
+							)),
+							Header:  make(http.Header),
+							Request: req,
+						}, nil
+					}
+
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Status:     "200 OK",
+						Body:       io.NopCloser(strings.NewReader(`{"state":"OK","msg":"retry.jpg"}`)),
+						Header:     make(http.Header),
+						Request:    req,
+					}, nil
+				}),
+			},
+		}
+
+		rr := httptest.NewRecorder()
+		app.handleUploadMedia(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%q", rr.Code, rr.Body.String())
+		}
+		got := decodeJSONBody(t, rr.Body)
+		if got["state"] != "OK" || got["msg"] != "retry.jpg" {
+			t.Fatalf("resp=%v", got)
+		}
+		if attempts != 2 {
+			t.Fatalf("attempts=%d, want 2", attempts)
+		}
+		if len(uploadedFilenames) != 2 {
+			t.Fatalf("uploadedFilenames=%v", uploadedFilenames)
+		}
+		if !strings.HasSuffix(strings.ToLower(uploadedFilenames[0]), ".png") {
+			t.Fatalf("first upload filename=%q", uploadedFilenames[0])
+		}
+		if !strings.HasSuffix(strings.ToLower(uploadedFilenames[1]), ".jpg") {
+			t.Fatalf("retry upload filename=%q", uploadedFilenames[1])
 		}
 	})
 

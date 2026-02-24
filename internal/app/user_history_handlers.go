@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -599,6 +600,17 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	respBody = a.retryUploadPNGAsJPEGIfNeeded(
+		r.Context(),
+		uploadURL,
+		imgServerHost,
+		fileHeader,
+		contentType,
+		respBody,
+		cookieData,
+		referer,
+		userAgent,
+	)
 
 	// 尝试解析并增强返回（state==OK）
 	var parsed map[string]any
@@ -846,11 +858,198 @@ func (a *App) uploadToUpstream(ctx context.Context, uploadURL, imgServerHost str
 	return string(b), nil
 }
 
+func (a *App) retryUploadPNGAsJPEGIfNeeded(
+	ctx context.Context,
+	uploadURL string,
+	imgServerHost string,
+	fileHeader *multipart.FileHeader,
+	contentType string,
+	initialRespBody string,
+	cookieData string,
+	referer string,
+	userAgent string,
+) string {
+	if !shouldRetryPNGAsJPEG(contentType, fileHeader, initialRespBody) {
+		return initialRespBody
+	}
+	if fileHeader == nil {
+		return initialRespBody
+	}
+	initialPreview := truncateStringForLog(strings.TrimSpace(initialRespBody), 240)
+	slog.Warn(
+		"检测到 PNG 上传失败，触发 JPG 兜底重试",
+		"filename", fileHeader.Filename,
+		"contentType", strings.TrimSpace(contentType),
+		"upstreamRespPreview", initialPreview,
+	)
+
+	src, err := openMultipartFileHeaderFn(fileHeader)
+	if err != nil {
+		slog.Warn("PNG 转 JPG 重试跳过: 打开原始文件失败", "error", err, "filename", fileHeader.Filename)
+		return initialRespBody
+	}
+	defer src.Close()
+
+	originBytes, err := io.ReadAll(src)
+	if err != nil || len(originBytes) == 0 {
+		slog.Warn("PNG 转 JPG 重试跳过: 读取原始文件失败", "error", err, "filename", fileHeader.Filename)
+		return initialRespBody
+	}
+
+	convertedBytes, err := convertImageToJPEG(originBytes)
+	if err != nil || len(convertedBytes) == 0 {
+		slog.Warn("PNG 转 JPG 重试跳过: 图片转换失败", "error", err, "filename", fileHeader.Filename)
+		return initialRespBody
+	}
+
+	retryFilename := rewriteFilenameExt(fileHeader.Filename, ".jpg")
+	retryRespBody, err := a.uploadBytesToUpstream(
+		ctx,
+		uploadURL,
+		imgServerHost,
+		retryFilename,
+		convertedBytes,
+		cookieData,
+		referer,
+		userAgent,
+	)
+	if err != nil {
+		slog.Warn("PNG 转 JPG 重试失败，保留原始上游响应", "error", err, "filename", fileHeader.Filename, "retryFilename", retryFilename)
+		return initialRespBody
+	}
+
+	slog.Info(
+		"PNG 上传失败后已自动 JPG 重试",
+		"filename", fileHeader.Filename,
+		"retryFilename", retryFilename,
+		"retryRespPreview", truncateStringForLog(strings.TrimSpace(retryRespBody), 240),
+	)
+	return retryRespBody
+}
+
+func shouldRetryPNGAsJPEG(contentType string, fileHeader *multipart.FileHeader, uploadResp string) bool {
+	if !isLikelyPNGUpload(contentType, fileHeader) {
+		return false
+	}
+
+	resp := strings.TrimSpace(uploadResp)
+	if resp == "" {
+		return false
+	}
+
+	type upstreamResult struct {
+		State string `json:"state"`
+		Code  int    `json:"code"`
+		Msg   string `json:"msg"`
+		Error string `json:"error"`
+	}
+	var result upstreamResult
+	if err := json.Unmarshal([]byte(resp), &result); err == nil {
+		stateLower := strings.ToLower(strings.TrimSpace(result.State))
+		if stateLower == "ok" || stateLower == "success" {
+			return false
+		}
+
+		msgLower := strings.ToLower(strings.TrimSpace(result.Msg + " " + result.Error))
+		if result.Code == -3 ||
+			strings.Contains(msgLower, "未能找到路径") ||
+			strings.Contains(msgLower, "bitmap") ||
+			strings.Contains(msgLower, "参数无效") {
+			return true
+		}
+
+		if stateLower == "fail" || stateLower == "error" || stateLower == "no" {
+			return true
+		}
+		return false
+	}
+
+	respLower := strings.ToLower(resp)
+	return strings.Contains(respLower, `"state":"fail"`) ||
+		strings.Contains(respLower, `"state":"error"`) ||
+		strings.Contains(respLower, `"code":-3`)
+}
+
+func isLikelyPNGUpload(contentType string, fileHeader *multipart.FileHeader) bool {
+	if strings.EqualFold(strings.TrimSpace(contentType), "image/png") {
+		return true
+	}
+	if fileHeader == nil {
+		return false
+	}
+	ext := strings.ToLower(strings.TrimSpace(filepath.Ext(strings.TrimSpace(fileHeader.Filename))))
+	return ext == ".png"
+}
+
+func (a *App) uploadBytesToUpstream(
+	ctx context.Context,
+	uploadURL string,
+	imgServerHost string,
+	filename string,
+	fileBytes []byte,
+	cookieData string,
+	referer string,
+	userAgent string,
+) (string, error) {
+	bodyBuf := &bytes.Buffer{}
+	writer := multipart.NewWriter(bodyBuf)
+	part, err := writer.CreateFormFile("upload_file", filename)
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(part, bytes.NewReader(fileBytes)); err != nil {
+		return "", err
+	}
+	if err := writer.Close(); err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, bodyBuf)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Host = strings.Split(imgServerHost, ":")[0]
+	req.Header.Set("Origin", "http://v1.chat2019.cn")
+	req.Header.Set("Referer", referer)
+	req.Header.Set("User-Agent", userAgent)
+	if cookieData != "" {
+		req.Header.Set("Cookie", cookieData)
+	}
+
+	resp, err := a.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("上游响应异常: %s", resp.Status)
+	}
+	return string(b), nil
+}
+
 func defaultString(v, def string) string {
 	if strings.TrimSpace(v) == "" {
 		return def
 	}
 	return v
+}
+
+func truncateStringForLog(s string, maxRunes int) string {
+	s = strings.TrimSpace(s)
+	if s == "" || maxRunes <= 0 {
+		return s
+	}
+	rs := []rune(s)
+	if len(rs) <= maxRunes {
+		return s
+	}
+	return string(rs[:maxRunes]) + "...(truncated)"
 }
 
 func inferMessageType(content string) string {
