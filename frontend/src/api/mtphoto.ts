@@ -74,9 +74,14 @@ export const getMtPhotoFolderRoot = () => {
   return request.get<any, MtPhotoFolderContentResponse>('/getMtPhotoFolderRoot')
 }
 
-export const getMtPhotoFolderContent = (folderId: number, page: number, pageSize: number) => {
+export const getMtPhotoFolderContent = (
+  folderId: number,
+  page: number,
+  pageSize: number,
+  includeTimeline: boolean = true
+) => {
   return request.get<any, MtPhotoFolderContentResponse>('/getMtPhotoFolderContent', {
-    params: { folderId, page, pageSize }
+    params: { folderId, page, pageSize, includeTimeline }
   })
 }
 

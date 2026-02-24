@@ -18,9 +18,10 @@ func (a *App) handleGetSystemConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateSystemConfigRequest struct {
-	ImagePortMode         *string `json:"imagePortMode"`
-	ImagePortFixed        *string `json:"imagePortFixed"`
-	ImagePortRealMinBytes *int64  `json:"imagePortRealMinBytes"`
+	ImagePortMode                          *string `json:"imagePortMode"`
+	ImagePortFixed                         *string `json:"imagePortFixed"`
+	ImagePortRealMinBytes                  *int64  `json:"imagePortRealMinBytes"`
+	MtPhotoTimelineDeferSubfolderThreshold *int    `json:"mtPhotoTimelineDeferSubfolderThreshold"`
 }
 
 func (a *App) handleUpdateSystemConfig(w http.ResponseWriter, r *http.Request) {
@@ -51,6 +52,9 @@ func (a *App) handleUpdateSystemConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.ImagePortRealMinBytes != nil {
 		next.ImagePortRealMinBytes = *req.ImagePortRealMinBytes
+	}
+	if req.MtPhotoTimelineDeferSubfolderThreshold != nil {
+		next.MtPhotoTimelineDeferSubfolderThreshold = *req.MtPhotoTimelineDeferSubfolderThreshold
 	}
 
 	updated, err := a.systemConfig.Update(r.Context(), next)

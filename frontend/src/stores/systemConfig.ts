@@ -6,6 +6,7 @@ import { IMG_SERVER_IMAGE_PORT } from '@/constants/config'
 
 const DEFAULT_FIXED_PORT = String(IMG_SERVER_IMAGE_PORT)
 const DEFAULT_REAL_MIN_BYTES = 2048
+const DEFAULT_MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD = 10
 const RESOLVE_CACHE_TTL_MS = 5 * 60 * 1000
 
 export const useSystemConfigStore = defineStore('systemConfig', () => {
@@ -16,6 +17,7 @@ export const useSystemConfigStore = defineStore('systemConfig', () => {
   const imagePortMode = ref<ImagePortMode>('fixed')
   const imagePortFixed = ref<string>(DEFAULT_FIXED_PORT)
   const imagePortRealMinBytes = ref<number>(DEFAULT_REAL_MIN_BYTES)
+  const mtPhotoTimelineDeferSubfolderThreshold = ref<number>(DEFAULT_MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD)
 
   // 端口解析缓存（避免 WS/历史消息频繁调用）
   const resolvedImagePort = ref<string>('')
@@ -26,6 +28,10 @@ export const useSystemConfigStore = defineStore('systemConfig', () => {
     imagePortMode.value = (cfg.imagePortMode || 'fixed') as ImagePortMode
     imagePortFixed.value = String(cfg.imagePortFixed || DEFAULT_FIXED_PORT)
     imagePortRealMinBytes.value = Number(cfg.imagePortRealMinBytes || DEFAULT_REAL_MIN_BYTES)
+    const threshold = Number(cfg.mtPhotoTimelineDeferSubfolderThreshold)
+    mtPhotoTimelineDeferSubfolderThreshold.value = Number.isFinite(threshold) && threshold > 0
+      ? Math.floor(threshold)
+      : DEFAULT_MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD
   }
 
   const clearResolvedCache = (imgServer?: string) => {
@@ -113,10 +119,10 @@ export const useSystemConfigStore = defineStore('systemConfig', () => {
     imagePortMode,
     imagePortFixed,
     imagePortRealMinBytes,
+    mtPhotoTimelineDeferSubfolderThreshold,
     loadSystemConfig,
     saveSystemConfig,
     resolveImagePort,
     clearResolvedCache
   }
 })
-

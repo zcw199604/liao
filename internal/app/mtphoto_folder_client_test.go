@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -141,7 +142,7 @@ func TestMtPhotoService_GetFolderContentPage_Paginate(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 
-	content1, total1, pages1, err := svc.GetFolderContentPage(ctx, 644, 1, 2)
+	content1, total1, pages1, err := svc.GetFolderContentPage(ctx, 644, 1, 2, true)
 	if err != nil {
 		t.Fatalf("GetFolderContentPage(page1) error: %v", err)
 	}
@@ -161,7 +162,7 @@ func TestMtPhotoService_GetFolderContentPage_Paginate(t *testing.T) {
 		t.Fatalf("page1 first filename=%q, want b.mp4", content1.FileList[0].FileName)
 	}
 
-	content2, total2, pages2, err := svc.GetFolderContentPage(ctx, 644, 2, 2)
+	content2, total2, pages2, err := svc.GetFolderContentPage(ctx, 644, 2, 2, true)
 	if err != nil {
 		t.Fatalf("GetFolderContentPage(page2) error: %v", err)
 	}
@@ -170,6 +171,68 @@ func TestMtPhotoService_GetFolderContentPage_Paginate(t *testing.T) {
 	}
 	if len(content2.FileList) != 1 || content2.FileList[0].MD5 != "m1" {
 		t.Fatalf("page2 fileList=%v, want [m1]", content2.FileList)
+	}
+}
+
+func TestMtPhotoService_GetFolderContentPage_SkipTimeline(t *testing.T) {
+	var timelineCalls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/login":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "token",
+				"auth_code":    "ac",
+				"expires_in":   time.Now().Add(1 * time.Hour).UnixMilli(),
+			})
+		case "/gateway/foldersV2/700":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"path":       "/photo/large",
+				"folderList": []any{},
+				"fileList": []map[string]any{
+					{
+						"id":       10,
+						"fileName": "plain-a.jpg",
+						"fileType": "JPEG",
+						"MD5":      "plain-a",
+					},
+					{
+						"id":       11,
+						"fileName": "plain-b.mp4",
+						"fileType": "MP4",
+						"MD5":      "plain-b",
+					},
+				},
+			})
+		case "/gateway/folderFiles/700":
+			atomic.AddInt32(&timelineCalls, 1)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"result": []any{},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	t.Cleanup(cancel)
+
+	content, total, pages, err := svc.GetFolderContentPage(ctx, 700, 1, 60, false)
+	if err != nil {
+		t.Fatalf("GetFolderContentPage(skip timeline) error: %v", err)
+	}
+	if atomic.LoadInt32(&timelineCalls) != 0 {
+		t.Fatalf("timeline endpoint should not be called when includeTimeline=false")
+	}
+	if total != 2 || pages != 1 {
+		t.Fatalf("total/pages=%d/%d, want 2/1", total, pages)
+	}
+	if len(content.FileList) != 2 {
+		t.Fatalf("fileList len=%d, want 2", len(content.FileList))
+	}
+	if content.FileList[0].MD5 != "plain-a" || content.FileList[1].MD5 != "plain-b" {
+		t.Fatalf("unexpected file order: %+v", content.FileList)
 	}
 }
 
@@ -194,7 +257,7 @@ func TestMtPhotoService_GetFolderContentPage_StatusError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 
-	_, _, _, err := svc.GetFolderContentPage(ctx, 999, 1, 60)
+	_, _, _, err := svc.GetFolderContentPage(ctx, 999, 1, 60, true)
 	if err == nil {
 		t.Fatalf("expected error")
 	}

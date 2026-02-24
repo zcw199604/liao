@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -124,7 +125,14 @@ func (a *App) handleGetMtPhotoFolderContent(w http.ResponseWriter, r *http.Reque
 		pageSize = 200
 	}
 
-	content, total, totalPages, err := a.mtPhoto.GetFolderContentPage(r.Context(), folderID, page, pageSize)
+	includeTimeline := true
+	if raw := strings.TrimSpace(q.Get("includeTimeline")); raw != "" {
+		if parsed, parseErr := strconv.ParseBool(raw); parseErr == nil {
+			includeTimeline = parsed
+		}
+	}
+
+	content, total, totalPages, err := a.mtPhoto.GetFolderContentPage(r.Context(), folderID, page, pageSize, includeTimeline)
 	if err != nil {
 		writeMtPhotoFolderError(w, err)
 		return

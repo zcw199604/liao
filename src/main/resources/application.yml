@@ -98,3 +98,12 @@ cookiecloud:
   domain: ${COOKIECLOUD_DOMAIN:douyin.com}
   # 缓存抖音 cookie 的时间（小时），默认 72 小时（3 天）
   cookie-expire-hours: ${COOKIECLOUD_COOKIE_EXPIRE_HOURS:72}
+
+# mtPhoto（可选）
+mtphoto:
+  base-url: ${MTPHOTO_BASE_URL:}
+  login-username: ${MTPHOTO_LOGIN_USERNAME:}
+  login-password: ${MTPHOTO_LOGIN_PASSWORD:}
+  login-otp: ${MTPHOTO_LOGIN_OTP:}
+  # 子目录数超过该阈值时，进入目录后延迟加载时间线预览（点击按钮后再加载）
+  timeline-defer-subfolder-threshold: ${MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD:10}

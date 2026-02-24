@@ -95,6 +95,9 @@ func TestHandleUpdateSystemConfig_Success_ClearsResolverCache(t *testing.T) {
 	mock.ExpectExec(`INSERT INTO system_config`).
 		WithArgs(systemConfigKeyImagePortRealMinBytes, "4096", sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`INSERT INTO system_config`).
+		WithArgs(systemConfigKeyMtPhotoTimelineDefer, "12", sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
 	resolver := NewImagePortResolver(nil)
@@ -105,7 +108,7 @@ func TestHandleUpdateSystemConfig_Success_ClearsResolverCache(t *testing.T) {
 		imagePortResolver: resolver,
 	}
 
-	body := `{"imagePortMode":"probe","imagePortFixed":"9006","imagePortRealMinBytes":4096}`
+	body := `{"imagePortMode":"probe","imagePortFixed":"9006","imagePortRealMinBytes":4096,"mtPhotoTimelineDeferSubfolderThreshold":12}`
 	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/updateSystemConfig", bytes.NewBufferString(body))
 	rec := httptest.NewRecorder()
 	a.handleUpdateSystemConfig(rec, req)

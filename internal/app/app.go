@@ -188,7 +188,9 @@ func New(cfg config.Config) (*App, error) {
 		forceoutManager:  NewForceoutManager(),
 		staticDir:        staticDir,
 	}
-	application.systemConfig = NewSystemConfigService(db)
+	systemDefaults := defaultSystemConfig
+	systemDefaults.MtPhotoTimelineDeferSubfolderThreshold = cfg.MtPhotoTimelineDeferSubfolderThreshold
+	application.systemConfig = NewSystemConfigService(db, systemDefaults)
 	application.imagePortResolver = NewImagePortResolver(application.httpClient)
 	_ = application.systemConfig.EnsureDefaults(context.Background())
 	application.wsManager = NewUpstreamWebSocketManager(application.httpClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache, application.chatHistoryCache)

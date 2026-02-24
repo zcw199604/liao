@@ -18,6 +18,7 @@ export interface SystemConfig {
   imagePortMode: ImagePortMode
   imagePortFixed: string
   imagePortRealMinBytes: number
+  mtPhotoTimelineDeferSubfolderThreshold: number
 }
 
 export interface PaginationResponse<T> {

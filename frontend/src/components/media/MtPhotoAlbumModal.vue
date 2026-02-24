@@ -399,10 +399,29 @@
               </div>
             </div>
 
+            <div
+              v-if="mtPhotoStore.folderTimelineDeferred"
+              class="px-4 py-2 border-t border-line bg-surface-2/60 shrink-0 flex flex-wrap items-center gap-2"
+            >
+              <button
+                class="px-3 py-1.5 text-xs rounded-lg border border-line-strong text-fg-subtle hover:text-fg hover:border-pink-500 transition disabled:opacity-50"
+                :disabled="mtPhotoStore.folderLoading"
+                @click="loadFolderTimeline"
+              >
+                {{ mtPhotoStore.folderLoading ? '加载中...' : '加载时间线图片' }}
+              </button>
+              <span class="text-xs text-fg-subtle">
+                当前目录子文件夹超过 {{ mtPhotoStore.folderTimelineThreshold }} 个，已暂停自动加载时间线预览
+              </span>
+            </div>
+
             <InfiniteMediaGrid
               :items="mtPhotoStore.folderFiles"
               :loading="mtPhotoStore.folderLoading"
-              :finished="mtPhotoStore.folderTotalPages > 0 && mtPhotoStore.folderPage >= mtPhotoStore.folderTotalPages"
+              :finished="
+                mtPhotoStore.folderTimelineDeferred ||
+                (mtPhotoStore.folderTotalPages > 0 && mtPhotoStore.folderPage >= mtPhotoStore.folderTotalPages)
+              "
               :total="mtPhotoStore.folderTotal"
               :layout-mode="layoutMode"
               :item-key="(item, idx) => item.md5 + '-' + idx"
@@ -433,7 +452,11 @@
 
               <template #empty>
                 <div class="flex items-center justify-center text-fg-subtle text-sm h-full">
-                  当前目录暂无图片
+                  {{
+                    mtPhotoStore.folderTimelineDeferred
+                      ? '已暂停自动加载时间线，点击上方按钮后查看'
+                      : '当前目录暂无图片'
+                  }}
                 </div>
               </template>
 
@@ -781,6 +804,13 @@ const switchMode = async (mode: 'albums' | 'folders') => {
     closeFavoriteEditor()
   }
   await mtPhotoStore.switchMode(mode)
+}
+
+const loadFolderTimeline = async () => {
+  const ok = await mtPhotoStore.loadFolderTimeline()
+  if (!ok && mtPhotoStore.lastError) {
+    show(mtPhotoStore.lastError)
+  }
 }
 
 const getThumbUrl = (size: 's260' | 'h220', md5: string) => {

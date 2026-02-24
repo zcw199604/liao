@@ -25,30 +25,55 @@ const (
 	systemConfigKeyImagePortMode         = "image_port_mode"
 	systemConfigKeyImagePortFixed        = "image_port_fixed"
 	systemConfigKeyImagePortRealMinBytes = "image_port_real_min_bytes"
+	systemConfigKeyMtPhotoTimelineDefer  = "mtphoto_timeline_defer_subfolder_threshold"
 )
 
 var defaultSystemConfig = SystemConfig{
-	ImagePortMode:         ImagePortModeFixed,
-	ImagePortFixed:        "9006",
-	ImagePortRealMinBytes: 2048,
+	ImagePortMode:                          ImagePortModeFixed,
+	ImagePortFixed:                         "9006",
+	ImagePortRealMinBytes:                  2048,
+	MtPhotoTimelineDeferSubfolderThreshold: 10,
 }
 
 type SystemConfig struct {
-	ImagePortMode         ImagePortMode `json:"imagePortMode"`
-	ImagePortFixed        string        `json:"imagePortFixed"`
-	ImagePortRealMinBytes int64         `json:"imagePortRealMinBytes"`
+	ImagePortMode                          ImagePortMode `json:"imagePortMode"`
+	ImagePortFixed                         string        `json:"imagePortFixed"`
+	ImagePortRealMinBytes                  int64         `json:"imagePortRealMinBytes"`
+	MtPhotoTimelineDeferSubfolderThreshold int           `json:"mtPhotoTimelineDeferSubfolderThreshold"`
 }
 
 type SystemConfigService struct {
 	db *database.DB
+	// defaults 由环境变量注入（若未注入则使用 defaultSystemConfig）
+	defaults SystemConfig
 
 	mu     sync.RWMutex
 	loaded bool
 	cached SystemConfig
 }
 
-func NewSystemConfigService(db *database.DB) *SystemConfigService {
-	return &SystemConfigService{db: db}
+func NewSystemConfigService(db *database.DB, defaults ...SystemConfig) *SystemConfigService {
+	base := defaultSystemConfig
+	if len(defaults) > 0 {
+		if normalized, err := normalizeSystemConfigWithDefaults(defaults[0], defaultSystemConfig); err == nil {
+			base = normalized
+		}
+	}
+	return &SystemConfigService{
+		db:       db,
+		defaults: base,
+	}
+}
+
+func (s *SystemConfigService) serviceDefaults() SystemConfig {
+	if s == nil {
+		return defaultSystemConfig
+	}
+	defaults := s.defaults
+	if normalized, err := normalizeSystemConfigWithDefaults(defaults, defaultSystemConfig); err == nil {
+		return normalized
+	}
+	return defaultSystemConfig
 }
 
 func (s *SystemConfigService) EnsureDefaults(ctx context.Context) error {
@@ -57,10 +82,12 @@ func (s *SystemConfigService) EnsureDefaults(ctx context.Context) error {
 	}
 
 	now := time.Now()
+	defaultsCfg := s.serviceDefaults()
 	defaults := map[string]string{
-		systemConfigKeyImagePortMode:         string(defaultSystemConfig.ImagePortMode),
-		systemConfigKeyImagePortFixed:        defaultSystemConfig.ImagePortFixed,
-		systemConfigKeyImagePortRealMinBytes: fmt.Sprint(defaultSystemConfig.ImagePortRealMinBytes),
+		systemConfigKeyImagePortMode:         string(defaultsCfg.ImagePortMode),
+		systemConfigKeyImagePortFixed:        defaultsCfg.ImagePortFixed,
+		systemConfigKeyImagePortRealMinBytes: fmt.Sprint(defaultsCfg.ImagePortRealMinBytes),
+		systemConfigKeyMtPhotoTimelineDefer:  fmt.Sprint(defaultsCfg.MtPhotoTimelineDeferSubfolderThreshold),
 	}
 
 	for k, v := range defaults {
@@ -82,8 +109,11 @@ func (s *SystemConfigService) EnsureDefaults(ctx context.Context) error {
 }
 
 func (s *SystemConfigService) Get(ctx context.Context) (SystemConfig, error) {
-	if s == nil || s.db == nil {
+	if s == nil {
 		return defaultSystemConfig, nil
+	}
+	if s.db == nil {
+		return s.serviceDefaults(), nil
 	}
 
 	s.mu.RLock()
@@ -108,13 +138,14 @@ func (s *SystemConfigService) Get(ctx context.Context) (SystemConfig, error) {
 }
 
 func (s *SystemConfigService) load(ctx context.Context) (SystemConfig, error) {
-	out := defaultSystemConfig
+	out := s.serviceDefaults()
 
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT config_key, config_value FROM system_config WHERE config_key IN (?, ?, ?)",
+		"SELECT config_key, config_value FROM system_config WHERE config_key IN (?, ?, ?, ?)",
 		systemConfigKeyImagePortMode,
 		systemConfigKeyImagePortFixed,
 		systemConfigKeyImagePortRealMinBytes,
+		systemConfigKeyMtPhotoTimelineDefer,
 	)
 	if err != nil {
 		return SystemConfig{}, err
@@ -148,13 +179,19 @@ func (s *SystemConfigService) load(ctx context.Context) (SystemConfig, error) {
 					out.ImagePortRealMinBytes = n
 				}
 			}
+		case systemConfigKeyMtPhotoTimelineDefer:
+			if value != "" {
+				if n, err := strconv.Atoi(value); err == nil && n > 0 {
+					out.MtPhotoTimelineDeferSubfolderThreshold = n
+				}
+			}
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return SystemConfig{}, err
 	}
 
-	return normalizeSystemConfig(out)
+	return normalizeSystemConfigWithDefaults(out, s.serviceDefaults())
 }
 
 func (s *SystemConfigService) Update(ctx context.Context, next SystemConfig) (SystemConfig, error) {
@@ -162,7 +199,7 @@ func (s *SystemConfigService) Update(ctx context.Context, next SystemConfig) (Sy
 		return SystemConfig{}, fmt.Errorf("系统配置服务未初始化")
 	}
 
-	normalized, err := normalizeSystemConfig(next)
+	normalized, err := normalizeSystemConfigWithDefaults(next, s.serviceDefaults())
 	if err != nil {
 		return SystemConfig{}, err
 	}
@@ -200,6 +237,9 @@ func (s *SystemConfigService) Update(ctx context.Context, next SystemConfig) (Sy
 	if err := upsert(systemConfigKeyImagePortRealMinBytes, fmt.Sprint(normalized.ImagePortRealMinBytes)); err != nil {
 		return SystemConfig{}, err
 	}
+	if err := upsert(systemConfigKeyMtPhotoTimelineDefer, fmt.Sprint(normalized.MtPhotoTimelineDeferSubfolderThreshold)); err != nil {
+		return SystemConfig{}, err
+	}
 
 	if err := tx.Commit(); err != nil {
 		return SystemConfig{}, err
@@ -214,9 +254,13 @@ func (s *SystemConfigService) Update(ctx context.Context, next SystemConfig) (Sy
 }
 
 func normalizeSystemConfig(cfg SystemConfig) (SystemConfig, error) {
+	return normalizeSystemConfigWithDefaults(cfg, defaultSystemConfig)
+}
+
+func normalizeSystemConfigWithDefaults(cfg, defaults SystemConfig) (SystemConfig, error) {
 	mode := ImagePortMode(strings.TrimSpace(string(cfg.ImagePortMode)))
 	if mode == "" {
-		mode = defaultSystemConfig.ImagePortMode
+		mode = defaults.ImagePortMode
 	}
 	switch mode {
 	case ImagePortModeFixed, ImagePortModeProbe, ImagePortModeReal:
@@ -226,7 +270,7 @@ func normalizeSystemConfig(cfg SystemConfig) (SystemConfig, error) {
 
 	fixedPort := strings.TrimSpace(cfg.ImagePortFixed)
 	if fixedPort == "" {
-		fixedPort = defaultSystemConfig.ImagePortFixed
+		fixedPort = defaults.ImagePortFixed
 	}
 	if _, err := parsePortString(fixedPort); err != nil {
 		return SystemConfig{}, err
@@ -234,16 +278,25 @@ func normalizeSystemConfig(cfg SystemConfig) (SystemConfig, error) {
 
 	minBytes := cfg.ImagePortRealMinBytes
 	if minBytes <= 0 {
-		minBytes = defaultSystemConfig.ImagePortRealMinBytes
+		minBytes = defaults.ImagePortRealMinBytes
 	}
 	if minBytes < 256 || minBytes > 64*1024 {
 		return SystemConfig{}, fmt.Errorf("imagePortRealMinBytes 超出范围（256~65536）: %d", minBytes)
 	}
 
+	deferThreshold := cfg.MtPhotoTimelineDeferSubfolderThreshold
+	if deferThreshold <= 0 {
+		deferThreshold = defaults.MtPhotoTimelineDeferSubfolderThreshold
+	}
+	if deferThreshold < 1 || deferThreshold > 500 {
+		return SystemConfig{}, fmt.Errorf("mtPhotoTimelineDeferSubfolderThreshold 超出范围（1~500）: %d", deferThreshold)
+	}
+
 	return SystemConfig{
-		ImagePortMode:         mode,
-		ImagePortFixed:        fixedPort,
-		ImagePortRealMinBytes: minBytes,
+		ImagePortMode:                          mode,
+		ImagePortFixed:                         fixedPort,
+		ImagePortRealMinBytes:                  minBytes,
+		MtPhotoTimelineDeferSubfolderThreshold: deferThreshold,
 	}, nil
 }
 

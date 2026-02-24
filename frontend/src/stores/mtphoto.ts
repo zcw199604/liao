@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import * as mtphotoApi from '@/api/mtphoto'
+import { useSystemConfigStore } from '@/stores/systemConfig'
 
 const MTPHOTO_FAVORITES_ALBUM_ID = 1
+const DEFAULT_MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD = 10
 
 export interface MtPhotoAlbum {
   // 本地唯一 ID（用于 v-for key / 选中态），避免与上游保留相册（如收藏夹）ID 冲突
@@ -205,6 +207,8 @@ const mapFavoriteItem = (raw: any): MtPhotoFolderFavorite | null => {
 }
 
 export const useMtPhotoStore = defineStore('mtphoto', () => {
+  const systemConfigStore = useSystemConfigStore()
+
   const showModal = ref(false)
   const mode = ref<'albums' | 'folders'>('albums')
   const view = ref<'albums' | 'album' | 'folders'>('albums')
@@ -233,6 +237,8 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
   const folderPageSize = ref(60)
   const folderTotal = ref(0)
   const folderTotalPages = ref(0)
+  const folderTimelineDeferred = ref(false)
+  const folderTimelineThreshold = ref(DEFAULT_MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD)
   const folderHistory = ref<MtPhotoFolderHistoryItem[]>([{ folderId: null, folderName: '根目录' }])
 
   const folderFavorites = ref<MtPhotoFolderFavorite[]>([])
@@ -341,6 +347,7 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     folderPageSize.value = 60
     folderTotal.value = 0
     folderTotalPages.value = 0
+    folderTimelineDeferred.value = false
     folderHistory.value = [{ folderId: null, folderName: '根目录' }]
   }
 
@@ -507,6 +514,33 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     }
   }
 
+  const normalizeTimelineThreshold = (raw: unknown) => {
+    const value = Number(raw)
+    if (!Number.isFinite(value) || value <= 0) {
+      return DEFAULT_MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD
+    }
+    if (value > 500) return 500
+    return Math.floor(value)
+  }
+
+  const syncFolderTimelineThreshold = async () => {
+    if (!systemConfigStore.loaded && !systemConfigStore.loading) {
+      await systemConfigStore.loadSystemConfig()
+    }
+    folderTimelineThreshold.value = normalizeTimelineThreshold(systemConfigStore.mtPhotoTimelineDeferSubfolderThreshold)
+  }
+
+  const shouldDeferFolderTimeline = (subFolderCount: number) => {
+    return Number.isFinite(subFolderCount) && subFolderCount > folderTimelineThreshold.value
+  }
+
+  const applyDeferredFolderTimelinePlaceholder = () => {
+    folderTimelineDeferred.value = true
+    folderFiles.value = []
+    folderPage.value = 1
+    folderTotalPages.value = 0
+  }
+
   const loadFolderRoot = async () => {
     folderLoading.value = true
     try {
@@ -516,6 +550,7 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
       folderCurrentCoverMd5.value = ''
       folderHistory.value = [{ folderId: null, folderName: '根目录' }]
       applyFolderContent(res, false)
+      folderTimelineDeferred.value = false
       lastError.value = ''
     } catch (e: any) {
       console.error('加载 mtPhoto 根目录失败:', e)
@@ -531,6 +566,7 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     options?: {
       folderName?: string
       coverMd5?: string
+      subFolderNum?: number
       fromHistory?: boolean
       resetHistory?: boolean
     }
@@ -538,7 +574,14 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     if (!Number.isFinite(folderID) || folderID <= 0) return false
     folderLoading.value = true
     try {
-      const res = await mtphotoApi.getMtPhotoFolderContent(folderID, 1, folderPageSize.value)
+      await syncFolderTimelineThreshold()
+      const hintedSubFolderNum = Number(options?.subFolderNum)
+      const hasSubFolderHint = Number.isFinite(hintedSubFolderNum) && hintedSubFolderNum >= 0
+      const shouldLoadTimelineInitially = hasSubFolderHint
+        ? !shouldDeferFolderTimeline(hintedSubFolderNum)
+        : false
+
+      const res = await mtphotoApi.getMtPhotoFolderContent(folderID, 1, folderPageSize.value, shouldLoadTimelineInitially)
       folderCurrentId.value = folderID
       folderCurrentName.value =
         String(options?.folderName || '').trim() || normalizeFolderName(String(res?.path || ''), `目录 ${folderID}`)
@@ -566,6 +609,17 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
       }
 
       applyFolderContent(res, false)
+      const subFolderCount = Array.isArray(res?.folderList) ? res.folderList.length : 0
+      if (shouldDeferFolderTimeline(subFolderCount)) {
+        applyDeferredFolderTimelinePlaceholder()
+      } else if (!shouldLoadTimelineInitially) {
+        const timelineRes = await mtphotoApi.getMtPhotoFolderContent(folderID, 1, folderPageSize.value, true)
+        applyFolderContent(timelineRes, false)
+        folderTimelineDeferred.value = false
+      } else {
+        folderTimelineDeferred.value = false
+      }
+
       lastError.value = ''
       return true
     } catch (e: any) {
@@ -581,7 +635,8 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     const coverMD5 = firstCoverMD5(folder.cover, folder.sCover)
     await loadFolderByID(folder.id, {
       folderName: folder.name,
-      coverMd5: coverMD5
+      coverMd5: coverMD5,
+      subFolderNum: folder.subFolderNum
     })
   }
 
@@ -609,16 +664,43 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
   const loadFolderMore = async () => {
     if (folderLoading.value) return
     if (!folderCurrentId.value) return
+    if (folderTimelineDeferred.value) return
     if (folderTotalPages.value > 0 && folderPage.value >= folderTotalPages.value) return
 
     folderLoading.value = true
     try {
-      const res = await mtphotoApi.getMtPhotoFolderContent(folderCurrentId.value, folderPage.value + 1, folderPageSize.value)
+      const res = await mtphotoApi.getMtPhotoFolderContent(
+        folderCurrentId.value,
+        folderPage.value + 1,
+        folderPageSize.value,
+        true
+      )
       applyFolderContent(res, true)
       lastError.value = ''
     } catch (e: any) {
       console.error('加载更多目录图片失败:', e)
       lastError.value = e?.response?.data?.error || e?.message || '加载失败'
+    } finally {
+      folderLoading.value = false
+    }
+  }
+
+  const loadFolderTimeline = async () => {
+    if (folderLoading.value) return false
+    if (!folderCurrentId.value) return false
+    if (!folderTimelineDeferred.value) return false
+
+    folderLoading.value = true
+    try {
+      const res = await mtphotoApi.getMtPhotoFolderContent(folderCurrentId.value, 1, folderPageSize.value, true)
+      applyFolderContent(res, false)
+      folderTimelineDeferred.value = false
+      lastError.value = ''
+      return true
+    } catch (e: any) {
+      console.error('加载目录时间线图片失败:', e)
+      lastError.value = e?.response?.data?.error || e?.message || '加载失败'
+      return false
     } finally {
       folderLoading.value = false
     }
@@ -823,6 +905,7 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     }
 
     view.value = 'folders'
+    await syncFolderTimelineThreshold()
     await Promise.all([loadFolderRoot(), loadFolderFavorites()])
   }
 
@@ -852,6 +935,8 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     folderPageSize,
     folderTotal,
     folderTotalPages,
+    folderTimelineDeferred,
+    folderTimelineThreshold,
     folderHistory,
     folderFavorites,
     folderFavoritesLoading,
@@ -882,6 +967,7 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     openFolder,
     backFolder,
     loadFolderMore,
+    loadFolderTimeline,
     loadFolderFavorites,
     openFavoriteFolder,
     setFavoriteFilterKeyword,

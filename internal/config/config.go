@@ -66,6 +66,9 @@ type Config struct {
 	MtPhotoLoginUsername string
 	MtPhotoLoginPassword string
 	MtPhotoLoginOTP      string
+	// MtPhotoTimelineDeferSubfolderThreshold 控制 mtPhoto 目录“延迟加载时间线”的阈值（子目录数 > 阈值时延迟）。
+	// 默认 10；可通过环境变量 MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD 覆盖。
+	MtPhotoTimelineDeferSubfolderThreshold int
 
 	// TikTokDownloaderBaseURL 为 TikTokDownloader Web API（FastAPI）地址（可选；未配置时抖音相关 API 将返回错误）。
 	// 参考知识库：helloagents/wiki/external/tiktokdownloader-web-api.md
@@ -143,6 +146,10 @@ func Load() (Config, error) {
 		MtPhotoLoginUsername: getEnv("MTPHOTO_LOGIN_USERNAME", ""),
 		MtPhotoLoginPassword: getEnv("MTPHOTO_LOGIN_PASSWORD", ""),
 		MtPhotoLoginOTP:      getEnv("MTPHOTO_LOGIN_OTP", ""),
+		MtPhotoTimelineDeferSubfolderThreshold: getEnvInt(
+			"MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD",
+			10,
+		),
 
 		TikTokDownloaderBaseURL: getEnvOptional2("TIKTOKDOWNLOADER_BASE_URL", "TIKTOK_DOWNLOADER_BASE_URL"),
 		TikTokDownloaderToken:   getEnvOptional2("TIKTOKDOWNLOADER_TOKEN", "TIKTOK_DOWNLOADER_TOKEN"),
@@ -243,6 +250,13 @@ func Load() (Config, error) {
 
 	if cfg.CookieCloudCookieExpireHours <= 0 {
 		cfg.CookieCloudCookieExpireHours = 72
+	}
+
+	if cfg.MtPhotoTimelineDeferSubfolderThreshold <= 0 {
+		cfg.MtPhotoTimelineDeferSubfolderThreshold = 10
+	}
+	if cfg.MtPhotoTimelineDeferSubfolderThreshold > 500 {
+		return Config{}, fmt.Errorf("MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD 非法: %d（最大 500）", cfg.MtPhotoTimelineDeferSubfolderThreshold)
 	}
 
 	return cfg, nil

@@ -35,6 +35,9 @@ func TestSystemConfigService_EnsureDefaults_InsertsAndErrors(t *testing.T) {
 		mock.ExpectExec(`INSERT (IGNORE )?INTO system_config`).
 			WithArgs(systemConfigKeyImagePortRealMinBytes, "2048", sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectExec(`INSERT (IGNORE )?INTO system_config`).
+			WithArgs(systemConfigKeyMtPhotoTimelineDefer, "10", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		svc := NewSystemConfigService(wrapMySQLDB(db))
 		if err := svc.EnsureDefaults(context.Background()); err != nil {
@@ -93,6 +96,9 @@ func TestSystemConfigService_Update_UpsertsAndCaches(t *testing.T) {
 	mock.ExpectExec(`INSERT INTO system_config`).
 		WithArgs(systemConfigKeyImagePortRealMinBytes, "2048", sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`INSERT INTO system_config`).
+		WithArgs(systemConfigKeyMtPhotoTimelineDefer, "10", sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
 	updated, err := svc.Update(context.Background(), SystemConfig{
@@ -128,7 +134,7 @@ func TestSystemConfigService_Get_LoadsFromDBWithDefaults(t *testing.T) {
 	defer cleanup()
 
 	mock.ExpectQuery(`SELECT config_key, config_value FROM system_config WHERE config_key IN`).
-		WithArgs(systemConfigKeyImagePortMode, systemConfigKeyImagePortFixed, systemConfigKeyImagePortRealMinBytes).
+		WithArgs(systemConfigKeyImagePortMode, systemConfigKeyImagePortFixed, systemConfigKeyImagePortRealMinBytes, systemConfigKeyMtPhotoTimelineDefer).
 		WillReturnRows(sqlmock.NewRows([]string{"config_key", "config_value"}).
 			AddRow(systemConfigKeyImagePortMode, "real").
 			AddRow(systemConfigKeyImagePortRealMinBytes, "4096"),
@@ -156,7 +162,7 @@ func TestSystemConfigService_Get_LoadError(t *testing.T) {
 	defer cleanup()
 
 	mock.ExpectQuery(`SELECT config_key, config_value FROM system_config WHERE config_key IN`).
-		WithArgs(systemConfigKeyImagePortMode, systemConfigKeyImagePortFixed, systemConfigKeyImagePortRealMinBytes).
+		WithArgs(systemConfigKeyImagePortMode, systemConfigKeyImagePortFixed, systemConfigKeyImagePortRealMinBytes, systemConfigKeyMtPhotoTimelineDefer).
 		WillReturnError(errors.New("query fail"))
 
 	svc := NewSystemConfigService(wrapMySQLDB(db))
@@ -170,7 +176,7 @@ func TestSystemConfigService_Get_Load_IgnoresInvalidValues(t *testing.T) {
 	defer cleanup()
 
 	mock.ExpectQuery(`SELECT config_key, config_value FROM system_config WHERE config_key IN`).
-		WithArgs(systemConfigKeyImagePortMode, systemConfigKeyImagePortFixed, systemConfigKeyImagePortRealMinBytes).
+		WithArgs(systemConfigKeyImagePortMode, systemConfigKeyImagePortFixed, systemConfigKeyImagePortRealMinBytes, systemConfigKeyMtPhotoTimelineDefer).
 		WillReturnRows(sqlmock.NewRows([]string{"config_key", "config_value"}).
 			AddRow(systemConfigKeyImagePortMode, "bad").
 			AddRow(systemConfigKeyImagePortMode, "probe").
@@ -203,7 +209,7 @@ func TestSystemConfigService_Get_Load_ScanErrorAndRowsErr(t *testing.T) {
 		defer cleanup()
 
 		mock.ExpectQuery(`SELECT config_key, config_value FROM system_config WHERE config_key IN`).
-			WithArgs(systemConfigKeyImagePortMode, systemConfigKeyImagePortFixed, systemConfigKeyImagePortRealMinBytes).
+			WithArgs(systemConfigKeyImagePortMode, systemConfigKeyImagePortFixed, systemConfigKeyImagePortRealMinBytes, systemConfigKeyMtPhotoTimelineDefer).
 			WillReturnRows(sqlmock.NewRows([]string{"config_key", "config_value"}).
 				AddRow(systemConfigKeyImagePortMode, nil),
 			)
@@ -219,7 +225,7 @@ func TestSystemConfigService_Get_Load_ScanErrorAndRowsErr(t *testing.T) {
 		defer cleanup()
 
 		mock.ExpectQuery(`SELECT config_key, config_value FROM system_config WHERE config_key IN`).
-			WithArgs(systemConfigKeyImagePortMode, systemConfigKeyImagePortFixed, systemConfigKeyImagePortRealMinBytes).
+			WithArgs(systemConfigKeyImagePortMode, systemConfigKeyImagePortFixed, systemConfigKeyImagePortRealMinBytes, systemConfigKeyMtPhotoTimelineDefer).
 			WillReturnRows(sqlmock.NewRows([]string{"config_key", "config_value"}).
 				AddRow(systemConfigKeyImagePortMode, "probe").
 				RowError(0, errors.New("next fail")),
@@ -332,6 +338,34 @@ func TestSystemConfigService_Update_Errors(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectExec(`INSERT INTO system_config`).
 			WithArgs(systemConfigKeyImagePortRealMinBytes, "2048", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectExec(`INSERT INTO system_config`).
+			WithArgs(systemConfigKeyMtPhotoTimelineDefer, "10", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WillReturnError(errors.New("upsert fail"))
+		mock.ExpectRollback()
+
+		svc := NewSystemConfigService(wrapMySQLDB(db))
+		if _, err := svc.Update(context.Background(), defaultSystemConfig); err == nil {
+			t.Fatalf("expected error")
+		}
+	}
+
+	{
+		db, mock, cleanup := newSQLMock(t)
+		defer cleanup()
+
+		mock.ExpectBegin()
+		mock.ExpectExec(`INSERT INTO system_config`).
+			WithArgs(systemConfigKeyImagePortMode, string(defaultSystemConfig.ImagePortMode), sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectExec(`INSERT INTO system_config`).
+			WithArgs(systemConfigKeyImagePortFixed, defaultSystemConfig.ImagePortFixed, sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectExec(`INSERT INTO system_config`).
+			WithArgs(systemConfigKeyImagePortRealMinBytes, "2048", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectExec(`INSERT INTO system_config`).
+			WithArgs(systemConfigKeyMtPhotoTimelineDefer, "10", sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit().WillReturnError(errors.New("commit fail"))
 

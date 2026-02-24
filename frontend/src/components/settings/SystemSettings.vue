@@ -178,10 +178,23 @@
               max="65536"
             />
           </div>
+
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-fg-muted">mtPhoto 时间线延迟阈值</span>
+            <input
+              v-model.number="draftMtPhotoTimelineThreshold"
+              type="number"
+              inputmode="numeric"
+              class="w-24 bg-surface-3 text-fg text-sm rounded-lg px-2 py-1 border border-line-strong focus:outline-none focus:ring-2 focus:ring-purple-500 text-right"
+              placeholder="10"
+              min="1"
+              max="500"
+            />
+          </div>
         </div>
 
         <p class="text-xs text-fg-subtle leading-relaxed">
-          视频端口仍保持现有固定逻辑；仅图片按上述策略解析。真实图片请求会对候选端口发起小范围读取并按阈值判定，首次可能稍慢。
+          视频端口仍保持现有固定逻辑；仅图片按上述策略解析。真实图片请求会对候选端口发起小范围读取并按阈值判定，首次可能稍慢。mtPhoto 阈值用于控制“子文件夹数超过阈值时，延迟加载时间线预览”。
         </p>
       </div>
     </div>
@@ -216,6 +229,7 @@ const themeStore = useThemeStore()
 const draftMode = ref<ImagePortMode>('fixed')
 const draftFixedPort = ref('9006')
 const draftRealMinBytes = ref(2048)
+const draftMtPhotoTimelineThreshold = ref(10)
 
 const savingConfig = computed(() => systemConfigStore.saving)
 const themePreferenceLabel = computed(() => {
@@ -230,13 +244,15 @@ onMounted(async () => {
   draftMode.value = systemConfigStore.imagePortMode
   draftFixedPort.value = String(systemConfigStore.imagePortFixed || '9006')
   draftRealMinBytes.value = Number(systemConfigStore.imagePortRealMinBytes || 2048)
+  draftMtPhotoTimelineThreshold.value = Number(systemConfigStore.mtPhotoTimelineDeferSubfolderThreshold || 10)
 })
 
 const saveImagePortConfig = async () => {
   const ok = await systemConfigStore.saveSystemConfig({
     imagePortMode: draftMode.value,
     imagePortFixed: String(draftFixedPort.value || '9006'),
-    imagePortRealMinBytes: Number(draftRealMinBytes.value || 2048)
+    imagePortRealMinBytes: Number(draftRealMinBytes.value || 2048),
+    mtPhotoTimelineDeferSubfolderThreshold: Number(draftMtPhotoTimelineThreshold.value || 10)
   })
   show(ok ? '已保存' : '保存失败')
 }

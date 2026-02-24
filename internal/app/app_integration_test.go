@@ -267,7 +267,7 @@ func TestNew_ErrorBranches(t *testing.T) {
 		t.Fatalf("expected userInfoCache closed")
 	}
 
-	// EnsureDefaults 被 New 调用（INSERT IGNORE x3）
+	// EnsureDefaults 被 New 调用（INSERT IGNORE x4）
 	_ = mock
 }
 
@@ -291,7 +291,7 @@ func TestNew_Success_MemoryCacheAndShutdown(t *testing.T) {
 	resolveStaticDirFn = func() string { return "static" }
 	mkdirAllFn = func(path string, perm os.FileMode) error { return nil }
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 4; i++ {
 		mock.ExpectExec(`INSERT (IGNORE )?INTO system_config`).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 	}

@@ -783,7 +783,12 @@ func (s *MtPhotoService) getFolderTimelineFiles(ctx context.Context, folderID in
 	return mapped, total, nil
 }
 
-func (s *MtPhotoService) GetFolderContentPage(ctx context.Context, folderID int64, page, pageSize int) (content *MtPhotoFolderContent, total int, totalPages int, err error) {
+func (s *MtPhotoService) GetFolderContentPage(
+	ctx context.Context,
+	folderID int64,
+	page, pageSize int,
+	includeTimeline bool,
+) (content *MtPhotoFolderContent, total int, totalPages int, err error) {
 	if folderID <= 0 {
 		return nil, 0, 0, fmt.Errorf("folderId 非法")
 	}
@@ -803,10 +808,12 @@ func (s *MtPhotoService) GetFolderContentPage(ctx context.Context, folderID int6
 	}
 
 	total = len(content.FileList)
-	timelineItems, _, timelineErr := s.getFolderTimelineFiles(ctx, folderID)
-	if timelineErr == nil && len(timelineItems) > 0 {
-		content.FileList = mergeFolderTimelineWithDetail(timelineItems, content.FileList)
-		total = len(content.FileList)
+	if includeTimeline {
+		timelineItems, _, timelineErr := s.getFolderTimelineFiles(ctx, folderID)
+		if timelineErr == nil && len(timelineItems) > 0 {
+			content.FileList = mergeFolderTimelineWithDetail(timelineItems, content.FileList)
+			total = len(content.FileList)
+		}
 	}
 
 	totalPages = calcTotalPages(total, pageSize)
