@@ -107,6 +107,17 @@ describe('stores/message normalize & optimistic merge', () => {
     expect(store.getMessages('u1').map(m => String(m.content))).toEqual(['', 'a'])
   })
 
+  it('sort comparator handles missing content fallback branch when dedup keys differ', () => {
+    const store = useMessageStore()
+    store.setMessages('u1', [
+      makeMsg({ tid: '', time: 'same', fromuser: makeUser('a'), touser: makeUser('to-1'), content: 'b' }),
+      makeMsg({ tid: '', time: 'same', fromuser: makeUser('a'), touser: makeUser('to-2'), content: undefined }),
+      makeMsg({ tid: '', time: 'same', fromuser: makeUser('a'), touser: makeUser('to-3'), content: 'a' })
+    ])
+
+    expect(store.getMessages('u1').map(m => String(m.content || ''))).toEqual(['', 'a', 'b'])
+  })
+
   it('covers sort fallbacks for missing type/fromuser/content fields', () => {
     const store = useMessageStore()
 
@@ -632,5 +643,82 @@ describe('stores/message normalize & optimistic merge', () => {
 
     expect(ok).toBe(true)
     expect(String(store.getMessages('u1')[0]?.content)).toBe('b')
+  })
+
+  it('updateMessageByClientId returns false when matched slot becomes empty before updater executes', () => {
+    const store = useMessageStore()
+    const list: any[] = []
+    const unstable = makeMsg({ content: 'x' }) as any
+    Object.defineProperty(unstable, 'clientId', {
+      configurable: true,
+      get() {
+        list[0] = undefined
+        return 'cid-unstable'
+      }
+    })
+    list.push(unstable)
+    store.chatHistory.set('u1', list as any)
+
+    const ok = store.updateMessageByClientId('u1', 'cid-unstable', () => {})
+    expect(ok).toBe(false)
+  })
+
+  it('confirmOutgoingEcho skips sparse holes when scanning candidates', () => {
+    const store = useMessageStore()
+    const sparse: any[] = []
+    sparse.length = 2
+    sparse[1] = makeMsg({
+      isSelf: false,
+      tid: '',
+      time: '2026-01-01 00:00:00.000',
+      content: 'hello',
+      clientId: 'cid-1',
+      sendStatus: 'sending',
+      optimistic: true
+    })
+    store.chatHistory.set('u1', sparse as any)
+
+    const ok = store.confirmOutgoingEcho(
+      'u1',
+      makeMsg({
+        isSelf: true,
+        tid: 't-echo',
+        time: '2026-01-01 00:00:00.100',
+        content: 'hello'
+      })
+    )
+    expect(ok).toBe(false)
+  })
+
+  it('confirmOutgoingEcho returns false when selected target loses clientId after scan', () => {
+    const store = useMessageStore()
+    let readCount = 0
+    const unstable = makeMsg({
+      isSelf: true,
+      tid: '',
+      time: '2026-01-01 00:00:00.000',
+      content: 'volatile',
+      sendStatus: 'sending',
+      optimistic: true
+    }) as any
+    Object.defineProperty(unstable, 'clientId', {
+      configurable: true,
+      get() {
+        readCount += 1
+        return readCount === 1 ? 'cid-volatile' : undefined
+      }
+    })
+
+    store.chatHistory.set('u1', [unstable] as any)
+    const ok = store.confirmOutgoingEcho(
+      'u1',
+      makeMsg({
+        isSelf: true,
+        tid: 't-volatile',
+        time: '2026-01-01 00:00:00.050',
+        content: 'volatile'
+      })
+    )
+    expect(ok).toBe(false)
   })
 })

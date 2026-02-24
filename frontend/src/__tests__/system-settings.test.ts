@@ -119,7 +119,8 @@ describe('components/settings/SystemSettings.vue', () => {
     expect(saveSpy).toHaveBeenCalledWith({
       imagePortMode: 'probe',
       imagePortFixed: '9010',
-      imagePortRealMinBytes: 2048
+      imagePortRealMinBytes: 2048,
+      mtPhotoTimelineDeferSubfolderThreshold: 10
     })
     expect(toastShow).toHaveBeenCalledWith('已保存')
 

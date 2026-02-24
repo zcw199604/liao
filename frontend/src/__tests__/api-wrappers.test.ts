@@ -299,6 +299,62 @@ describe('api/mtphoto', () => {
     mtphotoApi.getMtPhotoAlbumFiles(1, 2, 3)
     expect(spies.requestGet).toHaveBeenCalledWith('/getMtPhotoAlbumFiles', { params: { albumId: 1, page: 2, pageSize: 3 } })
 
+    mtphotoApi.getMtPhotoFolderRoot()
+    expect(spies.requestGet).toHaveBeenCalledWith('/getMtPhotoFolderRoot')
+
+    mtphotoApi.getMtPhotoFolderContent(7, 1, 60)
+    expect(spies.requestGet).toHaveBeenCalledWith('/getMtPhotoFolderContent', {
+      params: { folderId: 7, page: 1, pageSize: 60, includeTimeline: true }
+    })
+
+    mtphotoApi.getMtPhotoFolderContent(8, 2, 30, false)
+    expect(spies.requestGet).toHaveBeenCalledWith('/getMtPhotoFolderContent', {
+      params: { folderId: 8, page: 2, pageSize: 30, includeTimeline: false }
+    })
+
+    mtphotoApi.getMtPhotoFolderBreadcrumbs(7)
+    expect(spies.requestGet).toHaveBeenCalledWith('/getMtPhotoFolderBreadcrumbs', { params: { folderId: 7 } })
+
+    mtphotoApi.getMtPhotoFolderFavorites()
+    expect(spies.requestGet).toHaveBeenCalledWith('/getMtPhotoFolderFavorites', { params: undefined })
+
+    mtphotoApi.getMtPhotoFolderFavorites({
+      tagKeyword: 'tag',
+      tagMode: 'all',
+      sortBy: 'name',
+      sortOrder: 'asc',
+      groupBy: 'tag'
+    })
+    expect(spies.requestGet).toHaveBeenCalledWith('/getMtPhotoFolderFavorites', {
+      params: {
+        tagKeyword: 'tag',
+        tagMode: 'all',
+        sortBy: 'name',
+        sortOrder: 'asc',
+        groupBy: 'tag'
+      }
+    })
+
+    mtphotoApi.upsertMtPhotoFolderFavorite({
+      folderId: 9,
+      folderName: 'F9',
+      folderPath: '/f9',
+      coverMd5: 'm9',
+      tags: ['x', 'y'],
+      note: 'memo'
+    })
+    expect(spies.requestPost).toHaveBeenCalledWith('/upsertMtPhotoFolderFavorite', {
+      folderId: 9,
+      folderName: 'F9',
+      folderPath: '/f9',
+      coverMd5: 'm9',
+      tags: ['x', 'y'],
+      note: 'memo'
+    })
+
+    mtphotoApi.removeMtPhotoFolderFavorite(9)
+    expect(spies.requestPost).toHaveBeenCalledWith('/removeMtPhotoFolderFavorite', { folderId: 9 })
+
     mtphotoApi.resolveMtPhotoFilePath('md5-1')
     expect(spies.requestGet).toHaveBeenCalledWith('/resolveMtPhotoFilePath', { params: { md5: 'md5-1' } })
 
@@ -429,4 +485,3 @@ describe('api/douyin', () => {
     expect(spies.douyinPost).toHaveBeenCalledWith('/douyin/favoriteAweme/tag/reorder', { tagIds: [1, 2] })
   })
 })
-
