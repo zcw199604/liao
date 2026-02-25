@@ -279,7 +279,7 @@
                       >
                         <i :class="isFavoriteAweme(item.detailId) ? 'fas fa-star text-yellow-400' : 'far fa-star text-fg-muted'"></i>
                       </button>
-	                    <div class="aspect-video bg-surface-deep overflow-hidden">
+	                    <div class="aspect-[3/4] bg-surface-deep overflow-hidden">
 		                      <MediaTile
 		                        v-if="item.coverDownloadUrl || item.coverUrl"
 		                        :src="(item.coverDownloadUrl || item.coverUrl)!"
@@ -287,7 +287,18 @@
 		                        class="w-full h-full group-hover:scale-105 transition-transform duration-500"
 		                        :show-skeleton="false"
 		                        img-referrer-policy="no-referrer"
-		                      />
+		                      >
+                          <template #top-left>
+                            <MediaTileBadge v-if="isDouyinWorkLivePhoto(item)" variant="live">
+                              LIVE
+                            </MediaTileBadge>
+                          </template>
+                          <template #bottom-right>
+                            <MediaTileBadge :variant="getDouyinWorkBadgeVariant(item)">
+                              {{ getDouyinWorkBadgeText(item) }}
+                            </MediaTileBadge>
+                          </template>
+                        </MediaTile>
 	                      <div v-else class="w-full h-full flex items-center justify-center text-fg-subtle text-xs">
 	                        无封面
 	                      </div>
@@ -1290,7 +1301,7 @@
 		                  >
 		                    置顶<span v-if="typeof item.pinnedRank === 'number'"> #{{ item.pinnedRank }}</span>
 		                  </div>
-		                  <div class="aspect-video bg-surface-deep overflow-hidden">
+		                  <div class="aspect-[3/4] bg-surface-deep overflow-hidden">
 		                    <MediaTile
 		                      v-if="item.coverDownloadUrl || item.coverUrl"
 		                      :src="(item.coverDownloadUrl || item.coverUrl)!"
@@ -1298,7 +1309,18 @@
 		                      class="w-full h-full group-hover:scale-105 transition-transform duration-500"
 		                      :show-skeleton="false"
 		                      img-referrer-policy="no-referrer"
-		                    />
+		                    >
+                        <template #top-right>
+                          <MediaTileBadge v-if="isDouyinWorkLivePhoto(item)" variant="live">
+                            LIVE
+                          </MediaTileBadge>
+                        </template>
+                        <template #bottom-right>
+                          <MediaTileBadge :variant="getDouyinWorkBadgeVariant(item)">
+                            {{ getDouyinWorkBadgeText(item) }}
+                          </MediaTileBadge>
+                        </template>
+                      </MediaTile>
 		                    <div v-else class="w-full h-full flex items-center justify-center text-fg-subtle text-xs">
 		                      无封面
 		                    </div>
@@ -1378,7 +1400,7 @@ import { copyToClipboard } from '@/utils/clipboard'
 import { formatFullTime } from '@/utils/time'
 import * as douyinApi from '@/api/douyin'
 import MediaPreview from '@/components/media/MediaPreview.vue'
-import type { UploadedMedia } from '@/types'
+import type { DouyinWorkMediaType, UploadedMedia } from '@/types'
 
 interface DouyinDetailItem {
   index: number
@@ -1392,9 +1414,14 @@ interface DouyinDetailResponse {
   key: string
   detailId: string
   type: string
+  mediaType?: DouyinWorkMediaType
   title: string
   coverUrl?: string
   duration?: string
+  imageCount?: number
+  videoDuration?: number
+  isLivePhoto?: boolean
+  livePhotoPairs?: number
   width?: number
   height?: number
   items: DouyinDetailItem[]
@@ -1402,10 +1429,15 @@ interface DouyinDetailResponse {
 
 interface DouyinAccountItem {
   detailId: string
-  type?: 'image' | 'video'
+  type?: 'image' | 'video' | 'livePhoto'
+  mediaType?: DouyinWorkMediaType
   desc?: string
   coverUrl?: string
   coverDownloadUrl?: string
+  imageCount?: number
+  videoDuration?: number
+  isLivePhoto?: boolean
+  livePhotoPairs?: number
   isPinned?: boolean
   pinnedRank?: number
   pinnedAt?: string
@@ -1456,7 +1488,11 @@ interface DouyinFavoriteUser {
 interface DouyinFavoriteAweme {
   awemeId: string
   secUserId?: string
-  type?: 'image' | 'video'
+  type?: 'image' | 'video' | 'livePhoto'
+  mediaType?: DouyinWorkMediaType
+  imageCount?: number
+  videoDuration?: number
+  isLivePhoto?: boolean
   desc?: string
   coverUrl?: string
   createTime: string
@@ -2149,9 +2185,14 @@ const handleFetchAccount = async (opts: { append?: boolean; fetchAll?: boolean }
         accountItems.value.push({
           detailId: id,
           type: it?.type,
+          mediaType: normalizeDouyinMediaType(it?.mediaType),
           desc: String(it?.desc || '').trim(),
           coverUrl: String(it?.coverUrl || '').trim(),
           coverDownloadUrl: String(it?.coverDownloadUrl || '').trim(),
+          imageCount: toPositiveNumber(it?.imageCount),
+          videoDuration: toPositiveNumber(it?.videoDuration),
+          isLivePhoto: typeof it?.isLivePhoto === 'boolean' ? it.isLivePhoto : normalizeDouyinMediaType(it?.mediaType) === 'livePhoto',
+          livePhotoPairs: toPositiveNumber(it?.livePhotoPairs),
           isPinned: !!it?.isPinned,
           pinnedRank: typeof it?.pinnedRank === 'number' ? it.pinnedRank : undefined,
           pinnedAt: trimOrUndefined(it?.pinnedAt),
@@ -2617,9 +2658,14 @@ const openBatchTagSheet = () => {
 	      next.push({
 	        detailId: id,
 	        type: it?.type,
+	        mediaType: normalizeDouyinMediaType(it?.mediaType),
 	        desc: String(it?.desc || '').trim(),
 	        coverUrl: String(it?.coverUrl || '').trim(),
 	        coverDownloadUrl: String(it?.coverDownloadUrl || '').trim(),
+	        imageCount: toPositiveNumber(it?.imageCount),
+	        videoDuration: toPositiveNumber(it?.videoDuration),
+	        isLivePhoto: typeof it?.isLivePhoto === 'boolean' ? it.isLivePhoto : normalizeDouyinMediaType(it?.mediaType) === 'livePhoto',
+	        livePhotoPairs: toPositiveNumber(it?.livePhotoPairs),
 	        isPinned: !!it?.isPinned,
 	        pinnedRank: typeof it?.pinnedRank === 'number' ? it.pinnedRank : undefined,
 	        pinnedAt: trimOrUndefined(it?.pinnedAt),
@@ -2805,9 +2851,11 @@ const copyText = async (value: string, okMsg = '已复制') => {
       const awemeId = String(it?.detailId || '').trim()
       if (!awemeId) continue
       const downloads = Array.isArray(it?.items) ? it.items.map((m) => String((m as any)?.url || '').trim()).filter(Boolean) : []
+      const mediaType = resolveDouyinWorkMediaType(it)
+      const storedType = mediaType === 'video' ? 'video' : (mediaType === 'livePhoto' ? 'livePhoto' : 'image')
       out.push({
         awemeId,
-        type: String(it?.type || '').trim() || undefined,
+        type: storedType,
         desc: String(it?.desc || '').trim() || undefined,
         coverUrl: String(it?.coverUrl || '').trim() || undefined,
         downloads: downloads.length > 0 ? downloads : undefined,
@@ -3006,10 +3054,13 @@ const toggleFavoriteAwemeFromAccount = async (item: DouyinAccountItem) => {
     return
   }
 
+  const mediaType = resolveDouyinWorkMediaType(item)
+  const storedType = mediaType === 'video' ? 'video' : (mediaType === 'livePhoto' ? 'livePhoto' : 'image')
+
   await upsertFavoriteAweme({
     awemeId,
     secUserId: String(accountSecUserId.value || '').trim(),
-    type: String(item?.type || '').trim(),
+    type: storedType,
     desc: String(item?.desc || '').trim(),
     coverUrl: String(item?.coverUrl || '').trim()
   })
@@ -3027,7 +3078,7 @@ const toggleFavoriteCurrentDetail = async () => {
     return
   }
 
-  const typeValue = String(d.items?.[0]?.type || '').trim() || (d.type?.includes('图集') ? 'image' : 'video')
+  const typeValue = resolveDetailFavoriteType(d)
   await upsertFavoriteAweme({
     awemeId,
     type: typeValue,
@@ -3078,6 +3129,93 @@ const formatMinuteTime = (timeStr: string | null | undefined): string => {
   return full.length > 16 ? full.slice(0, 16) : full
 }
 
+const normalizeDouyinMediaType = (value: unknown): DouyinWorkMediaType | undefined => {
+  const raw = String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s-]/g, '')
+  if (!raw) return undefined
+  if (raw === 'livephoto' || raw === 'live' || raw === '实况') return 'livePhoto'
+  if (raw === 'imagealbum' || raw === 'image' || raw === 'album' || raw === '图集' || raw === '图片') return 'imageAlbum'
+  if (raw === 'video' || raw === '视频') return 'video'
+  return undefined
+}
+
+const toPositiveNumber = (value: unknown): number | undefined => {
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? n : undefined
+}
+
+const resolveDouyinWorkMediaType = (item: DouyinAccountItem | null | undefined): DouyinWorkMediaType => {
+  const explicit = normalizeDouyinMediaType(item?.mediaType)
+  if (explicit) return explicit
+
+  if (item?.isLivePhoto) return 'livePhoto'
+
+  const medias = Array.isArray(item?.items) ? item.items : []
+  const hasImage = medias.some((m) => m?.type === 'image')
+  const hasVideo = medias.some((m) => m?.type === 'video')
+  if (hasImage && hasVideo) return 'livePhoto'
+
+  const legacyType = normalizeDouyinMediaType(item?.type)
+  if (legacyType) return legacyType
+
+  if (hasImage) return 'imageAlbum'
+  return 'video'
+}
+
+const getDouyinWorkImageCount = (item: DouyinAccountItem | null | undefined): number | undefined => {
+  const fromApi = toPositiveNumber(item?.imageCount)
+  if (fromApi) return fromApi
+  const medias = Array.isArray(item?.items) ? item.items : []
+  const imageCount = medias.filter((m) => m?.type === 'image').length
+  return imageCount > 0 ? imageCount : undefined
+}
+
+const formatDurationSeconds = (seconds: number): string => {
+  const total = Math.max(0, Math.floor(seconds))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const mm = String(m).padStart(2, '0')
+  const ss = String(s).padStart(2, '0')
+  if (h > 0) return `${h}:${mm}:${ss}`
+  return `${m}:${ss}`
+}
+
+const getDouyinWorkDurationText = (item: DouyinAccountItem | null | undefined): string => {
+  const fromApi = toPositiveNumber(item?.videoDuration)
+  if (!fromApi) return ''
+  return formatDurationSeconds(fromApi)
+}
+
+const isDouyinWorkLivePhoto = (item: DouyinAccountItem | null | undefined): boolean => {
+  return resolveDouyinWorkMediaType(item) === 'livePhoto'
+}
+
+const getDouyinWorkBadgeVariant = (item: DouyinAccountItem | null | undefined): 'neutral' | 'album' | 'live' => {
+  const mediaType = resolveDouyinWorkMediaType(item)
+  if (mediaType === 'livePhoto') return 'live'
+  if (mediaType === 'imageAlbum') return 'album'
+  return 'neutral'
+}
+
+const getDouyinWorkBadgeText = (item: DouyinAccountItem | null | undefined): string => {
+  const mediaType = resolveDouyinWorkMediaType(item)
+  const imageCount = getDouyinWorkImageCount(item)
+
+  if (mediaType === 'livePhoto') {
+    return imageCount ? `实况 ${imageCount}P` : '实况'
+  }
+  if (mediaType === 'imageAlbum') {
+    return imageCount ? `${imageCount} 张` : '图集'
+  }
+
+  const duration = getDouyinWorkDurationText(item)
+  if (duration) return `▶ ${duration}`
+  return '视频'
+}
+
 const buildDouyinWorkMeta = (item: DouyinAccountItem | null | undefined, ctx: { authorSecUserId?: string } = {}): DouyinWorkMeta => {
   return {
     detailId: trimOrUndefined(item?.detailId),
@@ -3091,15 +3229,40 @@ const buildDouyinWorkMeta = (item: DouyinAccountItem | null | undefined, ctx: { 
     authorUniqueId: trimOrUndefined(item?.authorUniqueId),
     authorName: trimOrUndefined(item?.authorName),
     crawledAt: trimOrUndefined(item?.crawledAt),
-    lastSeenAt: trimOrUndefined(item?.lastSeenAt)
+    lastSeenAt: trimOrUndefined(item?.lastSeenAt),
+    mediaType: resolveDouyinWorkMediaType(item),
+    imageCount: getDouyinWorkImageCount(item),
+    videoDuration: toPositiveNumber(item?.videoDuration),
+    isLivePhoto: typeof item?.isLivePhoto === 'boolean' ? item.isLivePhoto : isDouyinWorkLivePhoto(item),
+    livePhotoPairs: toPositiveNumber(item?.livePhotoPairs)
   }
 }
 
 const buildDouyinWorkMetaFromDetail = (d: DouyinDetailResponse | null | undefined): DouyinWorkMeta => {
+  const detailMediaType = normalizeDouyinMediaType(d?.mediaType)
   return {
     detailId: trimOrUndefined(d?.detailId),
-    desc: trimOrUndefined(d?.title)
+    desc: trimOrUndefined(d?.title),
+    mediaType: detailMediaType,
+    imageCount: toPositiveNumber(d?.imageCount),
+    videoDuration: toPositiveNumber(d?.videoDuration),
+    isLivePhoto: typeof d?.isLivePhoto === 'boolean' ? d.isLivePhoto : detailMediaType === 'livePhoto',
+    livePhotoPairs: toPositiveNumber(d?.livePhotoPairs)
   }
+}
+
+const resolveDetailFavoriteType = (d: DouyinDetailResponse | null | undefined): 'image' | 'video' => {
+  const mediaType = normalizeDouyinMediaType(d?.mediaType)
+  if (mediaType === 'imageAlbum' || mediaType === 'livePhoto') return 'image'
+
+  const firstType = String(d?.items?.[0]?.type || '').trim()
+  if (firstType === 'image' || firstType === 'video') return firstType
+
+  const detailTypeLabel = String(d?.type || '').trim()
+  if (detailTypeLabel.includes('图集') || detailTypeLabel.includes('实况') || detailTypeLabel.includes('图片')) {
+    return 'image'
+  }
+  return 'video'
 }
 
 const buildAccountPreviewMediaList = (
@@ -3316,7 +3479,7 @@ const handleResolve = async () => {
     const awemeId = String(detail.value.detailId || '').trim()
     if (awemeId && isFavoriteAweme(awemeId)) {
       try {
-        const typeValue = String(detail.value.items?.[0]?.type || '').trim() || (detail.value.type?.includes('图集') ? 'image' : 'video')
+        const typeValue = resolveDetailFavoriteType(detail.value)
         const updated = await douyinApi.addDouyinFavoriteAweme({
           awemeId,
           type: typeValue,

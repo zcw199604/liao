@@ -31,9 +31,14 @@ type douyinAccountRequest struct {
 type douyinAccountItem struct {
 	DetailID         string            `json:"detailId"`
 	Type             string            `json:"type,omitempty"` // image|video（best-effort）
+	MediaType        string            `json:"mediaType,omitempty"`
 	Desc             string            `json:"desc,omitempty"`
 	CoverURL         string            `json:"coverUrl,omitempty"`
 	CoverDownloadURL string            `json:"coverDownloadUrl,omitempty"`
+	ImageCount       int               `json:"imageCount,omitempty"`
+	VideoDuration    float64           `json:"videoDuration,omitempty"`
+	IsLivePhoto      bool              `json:"isLivePhoto,omitempty"`
+	LivePhotoPairs   int               `json:"livePhotoPairs,omitempty"`
 	IsPinned         bool              `json:"isPinned,omitempty"`
 	PinnedRank       *int              `json:"pinnedRank,omitempty"`
 	PinnedAt         string            `json:"pinnedAt,omitempty"`
@@ -64,12 +69,17 @@ type douyinAccountResponse struct {
 }
 
 type douyinDetailResponse struct {
-	Key      string            `json:"key"`
-	DetailID string            `json:"detailId"`
-	Type     string            `json:"type"`
-	Title    string            `json:"title"`
-	CoverURL string            `json:"coverUrl,omitempty"`
-	Items    []douyinMediaItem `json:"items"`
+	Key            string            `json:"key"`
+	DetailID       string            `json:"detailId"`
+	Type           string            `json:"type"`
+	MediaType      string            `json:"mediaType,omitempty"`
+	Title          string            `json:"title"`
+	CoverURL       string            `json:"coverUrl,omitempty"`
+	ImageCount     int               `json:"imageCount,omitempty"`
+	VideoDuration  float64           `json:"videoDuration,omitempty"`
+	IsLivePhoto    bool              `json:"isLivePhoto,omitempty"`
+	LivePhotoPairs int               `json:"livePhotoPairs,omitempty"`
+	Items          []douyinMediaItem `json:"items"`
 }
 
 type douyinMediaItem struct {
@@ -128,6 +138,89 @@ func asInt64(v any) int64 {
 	default:
 		return int64(asInt(v))
 	}
+}
+
+func asFloat64(v any) float64 {
+	switch t := v.(type) {
+	case float64:
+		return t
+	case float32:
+		return float64(t)
+	case int:
+		return float64(t)
+	case int64:
+		return float64(t)
+	case string:
+		f, _ := strconv.ParseFloat(strings.TrimSpace(t), 64)
+		return f
+	default:
+		return 0
+	}
+}
+
+func normalizeDouyinMediaType(v string) string {
+	raw := strings.TrimSpace(strings.ToLower(v))
+	switch raw {
+	case "video", "视频":
+		return "video"
+	case "image", "imagealbum", "album", "图集", "图片":
+		return "imageAlbum"
+	case "livephoto", "live", "motionphoto", "实况":
+		return "livePhoto"
+	default:
+		return ""
+	}
+}
+
+func extractDouyinAccountVideoDurationSeconds(item map[string]any) float64 {
+	if item == nil {
+		return 0
+	}
+
+	// 一些上游版本把 duration 放在视频对象中（毫秒），另一些放在根对象（秒或毫秒）
+	video, _ := item["video"].(map[string]any)
+	candidates := []any{
+		item["duration"],
+		item["duration_ms"],
+		item["durationMs"],
+		item["video_duration"],
+		item["videoDuration"],
+	}
+	if video != nil {
+		candidates = append(candidates,
+			video["duration"],
+			video["duration_ms"],
+			video["durationMs"],
+		)
+	}
+
+	for _, raw := range candidates {
+		d := asFloat64(raw)
+		if d <= 0 {
+			continue
+		}
+		// 上游常见毫秒表示
+		if d > 1000 {
+			d = d / 1000
+		}
+		if d > 0 {
+			return d
+		}
+	}
+
+	return 0
+}
+
+func classifyDouyinMediaByDownloads(downloads []string) (hasImage bool, hasVideo bool, imageCount int) {
+	for _, u := range downloads {
+		if guessDouyinMediaTypeFromURL(u) == "video" {
+			hasVideo = true
+		} else {
+			hasImage = true
+			imageCount += 1
+		}
+	}
+	return hasImage, hasVideo, imageCount
 }
 
 func asInt64Ptr(v any) *int64 {
@@ -756,11 +849,12 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, secUserID string, dat
 		}
 
 		typeLabel := strings.TrimSpace(asString(m["type"])) // 视频/图集/实况（部分上游版本）
+		typeHint := normalizeDouyinMediaType(typeLabel)
 
 		itemType := "video"
 		if imgs, ok := m["images"].([]any); ok && len(imgs) > 0 {
 			itemType = "image"
-		} else if typeLabel != "" && (strings.Contains(typeLabel, "图集") || strings.Contains(typeLabel, "实况") || strings.Contains(typeLabel, "图片")) {
+		} else if typeHint == "imageAlbum" || typeHint == "livePhoto" {
 			itemType = "image"
 		}
 
@@ -770,14 +864,21 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, secUserID string, dat
 		publishAt := extractDouyinAccountPublishAt(m)
 		status := extractDouyinAccountStatus(m)
 		authorUniqueID, authorName := extractDouyinAccountAuthorMeta(m)
+		videoDuration := extractDouyinAccountVideoDurationSeconds(m)
 
 		// best-effort：直接从 account 返回中抽取可预览资源，避免点击后再 /detail N 次。
 		downloads := []string(nil)
+		imageURLs := []string(nil)
+		nestedVideos := []string(nil)
+		isLivePhoto := typeHint == "livePhoto"
+		imageCount := 0
 		if itemType == "image" {
-			nestedVideos := extractDouyinAccountLivePhotoVideoPlayURLs(m)
-			isLivePhoto := (typeLabel != "" && strings.Contains(typeLabel, "实况")) || len(nestedVideos) > 0
+			nestedVideos = extractDouyinAccountLivePhotoVideoPlayURLs(m)
+			isLivePhoto = (typeLabel != "" && strings.Contains(typeLabel, "实况")) || len(nestedVideos) > 0
 
-			downloads = extractDouyinAccountImageURLs(m, !isLivePhoto)
+			imageURLs = extractDouyinAccountImageURLs(m, !isLivePhoto)
+			imageCount = len(imageURLs)
+			downloads = append(downloads, imageURLs...)
 
 			if len(nestedVideos) > 0 {
 				for _, u := range nestedVideos {
@@ -819,6 +920,11 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, secUserID string, dat
 		if len(downloads) == 0 {
 			downloads = extractDouyinAccountFlatDownloads(m)
 		}
+
+		if !isLivePhoto && strings.Contains(typeLabel, "实况") {
+			isLivePhoto = true
+		}
+
 		if strings.TrimSpace(cover) == "" && len(downloads) > 0 {
 			for _, u := range downloads {
 				if guessDouyinMediaTypeFromURL(u) == "image" {
@@ -828,18 +934,48 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, secUserID string, dat
 			}
 		}
 
+		hasImage, hasVideo, inferredImageCount := classifyDouyinMediaByDownloads(downloads)
+		if imageCount <= 0 {
+			imageCount = inferredImageCount
+		}
+
+		mediaType := typeHint
+		if mediaType == "" {
+			switch {
+			case isLivePhoto || (hasImage && hasVideo):
+				mediaType = "livePhoto"
+				isLivePhoto = true
+			case hasImage && !hasVideo:
+				mediaType = "imageAlbum"
+			case itemType == "image":
+				mediaType = "imageAlbum"
+			default:
+				mediaType = "video"
+			}
+		}
+		if isLivePhoto && mediaType != "livePhoto" {
+			mediaType = "livePhoto"
+		}
+
+		livePhotoPairs := 0
+		if mediaType == "livePhoto" {
+			if typeLabel == "" {
+				typeLabel = "实况"
+			}
+			if imageCount > 0 {
+				livePhotoPairs = imageCount
+			}
+			if len(nestedVideos) > 0 {
+				livePhotoPairs = len(nestedVideos)
+				if imageCount > 0 && imageCount < livePhotoPairs {
+					livePhotoPairs = imageCount
+				}
+			}
+		}
+
 		// Top-level type best-effort（用于列表元数据；预览项的 type 会按 URL 逐个判断）
 		displayType := itemType
 		if len(downloads) > 0 {
-			hasImage := false
-			hasVideo := false
-			for _, u := range downloads {
-				if guessDouyinMediaTypeFromURL(u) == "video" {
-					hasVideo = true
-				} else {
-					hasImage = true
-				}
-			}
 			if hasImage && !hasVideo {
 				displayType = "image"
 			} else if hasVideo && !hasImage {
@@ -897,9 +1033,14 @@ func extractDouyinAccountItems(s *DouyinDownloaderService, secUserID string, dat
 		items = append(items, douyinAccountItem{
 			DetailID:         id,
 			Type:             displayType,
+			MediaType:        mediaType,
 			Desc:             desc,
 			CoverURL:         cover,
 			IsPinned:         isPinned,
+			ImageCount:       imageCount,
+			VideoDuration:    videoDuration,
+			IsLivePhoto:      isLivePhoto,
+			LivePhotoPairs:   livePhotoPairs,
 			PinnedRank:       pinnedRank,
 			PinnedAt:         pinnedAt,
 			PublishAt:        publishAt,
@@ -1041,7 +1182,7 @@ func (a *App) handleDouyinDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	defaultType := "video"
-	if strings.Contains(detail.Type, "图集") || strings.Contains(detail.Type, "实况") || strings.Contains(detail.Type, "图片") {
+	if mt := normalizeDouyinMediaType(detail.Type); mt == "imageAlbum" || mt == "livePhoto" {
 		defaultType = "image"
 	}
 
@@ -1080,13 +1221,54 @@ func (a *App) handleDouyinDetail(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	hasImage, hasVideo, imageCount := classifyDouyinMediaByDownloads(detail.Downloads)
+	mediaType := normalizeDouyinMediaType(detail.Type)
+	if mediaType == "" {
+		switch {
+		case hasImage && hasVideo:
+			mediaType = "livePhoto"
+		case hasImage || defaultType == "image":
+			mediaType = "imageAlbum"
+		default:
+			mediaType = "video"
+		}
+	}
+	isLivePhoto := mediaType == "livePhoto" || strings.Contains(detail.Type, "实况")
+	if isLivePhoto && mediaType != "livePhoto" {
+		mediaType = "livePhoto"
+	}
+	livePhotoPairs := 0
+	if mediaType == "livePhoto" {
+		videoCount := 0
+		for _, u := range detail.Downloads {
+			if guessDouyinMediaTypeFromURL(u) == "video" {
+				videoCount += 1
+			}
+		}
+		if imageCount > 0 && videoCount > 0 {
+			livePhotoPairs = imageCount
+			if videoCount < livePhotoPairs {
+				livePhotoPairs = videoCount
+			}
+		} else if imageCount > 0 {
+			livePhotoPairs = imageCount
+		}
+	}
+	if mediaType == "video" {
+		imageCount = 0
+	}
+
 	writeJSON(w, http.StatusOK, douyinDetailResponse{
-		Key:      key,
-		DetailID: detail.DetailID,
-		Type:     detail.Type,
-		Title:    detail.Title,
-		CoverURL: detail.CoverURL,
-		Items:    items,
+		Key:            key,
+		DetailID:       detail.DetailID,
+		Type:           detail.Type,
+		MediaType:      mediaType,
+		Title:          detail.Title,
+		CoverURL:       detail.CoverURL,
+		ImageCount:     imageCount,
+		IsLivePhoto:    isLivePhoto,
+		LivePhotoPairs: livePhotoPairs,
+		Items:          items,
 	})
 }
 

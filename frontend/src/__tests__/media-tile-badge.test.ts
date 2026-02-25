@@ -28,7 +28,9 @@ describe('components/common/MediaTileBadge.vue', () => {
       { variant: 'success' as const, className: 'bg-emerald-600/80' },
       { variant: 'info' as const, className: 'bg-indigo-600/80' },
       { variant: 'warn' as const, className: 'bg-amber-600/80' },
-      { variant: 'danger' as const, className: 'bg-red-600/80' }
+      { variant: 'danger' as const, className: 'bg-red-600/80' },
+      { variant: 'album' as const, className: 'bg-sky-600/80' },
+      { variant: 'live' as const, className: 'bg-emerald-600/85' }
     ]
 
     for (const v of variants) {
@@ -40,4 +42,3 @@ describe('components/common/MediaTileBadge.vue', () => {
     }
   })
 })
-

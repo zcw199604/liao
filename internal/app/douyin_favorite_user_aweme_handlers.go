@@ -156,18 +156,63 @@ func (a *App) handleDouyinFavoriteUserAwemeList(w http.ResponseWriter, r *http.R
 		}
 
 		downloads := normalizeStringList(row.Downloads)
+		typeHint := normalizeDouyinMediaType(strings.TrimSpace(it.Type))
+		hasImage, hasVideo, imageCount := classifyDouyinMediaByDownloads(downloads)
+		mediaType := typeHint
+		if mediaType == "" {
+			switch {
+			case hasImage && hasVideo:
+				mediaType = "livePhoto"
+			case hasImage:
+				mediaType = "imageAlbum"
+			default:
+				mediaType = "video"
+			}
+		}
+		isLivePhoto := mediaType == "livePhoto"
+		livePhotoPairs := 0
+		if isLivePhoto {
+			videoCount := 0
+			for _, u := range downloads {
+				if guessDouyinMediaTypeFromURL(u) == "video" {
+					videoCount += 1
+				}
+			}
+			if imageCount > 0 && videoCount > 0 {
+				livePhotoPairs = imageCount
+				if videoCount < livePhotoPairs {
+					livePhotoPairs = videoCount
+				}
+			} else if imageCount > 0 {
+				livePhotoPairs = imageCount
+			}
+		}
+		if mediaType == "video" {
+			imageCount = 0
+		}
+		it.MediaType = mediaType
+		it.IsLivePhoto = isLivePhoto
+		it.ImageCount = imageCount
+		it.LivePhotoPairs = livePhotoPairs
 		if a.douyinDownloader != nil && len(downloads) > 0 {
 			displayType := strings.TrimSpace(it.Type)
 			if displayType != "image" && displayType != "video" {
-				displayType = "video"
-				for _, u := range downloads {
-					if guessDouyinMediaTypeFromURL(u) == "image" {
-						displayType = "image"
-						break
+				if mediaType == "imageAlbum" || mediaType == "livePhoto" {
+					displayType = "image"
+				} else {
+					displayType = "video"
+					for _, u := range downloads {
+						if guessDouyinMediaTypeFromURL(u) == "image" {
+							displayType = "image"
+							break
+						}
 					}
 				}
 			}
 			typeLabel := map[string]string{"video": "视频", "image": "图集"}[displayType]
+			if mediaType == "livePhoto" {
+				typeLabel = "实况"
+			}
 
 			cached := &douyinCachedDetail{
 				SecUserID:      secUserID,

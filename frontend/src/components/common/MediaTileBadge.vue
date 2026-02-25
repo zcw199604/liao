@@ -11,7 +11,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-type Variant = 'neutral' | 'success' | 'info' | 'warn' | 'danger'
+type Variant = 'neutral' | 'success' | 'info' | 'warn' | 'danger' | 'album' | 'live'
 
 const props = withDefaults(defineProps<{
   variant?: Variant
@@ -31,6 +31,10 @@ const variantClass = computed(() => {
       return 'bg-amber-600/80 text-white border-amber-400/30'
     case 'danger':
       return 'bg-red-600/80 text-white border-red-400/30'
+    case 'album':
+      return 'bg-sky-600/80 text-white border-sky-400/30'
+    case 'live':
+      return 'bg-emerald-600/85 text-white border-emerald-300/40'
     default:
       return 'bg-black/50 text-white/90 border-white/10'
   }

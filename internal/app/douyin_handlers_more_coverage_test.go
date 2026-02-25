@@ -155,3 +155,84 @@ func TestExtractDouyinAccountItems_LivePhotoSameVideoSkipped(t *testing.T) {
 		t.Fatalf("preview url=%q", got)
 	}
 }
+
+func TestExtractDouyinAccountItems_MediaMetaFields(t *testing.T) {
+	data := map[string]any{
+		"aweme_list": []any{
+			map[string]any{
+				"aweme_id": "video-1",
+				"type":     "视频",
+				"video": map[string]any{
+					"duration": 12000,
+					"play_addr": map[string]any{
+						"url_list": []any{"http://media.example.com/v1.mp4"},
+					},
+				},
+			},
+			map[string]any{
+				"aweme_id": "album-1",
+				"type":     "图集",
+				"images": []any{
+					map[string]any{"url_list": []any{"http://media.example.com/a1.jpg"}},
+					map[string]any{"url_list": []any{"http://media.example.com/a2.jpg"}},
+				},
+			},
+			map[string]any{
+				"aweme_id": "live-1",
+				"type":     "实况",
+				"images": []any{
+					map[string]any{
+						"url_list": []any{"http://media.example.com/l1.jpg"},
+						"video": map[string]any{
+							"play_addr": map[string]any{"url_list": []any{"http://media.example.com/l1.mp4"}},
+						},
+					},
+					map[string]any{
+						"url_list": []any{"http://media.example.com/l2.jpg"},
+						"video": map[string]any{
+							"play_addr": map[string]any{"url_list": []any{"http://media.example.com/l2.mp4"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	items := extractDouyinAccountItems(nil, "", data)
+	if len(items) != 3 {
+		t.Fatalf("items len=%d", len(items))
+	}
+
+	if items[0].MediaType != "video" {
+		t.Fatalf("video mediaType=%q", items[0].MediaType)
+	}
+	if items[0].ImageCount != 0 {
+		t.Fatalf("video imageCount=%d", items[0].ImageCount)
+	}
+	if items[0].VideoDuration < 11.9 || items[0].VideoDuration > 12.1 {
+		t.Fatalf("video duration=%v", items[0].VideoDuration)
+	}
+
+	if items[1].MediaType != "imageAlbum" {
+		t.Fatalf("album mediaType=%q", items[1].MediaType)
+	}
+	if items[1].ImageCount != 2 {
+		t.Fatalf("album imageCount=%d", items[1].ImageCount)
+	}
+	if items[1].IsLivePhoto {
+		t.Fatalf("album should not be live photo")
+	}
+
+	if items[2].MediaType != "livePhoto" {
+		t.Fatalf("live mediaType=%q", items[2].MediaType)
+	}
+	if !items[2].IsLivePhoto {
+		t.Fatalf("live should be marked as live photo")
+	}
+	if items[2].ImageCount != 2 {
+		t.Fatalf("live imageCount=%d", items[2].ImageCount)
+	}
+	if items[2].LivePhotoPairs != 2 {
+		t.Fatalf("live pairs=%d", items[2].LivePhotoPairs)
+	}
+}

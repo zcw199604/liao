@@ -1,3 +1,5 @@
+export type DouyinWorkMediaType = 'video' | 'imageAlbum' | 'livePhoto'
+
 export interface UploadedMedia {
   url: string
   type: 'image' | 'video' | 'file'
@@ -26,6 +28,11 @@ export interface UploadedMedia {
       authorName?: string
       crawledAt?: string
       lastSeenAt?: string
+      mediaType?: DouyinWorkMediaType
+      imageCount?: number
+      videoDuration?: number
+      isLivePhoto?: boolean
+      livePhotoPairs?: number
     }
   }
   // 新增字段 - 用于显示详细信息

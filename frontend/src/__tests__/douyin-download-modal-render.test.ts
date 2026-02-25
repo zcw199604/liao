@@ -61,7 +61,14 @@ const flush = async () => {
 const MediaTileStub = {
   name: 'MediaTile',
   props: ['src', 'type', 'muted', 'showSkeleton', 'indicatorSize'],
-  template: `<div data-testid="media-tile"><slot /></div>`
+  template: `<div data-testid="media-tile">
+    <slot name="top-left"></slot>
+    <slot name="top-right"></slot>
+    <slot name="bottom-left"></slot>
+    <slot name="bottom-right"></slot>
+    <slot name="file"></slot>
+    <slot></slot>
+  </div>`
 }
 
 const MediaTileBadgeStub = {
@@ -322,5 +329,70 @@ describe('components/media/DouyinDownloadModal.vue (render branches)', () => {
     await expandBtn!.trigger('click')
     await flush()
     expect(wrapper.text()).toContain(longId)
+  })
+
+  it('renders media type badges for account work cards', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          MediaPreview: MediaPreviewStub,
+          MediaTile: MediaTileStub,
+          MediaTileBadge: MediaTileBadgeStub,
+          MediaTileSelectMark: MediaTileSelectMarkStub
+        }
+      }
+    })
+
+    const douyinStore = useDouyinStore()
+    douyinStore.showModal = true
+    await flush()
+    await flush()
+
+    const vm = wrapper.vm as any
+    vm.activeMode = 'account'
+    vm.accountItems = [
+      {
+        detailId: 'v1',
+        type: 'video',
+        mediaType: 'video',
+        videoDuration: 65,
+        desc: '视频作品',
+        coverUrl: 'https://example.com/v1.jpg',
+        coverDownloadUrl: 'https://example.com/v1.jpg',
+        items: []
+      },
+      {
+        detailId: 'a1',
+        type: 'image',
+        mediaType: 'imageAlbum',
+        imageCount: 5,
+        desc: '图集作品',
+        coverUrl: 'https://example.com/a1.jpg',
+        coverDownloadUrl: 'https://example.com/a1.jpg',
+        items: []
+      },
+      {
+        detailId: 'l1',
+        type: 'image',
+        mediaType: 'livePhoto',
+        imageCount: 3,
+        isLivePhoto: true,
+        desc: '实况作品',
+        coverUrl: 'https://example.com/l1.jpg',
+        coverDownloadUrl: 'https://example.com/l1.jpg',
+        items: []
+      }
+    ]
+    await flush()
+
+    expect(wrapper.text()).toContain('▶ 1:05')
+    expect(wrapper.text()).toContain('5 张')
+    expect(wrapper.text()).toContain('实况 3P')
+    expect(wrapper.text()).toContain('LIVE')
   })
 })

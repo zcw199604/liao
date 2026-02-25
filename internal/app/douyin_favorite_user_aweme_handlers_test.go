@@ -164,12 +164,12 @@ func TestHandleDouyinFavoriteUserAwemeUpsert_PinnedRankZero(t *testing.T) {
 		"secUserId": "MS4wLjABAAAA_x",
 		"items": []any{
 			map[string]any{
-				"awemeId":   "111",
-				"type":      "video",
-				"desc":      "置顶作品",
-				"coverUrl":  "https://example.com/c1.jpg",
-				"downloads": []any{"https://example.com/v1.mp4"},
-				"isPinned":  true,
+				"awemeId":    "111",
+				"type":       "video",
+				"desc":       "置顶作品",
+				"coverUrl":   "https://example.com/c1.jpg",
+				"downloads":  []any{"https://example.com/v1.mp4"},
+				"isPinned":   true,
 				"pinnedRank": 0,
 			},
 		},
@@ -273,6 +273,9 @@ func TestHandleDouyinFavoriteUserAwemeList_Success(t *testing.T) {
 		HasMore   bool   `json:"hasMore"`
 		Items     []struct {
 			DetailID         string `json:"detailId"`
+			MediaType        string `json:"mediaType"`
+			ImageCount       int    `json:"imageCount"`
+			IsLivePhoto      bool   `json:"isLivePhoto"`
 			Key              string `json:"key"`
 			CoverDownloadURL string `json:"coverDownloadUrl"`
 			Items            []struct {
@@ -305,11 +308,26 @@ func TestHandleDouyinFavoriteUserAwemeList_Success(t *testing.T) {
 	if !strings.Contains(resp.Items[0].CoverDownloadURL, "/api/douyin/cover?key=") {
 		t.Fatalf("items[0].coverDownloadUrl=%q", resp.Items[0].CoverDownloadURL)
 	}
+	if resp.Items[0].MediaType != "video" {
+		t.Fatalf("items[0].mediaType=%q", resp.Items[0].MediaType)
+	}
+	if resp.Items[0].ImageCount != 0 {
+		t.Fatalf("items[0].imageCount=%d", resp.Items[0].ImageCount)
+	}
+	if resp.Items[0].IsLivePhoto {
+		t.Fatalf("items[0].isLivePhoto should be false")
+	}
 	if len(resp.Items[0].Items) != 1 {
 		t.Fatalf("items[0].items len=%d, want %d", len(resp.Items[0].Items), 1)
 	}
 	if !strings.Contains(resp.Items[0].Items[0].DownloadURL, "/api/douyin/download?key=") {
 		t.Fatalf("items[0].items[0].downloadUrl=%q", resp.Items[0].Items[0].DownloadURL)
+	}
+	if resp.Items[1].MediaType != "imageAlbum" {
+		t.Fatalf("items[1].mediaType=%q", resp.Items[1].MediaType)
+	}
+	if resp.Items[1].ImageCount != 2 {
+		t.Fatalf("items[1].imageCount=%d", resp.Items[1].ImageCount)
 	}
 }
 
