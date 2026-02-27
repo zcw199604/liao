@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -52,6 +53,7 @@ func (s *DBUserArchiveService) PersistUserList(ctx context.Context, ownerUserID 
 
 	historyFlag, favoriteFlag := sourceFlags(source)
 	now := time.Now()
+	prepared := make([]archiveUpsertInput, 0, len(users))
 	for _, user := range users {
 		targetUserID := strings.TrimSpace(extractUserID(user))
 		if targetUserID == "" {
@@ -68,7 +70,7 @@ func (s *DBUserArchiveService) PersistUserList(ctx context.Context, ownerUserID 
 		lastMsg := strings.TrimSpace(toString(snapshot["lastMsg"]))
 		lastTime := strings.TrimSpace(toString(snapshot["lastTime"]))
 
-		if err := s.upsertRow(ctx, archiveUpsertInput{
+		prepared = append(prepared, archiveUpsertInput{
 			OwnerUserID:    ownerUserID,
 			TargetUserID:   targetUserID,
 			SnapshotJSON:   string(snapshotRaw),
@@ -77,10 +79,20 @@ func (s *DBUserArchiveService) PersistUserList(ctx context.Context, ownerUserID 
 			SeenInHistory:  historyFlag,
 			SeenInFavorite: favoriteFlag,
 			SeenAt:         now,
-		}); err != nil {
-			slog.Warn("归档用户列表失败", "ownerUserID", ownerUserID, "targetUserID", targetUserID, "error", err)
-		}
+		})
 	}
+	if len(prepared) == 0 {
+		return
+	}
+
+	start := time.Now()
+	written, skipped, err := s.upsertRowsForList(ctx, prepared)
+	durationMs := time.Since(start).Milliseconds()
+	if err != nil {
+		slog.Warn("归档用户列表失败", "ownerUserID", ownerUserID, "source", source, "preparedSize", len(prepared), "writtenSize", written, "skippedSize", skipped, "durationMs", durationMs, "error", err)
+		return
+	}
+	slog.Info("[timing] archive.persistUserList", "ownerUserID", ownerUserID, "source", source, "preparedSize", len(prepared), "writtenSize", written, "skippedSize", skipped, "durationMs", durationMs)
 }
 
 func (s *DBUserArchiveService) MergeArchivedUsers(ctx context.Context, ownerUserID string, upstream []map[string]any, source UserArchiveListSource) []map[string]any {
@@ -241,6 +253,15 @@ type archiveRow struct {
 	LastTime     string
 }
 
+type archiveExistingState struct {
+	TargetUserID   string
+	SeenInHistory  int
+	SeenInFavorite int
+	SnapshotJSON   string
+	LastMsg        string
+	LastTime       string
+}
+
 func sourceFlags(source UserArchiveListSource) (historyFlag int, favoriteFlag int) {
 	switch source {
 	case UserArchiveListSourceFavorite:
@@ -309,6 +330,239 @@ func nullableString(s string) any {
 		return nil
 	}
 	return s
+}
+
+func mergeArchiveUpsertInput(base, incoming archiveUpsertInput) archiveUpsertInput {
+	if strings.TrimSpace(base.TargetUserID) == "" {
+		return incoming
+	}
+	if strings.TrimSpace(incoming.SnapshotJSON) != "" {
+		base.SnapshotJSON = incoming.SnapshotJSON
+	}
+	if strings.TrimSpace(incoming.LastMsg) != "" {
+		base.LastMsg = incoming.LastMsg
+	}
+	if strings.TrimSpace(incoming.LastTime) != "" {
+		base.LastTime = incoming.LastTime
+	}
+	if incoming.SeenInHistory == 1 {
+		base.SeenInHistory = 1
+	}
+	if incoming.SeenInFavorite == 1 {
+		base.SeenInFavorite = 1
+	}
+	if incoming.SeenAt.After(base.SeenAt) {
+		base.SeenAt = incoming.SeenAt
+	}
+	return base
+}
+
+func mergeSeenFlag(existing int, incoming int) int {
+	if existing == 1 || incoming == 1 {
+		return 1
+	}
+	return 0
+}
+
+func archiveFieldChanged(incoming, existing string) bool {
+	incoming = strings.TrimSpace(incoming)
+	existing = strings.TrimSpace(existing)
+	if incoming == "" {
+		return false
+	}
+	return incoming != existing
+}
+
+func archiveRowNeedsUpdate(in archiveUpsertInput, existing archiveExistingState) bool {
+	if in.SeenInHistory != existing.SeenInHistory {
+		return true
+	}
+	if in.SeenInFavorite != existing.SeenInFavorite {
+		return true
+	}
+	if archiveFieldChanged(in.SnapshotJSON, existing.SnapshotJSON) {
+		return true
+	}
+	if archiveFieldChanged(in.LastMsg, existing.LastMsg) {
+		return true
+	}
+	if archiveFieldChanged(in.LastTime, existing.LastTime) {
+		return true
+	}
+	return false
+}
+
+func (s *DBUserArchiveService) upsertRowsForList(ctx context.Context, rows []archiveUpsertInput) (written int, skipped int, err error) {
+	if s == nil || s.db == nil || len(rows) == 0 {
+		return 0, 0, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	deduped := make(map[string]archiveUpsertInput, len(rows))
+	targetIDs := make([]string, 0, len(rows))
+	ownerUserID := ""
+	for _, row := range rows {
+		row.OwnerUserID = strings.TrimSpace(row.OwnerUserID)
+		row.TargetUserID = strings.TrimSpace(row.TargetUserID)
+		if row.OwnerUserID == "" || row.TargetUserID == "" {
+			skipped++
+			continue
+		}
+		if ownerUserID == "" {
+			ownerUserID = row.OwnerUserID
+		}
+		if ownerUserID != row.OwnerUserID {
+			return 0, skipped, fmt.Errorf("owner_user_id mismatch in batch upsert")
+		}
+		if row.SeenAt.IsZero() {
+			row.SeenAt = time.Now()
+		}
+		if existing, ok := deduped[row.TargetUserID]; ok {
+			deduped[row.TargetUserID] = mergeArchiveUpsertInput(existing, row)
+			continue
+		}
+		deduped[row.TargetUserID] = row
+		targetIDs = append(targetIDs, row.TargetUserID)
+	}
+	if ownerUserID == "" || len(targetIDs) == 0 {
+		return 0, skipped, nil
+	}
+
+	existingStates, err := s.fetchExistingStates(ctx, ownerUserID, targetIDs)
+	if err != nil {
+		return 0, skipped, err
+	}
+
+	toWrite := make([]archiveUpsertInput, 0, len(targetIDs))
+	for _, targetID := range targetIDs {
+		row := deduped[targetID]
+		existing, ok := existingStates[targetID]
+		if ok {
+			row.SeenInHistory = mergeSeenFlag(existing.SeenInHistory, row.SeenInHistory)
+			row.SeenInFavorite = mergeSeenFlag(existing.SeenInFavorite, row.SeenInFavorite)
+			if !archiveRowNeedsUpdate(row, existing) {
+				skipped++
+				continue
+			}
+		}
+		toWrite = append(toWrite, row)
+	}
+	if len(toWrite) == 0 {
+		return 0, skipped, nil
+	}
+	if err := s.upsertRowsBatch(ctx, toWrite); err != nil {
+		return 0, skipped, err
+	}
+	return len(toWrite), skipped, nil
+}
+
+func (s *DBUserArchiveService) fetchExistingStates(ctx context.Context, ownerUserID string, targetUserIDs []string) (map[string]archiveExistingState, error) {
+	result := make(map[string]archiveExistingState, len(targetUserIDs))
+	if s == nil || s.db == nil || strings.TrimSpace(ownerUserID) == "" || len(targetUserIDs) == 0 {
+		return result, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	query, args, err := database.ExpandIn(
+		`SELECT target_user_id, seen_in_history, seen_in_favorite, COALESCE(snapshot_json, ''), COALESCE(last_msg, ''), COALESCE(last_time, '')
+		FROM chat_user_archive
+		WHERE owner_user_id = ? AND target_user_id IN (?)`,
+		ownerUserID,
+		targetUserIDs,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var state archiveExistingState
+		if err := rows.Scan(&state.TargetUserID, &state.SeenInHistory, &state.SeenInFavorite, &state.SnapshotJSON, &state.LastMsg, &state.LastTime); err != nil {
+			return nil, err
+		}
+		state.TargetUserID = strings.TrimSpace(state.TargetUserID)
+		result[state.TargetUserID] = state
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *DBUserArchiveService) upsertRowsBatch(ctx context.Context, rows []archiveUpsertInput) error {
+	if s == nil || s.db == nil || len(rows) == 0 {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	values := make([]string, 0, len(rows))
+	args := make([]any, 0, len(rows)*11)
+	for _, row := range rows {
+		now := row.SeenAt
+		if now.IsZero() {
+			now = time.Now()
+		}
+		values = append(values, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		args = append(
+			args,
+			row.OwnerUserID,
+			row.TargetUserID,
+			nullableString(row.SnapshotJSON),
+			nullableString(row.LastMsg),
+			nullableString(row.LastTime),
+			row.SeenInHistory,
+			row.SeenInFavorite,
+			now,
+			now,
+			now,
+			now,
+		)
+	}
+
+	baseQuery := `INSERT INTO chat_user_archive (
+		owner_user_id, target_user_id, snapshot_json, last_msg, last_time,
+		seen_in_history, seen_in_favorite, first_seen_at, last_seen_at, created_at, updated_at
+	) VALUES ` + strings.Join(values, ",")
+
+	var query string
+	switch s.db.Dialect().Name() {
+	case "postgres":
+		query = baseQuery + `
+		ON CONFLICT (owner_user_id, target_user_id) DO UPDATE SET
+			snapshot_json = COALESCE(EXCLUDED.snapshot_json, chat_user_archive.snapshot_json),
+			last_msg = COALESCE(EXCLUDED.last_msg, chat_user_archive.last_msg),
+			last_time = COALESCE(EXCLUDED.last_time, chat_user_archive.last_time),
+			seen_in_history = GREATEST(chat_user_archive.seen_in_history, EXCLUDED.seen_in_history),
+			seen_in_favorite = GREATEST(chat_user_archive.seen_in_favorite, EXCLUDED.seen_in_favorite),
+			first_seen_at = LEAST(chat_user_archive.first_seen_at, EXCLUDED.first_seen_at),
+			last_seen_at = GREATEST(chat_user_archive.last_seen_at, EXCLUDED.last_seen_at),
+			updated_at = EXCLUDED.updated_at`
+	default:
+		query = baseQuery + `
+		ON DUPLICATE KEY UPDATE
+			snapshot_json = COALESCE(VALUES(snapshot_json), snapshot_json),
+			last_msg = COALESCE(VALUES(last_msg), last_msg),
+			last_time = COALESCE(VALUES(last_time), last_time),
+			seen_in_history = GREATEST(seen_in_history, VALUES(seen_in_history)),
+			seen_in_favorite = GREATEST(seen_in_favorite, VALUES(seen_in_favorite)),
+			first_seen_at = LEAST(first_seen_at, VALUES(first_seen_at)),
+			last_seen_at = GREATEST(last_seen_at, VALUES(last_seen_at)),
+			updated_at = VALUES(updated_at)`
+	}
+
+	_, err := s.db.ExecContext(ctx, query, args...)
+	return err
 }
 
 func (s *DBUserArchiveService) upsertRow(ctx context.Context, in archiveUpsertInput) error {

@@ -60,9 +60,9 @@ func TestDBUserArchiveService_PersistUserList_FavoriteInsert(t *testing.T) {
 	rawDB, mock, cleanup := newSQLMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery(`SELECT seen_in_history, seen_in_favorite FROM chat_user_archive WHERE owner_user_id = \? AND target_user_id = \? LIMIT 1`).
+	mock.ExpectQuery(`SELECT target_user_id, seen_in_history, seen_in_favorite, COALESCE\(snapshot_json, ''\), COALESCE\(last_msg, ''\), COALESCE\(last_time, ''\)\s+FROM chat_user_archive\s+WHERE owner_user_id = \? AND target_user_id IN \(\?\)`).
 		WithArgs("me", "u2").
-		WillReturnRows(sqlmock.NewRows([]string{"seen_in_history", "seen_in_favorite"}))
+		WillReturnRows(sqlmock.NewRows([]string{"target_user_id", "seen_in_history", "seen_in_favorite", "snapshot_json", "last_msg", "last_time"}))
 
 	mock.ExpectExec(`INSERT INTO chat_user_archive`).
 		WithArgs(
@@ -79,6 +79,37 @@ func TestDBUserArchiveService_PersistUserList_FavoriteInsert(t *testing.T) {
 			sqlmock.AnyArg(),
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	svc := NewDBUserArchiveService(wrapMySQLDB(rawDB))
+	users := []map[string]any{{
+		"id":       "u2",
+		"nickname": "Bob",
+		"lastMsg":  "hello",
+		"lastTime": "2026-02-27 12:00:00",
+	}}
+	svc.PersistUserList(context.Background(), "me", users, UserArchiveListSourceFavorite)
+}
+
+func TestDBUserArchiveService_PersistUserList_SkipUnchanged(t *testing.T) {
+	rawDB, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	snapshot, err := json.Marshal(map[string]any{
+		"id":       "u2",
+		"nickname": "Bob",
+		"lastMsg":  "hello",
+		"lastTime": "2026-02-27 12:00:00",
+	})
+	if err != nil {
+		t.Fatalf("marshal snapshot: %v", err)
+	}
+
+	mock.ExpectQuery(`SELECT target_user_id, seen_in_history, seen_in_favorite, COALESCE\(snapshot_json, ''\), COALESCE\(last_msg, ''\), COALESCE\(last_time, ''\)\s+FROM chat_user_archive\s+WHERE owner_user_id = \? AND target_user_id IN \(\?\)`).
+		WithArgs("me", "u2").
+		WillReturnRows(
+			sqlmock.NewRows([]string{"target_user_id", "seen_in_history", "seen_in_favorite", "snapshot_json", "last_msg", "last_time"}).
+				AddRow("u2", 0, 1, string(snapshot), "hello", "2026-02-27 12:00:00"),
+		)
 
 	svc := NewDBUserArchiveService(wrapMySQLDB(rawDB))
 	users := []map[string]any{{

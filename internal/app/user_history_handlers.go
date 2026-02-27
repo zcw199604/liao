@@ -28,6 +28,7 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 	upstreamMs := int64(-1)
 	enrichUserInfoMs := int64(-1)
 	lastMsgMs := int64(-1)
+	persistArchiveMs := int64(-1)
 	resultSize := -1
 	var upstreamStatus int
 	cacheEnabled := a.userInfoCache != nil
@@ -51,6 +52,7 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 			"upstreamMs", upstreamMs,
 			"enrichUserInfoMs", enrichUserInfoMs,
 			"lastMsgMs", lastMsgMs,
+			"persistArchiveMs", persistArchiveMs,
 			"totalMs", time.Since(totalStart).Milliseconds(),
 			"cacheEnabled", cacheEnabled,
 			"archiveEnabled", archiveEnabled,
@@ -125,7 +127,7 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 				enrichUserInfoMs, lastMsgMs = enrichUserListInPlace(a.userInfoCache, list, idKey, myUserID)
 			}
 			if archiveEnabled {
-				a.userArchive.PersistUserList(r.Context(), myUserID, list, UserArchiveListSourceHistory)
+				persistArchiveMs = a.persistArchivedUserList(myUserID, list, UserArchiveListSourceHistory)
 				list = a.userArchive.MergeArchivedUsers(r.Context(), myUserID, list, UserArchiveListSourceHistory)
 			}
 
@@ -146,6 +148,7 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 	upstreamMs := int64(-1)
 	enrichUserInfoMs := int64(-1)
 	lastMsgMs := int64(-1)
+	persistArchiveMs := int64(-1)
 	resultSize := -1
 	var upstreamStatus int
 	cacheEnabled := a.userInfoCache != nil
@@ -169,6 +172,7 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 			"upstreamMs", upstreamMs,
 			"enrichUserInfoMs", enrichUserInfoMs,
 			"lastMsgMs", lastMsgMs,
+			"persistArchiveMs", persistArchiveMs,
 			"totalMs", time.Since(totalStart).Milliseconds(),
 			"cacheEnabled", cacheEnabled,
 			"archiveEnabled", archiveEnabled,
@@ -243,7 +247,7 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 				enrichUserInfoMs, lastMsgMs = enrichUserListInPlace(a.userInfoCache, list, idKey, myUserID)
 			}
 			if archiveEnabled {
-				a.userArchive.PersistUserList(r.Context(), myUserID, list, UserArchiveListSourceFavorite)
+				persistArchiveMs = a.persistArchivedUserList(myUserID, list, UserArchiveListSourceFavorite)
 				list = a.userArchive.MergeArchivedUsers(r.Context(), myUserID, list, UserArchiveListSourceFavorite)
 			}
 
@@ -257,6 +261,51 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeText(w, http.StatusOK, body)
+}
+
+func (a *App) persistArchivedUserList(ownerUserID string, users []map[string]any, source UserArchiveListSource) int64 {
+	start := time.Now()
+	if a == nil || a.userArchive == nil || strings.TrimSpace(ownerUserID) == "" || len(users) == 0 {
+		return -1
+	}
+
+	// 非数据库实现（多见于测试替身）保持同步调用，避免测试出现竞态。
+	if _, isDBArchive := a.userArchive.(*DBUserArchiveService); !isDBArchive {
+		a.userArchive.PersistUserList(context.Background(), ownerUserID, users, source)
+		return time.Since(start).Milliseconds()
+	}
+
+	copiedUsers := cloneUserListForArchive(users)
+	go func(owner string, copied []map[string]any, listSource UserArchiveListSource) {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				slog.Error("异步归档用户列表出现 panic", "ownerUserID", owner, "source", listSource, "panic", recovered)
+			}
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer cancel()
+		a.userArchive.PersistUserList(ctx, owner, copied, listSource)
+	}(ownerUserID, copiedUsers, source)
+
+	return time.Since(start).Milliseconds()
+}
+
+func cloneUserListForArchive(users []map[string]any) []map[string]any {
+	if len(users) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(users))
+	for _, user := range users {
+		if user == nil {
+			continue
+		}
+		copied := make(map[string]any, len(user))
+		for k, v := range user {
+			copied[k] = v
+		}
+		out = append(out, copied)
+	}
+	return out
 }
 
 func (a *App) handleReportReferrer(w http.ResponseWriter, r *http.Request) {
