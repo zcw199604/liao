@@ -1159,16 +1159,18 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 ```
 
 #### [GET] /api/getMtPhotoSameMedia
-**描述**：按 md5 查询 mtPhoto 同图列表（后端调用 `filesInMD5`，用于预览详情“查看相同图片”）。
+**描述**：查询 mtPhoto 同图列表（后端调用 `filesInMD5`，用于预览详情“查看相同图片”）。支持直接传 `md5`，或在缺少 `md5` 时传 `localPath` 由后端补算 MD5（仅本地路径）。
 
 **请求（query）**
 | 参数 | 必填 | 说明 |
 |---|---|---|
-| md5 | 是 | 32位 hex MD5 |
+| md5 | 否 | 32位 hex MD5；传入时优先使用 |
+| localPath | 否 | 本地文件路径（`/lsp/*`、`/upload/images/*`、`/upload/videos/*`，也兼容 `/images/*`、`/videos/*`） |
 
 **响应（HTTP 200）**
 ```json
 {
+  "resolvedMd5": "600e0556a5bd9d03d84ddae23bce66de",
   "items": [
     {
       "id": 695770,
@@ -1188,6 +1190,8 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 ```
 
 **备注**
+- `md5` 与 `localPath` 不能同时为空；`md5` 非法或 `localPath` 超出允许范围会返回 HTTP 400。
+- `resolvedMd5` 为后端实际用于查询的 MD5（可能来自 `md5` 参数，也可能由 `localPath` 补算得到）。
 - 结果按时间倒序返回（同时间再按目录/路径稳定排序）。
 - `folderId/folderPath/folderName` 为 best-effort 字段，上游缺失时会尽量回退到本地目录信息；`canOpenFolder` 标识前端是否可尝试“一键打开目录”。
 

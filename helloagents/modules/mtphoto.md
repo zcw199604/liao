@@ -4,9 +4,9 @@
 将外部 mtPhoto 相册系统接入当前应用，使用户可以按“相册 → 媒体（图片/视频）”或“文件夹树 → 子目录/图片”方式浏览素材，并一键导入到本地媒体库（仅落盘 + 全局去重，不自动上传上游）。需要发送时在聊天页“所有图片/全站图片库”中手动点击“上传此图片”上传到上游后发送。
 
 ## 模块概述
-- **职责:** mtPhoto 登录/续期（优先 refresh_token，失败回退登录）；相册列表；相册媒体分页（后端切片）；文件夹树浏览（root/content/breadcrumbs）；文件夹级本地收藏（标签/备注）；gateway 缩略图代理；按 MD5 解析本地文件路径；按 MD5 查询同图列表（时间倒序 + 目录信息）；导入（落盘到 `./upload` + 全局 MD5 去重 + 写入 `media_file`/复用已有记录；不自动上传上游）
+- **职责:** mtPhoto 登录/续期（优先 refresh_token，失败回退登录）；相册列表；相册媒体分页（后端切片）；文件夹树浏览（root/content/breadcrumbs）；文件夹级本地收藏（标签/备注）；gateway 缩略图代理；按 MD5 解析本地文件路径；同图查询（优先 MD5，缺失时可按本地路径补算 MD5，时间倒序 + 目录信息）；导入（落盘到 `./upload` + 全局 MD5 去重 + 写入 `media_file`/复用已有记录；不自动上传上游）
 - **状态:** ✅稳定
-- **最后更新:** 2026-02-23
+- **最后更新:** 2026-02-27
 
 ## 入口与交互
 - **聊天页上传菜单:** 新增“mtPhoto 相册”入口，打开相册弹窗
@@ -62,12 +62,13 @@
 2. 当前媒体缺少 `originalFilename` 时，前端按需调用 `GET /api/resolveMtPhotoFilePath?md5=<md5>` 获取 `filePath`
 3. 前端仅取 `filePath` 的 basename 作为“原始文件名”展示，并按 `md5` 缓存解析结果（不在 UI 中展示完整路径）
 
-### 8) 查看相同图片（同 MD5）
+### 8) 查看相同图片（支持无 MD5 回退）
 1. 用户在预览详情中点击“查看 mtPhoto 相同图片”
-2. 前端调用 `GET /api/getMtPhotoSameMedia?md5=<md5>`
-3. 后端调用 mtPhoto `filesInMD5` 并返回同图列表（按时间倒序；尽量补充目录信息）
-4. 前端按“日期分组 + 目录分组”展示列表，并支持“一键打开目录”
-5. 打开目录时优先使用 `folderId` 直达；若缺失则尝试用 `folderPath` 逐级定位，失败时回退根目录
+2. 前端优先传 `md5`；当当前图片无 `md5` 时，自动传本地 `localPath`（仅 `/upload/*`、`/lsp/*`）
+3. 后端调用 `GET /api/getMtPhotoSameMedia`：优先使用 `md5`；否则由 `localPath` 计算 MD5（仅支持 `/lsp/*`、`/upload/images/*`、`/upload/videos/*`）并返回 `resolvedMd5`
+4. 后端调用 mtPhoto `filesInMD5` 并返回同图列表（按时间倒序；尽量补充目录信息）
+5. 前端按“日期分组 + 目录分组”展示列表，并支持“一键打开目录”
+6. 打开目录时优先使用 `folderId` 直达；若缺失则尝试用 `folderPath` 逐级定位，失败时回退根目录
 
 ## 鉴权与续期策略（mtPhoto 上游）
 

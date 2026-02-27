@@ -358,7 +358,7 @@ describe('api/mtphoto', () => {
     mtphotoApi.resolveMtPhotoFilePath('md5-1')
     expect(spies.requestGet).toHaveBeenCalledWith('/resolveMtPhotoFilePath', { params: { md5: 'md5-1' } })
 
-    mtphotoApi.getMtPhotoSameMedia('md5-3')
+    mtphotoApi.getMtPhotoSameMedia({ md5: 'md5-3' })
     expect(spies.requestGet).toHaveBeenCalledWith('/getMtPhotoSameMedia', { params: { md5: 'md5-3' } })
 
     mtphotoApi.importMtPhotoMedia({ userid: 'me', md5: 'md5-2', cookieData: 'c', referer: 'r', userAgent: 'ua' })

@@ -488,6 +488,7 @@ const thumbnailScrollerRef = ref<any>(null)
 const showDetails = ref(false)
 const showMtPhotoSamePanel = ref(false)
 const mtPhotoSameMD5 = ref('')
+const mtPhotoSameQuery = ref<{ md5?: string; localPath?: string }>({})
 const mtPhotoSameLoading = ref(false)
 const mtPhotoSameError = ref('')
 const mtPhotoSameItems = ref<MtPhotoSameMediaItem[]>([])
@@ -1273,20 +1274,66 @@ const handleShowDetails = async () => {
   showDetails.value = true
 }
 
-const fetchMtPhotoSameMedia = async (md5Value: string) => {
-  const safeMD5 = String(md5Value || '').trim()
-  if (!safeMD5) return
+const normalizeMtPhotoLookupLocalPath = (value: string): string => {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+
+  let pathValue = raw
+  try {
+    const parsed = new URL(raw, window.location.origin)
+    pathValue = String(parsed.pathname || '').trim()
+  } catch {
+    const idx = raw.indexOf('://')
+    if (idx >= 0) return ''
+  }
+
+  pathValue = pathValue.split('?')[0]?.split('#')[0] || ''
+  pathValue = pathValue.replace(/\\/g, '/').trim()
+  if (!pathValue) return ''
+  if (!pathValue.startsWith('/')) pathValue = `/${pathValue}`
+  return pathValue
+}
+
+const resolveMtPhotoLookupLocalPath = (media: UploadedMedia): string => {
+  if (!media) return ''
+  const candidates = [media.url, media.downloadUrl]
+  for (const candidate of candidates) {
+    const normalized = normalizeMtPhotoLookupLocalPath(String(candidate || ''))
+    if (!normalized) continue
+    if (
+      normalized.startsWith('/lsp/') ||
+      normalized.startsWith('/upload/') ||
+      normalized.startsWith('/images/') ||
+      normalized.startsWith('/videos/')
+    ) {
+      return normalized
+    }
+  }
+  return ''
+}
+
+const fetchMtPhotoSameMedia = async (params: { md5?: string; localPath?: string }) => {
+  const safeMD5 = String(params?.md5 || '').trim()
+  const safeLocalPath = String(params?.localPath || '').trim()
+  if (!safeMD5 && !safeLocalPath) return
+
+  const query: { md5?: string; localPath?: string } = {}
+  if (safeMD5) query.md5 = safeMD5
+  if (safeLocalPath) query.localPath = safeLocalPath
 
   mtPhotoSameLoading.value = true
   mtPhotoSameError.value = ''
   mtPhotoSameItems.value = []
+  mtPhotoSameQuery.value = { ...query }
   mtPhotoSameMD5.value = safeMD5
   showMtPhotoSamePanel.value = true
 
   try {
-    const res = await mtphotoApi.getMtPhotoSameMedia(safeMD5)
+    const res = await mtphotoApi.getMtPhotoSameMedia(query)
     const items = Array.isArray(res?.items) ? res.items : []
     mtPhotoSameItems.value = items
+    const resolvedMd5 = String(res?.resolvedMd5 || '').trim()
+    mtPhotoSameMD5.value = resolvedMd5 || safeMD5
   } catch (e: any) {
     mtPhotoSameError.value = e?.response?.data?.error || e?.message || '查询相同图片失败'
   } finally {
@@ -1294,14 +1341,26 @@ const fetchMtPhotoSameMedia = async (md5Value: string) => {
   }
 }
 
-const handleViewMtPhotoSameMedia = async (md5Value: string) => {
-  await fetchMtPhotoSameMedia(md5Value)
+const handleViewMtPhotoSameMedia = async () => {
+  const media = currentMedia.value
+  if (!media || media.type !== 'image') return
+
+  const safeMD5 = String(media.md5 || '').trim()
+  const safeLocalPath = resolveMtPhotoLookupLocalPath(media)
+  if (!safeMD5 && !safeLocalPath) {
+    show('当前图片缺少可匹配的 MD5 或本地路径（仅支持 /upload、/lsp）')
+    return
+  }
+
+  await fetchMtPhotoSameMedia({ md5: safeMD5 || undefined, localPath: safeLocalPath || undefined })
 }
 
 const handleRetryMtPhotoSameMedia = async () => {
-  const safeMD5 = String(mtPhotoSameMD5.value || '').trim()
-  if (!safeMD5) return
-  await fetchMtPhotoSameMedia(safeMD5)
+  const query = mtPhotoSameQuery.value || {}
+  const safeMD5 = String(query.md5 || '').trim()
+  const safeLocalPath = String(query.localPath || '').trim()
+  if (!safeMD5 && !safeLocalPath) return
+  await fetchMtPhotoSameMedia({ md5: safeMD5 || undefined, localPath: safeLocalPath || undefined })
 }
 
 const handleOpenMtPhotoFolderFromSame = async (item: MtPhotoSameMediaItem) => {
@@ -1357,6 +1416,7 @@ const handleExtractFrames = async () => {
 const hasMediaDetails = computed(() => {
   const media = currentMedia.value
   if (!media) return false
+  if (media.type === 'image') return true
 
   const ctx = media.context
   if (ctx?.provider === 'douyin' && ctx.work) {
@@ -1875,6 +1935,7 @@ const handleClose = () => {
   mtPhotoSameError.value = ''
   mtPhotoSameItems.value = []
   mtPhotoSameMD5.value = ''
+  mtPhotoSameQuery.value = {}
   emit('update:visible', false)
 }
 
@@ -2022,6 +2083,7 @@ watch(() => props.visible, (val) => {
     mtPhotoSameError.value = ''
     mtPhotoSameItems.value = []
     mtPhotoSameMD5.value = ''
+    mtPhotoSameQuery.value = {}
     window.addEventListener('keydown', handleKeydown)
     window.addEventListener('pointerdown', handleDocumentPointerDown, true)
     document.addEventListener('fullscreenchange', handleDocumentFullscreenChange)
@@ -2050,6 +2112,7 @@ watch(() => props.visible, (val) => {
     mtPhotoSameError.value = ''
     mtPhotoSameItems.value = []
     mtPhotoSameMD5.value = ''
+    mtPhotoSameQuery.value = {}
     clearTapState()
     exitVideoFullscreen()
     clearOverlayHideTimer()

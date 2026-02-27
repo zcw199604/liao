@@ -210,7 +210,7 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
         stubs: {
           teleport: true,
           MediaDetailPanel: {
-            template: '<button class="emit-view-same" @click="$emit(\'view-mtphoto-same-media\', media?.md5)">same</button>',
+            template: '<button class="emit-view-same" @click="$emit(\'view-mtphoto-same-media\')">same</button>',
             props: ['media']
           },
           MtPhotoSameMediaPanel: {
@@ -226,7 +226,7 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
 
     await wrapper.get('button.emit-view-same').trigger('click')
     await flushAsync()
-    expect(sameSpy).toHaveBeenCalledWith(md5Value)
+    expect(sameSpy).toHaveBeenCalledWith({ md5: md5Value })
 
     await wrapper.get('button.emit-open-folder').trigger('click')
     await vi.advanceTimersByTimeAsync(230)
@@ -239,6 +239,36 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
       folderName: '我的照片'
     })
     vi.useRealTimers()
+  })
+
+  it('uses localPath fallback when image has no md5', async () => {
+    const sameSpy = vi.spyOn(mtphotoApi, 'getMtPhotoSameMedia').mockResolvedValue({
+      resolvedMd5: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      items: []
+    } as any)
+
+    const wrapper = mount(MediaPreview, {
+      props: {
+        visible: true,
+        url: 'http://localhost:8080/upload/images/2026/02/a.jpg?x=1',
+        type: 'image',
+        mediaList: [{ url: 'http://localhost:8080/upload/images/2026/02/a.jpg?x=1', type: 'image' } as any]
+      },
+      global: {
+        stubs: {
+          teleport: true,
+          MediaDetailPanel: {
+            template: '<button class="emit-view-same" @click="$emit(\'view-mtphoto-same-media\')">same</button>'
+          }
+        }
+      }
+    })
+
+    await flushAsync()
+    await wrapper.get('button.emit-view-same').trigger('click')
+    await flushAsync()
+
+    expect(sameSpy).toHaveBeenCalledWith({ localPath: '/upload/images/2026/02/a.jpg' })
   })
 
 

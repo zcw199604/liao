@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -300,20 +302,137 @@ func (a *App) handleGetMtPhotoSameMedia(w http.ResponseWriter, r *http.Request) 
 	}
 
 	md5Value := strings.TrimSpace(r.URL.Query().Get("md5"))
-	if !isValidMD5Hex(md5Value) {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "md5 参数非法"})
+	localPathValue := strings.TrimSpace(r.URL.Query().Get("localPath"))
+
+	resolvedMD5, err := a.resolveMtPhotoSameMediaMD5(md5Value, localPathValue)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
 
-	items, err := a.mtPhoto.ListSameMediaByMD5(r.Context(), md5Value)
+	items, err := a.mtPhoto.ListSameMediaByMD5(r.Context(), resolvedMD5)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"items": items,
+		"resolvedMd5": resolvedMD5,
+		"items":       items,
 	})
+}
+
+func (a *App) resolveMtPhotoSameMediaMD5(md5Value, localPath string) (string, error) {
+	md5Value = strings.TrimSpace(md5Value)
+	if md5Value != "" {
+		if !isValidMD5Hex(md5Value) {
+			return "", fmt.Errorf("md5 参数非法")
+		}
+		return strings.ToLower(md5Value), nil
+	}
+
+	localPath = strings.TrimSpace(localPath)
+	if localPath == "" {
+		return "", fmt.Errorf("md5/localPath 不能同时为空")
+	}
+
+	md5ByPath, err := a.calculateMD5FromSupportedLocalPath(localPath)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(md5ByPath) == "" {
+		return "", fmt.Errorf("无法从本地路径计算 md5")
+	}
+	return strings.ToLower(md5ByPath), nil
+}
+
+func normalizeMtPhotoLookupLocalPath(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+
+	normalized := strings.ReplaceAll(raw, "\\", "/")
+	if strings.HasPrefix(normalized, "http://") || strings.HasPrefix(normalized, "https://") {
+		if u, err := url.Parse(normalized); err == nil {
+			normalized = strings.TrimSpace(u.Path)
+		}
+	}
+
+	if strings.Contains(normalized, "%") {
+		if decoded, err := url.PathUnescape(normalized); err == nil && strings.TrimSpace(decoded) != "" {
+			normalized = strings.TrimSpace(decoded)
+		}
+	}
+
+	if idx := strings.IndexAny(normalized, "?#"); idx >= 0 {
+		normalized = normalized[:idx]
+	}
+
+	normalized = strings.TrimSpace(normalized)
+	if normalized == "" {
+		return ""
+	}
+	if !strings.HasPrefix(normalized, "/") {
+		normalized = "/" + normalized
+	}
+	return normalized
+}
+
+func calculateMD5FromAbsPath(absPath string) (string, error) {
+	absPath = strings.TrimSpace(absPath)
+	if absPath == "" {
+		return "", fmt.Errorf("文件路径为空")
+	}
+	fi, err := os.Stat(absPath)
+	if err != nil || fi.IsDir() {
+		return "", fmt.Errorf("文件不存在")
+	}
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		return "", err
+	}
+	sum := md5.Sum(data)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func (a *App) calculateMD5FromSupportedLocalPath(localPathRaw string) (string, error) {
+	if a == nil {
+		return "", fmt.Errorf("服务未初始化")
+	}
+
+	localPath := normalizeMtPhotoLookupLocalPath(localPathRaw)
+	if localPath == "" {
+		return "", fmt.Errorf("localPath 参数非法")
+	}
+
+	if strings.HasPrefix(localPath, "/lsp/") {
+		absPath, err := resolveLspLocalPath(a.cfg.LspRoot, localPath)
+		if err != nil {
+			return "", fmt.Errorf("localPath 非法: %w", err)
+		}
+		md5Value, err := calculateMD5FromAbsPath(absPath)
+		if err != nil {
+			return "", fmt.Errorf("读取本地文件失败: %w", err)
+		}
+		return md5Value, nil
+	}
+
+	normalizedUploadPath := normalizeUploadLocalPathInput(localPath)
+	if normalizedUploadPath == "" {
+		return "", fmt.Errorf("仅支持本地 /upload 或 /lsp 路径")
+	}
+	if !strings.HasPrefix(normalizedUploadPath, "/images/") && !strings.HasPrefix(normalizedUploadPath, "/videos/") {
+		return "", fmt.Errorf("仅支持本地 /upload/images 或 /upload/videos 文件")
+	}
+	if a.fileStorage == nil {
+		return "", fmt.Errorf("文件存储服务未初始化")
+	}
+	md5Value, err := a.fileStorage.CalculateMD5FromLocalPath(normalizedUploadPath)
+	if err != nil {
+		return "", fmt.Errorf("读取本地文件失败: %w", err)
+	}
+	return md5Value, nil
 }
 
 func (a *App) handleImportMtPhotoMedia(w http.ResponseWriter, r *http.Request) {

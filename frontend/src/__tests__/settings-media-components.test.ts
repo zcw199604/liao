@@ -257,12 +257,12 @@ describe('components/media/MediaPreview.vue', () => {
     expect(wrapper.find('h3').text()).toContain('文件详细信息')
   })
 
-  it('does not show detail button when media has no metadata fields', async () => {
+  it('does not show detail button for non-image media when metadata is missing', async () => {
     const wrapper = mount(MediaPreview, {
       props: {
         visible: false,
-        url: 'http://x/1.png',
-        type: 'image'
+        url: '/upload/files/a.bin',
+        type: 'file'
       },
       global: {
         stubs: { teleport: true }

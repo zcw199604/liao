@@ -141,14 +141,19 @@
             <div v-if="media.md5" class="detail-item">
               <label>MD5</label>
               <div class="value font-mono text-xs">{{ media.md5 }}</div>
+            </div>
+
+            <div v-if="canViewMtPhotoSameMedia" class="detail-item">
+              <label>mtPhoto 同图</label>
               <button
-                v-if="canViewMtPhotoSameMedia"
                 class="detail-action mt-2"
                 type="button"
                 @click="handleViewMtPhotoSameMedia"
               >
                 <div class="value font-medium">查看 mtPhoto 相同图片</div>
-                <div class="value text-xs text-fg-subtle mt-1">按时间倒序 + 目录分组</div>
+                <div class="value text-xs text-fg-subtle mt-1">
+                  {{ media.md5 ? '按时间倒序 + 目录分组' : '无 MD5 时将按本地路径自动补算 MD5' }}
+                </div>
               </button>
             </div>
 
@@ -183,7 +188,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'update:visible': [value: boolean]
   'open-author-works': [secUserId: string]
-  'view-mtphoto-same-media': [md5: string]
+  'view-mtphoto-same-media': []
 }>()
 
 const close = () => emit('update:visible', false)
@@ -195,14 +200,10 @@ const handleOpenAuthorWorks = () => {
 }
 
 const handleViewMtPhotoSameMedia = () => {
-  const md5Value = String(props.media?.md5 || '').trim()
-  if (!md5Value) return
-  emit('view-mtphoto-same-media', md5Value)
+  emit('view-mtphoto-same-media')
 }
 
 const canViewMtPhotoSameMedia = computed(() => {
-  const md5Value = String(props.media?.md5 || '').trim()
-  if (!md5Value) return false
   return props.media?.type === 'image'
 })
 

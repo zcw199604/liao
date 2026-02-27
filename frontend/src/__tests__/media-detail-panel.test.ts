@@ -103,8 +103,22 @@ describe('components/media/MediaDetailPanel.vue', () => {
     const btn = wrapper.get('button.detail-action')
     await btn.trigger('click')
 
-    expect(wrapper.emitted('view-mtphoto-same-media')?.[0]).toEqual([
-      '0123456789abcdef0123456789abcdef'
-    ])
+    expect(wrapper.emitted('view-mtphoto-same-media')?.[0]).toEqual([])
+  })
+
+  it('shows same media action for image even when md5 is missing', () => {
+    const wrapper = mount(MediaDetailPanel, {
+      props: {
+        visible: true,
+        media: {
+          url: '/upload/images/2026/02/a.jpg',
+          type: 'image'
+        } as any
+      },
+      global: { stubs: { teleport: true } }
+    })
+
+    expect(wrapper.text()).toContain('查看 mtPhoto 相同图片')
+    expect(wrapper.text()).toContain('自动补算 MD5')
   })
 })

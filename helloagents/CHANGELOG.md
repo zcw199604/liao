@@ -18,6 +18,7 @@
 - mtPhoto 新增“文件夹级收藏”能力：支持按 `folderId` 收藏目录并维护标签、备注（`/api/getMtPhotoFolderFavorites`、`/api/upsertMtPhotoFolderFavorite`、`/api/removeMtPhotoFolderFavorite`）；后端新增迁移表 `mtphoto_folder_favorite`（MySQL/PostgreSQL 同步）。
 - mtPhoto 收藏管理增强：收藏列表支持按标签筛选（任一/全部匹配）、排序（更新时间/目录名/标签数）与常用标签 chips；收藏卡片支持直接编辑标签与备注（无需先进入目录）。
 - mtPhoto 收藏接口预留可选 query 参数（`tagKeyword/tagMode/sortBy/sortOrder/groupBy`）并保持兼容，当前 V1 由前端本地执行筛选排序，后续可平滑演进到服务端筛选。
+- mtPhoto 同图查询接口 `GET /api/getMtPhotoSameMedia` 增强：新增 `localPath` 入参，缺少 `md5` 时可按本地路径（仅 `/lsp/*`、`/upload/images/*`、`/upload/videos/*`）补算 MD5，并返回 `resolvedMd5`；前端预览详情同步支持“任意图片（本地路径）”触发同图查询。
 - 抖音导入链路新增作者快照落库：`douyin_media_file` 增加 `author_unique_id`、`author_name` 字段；导入时写入并在 MD5 命中复用时执行非空回填。
 - 全站媒体接口 `GET /api/getAllUploadImages` 新增抖音元信息返回字段：`source`、`douyinSecUserId`、`douyinDetailId`、`douyinAuthorUniqueId`、`douyinAuthorName`（兼容追加）。
 - 前端媒体详情支持“点击作者查看全部作品”：在 `MediaDetailPanel` 点击作者可直接打开 `DouyinDownloadModal` 并自动切到“用户作品”模式拉取该作者列表。

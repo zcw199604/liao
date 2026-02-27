@@ -75,6 +75,7 @@ export interface MtPhotoSameMediaItem {
 }
 
 export interface MtPhotoSameMediaResponse {
+  resolvedMd5?: string
   items: MtPhotoSameMediaItem[]
 }
 
@@ -137,8 +138,8 @@ export const resolveMtPhotoFilePath = (md5: string) => {
   return request.get<any, any>('/resolveMtPhotoFilePath', { params: { md5 } })
 }
 
-export const getMtPhotoSameMedia = (md5: string) => {
-  return request.get<any, MtPhotoSameMediaResponse>('/getMtPhotoSameMedia', { params: { md5 } })
+export const getMtPhotoSameMedia = (params: { md5?: string; localPath?: string }) => {
+  return request.get<any, MtPhotoSameMediaResponse>('/getMtPhotoSameMedia', { params })
 }
 
 export const importMtPhotoMedia = (data: {
