@@ -255,7 +255,7 @@
                   </div>
                 </div>
 
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   <div
                     v-for="item in accountItems"
                     :key="`douyin-account-${item.detailId}`"
@@ -751,7 +751,7 @@
                 </div>
               </div>
 
-              <div v-if="detail.items && detail.items.length > 0" class="mt-3 grid grid-cols-3 sm:grid-cols-4 gap-1">
+              <div v-if="detail.items && detail.items.length > 0" class="mt-3 grid grid-cols-3 sm:grid-cols-4 gap-2">
                 <button
                   v-for="item in detail.items"
                   :key="`douyin-item-${item.index}`"
@@ -1278,7 +1278,7 @@
 		                {{ favoriteUserWorksError }}
 		              </div>
 
-		              <div v-if="favoriteUserWorks.length > 0" class="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-1">
+		              <div v-if="favoriteUserWorks.length > 0" class="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
 		                <button
 		                  v-for="item in favoriteUserWorks"
 		                  :key="`douyin-favorite-user-aweme-${favoriteUserDetailId}-${item.detailId}`"
