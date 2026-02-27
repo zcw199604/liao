@@ -68,7 +68,21 @@ func TestMtPhotoHandlers_Core(t *testing.T) {
 			var req map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&req)
 			_ = json.NewEncoder(w).Encode([]map[string]any{
-				{"id": 9, "filePath": "/lsp/a/b.jpg"},
+				{
+					"id":         9,
+					"filePath":   "/lsp/a/b.jpg",
+					"folderId":   644,
+					"folderPath": "/photo/我的照片",
+					"folderName": "我的照片",
+					"tokenAt":    "2026-02-27T10:00:00.000Z",
+					"MD5":        "m1",
+				},
+				{
+					"id":       10,
+					"filePath": "/lsp/a/c.jpg",
+					"tokenAt":  "2026-01-01T08:00:00.000Z",
+					"MD5":      "m1",
+				},
 			})
 			return
 		default:
@@ -213,6 +227,39 @@ func TestMtPhotoHandlers_Core(t *testing.T) {
 		app.handleResolveMtPhotoFilePath(rr, req)
 		if rr.Code != http.StatusOK {
 			t.Fatalf("status=%d, want %d", rr.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("handleGetMtPhotoSameMedia not init", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoSameMedia?md5=0123456789abcdef0123456789abcdef", nil)
+		rr := httptest.NewRecorder()
+		(&App{}).handleGetMtPhotoSameMedia(rr, req)
+		if rr.Code != http.StatusInternalServerError {
+			t.Fatalf("status=%d, want %d", rr.Code, http.StatusInternalServerError)
+		}
+	})
+
+	t.Run("handleGetMtPhotoSameMedia invalid md5", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoSameMedia?md5=bad", nil)
+		rr := httptest.NewRecorder()
+		app.handleGetMtPhotoSameMedia(rr, req)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("status=%d, want %d", rr.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("handleGetMtPhotoSameMedia ok", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoSameMedia?md5=0123456789abcdef0123456789abcdef", nil)
+		rr := httptest.NewRecorder()
+		app.handleGetMtPhotoSameMedia(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status=%d, want %d", rr.Code, http.StatusOK)
+		}
+		if !strings.Contains(rr.Body.String(), "\"items\"") {
+			t.Fatalf("body=%s", rr.Body.String())
+		}
+		if !strings.Contains(rr.Body.String(), "\"folderPath\":\"/photo/我的照片\"") {
+			t.Fatalf("body=%s", rr.Body.String())
 		}
 	})
 

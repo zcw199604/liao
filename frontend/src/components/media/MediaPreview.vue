@@ -408,6 +408,17 @@
       v-model:visible="showDetails"
       :media="currentMedia"
       @open-author-works="handleOpenAuthorWorks"
+      @view-mtphoto-same-media="handleViewMtPhotoSameMedia"
+    />
+
+    <MtPhotoSameMediaPanel
+      v-model:visible="showMtPhotoSamePanel"
+      :loading="mtPhotoSameLoading"
+      :error="mtPhotoSameError"
+      :md5="mtPhotoSameMD5"
+      :items="mtPhotoSameItems"
+      @retry="handleRetryMtPhotoSameMedia"
+      @open-folder="handleOpenMtPhotoFolderFromSame"
     />
   </teleport>
 </template>
@@ -421,11 +432,15 @@ import { useToast } from '@/composables/useToast'
 import { useUpload } from '@/composables/useUpload'
 import { useUserStore } from '@/stores/user'
 import { useDouyinStore } from '@/stores/douyin'
+import { useMtPhotoStore } from '@/stores/mtphoto'
 import MediaTile from '@/components/common/MediaTile.vue'
 import { useVideoExtractStore } from '@/stores/videoExtract'
+import * as mtphotoApi from '@/api/mtphoto'
+import type { MtPhotoSameMediaItem } from '@/api/mtphoto'
 import Plyr from 'plyr'
 import 'plyr/dist/plyr.css'
 import MediaDetailPanel from './MediaDetailPanel.vue'
+import MtPhotoSameMediaPanel from './MtPhotoSameMediaPanel.vue'
 
 interface Props {
   visible: boolean
@@ -456,6 +471,7 @@ const emit = defineEmits<{
 const { show } = useToast()
 const userStore = useUserStore()
 const douyinStore = useDouyinStore()
+const mtPhotoStore = useMtPhotoStore()
 const videoExtractStore = useVideoExtractStore()
 const { uploadFile } = useUpload()
 
@@ -470,6 +486,11 @@ const thumbnailScrollerRef = ref<any>(null)
 
 // 详情面板状态
 const showDetails = ref(false)
+const showMtPhotoSamePanel = ref(false)
+const mtPhotoSameMD5 = ref('')
+const mtPhotoSameLoading = ref(false)
+const mtPhotoSameError = ref('')
+const mtPhotoSameItems = ref<MtPhotoSameMediaItem[]>([])
 
 const videoWrapperRef = ref<HTMLElement | null>(null)
 const videoRef = ref<HTMLVideoElement | null>(null)
@@ -1252,6 +1273,58 @@ const handleShowDetails = async () => {
   showDetails.value = true
 }
 
+const fetchMtPhotoSameMedia = async (md5Value: string) => {
+  const safeMD5 = String(md5Value || '').trim()
+  if (!safeMD5) return
+
+  mtPhotoSameLoading.value = true
+  mtPhotoSameError.value = ''
+  mtPhotoSameItems.value = []
+  mtPhotoSameMD5.value = safeMD5
+  showMtPhotoSamePanel.value = true
+
+  try {
+    const res = await mtphotoApi.getMtPhotoSameMedia(safeMD5)
+    const items = Array.isArray(res?.items) ? res.items : []
+    mtPhotoSameItems.value = items
+  } catch (e: any) {
+    mtPhotoSameError.value = e?.response?.data?.error || e?.message || '查询相同图片失败'
+  } finally {
+    mtPhotoSameLoading.value = false
+  }
+}
+
+const handleViewMtPhotoSameMedia = async (md5Value: string) => {
+  await fetchMtPhotoSameMedia(md5Value)
+}
+
+const handleRetryMtPhotoSameMedia = async () => {
+  const safeMD5 = String(mtPhotoSameMD5.value || '').trim()
+  if (!safeMD5) return
+  await fetchMtPhotoSameMedia(safeMD5)
+}
+
+const handleOpenMtPhotoFolderFromSame = async (item: MtPhotoSameMediaItem) => {
+  const folderId = Number(item?.folderId || 0)
+  const folderPath = String(item?.folderPath || '').trim()
+  const folderName = String(item?.folderName || '').trim()
+
+  showMtPhotoSamePanel.value = false
+  showDetails.value = false
+  handleClose()
+
+  window.setTimeout(async () => {
+    const ok = await mtPhotoStore.openFromExternalFolder({
+      folderId: Number.isFinite(folderId) && folderId > 0 ? folderId : undefined,
+      folderPath: folderPath || undefined,
+      folderName: folderName || undefined
+    })
+    if (!ok) {
+      show('未能精准定位目录，已打开 mtPhoto 文件夹视图')
+    }
+  }, 220)
+}
+
 const handleOpenAuthorWorks = (secUserId: string) => {
   const safeSecUserId = String(secUserId || '').trim()
   if (!safeSecUserId) return
@@ -1797,6 +1870,11 @@ const handleClose = () => {
   stopLivePhotoHold()
   resetZoom()
   showDetails.value = false
+  showMtPhotoSamePanel.value = false
+  mtPhotoSameLoading.value = false
+  mtPhotoSameError.value = ''
+  mtPhotoSameItems.value = []
+  mtPhotoSameMD5.value = ''
   emit('update:visible', false)
 }
 
@@ -1939,6 +2017,11 @@ watch(() => props.visible, (val) => {
     resetZoom()
     resetMediaLoadState()
     showDetails.value = false
+    showMtPhotoSamePanel.value = false
+    mtPhotoSameLoading.value = false
+    mtPhotoSameError.value = ''
+    mtPhotoSameItems.value = []
+    mtPhotoSameMD5.value = ''
     window.addEventListener('keydown', handleKeydown)
     window.addEventListener('pointerdown', handleDocumentPointerDown, true)
     document.addEventListener('fullscreenchange', handleDocumentFullscreenChange)
@@ -1962,6 +2045,11 @@ watch(() => props.visible, (val) => {
     nextTick(() => initPlyr())
   } else {
     showDetails.value = false
+    showMtPhotoSamePanel.value = false
+    mtPhotoSameLoading.value = false
+    mtPhotoSameError.value = ''
+    mtPhotoSameItems.value = []
+    mtPhotoSameMD5.value = ''
     clearTapState()
     exitVideoFullscreen()
     clearOverlayHideTimer()

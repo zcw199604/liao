@@ -86,4 +86,25 @@ describe('components/media/MediaDetailPanel.vue', () => {
 
     expect(wrapper.html()).not.toContain('文件详细信息')
   })
+
+  it('emits view-mtphoto-same-media when clicking same media action', async () => {
+    const wrapper = mount(MediaDetailPanel, {
+      props: {
+        visible: true,
+        media: {
+          url: '/x/a.jpg',
+          type: 'image',
+          md5: '0123456789abcdef0123456789abcdef'
+        } as any
+      },
+      global: { stubs: { teleport: true } }
+    })
+
+    const btn = wrapper.get('button.detail-action')
+    await btn.trigger('click')
+
+    expect(wrapper.emitted('view-mtphoto-same-media')?.[0]).toEqual([
+      '0123456789abcdef0123456789abcdef'
+    ])
+  })
 })

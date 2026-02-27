@@ -1158,6 +1158,39 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 {"id":695770,"filePath":"/lsp/.../a.jpg"}
 ```
 
+#### [GET] /api/getMtPhotoSameMedia
+**描述**：按 md5 查询 mtPhoto 同图列表（后端调用 `filesInMD5`，用于预览详情“查看相同图片”）。
+
+**请求（query）**
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| md5 | 是 | 32位 hex MD5 |
+
+**响应（HTTP 200）**
+```json
+{
+  "items": [
+    {
+      "id": 695770,
+      "md5": "600e0556a5bd9d03d84ddae23bce66de",
+      "filePath": "/lsp/.../a.jpg",
+      "fileName": "a.jpg",
+      "directory": "/lsp/.../camera",
+      "folderId": 644,
+      "folderPath": "/photo/我的照片",
+      "folderName": "我的照片",
+      "tokenAt": "2026-02-27T10:00:00.000Z",
+      "day": "2026-02-27",
+      "canOpenFolder": true
+    }
+  ]
+}
+```
+
+**备注**
+- 结果按时间倒序返回（同时间再按目录/路径稳定排序）。
+- `folderId/folderPath/folderName` 为 best-effort 字段，上游缺失时会尽量回退到本地目录信息；`canOpenFolder` 标识前端是否可尝试“一键打开目录”。
+
 #### [POST] /api/importMtPhotoMedia
 **描述**：将 mtPhoto 媒体导入到本地 `./upload`（不自动上传到上游；按 MD5 全局去重）。
 

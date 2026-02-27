@@ -133,6 +133,7 @@ func (a *App) buildRouter() http.Handler {
 		api.Get("/getMtPhotoThumb", a.handleGetMtPhotoThumb)
 		api.Get("/downloadMtPhotoOriginal", a.handleDownloadMtPhotoOriginal)
 		api.Get("/resolveMtPhotoFilePath", a.handleResolveMtPhotoFilePath)
+		api.Get("/getMtPhotoSameMedia", a.handleGetMtPhotoSameMedia)
 		api.Post("/importMtPhotoMedia", a.handleImportMtPhotoMedia)
 
 		// System config（全局配置：所有用户共用）

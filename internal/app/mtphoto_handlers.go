@@ -293,6 +293,29 @@ func (a *App) handleResolveMtPhotoFilePath(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+func (a *App) handleGetMtPhotoSameMedia(w http.ResponseWriter, r *http.Request) {
+	if a == nil || a.mtPhoto == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "mtPhoto 服务未初始化"})
+		return
+	}
+
+	md5Value := strings.TrimSpace(r.URL.Query().Get("md5"))
+	if !isValidMD5Hex(md5Value) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "md5 参数非法"})
+		return
+	}
+
+	items, err := a.mtPhoto.ListSameMediaByMD5(r.Context(), md5Value)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items": items,
+	})
+}
+
 func (a *App) handleImportMtPhotoMedia(w http.ResponseWriter, r *http.Request) {
 	if a == nil || a.mtPhoto == nil || a.fileStorage == nil || a.mediaUpload == nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "服务未初始化"})

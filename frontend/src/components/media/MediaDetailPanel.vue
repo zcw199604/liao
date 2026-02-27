@@ -141,6 +141,15 @@
             <div v-if="media.md5" class="detail-item">
               <label>MD5</label>
               <div class="value font-mono text-xs">{{ media.md5 }}</div>
+              <button
+                v-if="canViewMtPhotoSameMedia"
+                class="detail-action mt-2"
+                type="button"
+                @click="handleViewMtPhotoSameMedia"
+              >
+                <div class="value font-medium">查看 mtPhoto 相同图片</div>
+                <div class="value text-xs text-fg-subtle mt-1">按时间倒序 + 目录分组</div>
+              </button>
             </div>
 
             <div v-if="media.pHash" class="detail-item">
@@ -174,6 +183,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'update:visible': [value: boolean]
   'open-author-works': [secUserId: string]
+  'view-mtphoto-same-media': [md5: string]
 }>()
 
 const close = () => emit('update:visible', false)
@@ -183,6 +193,18 @@ const handleOpenAuthorWorks = () => {
   if (!secUserId) return
   emit('open-author-works', secUserId)
 }
+
+const handleViewMtPhotoSameMedia = () => {
+  const md5Value = String(props.media?.md5 || '').trim()
+  if (!md5Value) return
+  emit('view-mtphoto-same-media', md5Value)
+}
+
+const canViewMtPhotoSameMedia = computed(() => {
+  const md5Value = String(props.media?.md5 || '').trim()
+  if (!md5Value) return false
+  return props.media?.type === 'image'
+})
 
 const authorPrimaryText = computed(() => {
   const work = douyinWork.value

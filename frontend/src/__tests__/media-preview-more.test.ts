@@ -62,6 +62,8 @@ vi.mock('plyr', () => {
 import MediaPreview from '@/components/media/MediaPreview.vue'
 import { useUserStore } from '@/stores/user'
 import { useDouyinStore } from '@/stores/douyin'
+import { useMtPhotoStore } from '@/stores/mtphoto'
+import * as mtphotoApi from '@/api/mtphoto'
 
 const flushAsync = async () => {
   await Promise.resolve()
@@ -174,6 +176,68 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
     expect(douyinStore.accountSecUserId).toBe('')
     expect(douyinStore.autoFetchAccount).toBe(false)
 
+    vi.useRealTimers()
+  })
+
+  it('loads mtphoto same media from detail panel and supports opening folder', async () => {
+    vi.useFakeTimers()
+    const md5Value = '0123456789abcdef0123456789abcdef'
+    const sameSpy = vi.spyOn(mtphotoApi, 'getMtPhotoSameMedia').mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          md5: md5Value,
+          filePath: '/lsp/a/a.jpg',
+          fileName: 'a.jpg',
+          folderId: 644,
+          folderPath: '/photo/我的照片',
+          folderName: '我的照片',
+          tokenAt: '2026-02-01T10:00:00.000Z',
+          day: '2026-02-01',
+          canOpenFolder: true
+        }
+      ]
+    } as any)
+
+    const wrapper = mount(MediaPreview, {
+      props: {
+        visible: true,
+        url: 'http://x/1.png',
+        type: 'image',
+        mediaList: [{ url: 'http://x/1.png', type: 'image', md5: md5Value } as any]
+      },
+      global: {
+        stubs: {
+          teleport: true,
+          MediaDetailPanel: {
+            template: '<button class="emit-view-same" @click="$emit(\'view-mtphoto-same-media\', media?.md5)">same</button>',
+            props: ['media']
+          },
+          MtPhotoSameMediaPanel: {
+            template: '<button class="emit-open-folder" @click="$emit(\'open-folder\', { folderId: 644, folderPath: \'/photo/我的照片\', folderName: \'我的照片\' })">open</button>'
+          }
+        }
+      }
+    })
+
+    await flushAsync()
+    const mtPhotoStore = useMtPhotoStore()
+    const openSpy = vi.spyOn(mtPhotoStore, 'openFromExternalFolder').mockResolvedValue(true)
+
+    await wrapper.get('button.emit-view-same').trigger('click')
+    await flushAsync()
+    expect(sameSpy).toHaveBeenCalledWith(md5Value)
+
+    await wrapper.get('button.emit-open-folder').trigger('click')
+    await vi.advanceTimersByTimeAsync(230)
+    await flushAsync()
+
+    expect(wrapper.emitted('update:visible')?.[0]).toEqual([false])
+    expect(openSpy).toHaveBeenCalledWith({
+      folderId: 644,
+      folderPath: '/photo/我的照片',
+      folderName: '我的照片'
+    })
     vi.useRealTimers()
   })
 

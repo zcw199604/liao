@@ -60,6 +60,24 @@ export interface MtPhotoFolderFavoritesQuery {
   groupBy?: 'none' | 'tag'
 }
 
+export interface MtPhotoSameMediaItem {
+  id: number
+  md5: string
+  filePath: string
+  fileName?: string
+  directory?: string
+  folderId?: number
+  folderPath?: string
+  folderName?: string
+  tokenAt?: string
+  day?: string
+  canOpenFolder?: boolean
+}
+
+export interface MtPhotoSameMediaResponse {
+  items: MtPhotoSameMediaItem[]
+}
+
 export const getMtPhotoAlbums = () => {
   return request.get<any, any>('/getMtPhotoAlbums')
 }
@@ -117,6 +135,10 @@ export const removeMtPhotoFolderFavorite = (folderId: number) => {
 
 export const resolveMtPhotoFilePath = (md5: string) => {
   return request.get<any, any>('/resolveMtPhotoFilePath', { params: { md5 } })
+}
+
+export const getMtPhotoSameMedia = (md5: string) => {
+  return request.get<any, MtPhotoSameMediaResponse>('/getMtPhotoSameMedia', { params: { md5 } })
 }
 
 export const importMtPhotoMedia = (data: {

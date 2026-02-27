@@ -833,6 +833,90 @@ func TestMtPhotoService_ResolveFilePath_CoversBranches(t *testing.T) {
 	})
 }
 
+func TestMtPhotoService_ListSameMediaByMD5(t *testing.T) {
+	t.Run("empty when upstream empty", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/auth/login":
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"access_token": "t",
+					"auth_code":    "ac",
+					"expires_in":   time.Now().Add(1 * time.Hour).UnixMilli(),
+				})
+				return
+			case "/gateway/filesInMD5":
+				_ = json.NewEncoder(w).Encode([]map[string]any{})
+				return
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(srv.Close)
+
+		svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+		items, err := svc.ListSameMediaByMD5(context.Background(), "m1")
+		if err != nil {
+			t.Fatalf("ListSameMediaByMD5 error: %v", err)
+		}
+		if len(items) != 0 {
+			t.Fatalf("items=%v, want empty", items)
+		}
+	})
+
+	t.Run("maps and sorts items", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/auth/login":
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"access_token": "t",
+					"auth_code":    "ac",
+					"expires_in":   time.Now().Add(1 * time.Hour).UnixMilli(),
+				})
+				return
+			case "/gateway/filesInMD5":
+				_ = json.NewEncoder(w).Encode([]map[string]any{
+					{
+						"id":         2,
+						"MD5":        "m1",
+						"filePath":   "/lsp/a/old.jpg",
+						"tokenAt":    "2026-01-01T08:00:00.000Z",
+						"folderPath": "/photo/旧目录",
+						"folderName": "旧目录",
+					},
+					{
+						"id":         1,
+						"md5":        "m1",
+						"filePath":   "/lsp/a/new.jpg",
+						"tokenAt":    "2026-02-01T09:00:00.000Z",
+						"folderId":   644,
+						"folderPath": "/photo/新目录",
+						"folderName": "新目录",
+					},
+				})
+				return
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(srv.Close)
+
+		svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+		items, err := svc.ListSameMediaByMD5(context.Background(), "m1")
+		if err != nil {
+			t.Fatalf("ListSameMediaByMD5 error: %v", err)
+		}
+		if len(items) != 2 {
+			t.Fatalf("len(items)=%d, want 2", len(items))
+		}
+		if items[0].ID != 1 || items[0].FileName != "new.jpg" || !items[0].CanOpenFolder {
+			t.Fatalf("first item=%+v", items[0])
+		}
+		if items[1].ID != 2 || items[1].Directory != "/lsp/a" {
+			t.Fatalf("second item=%+v", items[1])
+		}
+	})
+}
+
 func TestMtPhotoService_GatewayFileDownload_ParamValidation(t *testing.T) {
 	svc := NewMtPhotoService("", "", "", "", "/lsp", nil)
 	if _, err := svc.GatewayFileDownload(context.Background(), 1, "m"); err == nil {

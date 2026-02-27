@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -1006,7 +1007,148 @@ type MtPhotoFilePath struct {
 	FilePath string `json:"filePath"`
 }
 
-func (s *MtPhotoService) ResolveFilePath(ctx context.Context, md5Value string) (*MtPhotoFilePath, error) {
+type MtPhotoSameMediaItem struct {
+	ID            int64  `json:"id"`
+	MD5           string `json:"md5"`
+	FilePath      string `json:"filePath"`
+	FileName      string `json:"fileName,omitempty"`
+	Directory     string `json:"directory,omitempty"`
+	FolderID      int64  `json:"folderId,omitempty"`
+	FolderPath    string `json:"folderPath,omitempty"`
+	FolderName    string `json:"folderName,omitempty"`
+	TokenAt       string `json:"tokenAt,omitempty"`
+	Day           string `json:"day,omitempty"`
+	CanOpenFolder bool   `json:"canOpenFolder"`
+}
+
+func parseMtPhotoAnyInt64(raw map[string]any, keys ...string) int64 {
+	if len(raw) == 0 || len(keys) == 0 {
+		return 0
+	}
+	for _, key := range keys {
+		value, ok := raw[key]
+		if !ok || value == nil {
+			continue
+		}
+		switch v := value.(type) {
+		case int:
+			return int64(v)
+		case int8:
+			return int64(v)
+		case int16:
+			return int64(v)
+		case int32:
+			return int64(v)
+		case int64:
+			return v
+		case uint:
+			return int64(v)
+		case uint8:
+			return int64(v)
+		case uint16:
+			return int64(v)
+		case uint32:
+			return int64(v)
+		case uint64:
+			if v > uint64(^uint64(0)>>1) {
+				continue
+			}
+			return int64(v)
+		case float32:
+			return int64(v)
+		case float64:
+			return int64(v)
+		case json.Number:
+			if i, err := v.Int64(); err == nil {
+				return i
+			}
+			if f, err := v.Float64(); err == nil {
+				return int64(f)
+			}
+		case string:
+			trimmed := strings.TrimSpace(v)
+			if trimmed == "" {
+				continue
+			}
+			if i, err := strconv.ParseInt(trimmed, 10, 64); err == nil {
+				return i
+			}
+		}
+	}
+	return 0
+}
+
+func parseMtPhotoAnyString(raw map[string]any, keys ...string) string {
+	if len(raw) == 0 || len(keys) == 0 {
+		return ""
+	}
+	for _, key := range keys {
+		value, ok := raw[key]
+		if !ok || value == nil {
+			continue
+		}
+		switch v := value.(type) {
+		case string:
+			trimmed := strings.TrimSpace(v)
+			if trimmed != "" {
+				return trimmed
+			}
+		case json.Number:
+			trimmed := strings.TrimSpace(v.String())
+			if trimmed != "" {
+				return trimmed
+			}
+		default:
+			trimmed := strings.TrimSpace(fmt.Sprintf("%v", v))
+			if trimmed != "" {
+				return trimmed
+			}
+		}
+	}
+	return ""
+}
+
+func normalizeMtPhotoFolderPath(pathValue string) string {
+	trimmed := strings.TrimSpace(pathValue)
+	if trimmed == "" {
+		return ""
+	}
+	normalized := filepath.ToSlash(trimmed)
+	if normalized == "." {
+		return ""
+	}
+	return normalized
+}
+
+func parseMtPhotoTimeValue(value string) int64 {
+	raw := strings.TrimSpace(value)
+	if raw == "" {
+		return 0
+	}
+
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05",
+		"2006-01-02 15:04",
+		"2006-01-02",
+	}
+	for _, layout := range layouts {
+		if ts, err := time.Parse(layout, raw); err == nil {
+			return ts.UnixMilli()
+		}
+	}
+
+	if i, err := strconv.ParseInt(raw, 10, 64); err == nil {
+		if i > 1_000_000_000_000 {
+			return i
+		}
+		return i * 1000
+	}
+	return 0
+}
+
+func (s *MtPhotoService) ListSameMediaByMD5(ctx context.Context, md5Value string) ([]MtPhotoSameMediaItem, error) {
 	if !s.configured() {
 		return nil, fmt.Errorf("mtPhoto 未配置")
 	}
@@ -1035,17 +1177,109 @@ func (s *MtPhotoService) ResolveFilePath(ctx context.Context, md5Value string) (
 		return nil, fmt.Errorf("mtPhoto 查询文件路径失败: %s", resp.Status)
 	}
 
-	var parsed []MtPhotoFilePath
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	decoder := json.NewDecoder(resp.Body)
+	decoder.UseNumber()
+
+	var parsed []map[string]any
+	if err := decoder.Decode(&parsed); err != nil {
 		return nil, err
 	}
-	if len(parsed) == 0 || strings.TrimSpace(parsed[0].FilePath) == "" {
+
+	items := make([]MtPhotoSameMediaItem, 0, len(parsed))
+	for _, raw := range parsed {
+		filePath := normalizeMtPhotoFolderPath(parseMtPhotoAnyString(raw, "filePath", "filepath", "path", "localPath"))
+		if filePath == "" {
+			continue
+		}
+
+		fileName := strings.TrimSpace(filepath.Base(filePath))
+		directory := normalizeMtPhotoFolderPath(filepath.Dir(filePath))
+		if directory == "." {
+			directory = ""
+		}
+
+		folderID := parseMtPhotoAnyInt64(raw, "folderId", "folderID", "dirId", "dirID", "albumId", "albumID")
+		folderPath := normalizeMtPhotoFolderPath(parseMtPhotoAnyString(raw, "folderPath", "folder", "dirPath", "directoryPath", "albumPath"))
+		if folderPath == "" {
+			folderPath = directory
+		}
+
+		folderName := strings.TrimSpace(parseMtPhotoAnyString(raw, "folderName", "dirName", "albumName"))
+		if folderName == "" && folderPath != "" {
+			folderName = strings.TrimSpace(filepath.Base(folderPath))
+		}
+
+		tokenAt := strings.TrimSpace(parseMtPhotoAnyString(raw, "tokenAt", "time", "createTime", "createdAt", "modifyTime", "mtime"))
+		day := normalizeMtPhotoDay(parseMtPhotoAnyString(raw, "day", "date", "tokenDay"))
+		if day == "" {
+			day = normalizeMtPhotoDay(tokenAt)
+		}
+
+		md5FromRow := strings.TrimSpace(parseMtPhotoAnyString(raw, "md5", "MD5", "fileMd5", "fileMD5"))
+		if md5FromRow == "" {
+			md5FromRow = md5Value
+		}
+
+		canOpenByPath := strings.HasPrefix(folderPath, "/") && !strings.HasPrefix(strings.ToLower(folderPath), "/lsp")
+		items = append(items, MtPhotoSameMediaItem{
+			ID:            parseMtPhotoAnyInt64(raw, "id", "ID", "fileId", "fileID"),
+			MD5:           md5FromRow,
+			FilePath:      filePath,
+			FileName:      fileName,
+			Directory:     directory,
+			FolderID:      folderID,
+			FolderPath:    folderPath,
+			FolderName:    folderName,
+			TokenAt:       tokenAt,
+			Day:           day,
+			CanOpenFolder: folderID > 0 || canOpenByPath,
+		})
+	}
+
+	sort.SliceStable(items, func(i, j int) bool {
+		ti := parseMtPhotoTimeValue(items[i].TokenAt)
+		tj := parseMtPhotoTimeValue(items[j].TokenAt)
+		if ti != tj {
+			return ti > tj
+		}
+		di := strings.TrimSpace(items[i].Day)
+		dj := strings.TrimSpace(items[j].Day)
+		if di != dj {
+			return di > dj
+		}
+		pi := strings.TrimSpace(items[i].FolderPath)
+		pj := strings.TrimSpace(items[j].FolderPath)
+		if pi != pj {
+			return pi < pj
+		}
+		fi := strings.TrimSpace(items[i].FilePath)
+		fj := strings.TrimSpace(items[j].FilePath)
+		if fi != fj {
+			return fi < fj
+		}
+		return items[i].ID < items[j].ID
+	})
+
+	if items == nil {
+		return []MtPhotoSameMediaItem{}, nil
+	}
+	return items, nil
+}
+
+func (s *MtPhotoService) ResolveFilePath(ctx context.Context, md5Value string) (*MtPhotoFilePath, error) {
+	items, err := s.ListSameMediaByMD5(ctx, md5Value)
+	if err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
 		return nil, fmt.Errorf("mtPhoto 未返回文件路径")
 	}
 
-	item := parsed[0]
-	item.FilePath = strings.TrimSpace(item.FilePath)
-	return &item, nil
+	first := items[0]
+	return &MtPhotoFilePath{
+		ID:       first.ID,
+		FilePath: strings.TrimSpace(first.FilePath),
+	}, nil
 }
 
 // GatewayGet 用于代理 mtPhoto /gateway/{size}/{md5}。

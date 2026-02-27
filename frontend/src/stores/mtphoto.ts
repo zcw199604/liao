@@ -74,6 +74,12 @@ type MtPhotoFavoriteGroup = {
   items: MtPhotoFolderFavorite[]
 }
 
+type OpenExternalFolderOptions = {
+  folderId?: number
+  folderPath?: string
+  folderName?: string
+}
+
 const inferMediaType = (fileType: unknown): 'image' | 'video' => {
   const normalized = String(fileType ?? '')
     .trim()
@@ -117,6 +123,18 @@ const firstCoverMD5 = (cover?: string, sCover?: string | null) => {
   if (!primary) return ''
   const first = primary.split(',')[0]
   return String(first ?? '').trim()
+}
+
+const normalizeFolderPathForLookup = (value?: string) => {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  let normalized = raw.replace(/\\/g, '/')
+  normalized = normalized.replace(/\/{2,}/g, '/')
+  if (!normalized.startsWith('/')) normalized = '/' + normalized
+  if (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1)
+  }
+  return normalized
 }
 
 const mapFolderNode = (raw: any): MtPhotoFolderNode | null => {
@@ -909,6 +927,80 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     await Promise.all([loadFolderRoot(), loadFolderFavorites()])
   }
 
+  const resolveFolderNodeByPath = async (folderPath: string) => {
+    const normalizedPath = normalizeFolderPathForLookup(folderPath)
+    if (!normalizedPath || normalizedPath === '/') return null
+
+    const segments = normalizedPath.split('/').filter(Boolean)
+    if (segments.length === 0) return null
+
+    const rootRes = await mtphotoApi.getMtPhotoFolderRoot()
+    let folderNodes = mapFolderNodes(Array.isArray(rootRes?.folderList) ? rootRes.folderList : [])
+
+    let currentNode: MtPhotoFolderNode | null = null
+    for (let idx = 0; idx < segments.length; idx++) {
+      const expectedPath = '/' + segments.slice(0, idx + 1).join('/')
+      const segment = segments[idx]
+
+      const byPath = folderNodes.find(node => normalizeFolderPathForLookup(node.path) === expectedPath)
+      const byName =
+        byPath ||
+        folderNodes.find(node => {
+          const nodeName = String(node.name || '').trim()
+          return nodeName === segment
+        })
+      const matched = byName || null
+      if (!matched || !matched.id) return null
+
+      currentNode = matched
+      if (idx < segments.length - 1) {
+        const subRes = await mtphotoApi.getMtPhotoFolderContent(matched.id, 1, 1, false)
+        folderNodes = mapFolderNodes(Array.isArray(subRes?.folderList) ? subRes.folderList : [])
+      }
+    }
+    return currentNode
+  }
+
+  const openFromExternalFolder = async (options: OpenExternalFolderOptions = {}) => {
+    showModal.value = true
+    mode.value = 'folders'
+    view.value = 'folders'
+    lastError.value = ''
+
+    await syncFolderTimelineThreshold()
+    await loadFolderFavorites()
+
+    const folderID = Number(options.folderId || 0)
+    if (Number.isFinite(folderID) && folderID > 0) {
+      const ok = await loadFolderByID(folderID, {
+        folderName: String(options.folderName || '').trim(),
+        resetHistory: true
+      })
+      if (ok) return true
+    }
+
+    const normalizedPath = normalizeFolderPathForLookup(options.folderPath)
+    if (normalizedPath) {
+      try {
+        const resolvedNode = await resolveFolderNodeByPath(normalizedPath)
+        if (resolvedNode?.id) {
+          const ok = await loadFolderByID(resolvedNode.id, {
+            folderName: String(options.folderName || '').trim() || resolvedNode.name,
+            coverMd5: firstCoverMD5(resolvedNode.cover, resolvedNode.sCover),
+            subFolderNum: resolvedNode.subFolderNum,
+            resetHistory: true
+          })
+          if (ok) return true
+        }
+      } catch (e) {
+        console.warn('按路径定位 mtPhoto 目录失败:', e)
+      }
+    }
+
+    await loadFolderRoot()
+    return false
+  }
+
   const isCurrentFolderFavorited = computed(() => !!currentFolderFavorite.value)
 
   return {
@@ -976,6 +1068,7 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     cancelEditFavorite,
     upsertFolderFavorite,
     upsertCurrentFolderFavorite,
-    removeFolderFavorite
+    removeFolderFavorite,
+    openFromExternalFolder
   }
 })
