@@ -1373,13 +1373,18 @@ const handleOpenMtPhotoFolderFromSame = async (item: MtPhotoSameMediaItem) => {
   handleClose()
 
   window.setTimeout(async () => {
-    const ok = await mtPhotoStore.openFromExternalFolder({
-      folderId: Number.isFinite(folderId) && folderId > 0 ? folderId : undefined,
-      folderPath: folderPath || undefined,
-      folderName: folderName || undefined
-    })
-    if (!ok) {
-      show('未能精准定位目录，已打开 mtPhoto 文件夹视图')
+    try {
+      const ok = await mtPhotoStore.openFromExternalFolder({
+        folderId: Number.isFinite(folderId) && folderId > 0 ? folderId : undefined,
+        folderPath: folderPath || undefined,
+        folderName: folderName || undefined
+      })
+      if (!ok) {
+        show('未能精准定位目录，已打开 mtPhoto 文件夹视图')
+      }
+    } catch (e) {
+      console.error('open mtPhoto folder failed:', e)
+      show('打开 mtPhoto 目录失败')
     }
   }, 220)
 }

@@ -66,7 +66,7 @@
 1. 用户在预览详情中点击“查看 mtPhoto 相同图片”
 2. 前端优先传 `md5`；当当前图片无 `md5` 时，自动传本地 `localPath`（仅 `/upload/*`、`/lsp/*`）
 3. 后端调用 `GET /api/getMtPhotoSameMedia`：优先使用 `md5`；否则由 `localPath` 计算 MD5（仅支持 `/lsp/*`、`/upload/images/*`、`/upload/videos/*`）并返回 `resolvedMd5`
-4. 后端调用 mtPhoto `filesInMD5` 并返回同图列表（按时间倒序；尽量补充目录信息）
+4. 后端调用 mtPhoto `filesInMD5` 并返回同图列表；当同图项缺少目录定位信息时，会进一步调用 `GET /gateway/fileInfo/{id}/{md5}` 补齐 `folderId/filePath`（按时间倒序；尽量补充目录信息）
 5. 前端按“日期分组 + 目录分组”展示列表，并支持“一键打开目录”
 6. 打开目录时优先使用 `folderId` 直达；若缺失则尝试用 `folderPath` 逐级定位，失败时回退根目录
 

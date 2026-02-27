@@ -1007,6 +1007,14 @@ type MtPhotoFilePath struct {
 	FilePath string `json:"filePath"`
 }
 
+type MtPhotoFileInfo struct {
+	ID       int64  `json:"id"`
+	MD5      string `json:"md5"`
+	FilePath string `json:"filePath"`
+	FolderID int64  `json:"folderId"`
+	TokenAt  string `json:"tokenAt,omitempty"`
+}
+
 type MtPhotoSameMediaItem struct {
 	ID            int64  `json:"id"`
 	MD5           string `json:"md5"`
@@ -1108,6 +1116,57 @@ func parseMtPhotoAnyString(raw map[string]any, keys ...string) string {
 	return ""
 }
 
+func (s *MtPhotoService) GetFileInfo(ctx context.Context, fileID int64, md5Value string) (*MtPhotoFileInfo, error) {
+	if !s.configured() {
+		return nil, fmt.Errorf("mtPhoto 未配置")
+	}
+	if fileID <= 0 {
+		return nil, fmt.Errorf("id 非法")
+	}
+
+	md5Value = strings.TrimSpace(md5Value)
+	if md5Value == "" {
+		return nil, fmt.Errorf("md5 为空")
+	}
+
+	urlStr, err := s.buildURL(fmt.Sprintf("/gateway/fileInfo/%d/%s", fileID, md5Value), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := s.doRequest(ctx, http.MethodGet, urlStr, map[string]string{
+		"Accept": "application/json",
+	}, nil, true, true)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("mtPhoto 查询文件详情失败: %s", resp.Status)
+	}
+
+	decoder := json.NewDecoder(resp.Body)
+	decoder.UseNumber()
+	raw := map[string]any{}
+	if err := decoder.Decode(&raw); err != nil {
+		return nil, err
+	}
+
+	filePath := normalizeMtPhotoFolderPath(parseMtPhotoAnyString(raw, "filePath", "file_path", "path", "localPath", "local_path"))
+	resolvedMD5 := strings.TrimSpace(parseMtPhotoAnyString(raw, "md5", "MD5", "fileMd5", "fileMD5", "file_md5"))
+	if resolvedMD5 == "" {
+		resolvedMD5 = md5Value
+	}
+	return &MtPhotoFileInfo{
+		ID:       parseMtPhotoAnyInt64(raw, "id", "ID", "fileId", "fileID", "file_id"),
+		MD5:      resolvedMD5,
+		FilePath: filePath,
+		FolderID: parseMtPhotoAnyInt64(raw, "folderId", "folderID", "folder_id", "dirId", "dirID", "dir_id"),
+		TokenAt:  strings.TrimSpace(parseMtPhotoAnyString(raw, "tokenAt", "token_at", "createTime", "create_time", "mtime")),
+	}, nil
+}
+
 func normalizeMtPhotoFolderPath(pathValue string) string {
 	trimmed := strings.TrimSpace(pathValue)
 	if trimmed == "" {
@@ -1187,7 +1246,7 @@ func (s *MtPhotoService) ListSameMediaByMD5(ctx context.Context, md5Value string
 
 	items := make([]MtPhotoSameMediaItem, 0, len(parsed))
 	for _, raw := range parsed {
-		filePath := normalizeMtPhotoFolderPath(parseMtPhotoAnyString(raw, "filePath", "filepath", "path", "localPath"))
+		filePath := normalizeMtPhotoFolderPath(parseMtPhotoAnyString(raw, "filePath", "file_path", "filepath", "path", "localPath", "local_path"))
 		if filePath == "" {
 			continue
 		}
@@ -1198,29 +1257,29 @@ func (s *MtPhotoService) ListSameMediaByMD5(ctx context.Context, md5Value string
 			directory = ""
 		}
 
-		folderID := parseMtPhotoAnyInt64(raw, "folderId", "folderID", "dirId", "dirID", "albumId", "albumID")
-		folderPath := normalizeMtPhotoFolderPath(parseMtPhotoAnyString(raw, "folderPath", "folder", "dirPath", "directoryPath", "albumPath"))
+		folderID := parseMtPhotoAnyInt64(raw, "folderId", "folderID", "folder_id", "dirId", "dirID", "dir_id", "albumId", "albumID", "album_id")
+		folderPath := normalizeMtPhotoFolderPath(parseMtPhotoAnyString(raw, "folderPath", "folder_path", "folder", "dirPath", "dir_path", "directoryPath", "directory_path", "albumPath", "album_path"))
 		if folderPath == "" {
 			folderPath = directory
 		}
 
-		folderName := strings.TrimSpace(parseMtPhotoAnyString(raw, "folderName", "dirName", "albumName"))
+		folderName := strings.TrimSpace(parseMtPhotoAnyString(raw, "folderName", "folder_name", "dirName", "dir_name", "albumName", "album_name"))
 		if folderName == "" && folderPath != "" {
 			folderName = strings.TrimSpace(filepath.Base(folderPath))
 		}
 
-		tokenAt := strings.TrimSpace(parseMtPhotoAnyString(raw, "tokenAt", "time", "createTime", "createdAt", "modifyTime", "mtime"))
-		day := normalizeMtPhotoDay(parseMtPhotoAnyString(raw, "day", "date", "tokenDay"))
+		tokenAt := strings.TrimSpace(parseMtPhotoAnyString(raw, "tokenAt", "token_at", "time", "createTime", "create_time", "createdAt", "created_at", "modifyTime", "modify_time", "mtime"))
+		day := normalizeMtPhotoDay(parseMtPhotoAnyString(raw, "day", "date", "tokenDay", "token_day"))
 		if day == "" {
 			day = normalizeMtPhotoDay(tokenAt)
 		}
 
-		md5FromRow := strings.TrimSpace(parseMtPhotoAnyString(raw, "md5", "MD5", "fileMd5", "fileMD5"))
+		md5FromRow := strings.TrimSpace(parseMtPhotoAnyString(raw, "md5", "MD5", "fileMd5", "fileMD5", "file_md5"))
 		if md5FromRow == "" {
 			md5FromRow = md5Value
 		}
 
-		canOpenByPath := strings.HasPrefix(folderPath, "/") && !strings.HasPrefix(strings.ToLower(folderPath), "/lsp")
+		canOpenByPath := strings.HasPrefix(folderPath, "/")
 		items = append(items, MtPhotoSameMediaItem{
 			ID:            parseMtPhotoAnyInt64(raw, "id", "ID", "fileId", "fileID"),
 			MD5:           md5FromRow,
@@ -1234,6 +1293,51 @@ func (s *MtPhotoService) ListSameMediaByMD5(ctx context.Context, md5Value string
 			Day:           day,
 			CanOpenFolder: folderID > 0 || canOpenByPath,
 		})
+	}
+
+	for i := range items {
+		if items[i].FolderID > 0 || items[i].ID <= 0 {
+			continue
+		}
+		infoMD5 := strings.TrimSpace(items[i].MD5)
+		if infoMD5 == "" {
+			infoMD5 = md5Value
+		}
+		if infoMD5 == "" {
+			continue
+		}
+
+		info, err := s.GetFileInfo(ctx, items[i].ID, infoMD5)
+		if err != nil || info == nil {
+			continue
+		}
+
+		if info.FolderID > 0 {
+			items[i].FolderID = info.FolderID
+		}
+		if items[i].FilePath == "" && strings.TrimSpace(info.FilePath) != "" {
+			items[i].FilePath = strings.TrimSpace(info.FilePath)
+		}
+		if items[i].Directory == "" && items[i].FilePath != "" {
+			directory := normalizeMtPhotoFolderPath(filepath.Dir(items[i].FilePath))
+			if directory != "." {
+				items[i].Directory = directory
+			}
+		}
+		if items[i].FolderPath == "" && info.FilePath != "" {
+			folderPath := normalizeMtPhotoFolderPath(filepath.Dir(info.FilePath))
+			if folderPath != "." {
+				items[i].FolderPath = folderPath
+			}
+		}
+		if items[i].FolderName == "" && items[i].FolderPath != "" {
+			items[i].FolderName = strings.TrimSpace(filepath.Base(items[i].FolderPath))
+		}
+		if items[i].TokenAt == "" && strings.TrimSpace(info.TokenAt) != "" {
+			items[i].TokenAt = strings.TrimSpace(info.TokenAt)
+		}
+
+		items[i].CanOpenFolder = items[i].FolderID > 0 || strings.HasPrefix(strings.TrimSpace(items[i].FolderPath), "/")
 	}
 
 	sort.SliceStable(items, func(i, j int) bool {

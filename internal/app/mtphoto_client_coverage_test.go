@@ -876,12 +876,10 @@ func TestMtPhotoService_ListSameMediaByMD5(t *testing.T) {
 			case "/gateway/filesInMD5":
 				_ = json.NewEncoder(w).Encode([]map[string]any{
 					{
-						"id":         2,
-						"MD5":        "m1",
-						"filePath":   "/lsp/a/old.jpg",
-						"tokenAt":    "2026-01-01T08:00:00.000Z",
-						"folderPath": "/photo/旧目录",
-						"folderName": "旧目录",
+						"id":       2,
+						"MD5":      "m1",
+						"filePath": "/lsp/a/old.jpg",
+						"tokenAt":  "2026-01-01T08:00:00.000Z",
 					},
 					{
 						"id":         1,
@@ -892,6 +890,14 @@ func TestMtPhotoService_ListSameMediaByMD5(t *testing.T) {
 						"folderPath": "/photo/新目录",
 						"folderName": "新目录",
 					},
+				})
+				return
+			case "/gateway/fileInfo/2/m1":
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"id":       2,
+					"MD5":      "m1",
+					"filePath": "/lsp/tg/dir-a/old.jpg",
+					"folderId": 1952,
 				})
 				return
 			default:
@@ -911,7 +917,7 @@ func TestMtPhotoService_ListSameMediaByMD5(t *testing.T) {
 		if items[0].ID != 1 || items[0].FileName != "new.jpg" || !items[0].CanOpenFolder {
 			t.Fatalf("first item=%+v", items[0])
 		}
-		if items[1].ID != 2 || items[1].Directory != "/lsp/a" {
+		if items[1].ID != 2 || items[1].FolderID != 1952 || items[1].Directory != "/lsp/a" || !items[1].CanOpenFolder {
 			t.Fatalf("second item=%+v", items[1])
 		}
 	})
