@@ -349,6 +349,114 @@ func TestHandleUploadMedia_BadContentType(t *testing.T) {
 	}
 }
 
+func TestHandleUploadMedia_DouyinSourceSavesToDouyinMediaFile(t *testing.T) {
+	tempDir := t.TempDir()
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	oldDetect := detectAvailablePort
+	detectAvailablePort = func(string) string { return "9006" }
+	t.Cleanup(func() { detectAvailablePort = oldDetect })
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"state":"OK","msg":"abc.jpg"}`))
+	}))
+	defer upstream.Close()
+
+	u, err := url.Parse(upstream.URL)
+	if err != nil {
+		t.Fatalf("parse upstream url failed: %v", err)
+	}
+	host, port, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		t.Fatalf("split host port failed: %v", err)
+	}
+
+	imageSrv := NewImageServerService(host, port)
+	fileStore := &FileStorageService{db: wrapMySQLDB(db), baseUploadAbs: tempDir}
+	mediaUpload := NewMediaUploadService(wrapMySQLDB(db), 8080, fileStore, imageSrv, upstream.Client())
+
+	app := &App{
+		httpClient:  upstream.Client(),
+		fileStorage: fileStore,
+		imageServer: imageSrv,
+		imageCache:  NewImageCacheService(),
+		mediaUpload: mediaUpload,
+	}
+
+	content := []byte("png-bytes-for-upload-douyin")
+	sum := md5.Sum(content)
+	md5Hex := hex.EncodeToString(sum[:])
+
+	mock.ExpectQuery(`SELECT local_path FROM media_upload_history WHERE file_md5 = \? LIMIT 1`).
+		WithArgs(md5Hex).
+		WillReturnRows(sqlmock.NewRows([]string{"local_path"}))
+
+	mock.ExpectQuery(`(?s)FROM douyin_media_file.*WHERE file_md5 = \?.*LIMIT 1`).
+		WithArgs(md5Hex).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "original_filename", "local_filename", "remote_filename", "remote_url", "local_path",
+			"file_size", "file_type", "file_extension", "file_md5", "upload_time", "update_time",
+		}))
+
+	expectInsertReturningID(
+		mock,
+		`INSERT INTO douyin_media_file`,
+		1,
+		"u1",
+		"sec-1",
+		"detail-1",
+		"uid-1",
+		"作者A",
+		"a.png",
+		stringPrefixSuffix{prefix: "", suffix: ".png"},
+		"abc.jpg",
+		"http://"+host+":9006/img/Upload/abc.jpg",
+		stringPrefixSuffix{prefix: "/images/", suffix: ".png"},
+		int64(len(content)),
+		"image/png",
+		"png",
+		md5Hex,
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+	)
+
+	req, _ := newMultipartRequest(
+		t,
+		"POST",
+		"http://example.com/api/uploadMedia",
+		"file",
+		"a.png",
+		"image/png",
+		content,
+		map[string]string{
+			"userid":               "u1",
+			"source":               "douyin",
+			"douyinSecUserId":      "sec-1",
+			"douyinDetailId":       "detail-1",
+			"douyinAuthorUniqueId": "uid-1",
+			"douyinAuthorName":     "作者A",
+		},
+	)
+
+	rr := httptest.NewRecorder()
+	app.handleUploadMedia(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, want %d; body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response failed: %v; body=%s", err, rr.Body.String())
+	}
+	if got, _ := resp["state"].(string); got != "OK" {
+		t.Fatalf("state=%q, want %q", got, "OK")
+	}
+}
+
 func TestHandleUploadMedia_FindLocalPathByMD5ErrorIgnored(t *testing.T) {
 	tempDir := t.TempDir()
 	db, mock, cleanup := newSQLMock(t)

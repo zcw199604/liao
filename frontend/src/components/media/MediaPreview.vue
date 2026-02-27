@@ -429,7 +429,7 @@ import { ref, watch, computed, onUnmounted, nextTick } from 'vue'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import type { UploadedMedia } from '@/types'
 import { useToast } from '@/composables/useToast'
-import { useUpload } from '@/composables/useUpload'
+import { useUpload, type UploadFileOptions } from '@/composables/useUpload'
 import { useUserStore } from '@/stores/user'
 import { useDouyinStore } from '@/stores/douyin'
 import { useMtPhotoStore } from '@/stores/mtphoto'
@@ -1156,6 +1156,24 @@ watch(playbackRate, () => {
 
 const captureFrameLoading = ref(false)
 
+const buildCaptureUploadOptions = (media: UploadedMedia): UploadFileOptions => {
+  const provider = String(media.context?.provider || '').trim().toLowerCase()
+  if (provider === 'douyin') {
+    const work = media.context?.work
+    return {
+      source: 'douyin',
+      douyinSecUserId: String(work?.authorSecUserId || '').trim() || undefined,
+      douyinDetailId: String(work?.detailId || '').trim() || undefined,
+      douyinAuthorUniqueId: String(work?.authorUniqueId || '').trim() || undefined,
+      douyinAuthorName: String(work?.authorName || '').trim() || undefined
+    }
+  }
+  if (provider === 'mtphoto') {
+    return { source: 'mtphoto' }
+  }
+  return { source: 'local' }
+}
+
 const handleCaptureFrame = async () => {
   if (captureFrameLoading.value) return
   const video = videoRef.value
@@ -1228,7 +1246,7 @@ const handleCaptureFrame = async () => {
     }
 
     const file = new File([blob], filename, { type: blob.type || 'image/png' })
-    const uploaded = await uploadFile(file, u.id, u.name)
+    const uploaded = await uploadFile(file, u.id, u.name, buildCaptureUploadOptions(currentMedia.value))
     if (uploaded) {
       show('抓帧已下载并上传（可在上传列表中使用）')
     } else {

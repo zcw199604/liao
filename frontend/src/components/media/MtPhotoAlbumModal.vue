@@ -864,6 +864,9 @@ const handleMediaClick = async (item: MtPhotoMediaItem) => {
       .map(m => ({
         url: getThumbUrl('h220', m.md5),
         type: 'image',
+        context: {
+          provider: 'mtphoto'
+        },
         downloadUrl: getOriginalDownloadUrl(m.id, m.md5),
         md5: m.md5,
         originalFilename: mtPhotoOriginalFilenameCache.get(m.md5) || m.fileName,
@@ -892,6 +895,9 @@ const handleMediaClick = async (item: MtPhotoMediaItem) => {
       {
         url: previewUrl.value,
         type: 'video',
+        context: {
+          provider: 'mtphoto'
+        },
         md5: item.md5,
         originalFilename: mtPhotoOriginalFilenameCache.get(item.md5) || item.fileName,
         fileExtension: item.fileType ? String(item.fileType).trim().toLowerCase() : undefined,

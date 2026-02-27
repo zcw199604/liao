@@ -99,6 +99,45 @@ describe('composables/useUpload', () => {
     expect(mediaStore.uploadedMedia[0]?.url).toBe(uploaded?.url)
   })
 
+  it('appends source and douyin metadata when upload options are provided', async () => {
+    const mediaStore = useMediaStore()
+    const systemConfigStore = useSystemConfigStore()
+
+    mediaStore.imgServer = 'img.local'
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined as any)
+    vi.spyOn(systemConfigStore, 'resolveImagePort').mockResolvedValue('9006')
+
+    let capturedFormData: FormData | null = null
+    vi.mocked(mediaApi.uploadMedia).mockImplementation(async (formData: FormData) => {
+      capturedFormData = formData
+      return {
+        state: 'OK',
+        msg: 'images/2026/01/a.png',
+        localFilename: 'a.png'
+      } as any
+    })
+
+    const { uploadFile } = useUpload()
+    await uploadFile(
+      new File(['x'], 'a.png', { type: 'image/png' }),
+      'me',
+      'Me',
+      {
+        source: 'douyin',
+        douyinSecUserId: 'sec-1',
+        douyinDetailId: 'detail-1',
+        douyinAuthorUniqueId: 'author-uid-1',
+        douyinAuthorName: '作者A'
+      }
+    )
+
+    expect(capturedFormData?.get('source')).toBe('douyin')
+    expect(capturedFormData?.get('douyinSecUserId')).toBe('sec-1')
+    expect(capturedFormData?.get('douyinDetailId')).toBe('detail-1')
+    expect(capturedFormData?.get('douyinAuthorUniqueId')).toBe('author-uid-1')
+    expect(capturedFormData?.get('douyinAuthorName')).toBe('作者A')
+  })
+
   it('returns null when imgServer is still missing after loadImgServer', async () => {
     const mediaStore = useMediaStore()
     vi.spyOn(mediaStore, 'loadImgServer').mockImplementation(async () => {

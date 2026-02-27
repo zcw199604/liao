@@ -633,6 +633,14 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 	cookieData := defaultString(r.FormValue("cookieData"), "")
 	referer := defaultString(r.FormValue("referer"), "http://v1.chat2019.cn/randomdeskrynew4m1phj.html?v=4m1phj")
 	userAgent := defaultString(r.FormValue("userAgent"), "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	source := strings.TrimSpace(strings.ToLower(r.FormValue("source")))
+	if source != "douyin" && source != "mtphoto" && source != "local" {
+		source = "local"
+	}
+	douyinSecUserID := strings.TrimSpace(r.FormValue("douyinSecUserId"))
+	douyinDetailID := strings.TrimSpace(r.FormValue("douyinDetailId"))
+	douyinAuthorUniqueID := strings.TrimSpace(r.FormValue("douyinAuthorUniqueId"))
+	douyinAuthorName := strings.TrimSpace(r.FormValue("douyinAuthorName"))
 
 	files := r.MultipartForm.File["file"]
 	if len(files) == 0 {
@@ -646,6 +654,7 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 	slog.Info(
 		"上传媒体请求",
 		"userid", userID,
+		"source", source,
 		"fileName", fileHeader.Filename,
 		"fileSize", fileHeader.Size,
 		"contentType", contentType,
@@ -726,18 +735,39 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 
 				localFilename := filepath.Base(strings.TrimPrefix(localPath, "/"))
 
-				_, _ = a.mediaUpload.SaveUploadRecord(r.Context(), UploadRecord{
-					UserID:           userID,
-					OriginalFilename: fileHeader.Filename,
-					LocalFilename:    localFilename,
-					RemoteFilename:   msg,
-					RemoteURL:        imageURL,
-					LocalPath:        localPath,
-					FileSize:         fileHeader.Size,
-					FileType:         contentType,
-					FileExtension:    a.fileStorage.FileExtension(fileHeader.Filename),
-					FileMD5:          md5Value,
-				})
+				fileExtension := a.fileStorage.FileExtension(fileHeader.Filename)
+				switch source {
+				case "douyin":
+					_, _ = a.mediaUpload.SaveDouyinUploadRecord(r.Context(), DouyinUploadRecord{
+						UserID:           userID,
+						SecUserID:        douyinSecUserID,
+						DetailID:         douyinDetailID,
+						AuthorUniqueID:   douyinAuthorUniqueID,
+						AuthorName:       douyinAuthorName,
+						OriginalFilename: fileHeader.Filename,
+						LocalFilename:    localFilename,
+						RemoteFilename:   msg,
+						RemoteURL:        imageURL,
+						LocalPath:        localPath,
+						FileSize:         fileHeader.Size,
+						FileType:         contentType,
+						FileExtension:    fileExtension,
+						FileMD5:          md5Value,
+					})
+				default:
+					_, _ = a.mediaUpload.SaveUploadRecord(r.Context(), UploadRecord{
+						UserID:           userID,
+						OriginalFilename: fileHeader.Filename,
+						LocalFilename:    localFilename,
+						RemoteFilename:   msg,
+						RemoteURL:        imageURL,
+						LocalPath:        localPath,
+						FileSize:         fileHeader.Size,
+						FileType:         contentType,
+						FileExtension:    fileExtension,
+						FileMD5:          md5Value,
+					})
+				}
 
 				a.imageCache.AddImageToCache(userID, localPath)
 

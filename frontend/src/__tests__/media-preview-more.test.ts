@@ -831,10 +831,87 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
     await (wrapper2.vm as any).handleCaptureFrame()
     expect(clickSpy).toHaveBeenCalled()
     expect(uploadMocks.uploadFile).toHaveBeenCalled()
+    expect(uploadMocks.uploadFile).toHaveBeenCalledWith(
+      expect.any(File),
+      'me',
+      'me',
+      expect.objectContaining({ source: 'local' })
+    )
 
     Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', { configurable: true, value: originalGetContext })
     Object.defineProperty(HTMLCanvasElement.prototype, 'toBlob', { configurable: true, value: originalToBlob })
 
+    clickSpy.mockRestore()
+  })
+
+  it('capture frame uploads with douyin source metadata when current media is douyin video', async () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    const wrapper = mount(MediaPreview, {
+      props: {
+        visible: true,
+        url: '/api/douyin/download?key=k1&index=1',
+        type: 'video',
+        mediaList: [
+          {
+            url: '/api/douyin/download?key=k1&index=1',
+            type: 'video',
+            context: {
+              provider: 'douyin',
+              key: 'k1',
+              index: 1,
+              work: {
+                detailId: 'detail-1',
+                authorSecUserId: 'sec-1',
+                authorUniqueId: 'uid-1',
+                authorName: '作者A'
+              }
+            }
+          }
+        ] as any
+      },
+      global: { stubs: { teleport: true } }
+    })
+    await flushAsync()
+
+    const video = wrapper.get('video').element as HTMLVideoElement
+    Object.defineProperty(video, 'paused', { configurable: true, value: true })
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 2 })
+    Object.defineProperty(video, 'videoWidth', { configurable: true, value: 100 })
+    Object.defineProperty(video, 'videoHeight', { configurable: true, value: 100 })
+    Object.defineProperty(video, 'currentTime', { configurable: true, value: 0, writable: true })
+    video.pause = vi.fn()
+
+    const originalGetContext = HTMLCanvasElement.prototype.getContext
+    const originalToBlob = HTMLCanvasElement.prototype.toBlob
+    const ctx: any = { drawImage: vi.fn() }
+    Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', { configurable: true, value: vi.fn().mockReturnValue(ctx) })
+    Object.defineProperty(HTMLCanvasElement.prototype, 'toBlob', {
+      configurable: true,
+      value: (cb: (b: Blob | null) => void) => cb(new Blob(['x'], { type: 'image/png' }))
+    })
+
+    uploadMocks.uploadFile.mockResolvedValueOnce({ url: 'u', type: 'image' })
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'me', nickname: 'me' } as any
+
+    await (wrapper.vm as any).handleCaptureFrame()
+    expect(clickSpy).toHaveBeenCalled()
+    expect(uploadMocks.uploadFile).toHaveBeenCalledWith(
+      expect.any(File),
+      'me',
+      'me',
+      expect.objectContaining({
+        source: 'douyin',
+        douyinSecUserId: 'sec-1',
+        douyinDetailId: 'detail-1',
+        douyinAuthorUniqueId: 'uid-1',
+        douyinAuthorName: '作者A'
+      })
+    )
+
+    Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', { configurable: true, value: originalGetContext })
+    Object.defineProperty(HTMLCanvasElement.prototype, 'toBlob', { configurable: true, value: originalToBlob })
     clickSpy.mockRestore()
   })
 

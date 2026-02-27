@@ -6,13 +6,28 @@ import type { UploadedMedia } from '@/types'
 import { generateCookie } from '@/utils/cookie'
 import { useToast } from '@/composables/useToast'
 
+export type UploadSource = 'local' | 'douyin' | 'mtphoto'
+
+export interface UploadFileOptions {
+  source?: UploadSource
+  douyinSecUserId?: string
+  douyinDetailId?: string
+  douyinAuthorUniqueId?: string
+  douyinAuthorName?: string
+}
+
 export const useUpload = () => {
 	  const mediaStore = useMediaStore()
 	  const systemConfigStore = useSystemConfigStore()
 	  const uploadLoading = ref(false)
 	  const { error: showError } = useToast()
 
-  const uploadFile = async (file: File, userId: string, userName: string): Promise<UploadedMedia | null> => {
+  const uploadFile = async (
+    file: File,
+    userId: string,
+    userName: string,
+    options?: UploadFileOptions
+  ): Promise<UploadedMedia | null> => {
     uploadLoading.value = true
     try {
       if (!mediaStore.imgServer) {
@@ -36,6 +51,23 @@ export const useUpload = () => {
       formData.append('cookieData', cookieData)
       formData.append('referer', referer)
       formData.append('userAgent', userAgent)
+
+      const sourceRaw = String(options?.source || '').trim().toLowerCase()
+      const source: UploadSource =
+        sourceRaw === 'douyin' || sourceRaw === 'mtphoto' ? (sourceRaw as UploadSource) : 'local'
+      formData.append('source', source)
+
+      if (source === 'douyin') {
+        const douyinSecUserId = String(options?.douyinSecUserId || '').trim()
+        const douyinDetailId = String(options?.douyinDetailId || '').trim()
+        const douyinAuthorUniqueId = String(options?.douyinAuthorUniqueId || '').trim()
+        const douyinAuthorName = String(options?.douyinAuthorName || '').trim()
+
+        if (douyinSecUserId) formData.append('douyinSecUserId', douyinSecUserId)
+        if (douyinDetailId) formData.append('douyinDetailId', douyinDetailId)
+        if (douyinAuthorUniqueId) formData.append('douyinAuthorUniqueId', douyinAuthorUniqueId)
+        if (douyinAuthorName) formData.append('douyinAuthorName', douyinAuthorName)
+      }
 
       const res = await mediaApi.uploadMedia(formData)
 
