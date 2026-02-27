@@ -12,6 +12,7 @@ export interface User {
   lastTime?: string
   unreadCount?: number
   lastMessageTime?: string
+  localArchived?: boolean
 }
 
 export interface Identity {

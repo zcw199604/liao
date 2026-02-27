@@ -103,6 +103,7 @@ type App struct {
 	videoExtract          *VideoExtractService
 	userInfoCache         UserInfoCacheService
 	chatHistoryCache      ChatHistoryCacheService
+	userArchive           UserArchiveService
 	forceoutManager       *ForceoutManager
 	wsManager             *UpstreamWebSocketManager
 
@@ -185,6 +186,7 @@ func New(cfg config.Config) (*App, error) {
 		imageHash:        NewImageHashService(db),
 		userInfoCache:    userInfoCache,
 		chatHistoryCache: chatHistoryCache,
+		userArchive:      NewDBUserArchiveService(db),
 		forceoutManager:  NewForceoutManager(),
 		staticDir:        staticDir,
 	}

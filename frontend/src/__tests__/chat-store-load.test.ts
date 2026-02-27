@@ -40,7 +40,7 @@ describe('stores/chat load list branches', () => {
     ;(chatApi.getHistoryUserList as any).mockResolvedValueOnce([
       { id: 'me', nickname: 'Me' }, // self should be filtered out
       { id: 'u1', nickname: 'NewNick', lastMsg: 'new', lastTime: 't' },
-      { id: 'u2', name: 'U2', sex: '男', lastMsg: 'hi', lastTime: 't2' }
+      { id: 'u2', name: 'U2', sex: '男', lastMsg: 'hi', lastTime: 't2', localArchived: true }
     ])
 
     await store.loadHistoryUsers('me', 'Me')
@@ -50,6 +50,7 @@ describe('stores/chat load list branches', () => {
     expect(store.getUser('u1')?.unreadCount).toBe(5)
     expect(store.getUser('u1')?.nickname).toBe('NewNick')
     expect(store.getUser('u2')?.nickname).toBe('U2')
+    expect(store.getUser('u2')?.localArchived).toBe(true)
   })
 
   it('loadHistoryUsers clears list on error', async () => {

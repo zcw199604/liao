@@ -115,6 +115,22 @@
 	              <i class="fas fa-times text-[10px]"></i>
 	            </button>
 	          </div>
+	          <div class="mt-2 flex items-center justify-end">
+	            <button
+	              type="button"
+	              data-testid="chat-sidebar-archive-filter-toggle"
+	              class="chat-archive-filter-btn"
+	              :class="{
+	                'is-active': archivedOnly,
+	                'is-disabled': archivedUserCount === 0 && !archivedOnly
+	              }"
+	              :disabled="archivedUserCount === 0 && !archivedOnly"
+	              @click="archivedOnly = !archivedOnly"
+	            >
+	              <i class="fas fa-database text-[10px]"></i>
+	              <span>仅归档 ({{ archivedUserCount }})</span>
+	            </button>
+	          </div>
 	        </div>
 	
 	        <!-- 骨架屏：首次加载用户列表时占位，减少跳动 -->
@@ -185,6 +201,15 @@
 	                    <i v-else-if="user.sex === '女'" class="fas fa-venus"></i>
 	                    <span v-if="user.age && user.age !== '0'">{{ user.age }}</span>
 	                  </span>
+	                  <span
+	                    v-if="user.localArchived"
+	                    class="chat-user-tag-local-archived shrink-0"
+	                    title="该用户来自本地归档，可能已被上游清理"
+	                    aria-label="本地归档用户"
+	                  >
+	                    <i class="fas fa-database text-[9px]"></i>
+	                    <span>归档</span>
+	                  </span>
 	                </div>
 	                <span class="text-xs text-fg-subtle shrink-0 ml-2">{{ formatTime(user.lastTime || '') }}</span>
 	              </div>
@@ -226,6 +251,13 @@
 	          >
 	            <i class="fas fa-search text-5xl mb-4 opacity-50"></i>
 	            <p class="text-sm">未找到匹配用户</p>
+	          </div>
+	          <div
+	            v-else-if="showNoArchivedMatch"
+	            class="ui-empty-state mt-20"
+	          >
+	            <i class="fas fa-database text-5xl mb-4 opacity-50"></i>
+	            <p class="text-sm">暂无归档用户</p>
 	          </div>
 	          <div
 	            v-else-if="(!chatStore.displayList || chatStore.displayList.length === 0) && !isInitialLoadingUsers"
@@ -434,12 +466,20 @@ const isInitialLoadingUsers = ref(false)
 
 // 列表搜索：仅在当前 tab 的本地用户列表中过滤
 const searchKeyword = ref('')
+const archivedOnly = ref(false)
 const normalizedSearchKeyword = computed(() => searchKeyword.value.trim().toLowerCase())
+const archivedUserCount = computed(() => {
+  return chatStore.displayList.filter((user) => Boolean(user.localArchived)).length
+})
+const displayListAfterArchiveFilter = computed(() => {
+  if (!archivedOnly.value) return chatStore.displayList
+  return chatStore.displayList.filter((user) => Boolean(user.localArchived))
+})
 const filteredDisplayList = computed(() => {
   const keyword = normalizedSearchKeyword.value
-  if (!keyword) return chatStore.displayList
+  if (!keyword) return displayListAfterArchiveFilter.value
 
-  return chatStore.displayList.filter((user) => {
+  return displayListAfterArchiveFilter.value.filter((user) => {
     const fields = [user.nickname, user.name, user.id, user.address]
     return fields.some((field) => String(field || '').toLowerCase().includes(keyword))
   })
@@ -447,8 +487,16 @@ const filteredDisplayList = computed(() => {
 
 const showNoSearchMatch = computed(() => {
   return normalizedSearchKeyword.value.length > 0 &&
-    chatStore.displayList.length > 0 &&
+    displayListAfterArchiveFilter.value.length > 0 &&
     filteredDisplayList.value.length === 0 &&
+    !isInitialLoadingUsers.value
+})
+
+const showNoArchivedMatch = computed(() => {
+  return archivedOnly.value &&
+    normalizedSearchKeyword.value.length === 0 &&
+    filteredDisplayList.value.length === 0 &&
+    chatStore.displayList.length > 0 &&
     !isInitialLoadingUsers.value
 })
 
@@ -949,6 +997,7 @@ const handleTabSwitch = async (tab: 'history' | 'favorite') => {
 // 切换 tab 后清空搜索，避免把上一个 tab 的筛选条件带到新列表
 watch(() => chatStore.activeTab, () => {
   searchKeyword.value = ''
+  archivedOnly.value = false
 })
 
 const handleMatchSuccess = (e: any) => {

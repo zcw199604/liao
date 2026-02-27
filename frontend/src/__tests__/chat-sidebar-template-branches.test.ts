@@ -255,7 +255,8 @@ describe('components/chat/ChatSidebar.vue (template branches)', () => {
       isFavorite: false,
       lastMsg: '...',
       lastTime: 'bad-date',
-      unreadCount: 1
+      unreadCount: 1,
+      localArchived: true
     } as any)
 
     const wrapper = mount(ChatSidebar, {
@@ -280,6 +281,11 @@ describe('components/chat/ChatSidebar.vue (template branches)', () => {
     expect(wrapper.findAll('i.fas.fa-venus').length).toBeGreaterThanOrEqual(1)
     // Address badge: user1 has "A" so present; user2/3 should not show address chip.
     expect(wrapper.text()).toContain('A')
+    expect(wrapper.text()).toContain('归档')
+    const archivedTag = wrapper.find('.chat-user-tag-local-archived')
+    expect(archivedTag.exists()).toBe(true)
+    expect(archivedTag.attributes('title')).toBe('该用户来自本地归档，可能已被上游清理')
+    expect(archivedTag.find('i.fas.fa-database').exists()).toBe(true)
     // Favorite star (history tab only)
     expect(wrapper.findAll('i.fas.fa-star').length).toBeGreaterThan(0)
 
@@ -307,5 +313,110 @@ describe('components/chat/ChatSidebar.vue (template branches)', () => {
     expect(wrapper.text()).toContain('离线')
     expect(wrapper.text()).toContain('未知')
   })
-})
 
+  it('supports archived-only filter toggle', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const router = await createTestRouter()
+
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'me', nickname: 'me' } as any
+
+    const chatStore = useChatStore()
+    chatStore.activeTab = 'history'
+    chatStore.historyUserIds = ['u1', 'u2']
+    chatStore.upsertUser({
+      id: 'u1',
+      name: 'ArchivedUser',
+      nickname: 'ArchivedUser',
+      sex: '未知',
+      ip: '',
+      localArchived: true,
+      lastMsg: 'a',
+      lastTime: ''
+    } as any)
+    chatStore.upsertUser({
+      id: 'u2',
+      name: 'NormalUser',
+      nickname: 'NormalUser',
+      sex: '未知',
+      ip: '',
+      localArchived: false,
+      lastMsg: 'b',
+      lastTime: ''
+    } as any)
+
+    const wrapper = mount(ChatSidebar, {
+      global: {
+        plugins: [pinia, router],
+        stubs: {
+          Toast: true,
+          SettingsDrawer: true,
+          Dialog: { template: '<div class=\"dialog-stub\"><slot /></div>' },
+          PullToRefresh: { template: '<div><slot /></div>' },
+          Skeleton: true,
+          MatchButton: true,
+          MatchOverlay: true,
+          DraggableBadge: true
+        }
+      }
+    })
+    await flushAsync()
+
+    expect(wrapper.text()).toContain('ArchivedUser')
+    expect(wrapper.text()).toContain('NormalUser')
+
+    const toggleBtn = wrapper.get('[data-testid=\"chat-sidebar-archive-filter-toggle\"]')
+    expect(toggleBtn.text()).toContain('仅归档 (1)')
+    expect((toggleBtn.element as HTMLButtonElement).disabled).toBe(false)
+    await toggleBtn.trigger('click')
+    await flushAsync()
+
+    expect(wrapper.text()).toContain('ArchivedUser')
+    expect(wrapper.text()).not.toContain('NormalUser')
+  })
+
+  it('disables archived-only toggle when there is no archived user', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const router = await createTestRouter()
+
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'me', nickname: 'me' } as any
+
+    const chatStore = useChatStore()
+    chatStore.activeTab = 'history'
+    chatStore.historyUserIds = ['u1']
+    chatStore.upsertUser({
+      id: 'u1',
+      name: 'NormalUser',
+      nickname: 'NormalUser',
+      sex: '未知',
+      ip: '',
+      localArchived: false,
+      lastMsg: 'b',
+      lastTime: ''
+    } as any)
+
+    const wrapper = mount(ChatSidebar, {
+      global: {
+        plugins: [pinia, router],
+        stubs: {
+          Toast: true,
+          SettingsDrawer: true,
+          Dialog: { template: '<div class=\"dialog-stub\"><slot /></div>' },
+          PullToRefresh: { template: '<div><slot /></div>' },
+          Skeleton: true,
+          MatchButton: true,
+          MatchOverlay: true,
+          DraggableBadge: true
+        }
+      }
+    })
+    await flushAsync()
+
+    const toggleBtn = wrapper.get('[data-testid=\"chat-sidebar-archive-filter-toggle\"]')
+    expect(toggleBtn.text()).toContain('仅归档 (0)')
+    expect((toggleBtn.element as HTMLButtonElement).disabled).toBe(true)
+  })
+})

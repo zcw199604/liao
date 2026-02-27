@@ -19,7 +19,8 @@ const normalizeUser = (user: any, isFavorite: boolean = false): User => {
     isFavorite: isFavorite,
     lastMsg: user.lastMsg || '暂无消息',
     lastTime: user.lastTime || '刚刚',
-    unreadCount: 0
+    unreadCount: 0,
+    localArchived: Boolean(user.localArchived)
   }
 }
 

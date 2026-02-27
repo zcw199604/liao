@@ -31,6 +31,7 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 	resultSize := -1
 	var upstreamStatus int
 	cacheEnabled := a.userInfoCache != nil
+	archiveEnabled := a.userArchive != nil
 
 	_ = r.ParseForm()
 
@@ -52,6 +53,7 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 			"lastMsgMs", lastMsgMs,
 			"totalMs", time.Since(totalStart).Milliseconds(),
 			"cacheEnabled", cacheEnabled,
+			"archiveEnabled", archiveEnabled,
 		)
 	}()
 
@@ -80,11 +82,31 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 	upstreamStatus = status
 	if err != nil {
 		slog.Error("调用上游接口失败", "api", "/api/getHistoryUserList", "error", err)
+		if archiveEnabled {
+			archived := a.userArchive.MergeArchivedUsers(r.Context(), myUserID, nil, UserArchiveListSourceHistory)
+			if len(archived) > 0 {
+				resultSize = len(archived)
+				if enhanced, marshalErr := json.Marshal(archived); marshalErr == nil {
+					writeText(w, http.StatusOK, string(enhanced))
+					return
+				}
+			}
+		}
 		writeText(w, http.StatusInternalServerError, "{\"error\":\"调用上游接口失败: "+err.Error()+"\"}")
 		return
 	}
 	if status != http.StatusOK {
 		slog.Error("调用上游接口失败", "api", "/api/getHistoryUserList", "status", status)
+		if archiveEnabled {
+			archived := a.userArchive.MergeArchivedUsers(r.Context(), myUserID, nil, UserArchiveListSourceHistory)
+			if len(archived) > 0 {
+				resultSize = len(archived)
+				if enhanced, marshalErr := json.Marshal(archived); marshalErr == nil {
+					writeText(w, http.StatusOK, string(enhanced))
+					return
+				}
+			}
+		}
 		writeText(w, http.StatusInternalServerError, "{\"error\":\"调用上游接口失败: upstream status "+fmt.Sprint(status)+"\"}")
 		return
 	}
@@ -92,23 +114,20 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 	slog.Info("上游接口返回", "status", status, "bodyLength", len(body))
 	slog.Debug("上游接口 body", "api", "/api/getHistoryUserList", "body", body)
 
-	if cacheEnabled && strings.TrimSpace(body) != "" {
+	if strings.TrimSpace(body) != "" && (cacheEnabled || archiveEnabled) {
 		var list []map[string]any
 		if err := json.Unmarshal([]byte(body), &list); err != nil {
 			slog.Error("解析上游历史用户列表失败", "error", err)
 		} else {
-			idKey := "id"
-			if len(list) > 0 {
-				if _, ok := list[0]["id"]; !ok {
-					if _, ok := list[0]["UserID"]; ok {
-						idKey = "UserID"
-					} else if _, ok := list[0]["userid"]; ok {
-						idKey = "userid"
-					}
-				}
-			}
+			idKey := detectUserListIDKey(list)
 
-			enrichUserInfoMs, lastMsgMs = enrichUserListInPlace(a.userInfoCache, list, idKey, myUserID)
+			if cacheEnabled {
+				enrichUserInfoMs, lastMsgMs = enrichUserListInPlace(a.userInfoCache, list, idKey, myUserID)
+			}
+			if archiveEnabled {
+				a.userArchive.PersistUserList(r.Context(), myUserID, list, UserArchiveListSourceHistory)
+				list = a.userArchive.MergeArchivedUsers(r.Context(), myUserID, list, UserArchiveListSourceHistory)
+			}
 
 			resultSize = len(list)
 
@@ -130,6 +149,7 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 	resultSize := -1
 	var upstreamStatus int
 	cacheEnabled := a.userInfoCache != nil
+	archiveEnabled := a.userArchive != nil
 
 	_ = r.ParseForm()
 
@@ -151,6 +171,7 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 			"lastMsgMs", lastMsgMs,
 			"totalMs", time.Since(totalStart).Milliseconds(),
 			"cacheEnabled", cacheEnabled,
+			"archiveEnabled", archiveEnabled,
 		)
 	}()
 
@@ -179,11 +200,31 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 	upstreamStatus = status
 	if err != nil {
 		slog.Error("调用上游接口失败", "api", "/api/getFavoriteUserList", "error", err)
+		if archiveEnabled {
+			archived := a.userArchive.MergeArchivedUsers(r.Context(), myUserID, nil, UserArchiveListSourceFavorite)
+			if len(archived) > 0 {
+				resultSize = len(archived)
+				if enhanced, marshalErr := json.Marshal(archived); marshalErr == nil {
+					writeText(w, http.StatusOK, string(enhanced))
+					return
+				}
+			}
+		}
 		writeText(w, http.StatusInternalServerError, "{\"error\":\"调用上游接口失败: "+err.Error()+"\"}")
 		return
 	}
 	if status != http.StatusOK {
 		slog.Error("调用上游接口失败", "api", "/api/getFavoriteUserList", "status", status)
+		if archiveEnabled {
+			archived := a.userArchive.MergeArchivedUsers(r.Context(), myUserID, nil, UserArchiveListSourceFavorite)
+			if len(archived) > 0 {
+				resultSize = len(archived)
+				if enhanced, marshalErr := json.Marshal(archived); marshalErr == nil {
+					writeText(w, http.StatusOK, string(enhanced))
+					return
+				}
+			}
+		}
 		writeText(w, http.StatusInternalServerError, "{\"error\":\"调用上游接口失败: upstream status "+fmt.Sprint(status)+"\"}")
 		return
 	}
@@ -191,23 +232,20 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 	slog.Info("上游接口返回", "status", status, "bodyLength", len(body))
 	slog.Debug("上游接口 body", "api", "/api/getFavoriteUserList", "body", body)
 
-	if cacheEnabled && strings.TrimSpace(body) != "" {
+	if strings.TrimSpace(body) != "" && (cacheEnabled || archiveEnabled) {
 		var list []map[string]any
 		if err := json.Unmarshal([]byte(body), &list); err != nil {
 			slog.Error("解析上游收藏用户列表失败", "error", err)
 		} else {
-			idKey := "id"
-			if len(list) > 0 {
-				if _, ok := list[0]["id"]; !ok {
-					if _, ok := list[0]["UserID"]; ok {
-						idKey = "UserID"
-					} else if _, ok := list[0]["userid"]; ok {
-						idKey = "userid"
-					}
-				}
-			}
+			idKey := detectUserListIDKey(list)
 
-			enrichUserInfoMs, lastMsgMs = enrichUserListInPlace(a.userInfoCache, list, idKey, myUserID)
+			if cacheEnabled {
+				enrichUserInfoMs, lastMsgMs = enrichUserListInPlace(a.userInfoCache, list, idKey, myUserID)
+			}
+			if archiveEnabled {
+				a.userArchive.PersistUserList(r.Context(), myUserID, list, UserArchiveListSourceFavorite)
+				list = a.userArchive.MergeArchivedUsers(r.Context(), myUserID, list, UserArchiveListSourceFavorite)
+			}
 
 			resultSize = len(list)
 
@@ -289,6 +327,10 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("获取消息历史请求", "myUserID", myUserID, "UserToID", userToID, "isFirst", isFirst, "firstTid", firstTid)
 
+	if a.userArchive != nil {
+		a.userArchive.TouchConversation(context.Background(), myUserID, userToID)
+	}
+
 	const defaultHistoryPageSize = 20
 	conversationKey := generateConversationKey(strings.TrimSpace(myUserID), strings.TrimSpace(userToID))
 	cacheEnabled := a.chatHistoryCache != nil && conversationKey != ""
@@ -349,31 +391,8 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 		slog.Error("获取消息历史失败", "status", status, "upstreamMs", upstreamMs, "error", err)
 
 		if len(cachedMessages) > 0 {
-			if a.userInfoCache != nil && isFirst == "1" && !isHistoryPage && len(cachedMessages) > 0 {
-				first := cachedMessages[0]
-				fromUserID := strings.TrimSpace(toString(first["id"]))
-				toUserID := strings.TrimSpace(toString(first["toid"]))
-				content := strings.TrimSpace(toString(first["content"]))
-				tm := strings.TrimSpace(toString(first["time"]))
-				tp := inferMessageType(content)
-				if fromUserID != "" && toUserID != "" && content != "" && tm != "" {
-					cacheFrom := fromUserID
-					cacheTo := toUserID
-					if myUserID != fromUserID && myUserID != toUserID {
-						if userToID == fromUserID {
-							cacheTo = myUserID
-						} else if userToID == toUserID {
-							cacheFrom = myUserID
-						}
-					}
-					a.userInfoCache.SaveLastMessage(CachedLastMessage{
-						FromUserID: cacheFrom,
-						ToUserID:   cacheTo,
-						Content:    content,
-						Type:       tp,
-						Time:       tm,
-					})
-				}
+			if isFirst == "1" && !isHistoryPage {
+				a.persistHistoryLastMessage(myUserID, userToID, cachedMessages[0])
 			}
 
 			limit := defaultHistoryPageSize
@@ -425,32 +444,8 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 
-				if a.userInfoCache != nil && isFirst == "1" && !isHistoryPage && len(upstreamList) > 0 {
-					first := upstreamList[0]
-					fromUserID := strings.TrimSpace(toString(first["id"]))
-					toUserID := strings.TrimSpace(toString(first["toid"]))
-					content := strings.TrimSpace(toString(first["content"]))
-					tm := strings.TrimSpace(toString(first["time"]))
-					tp := inferMessageType(content)
-
-					if fromUserID != "" && toUserID != "" && content != "" && tm != "" {
-						cacheFrom := fromUserID
-						cacheTo := toUserID
-						if myUserID != fromUserID && myUserID != toUserID {
-							if userToID == fromUserID {
-								cacheTo = myUserID
-							} else if userToID == toUserID {
-								cacheFrom = myUserID
-							}
-						}
-						a.userInfoCache.SaveLastMessage(CachedLastMessage{
-							FromUserID: cacheFrom,
-							ToUserID:   cacheTo,
-							Content:    content,
-							Type:       tp,
-							Time:       tm,
-						})
-					}
+				if isFirst == "1" && !isHistoryPage && len(upstreamList) > 0 {
+					a.persistHistoryLastMessage(myUserID, userToID, upstreamList[0])
 				}
 
 				if cacheEnabled && len(upstreamList) > 0 {
@@ -489,6 +484,60 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeText(w, http.StatusOK, body)
+}
+
+func detectUserListIDKey(list []map[string]any) string {
+	idKey := "id"
+	if len(list) == 0 || list[0] == nil {
+		return idKey
+	}
+	if _, ok := list[0]["id"]; ok {
+		return idKey
+	}
+	if _, ok := list[0]["UserID"]; ok {
+		return "UserID"
+	}
+	if _, ok := list[0]["userid"]; ok {
+		return "userid"
+	}
+	return idKey
+}
+
+func (a *App) persistHistoryLastMessage(myUserID, userToID string, first map[string]any) {
+	if first == nil {
+		return
+	}
+	fromUserID := strings.TrimSpace(toString(first["id"]))
+	toUserID := strings.TrimSpace(toString(first["toid"]))
+	content := strings.TrimSpace(toString(first["content"]))
+	tm := strings.TrimSpace(toString(first["time"]))
+	if fromUserID == "" || toUserID == "" || content == "" || tm == "" {
+		return
+	}
+
+	if a.userInfoCache != nil {
+		cacheFrom := fromUserID
+		cacheTo := toUserID
+		if myUserID != fromUserID && myUserID != toUserID {
+			if userToID == fromUserID {
+				cacheTo = myUserID
+			} else if userToID == toUserID {
+				cacheFrom = myUserID
+			}
+		}
+		a.userInfoCache.SaveLastMessage(CachedLastMessage{
+			FromUserID: cacheFrom,
+			ToUserID:   cacheTo,
+			Content:    content,
+			Type:       inferMessageType(content),
+			Time:       tm,
+		})
+	}
+
+	if a.userArchive != nil {
+		a.userArchive.TouchConversation(context.Background(), myUserID, userToID)
+		a.userArchive.SaveLastMessage(context.Background(), myUserID, userToID, content, tm)
+	}
 }
 
 func (a *App) handleGetImgServer(w http.ResponseWriter, r *http.Request) {

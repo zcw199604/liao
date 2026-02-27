@@ -450,6 +450,33 @@
 - `PRIMARY KEY (aweme_id, tag_id)`
 - `idx_dfatm_tag_id (tag_id)`
 
+### 1.11 `chat_user_archive`（聊天用户本地归档）
+
+**创建位置**：`sql/{dialect}/007_chat_user_archive.sql`（由 `internal/database/migrator.go` 执行；入口：`internal/app/schema.go`）  
+**相关实现**：`internal/app/user_archive.go`、`internal/app/user_history_handlers.go`、`internal/app/app.go`  
+**用途**：为“上游删除用户后仍可找回”提供兜底。历史/收藏列表与消息历史会把用户快照、最后消息持久化到本地；列表接口会合并返回 `localArchived=true` 的归档用户。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| id | BIGINT | PK, AUTO_INCREMENT | 主键 |
+| owner_user_id | VARCHAR(64) | NOT NULL | 当前登录用户ID（myUserID） |
+| target_user_id | VARCHAR(64) | NOT NULL | 对方用户ID |
+| snapshot_json | TEXT/LONGTEXT | 可空 | 最近一次用户快照（JSON） |
+| last_msg | TEXT | 可空 | 最近消息摘要 |
+| last_time | VARCHAR(64) | 可空 | 最近消息时间（原始字符串） |
+| seen_in_history | SMALLINT/TINYINT | NOT NULL, default 0 | 是否出现在历史列表 |
+| seen_in_favorite | SMALLINT/TINYINT | NOT NULL, default 0 | 是否出现在收藏列表 |
+| first_seen_at | DATETIME/TIMESTAMP | NOT NULL | 首次见到时间 |
+| last_seen_at | DATETIME/TIMESTAMP | NOT NULL | 最近见到时间 |
+| created_at | DATETIME/TIMESTAMP | NOT NULL | 创建时间 |
+| updated_at | DATETIME/TIMESTAMP | NOT NULL | 更新时间 |
+
+**索引**
+- `uk_chat_user_archive_owner_target (owner_user_id, target_user_id)`（唯一）
+- `idx_chat_user_archive_owner_history (owner_user_id, seen_in_history, updated_at DESC)`
+- `idx_chat_user_archive_owner_favorite (owner_user_id, seen_in_favorite, updated_at DESC)`
+- `idx_chat_user_archive_owner_seen (owner_user_id, last_seen_at DESC)`
+
 ## 2. 缓存（内存 / Redis）
 
 ### 2.1 用户信息缓存（UserInfoCacheService）

@@ -7,6 +7,12 @@
 ## [Unreleased]
 
 ### 新增
+- 后端：聊天用户列表新增本地归档兜底（表 `chat_user_archive`，迁移 `sql/{dialect}/007_chat_user_archive.sql`）。`/api/getHistoryUserList` 与 `/api/getFavoriteUserList` 会在上游成功时落库快照并合并返回归档用户（标记 `localArchived=true`），在上游失败时若本地有归档可直接回退返回；`/api/getMessageHistory` 会同步触达会话并更新归档最后消息，降低上游清理用户后的不可恢复风险。
+- 前端：会话列表支持展示本地归档用户标签（`localArchived=true` 显示“归档”），用于区分上游仍存在用户与本地兜底恢复用户。
+- 前端：归档用户标签新增悬浮提示文案（`title`），明确“该用户来自本地归档，可能已被上游清理”。
+- 前端：会话列表新增“仅归档”筛选开关，并为归档标签补充数据库图标，便于快速聚焦本地兜底用户。
+- 前端：会话列表“仅归档”开关新增归档数量显示（`仅归档 (N)`），便于快速感知当前 Tab 归档规模。
+- 前端：当归档数量为 0 时，“仅归档 (0)”开关自动置灰并禁用（若已开启筛选则仍可关闭），避免无效点击。
 - mtPhoto 新增“文件夹模式”能力：支持根目录/子目录逐级浏览（`/api/getMtPhotoFolderRoot`、`/api/getMtPhotoFolderContent`、`/api/getMtPhotoFolderBreadcrumbs`），并可在同一弹窗内直接预览目录图片与下载原图。
 - mtPhoto 新增“文件夹级收藏”能力：支持按 `folderId` 收藏目录并维护标签、备注（`/api/getMtPhotoFolderFavorites`、`/api/upsertMtPhotoFolderFavorite`、`/api/removeMtPhotoFolderFavorite`）；后端新增迁移表 `mtphoto_folder_favorite`（MySQL/PostgreSQL 同步）。
 - mtPhoto 收藏管理增强：收藏列表支持按标签筛选（任一/全部匹配）、排序（更新时间/目录名/标签数）与常用标签 chips；收藏卡片支持直接编辑标签与备注（无需先进入目录）。
