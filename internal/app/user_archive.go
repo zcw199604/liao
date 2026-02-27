@@ -25,6 +25,7 @@ type UserArchiveService interface {
 	MergeArchivedUsers(ctx context.Context, ownerUserID string, upstream []map[string]any, source UserArchiveListSource) []map[string]any
 	TouchConversation(ctx context.Context, ownerUserID, targetUserID string)
 	SaveLastMessage(ctx context.Context, ownerUserID, targetUserID, content, messageTime string)
+	DeleteConversation(ctx context.Context, ownerUserID, targetUserID string)
 }
 
 // DBUserArchiveService 基于数据库实现 UserArchiveService。
@@ -199,6 +200,26 @@ func (s *DBUserArchiveService) SaveLastMessage(ctx context.Context, ownerUserID,
 		SeenAt:        now,
 	}); err != nil {
 		slog.Warn("归档最后消息失败", "ownerUserID", ownerUserID, "targetUserID", targetUserID, "error", err)
+	}
+}
+
+func (s *DBUserArchiveService) DeleteConversation(ctx context.Context, ownerUserID, targetUserID string) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	targetUserID = strings.TrimSpace(targetUserID)
+	if s == nil || s.db == nil || ownerUserID == "" || targetUserID == "" {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if _, err := s.db.ExecContext(
+		ctx,
+		"DELETE FROM chat_user_archive WHERE owner_user_id = ? AND target_user_id = ?",
+		ownerUserID,
+		targetUserID,
+	); err != nil {
+		slog.Warn("删除归档会话失败", "ownerUserID", ownerUserID, "targetUserID", targetUserID, "error", err)
 	}
 }
 

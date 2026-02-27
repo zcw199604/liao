@@ -126,3 +126,26 @@ func TestDBUserArchiveService_MergeArchivedUsers_AppendsLocalArchived(t *testing
 		t.Fatalf("localArchived=%v", merged[1]["localArchived"])
 	}
 }
+
+func TestDBUserArchiveService_DeleteConversation(t *testing.T) {
+	t.Run("delete by owner and target", func(t *testing.T) {
+		rawDB, mock, cleanup := newSQLMock(t)
+		defer cleanup()
+
+		mock.ExpectExec(`DELETE FROM chat_user_archive WHERE owner_user_id = \? AND target_user_id = \?`).
+			WithArgs("me", "u2").
+			WillReturnResult(sqlmock.NewResult(0, 1))
+
+		svc := NewDBUserArchiveService(wrapMySQLDB(rawDB))
+		svc.DeleteConversation(context.Background(), " me ", " u2 ")
+	})
+
+	t.Run("noop on empty params", func(t *testing.T) {
+		rawDB, _, cleanup := newSQLMock(t)
+		defer cleanup()
+
+		svc := NewDBUserArchiveService(wrapMySQLDB(rawDB))
+		svc.DeleteConversation(context.Background(), " ", "u2")
+		svc.DeleteConversation(context.Background(), "me", " ")
+	})
+}

@@ -454,7 +454,7 @@
 
 **创建位置**：`sql/{dialect}/007_chat_user_archive.sql`（由 `internal/database/migrator.go` 执行；入口：`internal/app/schema.go`）  
 **相关实现**：`internal/app/user_archive.go`、`internal/app/user_history_handlers.go`、`internal/app/app.go`  
-**用途**：为“上游删除用户后仍可找回”提供兜底。历史/收藏列表与消息历史会把用户快照、最后消息持久化到本地；列表接口会合并返回 `localArchived=true` 的归档用户。
+**用途**：为“上游删除用户后仍可找回”提供兜底。历史/收藏列表与消息历史会把用户快照、最后消息持久化到本地；列表接口会合并返回 `localArchived=true` 的归档用户。会话删除接口（单删/批删）在上游删除成功后会同步清理该表对应记录，避免已手动删除会话再次被归档回流。
 
 | 字段 | 类型 | 约束 | 说明 |
 |---|---|---|---|

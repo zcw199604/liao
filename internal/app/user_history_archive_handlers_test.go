@@ -15,6 +15,7 @@ type archiveSpy struct {
 	mergeCalls   []archiveMergeCall
 	touchCalls   [][2]string
 	saveCalls    []archiveSaveCall
+	deleteCalls  [][2]string
 	mergeFn      func(ownerUserID string, upstream []map[string]any, source UserArchiveListSource) []map[string]any
 }
 
@@ -79,6 +80,10 @@ func (s *archiveSpy) SaveLastMessage(_ context.Context, ownerUserID, targetUserI
 		content:      content,
 		messageTime:  messageTime,
 	})
+}
+
+func (s *archiveSpy) DeleteConversation(_ context.Context, ownerUserID, targetUserID string) {
+	s.deleteCalls = append(s.deleteCalls, [2]string{ownerUserID, targetUserID})
 }
 
 func TestHandleGetHistoryUserList_ArchiveFallbackAndMerge(t *testing.T) {

@@ -18,6 +18,21 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 	return f(r)
 }
 
+type archiveDeleteOnlySpy struct {
+	deleteCalls [][2]string
+}
+
+func (s *archiveDeleteOnlySpy) PersistUserList(context.Context, string, []map[string]any, UserArchiveListSource) {
+}
+func (s *archiveDeleteOnlySpy) MergeArchivedUsers(_ context.Context, _ string, upstream []map[string]any, _ UserArchiveListSource) []map[string]any {
+	return upstream
+}
+func (s *archiveDeleteOnlySpy) TouchConversation(context.Context, string, string)               {}
+func (s *archiveDeleteOnlySpy) SaveLastMessage(context.Context, string, string, string, string) {}
+func (s *archiveDeleteOnlySpy) DeleteConversation(_ context.Context, ownerUserID, targetUserID string) {
+	s.deleteCalls = append(s.deleteCalls, [2]string{ownerUserID, targetUserID})
+}
+
 func decodeJSONBody(t *testing.T, body *bytes.Buffer) map[string]any {
 	t.Helper()
 	var out map[string]any
@@ -117,6 +132,7 @@ func TestHandleDeleteUpstreamUser_ValidatesParams(t *testing.T) {
 
 func TestHandleDeleteUpstreamUser_UsesHTTPClient(t *testing.T) {
 	body := "OK"
+	archiveSpy := &archiveDeleteOnlySpy{}
 	a := &App{
 		httpClient: &http.Client{
 			Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -129,6 +145,7 @@ func TestHandleDeleteUpstreamUser_UsesHTTPClient(t *testing.T) {
 				return res, nil
 			}),
 		},
+		userArchive: archiveSpy,
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/deleteUpstreamUser", bytes.NewBufferString("myUserId=1&userToId=2"))
@@ -145,6 +162,12 @@ func TestHandleDeleteUpstreamUser_UsesHTTPClient(t *testing.T) {
 	}
 	if got["data"].(string) != body {
 		t.Fatalf("data=%v, want %q", got["data"], body)
+	}
+	if len(archiveSpy.deleteCalls) != 1 {
+		t.Fatalf("deleteCalls=%d, want 1", len(archiveSpy.deleteCalls))
+	}
+	if archiveSpy.deleteCalls[0] != ([2]string{"1", "2"}) {
+		t.Fatalf("deleteCall=%v, want [1 2]", archiveSpy.deleteCalls[0])
 	}
 }
 
@@ -233,6 +256,7 @@ func TestHandleBatchDeleteUpstreamUsers_ValidatesParams(t *testing.T) {
 func TestHandleBatchDeleteUpstreamUsers_UsesHTTPClientAndDedupes(t *testing.T) {
 	call := 0
 	want := []string{"2", "3"}
+	archiveSpy := &archiveDeleteOnlySpy{}
 	a := &App{
 		httpClient: &http.Client{
 			Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -254,6 +278,7 @@ func TestHandleBatchDeleteUpstreamUsers_UsesHTTPClientAndDedupes(t *testing.T) {
 				}, nil
 			}),
 		},
+		userArchive: archiveSpy,
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/batchDeleteUpstreamUsers",
@@ -279,9 +304,16 @@ func TestHandleBatchDeleteUpstreamUsers_UsesHTTPClientAndDedupes(t *testing.T) {
 	if call != 2 {
 		t.Fatalf("http calls=%d, want 2", call)
 	}
+	if len(archiveSpy.deleteCalls) != 2 {
+		t.Fatalf("deleteCalls=%d, want 2", len(archiveSpy.deleteCalls))
+	}
+	if archiveSpy.deleteCalls[0] != ([2]string{"1", "2"}) || archiveSpy.deleteCalls[1] != ([2]string{"1", "3"}) {
+		t.Fatalf("deleteCalls=%v", archiveSpy.deleteCalls)
+	}
 }
 
 func TestHandleBatchDeleteUpstreamUsers_PartialFailure(t *testing.T) {
+	archiveSpy := &archiveDeleteOnlySpy{}
 	a := &App{
 		httpClient: &http.Client{
 			Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -299,6 +331,7 @@ func TestHandleBatchDeleteUpstreamUsers_PartialFailure(t *testing.T) {
 				}, nil
 			}),
 		},
+		userArchive: archiveSpy,
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "http://api.local/api/batchDeleteUpstreamUsers",
@@ -324,6 +357,12 @@ func TestHandleBatchDeleteUpstreamUsers_PartialFailure(t *testing.T) {
 	first := failed[0].(map[string]any)
 	if first["userToId"].(string) != "3" {
 		t.Fatalf("failed userToId=%v, want %q", first["userToId"], "3")
+	}
+	if len(archiveSpy.deleteCalls) != 1 {
+		t.Fatalf("deleteCalls=%d, want 1", len(archiveSpy.deleteCalls))
+	}
+	if archiveSpy.deleteCalls[0] != ([2]string{"1", "2"}) {
+		t.Fatalf("deleteCall=%v, want [1 2]", archiveSpy.deleteCalls[0])
 	}
 }
 

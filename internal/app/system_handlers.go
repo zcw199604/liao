@@ -53,6 +53,9 @@ func (a *App) handleDeleteUpstreamUser(w http.ResponseWriter, r *http.Request) {
 	defer res.Body.Close()
 
 	body, _ := io.ReadAll(io.LimitReader(res.Body, 4<<20))
+	if a.userArchive != nil {
+		a.userArchive.DeleteConversation(r.Context(), myUserID, userToID)
+	}
 	resp["code"] = 0
 	resp["msg"] = "success"
 	resp["data"] = string(body)
@@ -148,6 +151,9 @@ func (a *App) handleBatchDeleteUpstreamUsers(w http.ResponseWriter, r *http.Requ
 		// 尽量读完 body 以复用 keep-alive 连接；上游响应通常很小，这里限制读取大小即可。
 		_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 4<<20))
 		_ = res.Body.Close()
+		if a.userArchive != nil {
+			a.userArchive.DeleteConversation(r.Context(), myUserID, userToID)
+		}
 		result.SuccessCount++
 	}
 

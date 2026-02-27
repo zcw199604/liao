@@ -8,6 +8,7 @@
 
 ### 新增
 - 后端：聊天用户列表新增本地归档兜底（表 `chat_user_archive`，迁移 `sql/{dialect}/007_chat_user_archive.sql`）。`/api/getHistoryUserList` 与 `/api/getFavoriteUserList` 会在上游成功时落库快照并合并返回归档用户（标记 `localArchived=true`），在上游失败时若本地有归档可直接回退返回；`/api/getMessageHistory` 会同步触达会话并更新归档最后消息，降低上游清理用户后的不可恢复风险。
+- 后端：删除会话接口（单删 `/deleteUpstreamUser`、批删 `/batchDeleteUpstreamUsers`）在上游删除成功后会同步清理本地 `chat_user_archive` 对应记录，避免手动删除后归档会话再次回流。
 - 前端：会话列表支持展示本地归档用户标签（`localArchived=true` 显示“归档”），用于区分上游仍存在用户与本地兜底恢复用户。
 - 前端：归档用户标签新增悬浮提示文案（`title`），明确“该用户来自本地归档，可能已被上游清理”。
 - 前端：会话列表新增“仅归档”筛选开关，并为归档标签补充数据库图标，便于快速聚焦本地兜底用户。
