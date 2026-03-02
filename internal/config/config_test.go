@@ -300,3 +300,23 @@ func TestParseJDBCURL_UnsupportedScheme(t *testing.T) {
 		t.Fatalf("expected unsupported scheme error")
 	}
 }
+
+func TestLoad_MtPhotoTimelineDeferThresholdBranches(t *testing.T) {
+	t.Run("non-positive fallback to default 10", func(t *testing.T) {
+		t.Setenv("MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD", "0")
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.MtPhotoTimelineDeferSubfolderThreshold != 10 {
+			t.Fatalf("threshold=%d, want 10", cfg.MtPhotoTimelineDeferSubfolderThreshold)
+		}
+	})
+
+	t.Run("too large returns validation error", func(t *testing.T) {
+		t.Setenv("MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD", "501")
+		if _, err := Load(); err == nil {
+			t.Fatalf("expected threshold validation error")
+		}
+	})
+}
