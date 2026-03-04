@@ -1,0 +1,167 @@
+# 变更历史索引
+
+本文件记录所有已完成变更的索引，便于追溯和查询。
+
+---
+
+## 索引
+
+| 时间戳 | 功能名称 | 类型 | 状态 | 方案包路径 |
+|--------|----------|------|------|------------|
+| 202601041818 | fix_history_userlist_lastmsg | 修复 | ✅已完成 | [链接](2026-01/202601041818_fix_history_userlist_lastmsg/) |
+| 202601041854 | fix_lastmsg_key_normalize | 修复 | ✅已完成 | [链接](2026-01/202601041854_fix_lastmsg_key_normalize/) |
+| 202601042052 | frontend-tests | 测试 | ✅已完成 | [链接](2026-01/202601042052_frontend-tests/) |
+| 202601042237 | fix_list_time_and_favorite_enrich | 修复 | ⚠️待复验 | [链接](2026-01/202601042237_fix_list_time_and_favorite_enrich/) |
+| 202601051001 | vue-component-tests | 测试 | ✅已完成 | [链接](2026-01/202601051001_vue-component-tests/) |
+| 202601051025 | vue-view-tests | 测试 | ✅已完成 | [链接](2026-01/202601051025_vue-view-tests/) |
+| 202601051105 | frontend-test-coverage | 测试 | ✅已完成 | [链接](2026-01/202601051105_frontend-test-coverage/) |
+| 202601051213 | perf_userlist_timing_logs | 优化 | ⚠️待复验 | [链接](2026-01/202601051213_perf_userlist_timing_logs/) |
+| 202601060948 | chat_gesture_ux | 功能 | ✅已完成 | [链接](2026-01/202601060948_chat_gesture_ux/) |
+| 202601062010 | fix_unread_badge_list | 修复 | ✅已完成 | [链接](2026-01/202601062010_fix_unread_badge_list/) |
+| 202601062034 | refine_unread_route_cleanup | 修复 | ✅已完成 | [链接](2026-01/202601062034_refine_unread_route_cleanup/) |
+| 202601071248 | go_backend_rewrite | 重构 | ✅已完成 | [链接](2026-01/202601071248_go_backend_rewrite/) |
+| 202601071533 | release_v1_0_0 | 发布 | ✅已完成 | [链接](2026-01/202601071533_release_v1_0_0/) |
+| 202601072015 | go_logging_align_java | 修复 | ⚠️待复验 | [链接](2026-01/202601072015_go_logging_align_java/) |
+| 202601072058 | fix_delete_media_403 | 修复 | ⚠️待复验 | [链接](2026-01/202601072058_fix_delete_media_403/) |
+| 202601092143 | ws_identity_switch | 修复 | ✅已完成 | [链接](2026-01/202601092143_ws_identity_switch/) |
+| 202601101526 | fix_ws_self_echo_alignment | 修复 | ✅已完成 | [链接](2026-01/202601101526_fix_ws_self_echo_alignment/) |
+| 202601101530 | tests_auth_ws_reconnect_crud | 测试 | ✅已完成 | [链接](2026-01/202601101530_tests_auth_ws_reconnect_crud/) |
+| 202601101607 | image_hash_duplicate_check | 功能 | ✅已完成 | [链接](2026-01/202601101607_image_hash_duplicate_check/) |
+| 202601102011 | go_file_tests | 测试 | ✅已完成 | [链接](2026-01/202601102011_go_file_tests/) |
+| 202601102152 | go_file_tests_more | 测试 | ✅已完成 | [链接](2026-01/202601102152_go_file_tests_more/) |
+| 202601102213 | java_backend_deprecated | 文档 | ✅已完成 | [链接](2026-01/202601102213_java_backend_deprecated/) |
+| 202601102319 | image_port_strategy | 功能 | ✅已完成 | [链接](2026-01/202601102319_image_port_strategy/) |
+| 202601110511 | image_port_race | 优化 | ✅已完成 | [链接](2026-01/202601110511_image_port_race/) |
+| 202601120630 | fix_lastmsg_emoji_preview | 修复 | ⚠️待复验 | [链接](2026-01/202601120630_fix_lastmsg_emoji_preview/) |
+| 202601171004 | fix_chat_media_dedup | 修复 | ✅已完成 | [链接](2026-01/202601171004_fix_chat_media_dedup/) |
+| 202601171351 | fix_spa_refresh_404 | 修复 | ✅已完成 | [链接](2026-01/202601171351_fix_spa_refresh_404/) |
+| 202601180621 | chat_inline_media | 功能 | ✅已完成 | [链接](2026-01/202601180621_chat_inline_media/) |
+| 202601180647 | fix_chat_list_self_lastmsg_promote | 修复 | ✅已完成 | [链接](2026-01/202601180647_fix_chat_list_self_lastmsg_promote/) |
+| 202601181106 | upstash_redis_url | 功能 | ✅已完成 | [链接](2026-01/202601181106_upstash_redis_url/) |
+| 202601181127 | redis_write_batch_flush | 优化 | ✅已完成 | [链接](2026-01/202601181127_redis_write_batch_flush/) |
+| 202601181156 | userlist_local_cache | 优化 | ✅已完成 | [链接](2026-01/202601181156_userlist_local_cache/) |
+| 202601181213 | redis_local_cache_only | 修复 | ✅已完成 | [链接](2026-01/202601181213_redis_local_cache_only/) |
+| 202601181444 | mtphoto_album | 功能 | ✅已完成 | [链接](2026-01/202601181444_mtphoto_album/) |
+| 202601181549 | mtphoto_preview_gallery | 修复 | ⚠️待复验 | [链接](2026-01/202601181549_mtphoto_preview_gallery/) |
+| 202601181746 | chat_ux_upgrade | 优化 | ✅已完成 | [链接](2026-01/202601181746_chat_ux_upgrade/) |
+| 202601190055 | mtphoto_refresh_token | 优化 | ✅已完成 | [链接](2026-01/202601190055_mtphoto_refresh_token/) |
+| 202601190109 | mtphoto_preview_detail | 修复 | ⚠️待复验 | [链接](2026-01/202601190109_mtphoto_preview_detail/) |
+| 202601190200 | upgrade_go_toolchain_1_25_6 | 优化 | ✅已完成 | [链接](2026-01/202601190200_upgrade_go_toolchain_1_25_6/) |
+| 202601190355 | kb_recent_commits | 文档 | ✅已完成 | [链接](2026-01/202601190355_kb_recent_commits/) |
+| 202601190509 | mtphoto_download_original | 修复 | ⚠️待复验 | [链接](2026-01/202601190509_mtphoto_download_original/) |
+| 202601190552 | mtphoto_favorites_album | 功能 | ⚠️待复验 | [链接](2026-01/202601190552_mtphoto_favorites_album/) |
+| 202601190613 | mtphoto_favorites_count | 功能 | ⚠️待复验 | [链接](2026-01/202601190613_mtphoto_favorites_count/) |
+| 202601190702 | mtphoto_preview_real_filename | 修复 | ⚠️待复验 | [链接](2026-01/202601190702_mtphoto_preview_real_filename/) |
+| 202601190728 | mtphoto_download_filename_cn | 修复 | ⚠️待复验 | [链接](2026-01/202601190728_mtphoto_download_filename_cn/) |
+| 202601190823 | media_row_order | 修复 | ⚠️待复验 | [链接](2026-01/202601190823_media_row_order/) |
+| 202601190851 | sync_update_time_source | 修复 | ⚠️待复验 | [链接](2026-01/202601190851_sync_update_time_source/) |
+| 202601190907 | docker_timezone_shanghai | 修复 | ⚠️待复验 | [链接](2026-01/202601190907_docker_timezone_shanghai/) |
+| 202601190956 | fix_chat_scroll_jitter | 修复 | ✅已完成 | [链接](2026-01/202601190956_fix_chat_scroll_jitter/) |
+| 202601191023 | fix_wecom_notify_text | 修复 | ✅已完成 | [链接](2026-01/202601191023_fix_wecom_notify_text/) |
+| 202601191052 | fix_chat_mobile_keyboard_cover | 修复 | ✅已完成 | [链接](2026-01/202601191052_fix_chat_mobile_keyboard_cover/) |
+| 202601191138 | swipe_offset_stuck | 修复 | ✅已完成 | [链接](2026-01/202601191138_swipe_offset_stuck/) |
+| 202601191522 | media_gallery_expand | 优化 | ⚠️待复验 | [链接](2026-01/202601191522_media_gallery_expand/) |
+| 202601200032 | image_menu_separate | 优化 | ✅已完成 | [链接](2026-01/202601200032_image_menu_separate/) |
+| 202601200043 | media_pre_identity | 优化 | ✅已完成 | [链接](2026-01/202601200043_media_pre_identity/) |
+| 202601200337 | media_gallery_spacing_compact | 优化 | ✅已完成 | [链接](2026-01/202601200337_media_gallery_spacing_compact/) |
+| 202601200500 | media_modal_fullscreen | 优化 | ⚠️待复验 | [链接](2026-01/202601200500_media_modal_fullscreen/) |
+| 202601200738 | video_extract_frames | 功能 | ✅已完成 | [链接](2026-01/202601200738_video_extract_frames/) |
+| 202601201117 | video_pause_capture_frame | 功能 | ⚠️待复验 | [链接](2026-01/202601201117_video_pause_capture_frame/) |
+| 202601201457 | video_extract_source_video_preview | 功能 | ⚠️待复验 | [链接](2026-01/202601201457_video_extract_source_video_preview/) |
+| 202601210135 | video_extract_temp_input_cleanup | 优化 | ✅已完成 | [链接](2026-01/202601210135_video_extract_temp_input_cleanup/) |
+| 202601210202 | video_extract_temp_input_outside_upload | 优化 | ✅已完成 | [链接](2026-01/202601210202_video_extract_temp_input_outside_upload/) |
+| 202601210243 | media_preview_hide_pause_icon | 修复 | ✅已完成 | [链接](2026-01/202601210243_media_preview_hide_pause_icon/) |
+| 202601210322 | media_preview_plyr | 优化 | ✅已完成 | [链接](2026-01/202601210322_media_preview_plyr/) |
+| 202601210327 | tiktokdownloader_web_api_kb | 文档 | ✅已完成 | [链接](2026-01/202601210327_tiktokdownloader_web_api_kb/) |
+| 202601210339 | tiktokdownloader_web_api_sdk_guide | 文档 | ✅已完成 | [链接](2026-01/202601210339_tiktokdownloader_web_api_sdk_guide/) |
+| 202601210359 | redis_chat_history_cache | 功能 | ✅已完成 | [链接](2026-01/202601210359_redis_chat_history_cache/) |
+| 202601210422 | media_preview_video_click_hold_x2 | 功能 | ✅已完成 | [链接](2026-01/202601210422_media_preview_video_click_hold_x2/) |
+| 202601210515 | media_preview_video_gesture_tune | 功能 | ✅已完成 | [链接](2026-01/202601210515_media_preview_video_gesture_tune/) |
+| 202601210551 | media_preview_video_gesture_step_seek_fullscreen_ui | 优化 | ✅已完成 | [链接](2026-01/202601210551_media_preview_video_gesture_step_seek_fullscreen_ui/) |
+| 202601210823 | media_preview_video_fullscreen_layout_fix | 修复 | ✅已完成 | [链接](2026-01/202601210823_media_preview_video_fullscreen_layout_fix/) |
+| 202601211132 | douyin_downloader | 功能 | ✅已完成 | [链接](2026-01/202601211132_douyin_downloader/) |
+| 202601211234 | douyin_downloader_ux | 优化 | ✅已完成 | [链接](2026-01/202601211234_douyin_downloader_ux/) |
+| 202601211358 | sync_docs_remove_java | 文档 | ✅已完成 | [链接](2026-01/202601211358_sync_docs_remove_java/) |
+| 202601211451 | test_cases_hardening | 测试 | ✅已完成 | [链接](2026-01/202601211451_test_cases_hardening/) |
+
+---
+
+## 按月归档
+
+### 2026-01
+
+- [202601041818_fix_history_userlist_lastmsg](2026-01/202601041818_fix_history_userlist_lastmsg/) - 修复历史用户列表 lastMsg/lastTime 增强对 `UserID/userid` 的兼容性
+- [202601041854_fix_lastmsg_key_normalize](2026-01/202601041854_fix_lastmsg_key_normalize/) - 修复消息id/toid与myUserID不一致导致 lastMsg/lastTime 无法命中
+- [202601042052_frontend-tests](2026-01/202601042052_frontend-tests/) - 前端接入 Vitest 并补充核心模块单元测试
+- [202601042237_fix_list_time_and_favorite_enrich](2026-01/202601042237_fix_list_time_and_favorite_enrich/) - 修复聊天列表时间格式化不一致，并对齐收藏列表缓存增强（待JDK17环境复验）
+- [202601051001_vue-component-tests](2026-01/202601051001_vue-component-tests/) - 前端补充 Vue 组件级测试（SFC 渲染/交互）
+- [202601051025_vue-view-tests](2026-01/202601051025_vue-view-tests/) - 前端补充视图级页面测试（LoginPage/IdentityPicker/ChatListView/ChatRoomView）
+- [202601051105_frontend-test-coverage](2026-01/202601051105_frontend-test-coverage/) - 前端补充核心聊天业务与关键组件测试覆盖（composables/store/components/utils）
+- [202601051213_perf_userlist_timing_logs](2026-01/202601051213_perf_userlist_timing_logs/) - 为历史/收藏用户列表增加分段耗时日志（上游/补充用户信息/最后消息/总耗时）
+- [202601060948_chat_gesture_ux](2026-01/202601060948_chat_gesture_ux/) - 聊天手势与弹层交互增强（列表左右滑切换/边缘右滑返回/抽屉左滑关闭/点击外关闭）
+- [202601062010_fix_unread_badge_list](2026-01/202601062010_fix_unread_badge_list/) - 修复列表页未读气泡误判不显示（路由判定 + 会话状态清理双保险）
+- [202601062034_refine_unread_route_cleanup](2026-01/202601062034_refine_unread_route_cleanup/) - 未读判定改用路由实例，并简化聊天页卸载清理逻辑
+- [202601071248_go_backend_rewrite](2026-01/202601071248_go_backend_rewrite/) - 后端重构为 Go（API + /ws 100%兼容，MySQL + 可选 Redis，单容器运行）
+- [202601071533_release_v1_0_0](2026-01/202601071533_release_v1_0_0/) - 新增 GitHub Actions Release 工作流（创建/推送 Tag 并生成 GitHub Release 产物）
+- [202601072015_go_logging_align_java](2026-01/202601072015_go_logging_align_java/) - Go 日志对齐 Java 版（User History 分段耗时/鉴权告警等）
+- [202601072058_fix_delete_media_403](2026-01/202601072058_fix_delete_media_403/) - 修复 `/api/deleteMedia` 兼容多种 localPath 形式，并对齐全站图片库删除行为（不按 userId 校验）
+- [202601092143_ws_identity_switch](2026-01/202601092143_ws_identity_switch/) - 修复切换身份后 WS 仍绑定旧用户导致匹配无响应/仍收旧消息
+- [202601101526_fix_ws_self_echo_alignment](2026-01/202601101526_fix_ws_self_echo_alignment/) - 修复 WS 私信回显自己消息方向判定（避免自己消息显示在左侧）
+- [202601101530_tests_auth_ws_reconnect_crud](2026-01/202601101530_tests_auth_ws_reconnect_crud/) - 补齐认证/WebSocket/重连/收藏&历史列表测试用例（P0-P2）
+- [202601101607_image_hash_duplicate_check](2026-01/202601101607_image_hash_duplicate_check/) - 新增媒体查重接口（MD5 + pHash 相似度阈值查询）
+- [202601102011_go_file_tests](2026-01/202601102011_go_file_tests/) - Go 文件功能测试补齐（FileStorage/MediaUpload/ImageHash/handlers）
+- [202601102152_go_file_tests_more](2026-01/202601102152_go_file_tests_more/) - Go 文件相关接口测试补齐（历史/缓存/删除/重传/修复等 handler）
+- [202601102213_java_backend_deprecated](2026-01/202601102213_java_backend_deprecated/) - 标记历史 Java(Spring Boot) 后端目录为已弃用，仅供参考
+- [202601102319_image_port_strategy](2026-01/202601102319_image_port_strategy/) - 新增全局图片端口策略配置（fixed/probe/real）与 Settings 切换
+- [202601110511_image_port_race](2026-01/202601110511_image_port_race/) - 图片端口解析优化：real 并发竞速与全失败降级兜底（回退 probe/fixed）
+- [202601120630_fix_lastmsg_emoji_preview](2026-01/202601120630_fix_lastmsg_emoji_preview/) - 修复会话列表 lastMsg 预览将表情文本（如 `[doge]`）误识别为 `[文件]`
+- [202601171004_fix_chat_media_dedup](2026-01/202601171004_fix_chat_media_dedup/) - 修复聊天记录媒体消息偶发重复显示（WS 推送与历史拉取合并语义去重）
+- [202601171351_fix_spa_refresh_404](2026-01/202601171351_fix_spa_refresh_404/) - 修复 SPA 路由在 list/chat 页面刷新 404（Go 静态回退通用化）
+- [202601180621_chat_inline_media](2026-01/202601180621_chat_inline_media/) - 支持聊天消息“文字 + [path] 媒体占位符”混排渲染（图文同显 + lastMsg 摘要）
+- [202601180647_fix_chat_list_self_lastmsg_promote](2026-01/202601180647_fix_chat_list_self_lastmsg_promote/) - 修复聊天页自己发送消息回显时，会话列表未置顶（消息/收藏）且 lastMsg 预览未加 `我: ` 前缀
+- [202601181106_upstash_redis_url](2026-01/202601181106_upstash_redis_url/) - 支持通过 `rediss://` 连接串接入 Upstash Redis（`UPSTASH_REDIS_URL`/`REDIS_URL`）
+- [202601181127_redis_write_batch_flush](2026-01/202601181127_redis_write_batch_flush/) - Redis 写入改为队列批量 flush（默认 60 秒，可配置）
+- [202601181156_userlist_local_cache](2026-01/202601181156_userlist_local_cache/) - 历史/收藏用户列表本地缓存（默认 1 小时）+ 缓存增强并发批量读取
+- [202601181213_redis_local_cache_only](2026-01/202601181213_redis_local_cache_only/) - 移除上游列表本地缓存，仅保留 Redis 本地缓存（默认 1 小时）并保留并发增强
+- [202601181444_mtphoto_album](2026-01/202601181444_mtphoto_album/) - 接入 mtPhoto 相册并支持按相册浏览与一键导入上传
+- [202601181549_mtphoto_preview_gallery](2026-01/202601181549_mtphoto_preview_gallery/) - mtPhoto 相册图片预览支持左右切换浏览（切换后导入目标对齐）
+- [202601181746_chat_ux_upgrade](2026-01/202601181746_chat_ux_upgrade/) - 聊天体验优化：乐观发送/骨架屏/虚拟滚动/ChatMedia
+- [202601190055_mtphoto_refresh_token](2026-01/202601190055_mtphoto_refresh_token/) - mtPhoto 续期支持 refresh_token（优先 `/auth/refresh`，失败回退 `/auth/login`）
+- [202601190109_mtphoto_preview_detail](2026-01/202601190109_mtphoto_preview_detail/) - mtPhoto 相册预览支持查看详情（信息按钮 + 详情面板）
+- [202601190200_upgrade_go_toolchain_1_25_6](2026-01/202601190200_upgrade_go_toolchain_1_25_6/) - 升级 Go 模块版本至 1.25.6（`go 1.25` + `toolchain go1.25.6`），GitHub Actions（Release 工作流）改为从 `go.mod` 读取版本，Docker 构建镜像固定为 `golang:1.25.6-alpine`
+- [202601190355_kb_recent_commits](2026-01/202601190355_kb_recent_commits/) - 整理最近提交（媒体库瀑布流/网格切换、预览体验、InfiniteMediaGrid/LazyImage）到知识库
+- [202601190509_mtphoto_download_original](2026-01/202601190509_mtphoto_download_original/) - 修复 mtPhoto 相册预览下载为原图（代理 mtPhoto fileDownload）
+- [202601190552_mtphoto_favorites_album](2026-01/202601190552_mtphoto_favorites_album/) - mtPhoto 相册列表置顶新增收藏夹入口（封面预览为空），可浏览收藏夹媒体并复用预览/导入上传流程
+- [202601190613_mtphoto_favorites_count](2026-01/202601190613_mtphoto_favorites_count/) - mtPhoto 相册列表展示收藏夹数量（读取收藏夹 `totalCount`/`total`）
+- [202601190702_mtphoto_preview_real_filename](2026-01/202601190702_mtphoto_preview_real_filename/) - mtPhoto 相册预览“查看详情”展示真实文件名（按需解析 + md5 缓存）
+- [202601190728_mtphoto_download_filename_cn](2026-01/202601190728_mtphoto_download_filename_cn/) - 修复 mtPhoto 相册预览下载中文文件名被编码的问题（下载时解码）
+- [202601190823_media_row_order](2026-01/202601190823_media_row_order/) - 修复媒体列表按时间排序的视觉顺序（按行从左到右展示）
+- [202601190851_sync_update_time_source](2026-01/202601190851_sync_update_time_source/) - 统一 `update_time` 写入时间源，避免与数据库时间函数混用导致排序异常
+- [202601190907_docker_timezone_shanghai](2026-01/202601190907_docker_timezone_shanghai/) - Docker 镜像默认东八区（Asia/Shanghai）以对齐应用侧 now 与 DB 时区配置
+- [202601190956_fix_chat_scroll_jitter](2026-01/202601190956_fix_chat_scroll_jitter/) - 修复聊天页媒体加载/失败导致的贴底滚动抖动（auto/smooth 分离 + 合并滚动 + 媒体 layout 事件）
+- [202601191023_fix_wecom_notify_text](2026-01/202601191023_fix_wecom_notify_text/) - GitHub Actions 企业微信通知改用文本消息并补充提交信息/镜像 tags
+- [202601191052_fix_chat_mobile_keyboard_cover](2026-01/202601191052_fix_chat_mobile_keyboard_cover/) - 修复移动端键盘弹出遮挡聊天最新消息（动态视口高度 + ResizeObserver 贴底）
+- [202601191138_swipe_offset_stuck](2026-01/202601191138_swipe_offset_stuck/) - 修复“消息/收藏”列表阈值内横滑残留偏移卡住（手势结束必复位）
+- [202601191522_media_gallery_expand](2026-01/202601191522_media_gallery_expand/) - 放宽“全站图片库/mtPhoto 相册”弹窗与图片列表展示区域，减少留白
+- [202601200032_image_menu_separate](2026-01/202601200032_image_menu_separate/) - 新增“图片管理”菜单并将“所有上传图片/mtPhoto/图片查重”入口从系统设置移出
+- [202601200043_media_pre_identity](2026-01/202601200043_media_pre_identity/) - 登录后、选择身份前可使用“图片管理”（所有上传图片/mtPhoto/图片查重）
+- [202601200337_media_gallery_spacing_compact](2026-01/202601200337_media_gallery_spacing_compact/) - 紧凑化“所有上传图片/mtPhoto 相册”弹窗图片列表边距与网格间距，提升图片可视面积
+- [202601200500_media_modal_fullscreen](2026-01/202601200500_media_modal_fullscreen/) - 为“所有上传图片/mtPhoto 相册”弹窗新增全屏模式（按钮 + `F/Esc`），最大化浏览区域便于查看大量图片
+- [202601200738_video_extract_frames](2026-01/202601200738_video_extract_frames/) - 新增视频抽帧任务（关键帧/固定FPS/逐帧）与任务中心（实时预览、终止、继续）
+- [202601201117_video_pause_capture_frame](2026-01/202601201117_video_pause_capture_frame/) - 视频预览支持倍速/慢放与暂停抓帧（下载 + 上传到图片库）
+- [202601201457_video_extract_source_video_preview](2026-01/202601201457_video_extract_source_video_preview/) - 抽帧任务上传视频支持预览源视频并抓帧（创建/详情入口）
+- [202601210135_video_extract_temp_input_cleanup](2026-01/202601210135_video_extract_temp_input_cleanup/) - 抽帧任务中心上传视频改为临时目录并在退出时自动清理
+- [202601210202_video_extract_temp_input_outside_upload](2026-01/202601210202_video_extract_temp_input_outside_upload/) - 临时输入视频迁出 upload 挂载目录（改用系统临时目录）
+- [202601210243_media_preview_hide_pause_icon](2026-01/202601210243_media_preview_hide_pause_icon/) - 媒体预览暂停遮罩图标隐藏（已随 Plyr 集成一并落地）
+- [202601210322_media_preview_plyr](2026-01/202601210322_media_preview_plyr/) - 媒体预览主视频播放器升级为 Plyr（控制栏美化，功能保持一致）
+- [202601210327_tiktokdownloader_web_api_kb](2026-01/202601210327_tiktokdownloader_web_api_kb/) - 整理 TikTokDownloader Web API（FastAPI）接口清单并沉淀到知识库
+- [202601210339_tiktokdownloader_web_api_sdk_guide](2026-01/202601210339_tiktokdownloader_web_api_sdk_guide/) - 补充 TikTokDownloader Web API 调用指南、错误处理约定与 SDK 草稿
+- [202601210359_redis_chat_history_cache](2026-01/202601210359_redis_chat_history_cache/) - Redis 缓存聊天记录（默认 30 天可配），历史接口并发合并上游 + Redis 返回
+- [202601210422_media_preview_video_click_hold_x2](2026-01/202601210422_media_preview_video_click_hold_x2/) - MediaPreview 视频交互增强（单击浮现三按钮/滑动快进&音量/长按临时 2x/抓帧抽帧按钮美化）
+- [202601210515_media_preview_video_gesture_tune](2026-01/202601210515_media_preview_video_gesture_tune/) - MediaPreview 视频交互微调（滑动减敏/浮层±1秒/双击全屏/全屏右侧抓帧抽帧）
+- [202601210551_media_preview_video_gesture_step_seek_fullscreen_ui](2026-01/202601210551_media_preview_video_gesture_step_seek_fullscreen_ui/) - MediaPreview 视频交互再微调（左右滑动 1 秒步进/方向锁定更保守/全屏倍速左上避让右侧抓帧抽帧）
+- [202601210823_media_preview_video_fullscreen_layout_fix](2026-01/202601210823_media_preview_video_fullscreen_layout_fix/) - 修复 MediaPreview 视频真全屏布局偏移（居中/黑边）
+- [202601211132_douyin_downloader](2026-01/202601211132_douyin_downloader/) - 对接 TikTokDownloader Web API：抖音作品解析/下载/导入上传（支持视频/图集，导入按 MD5 去重）
+- [202601211234_douyin_downloader_ux](2026-01/202601211234_douyin_downloader_ux/) - 抖音下载弹窗交互增强（批量操作/剪贴板预填/文件大小探测/导入状态与去重提示）
+- [202601211358_sync_docs_remove_java](2026-01/202601211358_sync_docs_remove_java/) - 同步清理文档/知识库中的 Java 路径与旧构建指令（Java 源码已移除）
+- [202601211451_test_cases_hardening](2026-01/202601211451_test_cases_hardening/) - 测试体系加固：前端 Vitest 环境补丁 + 后端关键边界测试补齐

@@ -1,0 +1,268 @@
+# Changelog
+
+本文件记录项目所有重要变更。
+格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/),
+版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+
+## [Unreleased]
+
+### 新增
+- 后端：聊天用户列表新增本地归档兜底（表 `chat_user_archive`，迁移 `sql/{dialect}/007_chat_user_archive.sql`）。`/api/getHistoryUserList` 与 `/api/getFavoriteUserList` 会在上游成功时落库快照并合并返回归档用户（标记 `localArchived=true`），在上游失败时若本地有归档可直接回退返回；`/api/getMessageHistory` 会同步触达会话并更新归档最后消息，降低上游清理用户后的不可恢复风险。
+- 后端：删除会话接口（单删 `/deleteUpstreamUser`、批删 `/batchDeleteUpstreamUsers`）在上游删除成功后会同步清理本地 `chat_user_archive` 对应记录，避免手动删除后归档会话再次回流。
+- 前端：会话列表支持展示本地归档用户标签（`localArchived=true` 显示“归档”），用于区分上游仍存在用户与本地兜底恢复用户。
+- 前端：归档用户标签新增悬浮提示文案（`title`），明确“该用户来自本地归档，可能已被上游清理”。
+- 前端：会话列表新增“仅归档”筛选开关，并为归档标签补充数据库图标，便于快速聚焦本地兜底用户。
+- 前端：会话列表“仅归档”开关新增归档数量显示（`仅归档 (N)`），便于快速感知当前 Tab 归档规模。
+- 前端：当归档数量为 0 时，“仅归档 (0)”开关自动置灰并禁用（若已开启筛选则仍可关闭），避免无效点击。
+- mtPhoto 新增“文件夹模式”能力：支持根目录/子目录逐级浏览（`/api/getMtPhotoFolderRoot`、`/api/getMtPhotoFolderContent`、`/api/getMtPhotoFolderBreadcrumbs`），并可在同一弹窗内直接预览目录图片与下载原图。
+- mtPhoto 新增“文件夹级收藏”能力：支持按 `folderId` 收藏目录并维护标签、备注（`/api/getMtPhotoFolderFavorites`、`/api/upsertMtPhotoFolderFavorite`、`/api/removeMtPhotoFolderFavorite`）；后端新增迁移表 `mtphoto_folder_favorite`（MySQL/PostgreSQL 同步）。
+- mtPhoto 收藏管理增强：收藏列表支持按标签筛选（任一/全部匹配）、排序（更新时间/目录名/标签数）与常用标签 chips；收藏卡片支持直接编辑标签与备注（无需先进入目录）。
+- mtPhoto 收藏接口预留可选 query 参数（`tagKeyword/tagMode/sortBy/sortOrder/groupBy`）并保持兼容，当前 V1 由前端本地执行筛选排序，后续可平滑演进到服务端筛选。
+- mtPhoto 同图查询接口 `GET /api/getMtPhotoSameMedia` 增强：新增 `localPath` 入参，缺少 `md5` 时可按本地路径（仅 `/lsp/*`、`/upload/images/*`、`/upload/videos/*`）补算 MD5，并返回 `resolvedMd5`；前端预览详情同步支持“任意图片（本地路径）”触发同图查询。
+- mtPhoto 同图目录定位增强：当 `filesInMD5` 返回缺少目录信息时，后端会补调 `GET /gateway/fileInfo/{id}/{md5}` 解析 `folderId`，提升“打开目录”命中率。
+- 抖音导入链路新增作者快照落库：`douyin_media_file` 增加 `author_unique_id`、`author_name` 字段；导入时写入并在 MD5 命中复用时执行非空回填。
+- 全站媒体接口 `GET /api/getAllUploadImages` 新增抖音元信息返回字段：`source`、`douyinSecUserId`、`douyinDetailId`、`douyinAuthorUniqueId`、`douyinAuthorName`（兼容追加）。
+- 前端媒体详情支持“点击作者查看全部作品”：在 `MediaDetailPanel` 点击作者可直接打开 `DouyinDownloadModal` 并自动切到“用户作品”模式拉取该作者列表。
+  - 方案: [202602082347_douyin-import-author-link-works](archive/2026-02/202602082347_douyin-import-author-link-works/)
+- 前端：聊天页“+”上传菜单改为宫格操作区（保留顶部“已上传待发送”托盘），降低纵向堆叠带来的视觉拥挤，提升移动端点击效率。
+- 前端：聊天页“+”上传菜单新增“抖音收藏作者”入口，点击后直达抖音收藏“用户收藏”列表；可继续点击作者查看其全部已入库作品并在预览中导入本地服务器。
+  - 方案: [202602071149_chat-uploadmenu-douyin-favorites](archive/2026-02/202602071149_chat-uploadmenu-douyin-favorites/)
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端：搜索高亮样式改为主题自适应（浅色/深色），移除 `ChatSidebar` 中硬编码黄色类并统一为 `search-highlight` 语义类（样式由 `index.css` 统一维护）。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端：会话列表 `ChatSidebar` 新增本地用户搜索能力（按 `nickname/name/id/address` 大小写不敏感过滤当前 Tab 列表），支持空关键词恢复全量、无匹配时显示“未找到匹配用户”；并同步调整多选“全选当前列表/按天选择”基于可见过滤结果执行，避免误选隐藏项；补充 Vitest 组件用例覆盖过滤匹配与无结果提示。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端：会话列表搜索增强——确认收藏 Tab 搜索与消息 Tab 行为一致，并新增关键词高亮（昵称/地址/最后消息，安全分段渲染避免 `v-html`）；补充 Vitest 用例覆盖收藏 Tab 搜索与高亮渲染。
+- 前端：调整 ChatSidebar 搜索框位置到可滚动列表区域内，避免搜索框始终固定在顶栏；补充组件测试校验搜索框挂载在滚动容器中。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 后端：数据库支持 MySQL + PostgreSQL 双栈；运行时仅通过 `DB_URL` 的 scheme 选择数据库类型（兼容 `jdbc:` 前缀），并新增 `internal/database` 方言层以统一占位符与 Upsert/InsertIgnore/Returning 等差异；同时引入 `schema_migrations` + `sql/{dialect}/*.sql` 版本化迁移机制（启动时自动执行）。
+  - PostgreSQL 连接会过滤常见 MySQL-only query 参数，并在未显式提供时 best-effort 映射 `serverTimezone`→`timezone`、`useSSL`→`sslmode`，以支持仅改 scheme 即可切库。
+  - PostgreSQL 对抖音收藏标签名（`douyin_favorite_user_tag.name` / `douyin_favorite_aweme_tag.name`）增加大小写不敏感唯一索引 `UNIQUE (LOWER(name))`，对齐 MySQL 常见 collation 的行为。
+- 后端/前端：本地上传视频（`/api/uploadMedia`）落盘后使用 `ffmpeg` 自动生成 poster 封面图（`/videos/.../*.poster.jpg`），并在“上传菜单/全站媒体库/画廊缩略图”中通过 `MediaTile poster` 展示视频缩略图，改善列表浏览体验。
+- 后端：新增历史视频 poster 补齐接口 `POST /api/repairVideoPosters`（支持 dry-run + 分页游标），用于为已上传的视频批量生成 `*.poster.jpg` 封面图。
+- 知识库：新增外部参考文档《TikTokDownloader Web API（FastAPI）整理》（`helloagents/wiki/external/tiktokdownloader-web-api.md`）。
+- 知识库：补充《TikTokDownloader Web API 调用指南与 SDK 草稿》（`helloagents/wiki/external/tiktokdownloader-web-api-sdk.md`）。
+- 知识库：新增外部参考文档《CookieCloud Go 获取 Cookie / 解密方式整理》（`helloagents/modules/external/cookiecloud.md`）。
+- 后端：新增 CookieCloud 客户端与本地解密工具包 `internal/cookiecloud`（支持 `legacy` + `aes-128-cbc-fixed`，可直接生成 HTTP `Cookie` Header）；抖音上游请求在未显式传 `cookie` 时支持从 CookieCloud 懒加载获取并按 `CACHE_TYPE` 缓存到 Redis/内存（TTL 默认 72 小时，可通过 `COOKIECLOUD_COOKIE_EXPIRE_HOURS` 配置），同时在 `internal/config` 增加相关环境变量配置项。
+  - 抖音 CookieCloud provider 在缓存未命中并成功拉取时输出 info 日志（不记录 cookie 内容）。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 测试：前端 Vitest 启用覆盖率报告（新增 devDependency `@vitest/coverage-v8`）。
+- 测试：前端 Vitest 覆盖率统计排除 Vue SFC（v8 模板分支存在不可覆盖项），并将全局阈值提升为 `branches >= 99%`（当前 `99.01%`）。
+- 测试：补齐后端 CookieCloud/Douyin/MediaUpload 以及前端 `useMessage`/`identity`/`time` 的覆盖率缺口，消除 0% 覆盖函数并确保 `npm run test:coverage` 达标。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 测试：后端 Go 覆盖率提升至 `95.0%`（`go test -cover` 统计 statements；Go 原生不提供 branches 指标）。
+- 测试：补齐前端 `frontend/src/api/*.ts` 的 API 包装函数单测（mock `request/douyinRequest`）；并进一步补齐 `internal/database` 的 DB/Tx wrapper、CRUD/ExpandIn 与 Migrator 关键失败分支单测，提升回归覆盖率（`go test ./internal/database -cover` statements 约 `99%`）。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 测试：补齐后端 Identity/Favorite/Douyin/MediaUpload 关键边界用例，并扩展前端 `messageSegments` 异常输入与预览兜底测试（方案包：`helloagents/archive/2026-01/202601220044_tests-boundary-cases/`）。
+- 测试：新增前端“抖音下载”弹窗剪贴板粘贴/打开时自动读取的单元测试。
+- 测试：补充抖音收藏“分类标签”的后端接口与前端弹窗流程用例（更新/删除/打标签、筛选、标签管理、批量打标签）。
+- 前端/后端：对接 TikTokDownloader Web API，新增抖音作品“解析→预览→下载→导入上传”能力（入口：图片管理→抖音下载；支持视频/图集；下载文件名按作品标题；导入上传按 MD5 去重；弹窗交互增强：剪贴板预填/自动解析开关、多选批量下载/导入、文件大小探测（`HEAD /api/douyin/download`）、导入状态提示与一键打开上传菜单）。
+- 前端/后端：抖音下载新增“用户作品”模式：支持通过用户主页链接/分享文本拉取发布作品列表（分页加载），并可一键跳转到“作品解析”；同时移除 proxy 输入并为输入框增加显式清空按钮；新增接口 `POST /api/douyin/account`。
+- 后端：抖音下载 account 作品列表预览抽取优化：普通图集图片 URL 默认优先选择 WebP；实况（Live 图）图片优先选择 JPEG，并支持从 `images[].video.play_addr` 抽取实况短视频，避免被误判为纯图集。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端/后端：抖音下载新增“收藏”能力：可收藏已解析的抖音用户（`sec_user_id`）与作品（`aweme_id`），提供收藏列表查看、取消收藏，并支持一键再次解析；新增接口 `GET/POST /api/douyin/favoriteUser/*`、`GET/POST /api/douyin/favoriteAweme/*`；新增 MySQL 表 `douyin_favorite_user`、`douyin_favorite_aweme`。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端/后端：抖音收藏新增“分类标签”能力：用户收藏与作品收藏分别维护标签（名称、全局共享），支持按标签筛选、单条编辑、批量打标签与独立标签管理页（新建/重命名/删除）；收藏元素新增 `tagIds`；新增接口 `GET/POST /api/douyin/favoriteUser/tag/*`、`GET/POST /api/douyin/favoriteAweme/tag/*`；新增 MySQL 表 `douyin_favorite_user_tag`、`douyin_favorite_user_tag_map`、`douyin_favorite_aweme_tag`、`douyin_favorite_aweme_tag_map`。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端/后端：抖音用户收藏详情新增“作品入库浏览”：收藏用户后将当前已抓取作品元信息入库（新表 `douyin_favorite_user_aweme`），详情抽屉支持作品网格+滚动分页预览与跨作品合并画廊；新增“获取最新作品”按钮调用上游接口拉取最新作品并合并入库，弹窗提示新增作品数；新增接口 `GET /api/douyin/favoriteUser/aweme/list`、`POST /api/douyin/favoriteUser/aweme/upsert`、`POST /api/douyin/favoriteUser/aweme/pullLatest`。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端/后端：抖音用户作品入库字段扩展：为作品记录新增置顶/发布时间/作者信息等字段，并将收藏用户作品列表排序调整为“置顶优先 + 发布时间优先”；预览详情面板支持查看作品信息（作者、抖音号、发布时间、置顶等）。
+  - 迁移：`sql/mysql/004_douyin_aweme_meta.sql`、`sql/postgres/004_douyin_aweme_meta.sql`
+- 前端/后端：抖音收藏标签管理支持拖拽调整标签展示顺序并持久化；新增标签 `sort_order` 字段，并新增接口 `POST /api/douyin/favoriteUser/tag/reorder`、`POST /api/douyin/favoriteAweme/tag/reorder`。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端：抖音下载“用户作品”预览支持跨作品画廊左右滑动切换，并在预览顶部展示作品名称（方案包：`helloagents/archive/2026-01/202601230536_feat-douyin-account-preview-gallery/`）。
+- 后端：新增超时配置环境变量：`UPSTREAM_HTTP_TIMEOUT_SECONDS`（上游 HTTP，秒，默认 60）、`TIKTOKDOWNLOADER_TIMEOUT_SECONDS`（抖音上游，秒，默认跟随 UPSTREAM）、`REDIS_TIMEOUT_SECONDS`（Redis 连接/读写，秒，默认 15）。
+- 增强聊天交互：会话列表左右滑切换“消息/收藏”、聊天页边缘右滑返回、侧边栏左滑关闭、长按菜单点击外关闭
+- 后端/前端：新增视频抽帧任务（关键帧/固定FPS/逐帧），支持时间区间与最大帧数上限；提供任务中心可实时预览帧图并支持终止/继续（网格视图使用虚拟滚动）；Docker 镜像新增 `ffmpeg/ffprobe` 运行依赖。
+- 前端/后端：抽帧任务中心支持直接上传视频并创建抽帧任务（文件选择不限制类型，先落盘再由 `probeVideo` 校验）。
+- 前端/后端：抽帧任务中心上传视频改为系统临时目录（默认 `os.TempDir()/video_extract_inputs`；不在 `./upload` 下），并在退出任务中心时自动清理（新增 `/api/cleanupVideoExtractInput`）。
+- 前端：视频预览支持倍速/慢放与暂停抓帧（抓取当前帧图片，支持下载 + 上传到图片库）。
+- 前端：`MediaPreview` 主视频预览引入 Plyr 美化播放器控制栏，并隐藏中央遮罩按钮（保持倍速/抓帧/抽帧入口/画廊切换等行为一致）。
+- 前端：`MediaPreview` 视频预览交互增强：单击画面播放/暂停并浮现“倒退/播放暂停/快进”三按钮（1 秒自动隐藏），支持左右滑动快进/倒退与上下滑动调音量（部分浏览器降级提示使用实体按键），倍速按钮长按临时 2x；抓帧/抽帧按钮样式更轻量。
+- 前端：`MediaPreview` 视频交互再微调：左右滑动 seek 改为 1 秒步进（约每 40~80px 触发 1 秒）并提高触发阈值/更保守的方向锁定，减少误触；全屏倍速按钮移至左上以避免与右侧抓帧/抽帧快捷按钮重叠。
+- 前端：抽帧任务创建/详情支持预览源视频并抓帧（上传类型任务）。
+- 前端：`MediaPreview` 底部缩略图栏在大列表时启用虚拟滚动（>200），避免一次性渲染过多 DOM。
+- 前端：修复“消息/收藏”列表在阈值内左右滑动后残留偏移卡住的问题（手势结束必复位）。
+- 前端：全站图片库“已上传图片”支持瀑布流/网格布局切换（状态持久化 localStorage：`media_layout_mode`）。
+- 前端：全站图片库/mtPhoto 相册弹窗新增全屏模式（按钮 + `F/Esc` 快捷键 + localStorage：`media_modal_fullscreen`），最大化浏览区域便于查看大量图片。
+- 前端：优化“已上传图片”展示与预览体验：缩略图懒加载淡入（`LazyImage`）、选中态动效、预览背景毛玻璃（`backdrop-blur`）。
+- 前端：抽取 `InfiniteMediaGrid` 通用组件，封装无限滚动与 grid/masonry 布局逻辑，复用于全站图片库与 mtPhoto 相册。
+- 前端：抽取 `MediaTile` 通用组件，统一图片/视频渲染与 overlay 操作位布局（top-left/top-right/bottom-left/bottom-right/center）；补齐 `MediaTileActionButton/MediaTileSelectMark/MediaTileBadge` 角落按钮/徽标规范，并优先保证移动端可见可点（桌面端可按需 hover 才显示）；并替换多处重复实现（聊天、全站图片库、mtPhoto 相册、抖音下载、查重、预览缩略图等）。
+- 前端/后端：接入 mtPhoto 相册系统：上传菜单/图片管理新增“mtPhoto 相册”入口，按相册展示图片/视频并支持一键导入上传到上游（导入失败会先落盘到本地，可在“全站图片库”中重试）。
+- 前端：新增“图片管理”菜单，将“所有上传图片 / mtPhoto 相册 / 图片查重”入口从“系统设置”中移出并集中管理。
+- 前端：身份选择页（登录后、选择身份前）新增“图片管理”入口，可提前使用“所有上传图片 / mtPhoto 相册 / 图片查重”。
+- 前端：mtPhoto 相册列表置顶新增“收藏夹”入口（封面预览为空），并在列表展示收藏夹数量；可浏览收藏夹媒体并复用预览/导入上传流程。
+- 后端：mtPhoto 续期新增 refresh_token 支持（优先调用 `/auth/refresh`，失败回退 `/auth/login`），减少频繁重登。
+- 前端/后端：支持聊天消息“文字 + `[path]` 媒体占位符”混排渲染（如 `喜欢吗[2026/...jpg]`），聊天气泡与历史预览可图文同显；会话列表 lastMsg 按“文本截断 + 媒体标签”展示。
+- 后端/前端：新增全局图片端口策略配置（fixed/probe/real）并在 Settings 面板可视化切换；WS/历史聊天媒体（图片/视频）按策略解析端口。
+- 后端：Redis 缓存支持 `UPSTASH_REDIS_URL`/`REDIS_URL`（支持 `rediss://` TLS），便于接入 Upstash Redis。
+- 后端：Redis 写入改为队列批量 flush（默认 60 秒，可通过 `CACHE_REDIS_FLUSH_INTERVAL_SECONDS` 调整），降低 Upstash 按量计费成本。
+- 后端：历史/收藏用户列表的用户信息/最后消息增强改为并发批量读取，并将 Redis L1 本地缓存 TTL 默认调为 1 小时（`CACHE_REDIS_LOCAL_TTL_SECONDS`），降低 Redis 读频率/提升响应速度。
+- 后端：支持将聊天记录缓存到 Redis（默认 30 天，可通过 `CACHE_REDIS_CHAT_HISTORY_EXPIRE_DAYS` 配置），每会话一个 ZSET key；`/api/getMessageHistory` 最新页始终请求上游并与 Redis 合并去重，历史翻页在 Redis 命中足够时可跳过上游，不足时再请求上游并合并去重以弥补上游过期缺口并减少请求次数。
+- 前端：接入 Vitest + jsdom，并为核心模块补充单元测试（utils/time/string、useToast、request、auth store）。
+- 前端：补充 Vue 组件级测试（Dialog/Toast/Loading/UserList/ChatSidebar）。
+- 前端：补充视图级页面测试（LoginPage/IdentityPicker/ChatListView/ChatRoomView）。
+- 前端：补充核心聊天业务测试（useChat/useMessage/useWebSocket、chat/message store）。
+- 前端：补充核心聊天与设置/媒体组件测试（ChatInput/MessageList/MessageBubble/EmojiPanel/UploadMenu/MatchButton/SettingsDrawer/MediaPreview）。
+- 前端：补充 utils 测试（cookie/file/media）。
+- 后端：为 `/api/getHistoryUserList` 与 `/api/getFavoriteUserList` 增加分段耗时日志（上游/补充用户信息/最后消息/总耗时）。
+- 后端：新增 Go 版单进程服务（API + `/ws` WebSocket 代理 100%兼容、MySQL + 可选 Redis、静态前端托管），支持单容器运行并降低运行内存。
+- 后端：Go 服务日志支持 `LOG_LEVEL`（debug/info/warn/error）与 `LOG_FORMAT=text` 配置（默认 JSON）。
+- 后端：新增 `/api/repairMediaHistory` 历史媒体数据修复接口（扫描遗留表 `media_upload_history`：补齐缺失 `file_md5`、按 MD5 全局去重/可选本地路径去重；默认 dry-run，需 `commit=true` 才会写入/删除）。
+- 后端：新增 `/api/checkDuplicateMedia` 媒体查重接口：先按 `image_hash.md5_hash` 精确匹配；无命中则按 pHash 相似度阈值查询并返回 similarity/distance。
+- 后端：补齐 Go 服务文件功能测试用例（FileStorage/MediaUpload/ImageHash/静态文件），覆盖 `/api/uploadMedia`、`/api/checkDuplicateMedia`、`/api/getAllUploadImages`、`/api/getUserUploadHistory`、`/api/getUserSentImages`、`/api/getUserUploadStats`、`/api/getChatImages`、`/api/recordImageSend`、`/api/reuploadHistoryImage`、`/api/deleteMedia`、`/api/batchDeleteMedia`、`/api/getCachedImages`、`/api/repairMediaHistory`。
+- 后端：补齐 Go 服务认证/WebSocket 管理器与 WebSocket 代理（`/ws`）测试，覆盖登录/验签、握手鉴权、sign 代理、连接池/延迟关闭/淘汰、forceout、缓存写入与僵尸下游清理等关键路径。
+- 后端：补齐 Go 服务 `favorite`（本地收藏CRUD）与 `user_history`（历史/收藏列表代理）测试用例，覆盖成功/失败与缓存增强分支。
+- 前端：补充 `useWebSocket` 断线自动重连、forceout 禁止重连与手动断开不重连的测试用例。
+- 前端：Vitest 增加 `jsdom` 全局测试环境补丁（`matchMedia`/Observer/媒体 API 等），修复依赖浏览器能力的组件在测试环境初始化失败；并补充 `useWebSocket` 系统消息/在线状态等分支用例。
+- 后端：新增 JWT/JWT 中间件/Identity/Forceout/System handlers/VideoExtract（假 ffprobe）等关键边界测试，提升回归覆盖与可重复执行性。
+- 测试：补齐 VideoExtract service/handlers 分支用例，使 Go 后端 `go test ./...` 语句覆盖率达到 100%。
+- 前端：聊天发送支持乐观 UI（sending/failed 可重试），并在收到 WebSocket 回显时合并更新避免重复渲染。
+- 前端：聊天消息列表新增骨架屏占位（历史加载/侧边栏/收藏列表）并引入虚拟滚动（vue-virtual-scroller）；媒体渲染抽取 `ChatMedia`（加载占位/懒加载/错误兜底）以减少布局抖动。
+- CI：新增 `Release` GitHub Actions 工作流，用于创建 `v*` Tag 并生成 GitHub Release 产物。
+- 知识库：补齐 Wiki 概览/架构文档，并补充关键模块文档（Auth/Identity/WebSocket Proxy/Media）。
+- 文档：历史 Java(Spring Boot) 源码已移除；同步清理仓库文档/知识库中对旧 Java 路径与 Maven 构建指令的引用。
+
+### 变更
+- 前端：聊天核心界面样式统一与轻量美化（`frontend/src/index.css`、`App.vue`、`LoginPage.vue`、`ChatHeader.vue`、`ChatInput.vue`、`Dialog.vue`）：新增复用 UI 组件类（`ui-card/ui-input/ui-input-shell/ui-btn-primary/ui-btn-secondary/ui-icon-btn/ui-fab-primary`），移除 `App.vue` 重复全局 reset，统一头部/输入区的玻璃感与按钮交互反馈，并保持现有文案与事件语义不变。
+  - 验证：`npm run test -- src/__tests__/chat-input.test.ts src/__tests__/components-more.test.ts src/__tests__/components.test.ts src/__tests__/views.test.ts` + `npm run build` 通过。
+- 前端：第二轮样式精修（`ChatSidebar.vue`、`MediaPreview.vue`）：补充列表项/空态/玻璃顶栏/预览浮层按钮等复用类（`ui-list-item/ui-empty-state/ui-glass-topbar/ui-overlay-*`），统一聊天侧栏与媒体预览的层级、边框和交互反馈；同时保留测试依赖的模板类选择器兼容。
+  - 验证：`npm run test -- src/__tests__/chat-sidebar-template-branches.test.ts src/__tests__/chat-sidebar-swipe-and-template.test.ts src/__tests__/chat-sidebar-more.test.ts src/__tests__/chat-sidebar-batch-delete.test.ts src/__tests__/media-preview-more.test.ts src/__tests__/settings-media-components.test.ts src/__tests__/chat-input.test.ts src/__tests__/components-more.test.ts src/__tests__/components.test.ts src/__tests__/views.test.ts` + `npm run build` 通过。
+- 前端：根据 Claude 审查意见完成样式回归修正：新增 `ui-card-sm`（下拉/上下文菜单小圆角卡片）、新增 `ui-overlay-*-light`（恢复媒体预览顶部按钮与菜单的浅色透明风格）、移除 `body` 颜色过渡以规避主题切换潜在闪烁、并消除 `ui-list-item` 与模板类重复定义。
+  - 验证：复跑侧栏/媒体预览/登录与通用组件回归用例（10个测试文件，96项）及 `npm run build` 均通过。
+- 前端：UI 质感统一与美化（暗色主题）：补充 Tailwind 设计 tokens（surface/border/glow），统一边框为 `border-white/5|10` 透明体系；聊天头部/输入区毛玻璃与层级增强；按钮去强渐变并增加内高光；Toast/Dialog 样式升级；消息气泡改为更柔和渐变并增加内发光；滚动条样式优化；MediaTile 默认开启骨架屏并提供加载占位背景。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 后端：抖音用户作品列表抓取改为调用 TikTokDownloader 包装镜像的单页分页接口 `/douyin/account/page`，与游标分页行为对齐。
+
+### 修复
+- mtPhoto 文件夹模式移动端可用性修复：新增“收藏夹”抽屉入口与遮罩关闭，避免 `<1024px` 下收藏功能不可达；子目录区高度改为响应式上限，减少内容区挤压。
+- 前端：修复“媒体预览 → 详情 → 作者跳转”时被预览层遮挡的问题；跳转前会先关闭 `MediaPreview`，避免 `z-index` 覆盖。
+- 前端：修复作者跳转默认行为，改为优先进入本地“收藏作者（users）”并自动定位对应作者详情，不再直接触发“用户作品”再次解析。
+- 前端/后端：修复抖音多 Live 图下载配对错误。`buildPreviewMediaList` 在图片数与视频数一致时改为按顺序 rank 一一映射（避免多个图片命中同一个视频）；`selectDouyinLivePhotoPair` 增加 rank 配对与单侧索引类型校验，减少异常索引下的误配。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 测试：补充前端 `douyin-download-modal-modes.test.ts`（分组索引下 `liveVideoIndex` 映射）与后端 `douyin_livephoto_handlers*_test.go`（多实况 rank 配对 + 单侧错误类型）覆盖。
+- 前端/后端：补充多视频非等长场景配对策略——前端优先按 rank 配对并仅在候选合法时回退，后端在 rank 越界时返回“未找到对应资源”而非强行复用最后/第一段视频，避免尾部非实况图片被误判为 Live 图。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 测试：新增“尾部非实况图片不应配对”用例（前端预览上下文 + 后端配对函数）。
+- 测试：补齐 5 条 Live 图边界回归（前端：交错排列兜底、单视频共享；后端：多图单视频共享、单图多视频共享、负数索引越界）。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端：修复媒体工具弹窗在浅色主题下未生效的问题（`DuplicateCheckModal.vue`、`DouyinDownloadModal.vue`、`MediaDetailPanel.vue`），将大量硬编码深色样式迁移为语义化主题 token（`bg-surface*`/`text-fg*`/`border-line*`），并同步统一滚动条与表单输入的主题色。
+- 前端：修复登录页 Toast 可能被 `z-index` 遮挡导致提示不可见的问题（Toast 提升至 `z-[300]`）。
+- 前端：修复媒体预览视频在“单击出现浮层→快速点击暂停/快进/快退”等操作下，因单击延迟切换定时器导致播放状态被反转的问题；现在单击时捕获播放意图，并在浮层按钮交互时取消 pending 切换，确保暂停后不会自动恢复播放，快进/快退在暂停时保持暂停。
+- 后端：VideoExtract `runTask` 在 ffmpeg 失败时优先使用 stderr 最后一行作为错误信息（避免仅返回 `exit status`）。
+- 后端：`handleProbeVideo`（mtPhoto）移除不可达的 `item == nil` 分支，统一使用 `ResolveFilePath` 的错误信息返回。
+- 前端：将“抖音下载”入口移动到“图片管理”，并从聊天页上传菜单移除（从图片管理打开会自动关闭抽屉）。
+- 前端：移除“抖音下载”粘贴/自动读取剪贴板的内容识别限制；现在会直接填充剪贴板文本。
+- 前端：修复移动端/不安全上下文下剪贴板 API 不可用导致“抖音下载”粘贴误报“剪贴板为空/已复制”的问题；复制新增 `execCommand('copy')` 回退，聊天消息双击复制同样复用回退逻辑；手动粘贴支持自动识别（作品/用户）并在开启“读取后自动解析/获取”时自动执行；并补充 `utils/clipboard` 单测。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端：修复“抖音下载 → 收藏”列表名称被截断的问题：收藏用户名称与收藏作品标题改为多行展示，避免 `truncate/line-clamp` 导致显示不全。
+- 前端：抖音下载“用户作品”默认只拉取一页，新增“全量拉取”按钮以支持手动翻页与一键补齐剩余分页。
+- 前端/后端：加固抖音作品时间字段处理：后端 upsert 时间解析兼容 RFC3339/带毫秒/空格分隔格式；前端作品列表时间展示统一使用 `formatFullTime`；并补充 `pinnedRank=0` 边界测试。
+- 前端：抖音收藏用户详情不再展示粉丝/关注/作品/获赞统计信息（目前无法获取，避免展示 `-` 占位）。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 后端：抖音导入上传本地落盘目录调整为 `upload/douyin/images/YYYY/MM/DD` 与 `upload/douyin/videos/YYYY/MM/DD`，避免与本地上传混用。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端：修复“抖音下载”弹窗剪贴板相关单测在 `vue-tsc`/Docker 构建中因 `setImmediate` 类型缺失导致 `npm run build` 失败的问题（改用 `setTimeout`）。
+- 后端：修复 TikTokDownloader 上游在“暂无作品”场景返回 `data=[]` 导致解析失败；`POST /api/douyin/account` 将返回空 `items` 数组（`[]`）而非报错/`null`。
+- 后端：兼容 TikTokDownloader 上游 `POST /douyin/account` 返回 `data[]` 扁平字段（如 `type/downloads/static_cover/dynamic_cover`）；`POST /api/douyin/account` 将尽量为每个作品返回 `key/items/coverDownloadUrl`，减少前端点击作品时回退请求详情（Spinner）。
+- 后端：`POST /api/douyin/account` 拉取账号作品时改为向 TikTokDownloader 上游传 `source=true`，确保返回包含 `author`/封面等原始字段，修复“抖音收藏”作者为空与作品预览图缺失的问题。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端/后端：修复抖音作品在站内预览/缩略图加载失败（但新标签可打开）的问题：前端预览/缩略图改用 `/api/douyin/download` 代理地址；后端放行 `/api/douyin/download` + `/api/douyin/cover` 以支持 `<img>/<video>` 直连，并透传 `Range` 与相关响应头以改善视频播放/拖动；同时 `/api/douyin/account` best-effort 返回 `key/items/coverDownloadUrl`，支持“用户作品列表”点击直接预览（缺失时回退到 `/api/douyin/detail`）。
+- 前端/后端：修复抖音详情“图片/实况”类型识别错误：现在按 URL 逐项推断 `items[].type`（`image/video`），并支持“实况照片”图+视频混合画廊预览。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端/后端：抖音“实况照片”增强：预览静态图支持长按播放实况视频；`GET /api/douyin/livePhoto` 支持导出 iOS Live Photo（`format=zip`：ZIP 内 `.jpg` + `.mov`，写入同一 `ContentIdentifier`；依赖 `ffmpeg` + `exiftool`）与 Motion Photo（`format=jpg`：单文件 JPG，JPEG 末尾附加 MP4 并写入 XMP `GCamera:MicroVideoOffset`；依赖 `ffmpeg`）。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 后端：修复“抖音收藏用户 → 作品预览/下载”在 downloads 直链过期时返回 `403 Forbidden (openresty)` 的问题：`/api/douyin/download`、`/api/douyin/import`、`/api/douyin/cover` 在 `403` 时会 best-effort 调用上游 `POST /douyin/detail` 刷新直链并自动重试一次，同时更新同一 `key` 的缓存以复用新链接；并发场景下会按 `detail_id` 使用 `singleflight` 合并回源刷新，避免“惊群”；刷新成功后 best-effort 回写 `douyin_favorite_user_aweme.downloads/cover_url`（若存在对应记录），减少短时间内重复回源。
+- 后端：修复部分作品直链在刷新后仍可能返回 `403 Forbidden (Tengine)` 的问题：`/api/douyin/download`、`/api/douyin/import`、`/api/douyin/cover` 回源请求时会补齐浏览器 `User-Agent`（优先透传前端 UA）并设置 `Referer/Origin`；当下载 URL 指向 `*.douyin.com/*.iesdouyin.com` 时 best-effort 携带抖音 cookie，并在重定向到其他 host 时自动清除 `Cookie` 头以避免泄漏。
+- 后端：进一步兼容抖音 CDN 域名：当直链 host 为 `*.douyinvod.com` / `*.douyinpic.com` 时同样 best-effort 携带抖音 cookie；并在 `403` 刷新重试时**保留原 downloads 长度**（仅替换触发 index 的直链，必要时视频退化到 `first_video`），避免刷新后 index 不匹配/越界导致无法重试。
+- 后端：为抖音下载/封面/导入在 `403` 场景增加结构化日志（打印原始/最终 host+path+hash、响应 `Server/Content-Type`、刷新前后 URL 对比等；不记录 cookie 与直链 query value），便于定位被拦截的域名与链路。
+- 后端：修复抖音实况导出在 MIUI 相册不识别为“动态照片”的问题：`format=jpg` 生成改用 `APP1(Exif) → APP1(XMP) → APP0(JFIF)` 段顺序，并在 `EOI` 与 MP4 之间插入 24 字节 gap；同时实况下载文件名与普通图片下载对齐并追加 `_live`。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端：修复“抖音下载 → 用户作品”点击作品卡片仍需跳转到“作品解析”的问题；现在会直接弹窗预览并展示底部缩略图（best-effort 复用 `/api/douyin/account` 返回的 `key/items`，缺失时仍回退到 `/api/douyin/detail`）。
+- 后端：`POST /api/favorite/removeById` 当 `id` 为空/解析失败/`<=0` 时返回 HTTP 400（不再静默按 `0` 删除）；选择身份时刷新 `last_used_at` 失败仍保持忽略（方案包：`helloagents/archive/2026-01/202601220110_fix-favorite-removebyid-invalid-id/`）。
+- 后端/CI：升级 Go 模块版本至 1.25.6（`go 1.25` + `toolchain go1.25.6`）；GitHub Actions（Release 工作流）改为从 `go.mod` 读取 Go 版本；Docker 构建镜像固定为 `golang:1.25.6-alpine`。
+- CI：企业微信通知改为“文本消息”并补充提交信息/链接与镜像 tags（逗号分隔），避免 markdown 样式在企业微信内显示不一致。
+- 修复聊天侧边栏匹配按钮点击后误自动进入聊天的问题（恢复 `startContinuousMatch(1)` 行为）。
+- 前端：修复 `MediaPreview` 视频真全屏后布局偏移导致不居中/黑边的问题（`:fullscreen/:-webkit-full-screen` 居中与尺寸约束覆盖）。
+- 前端：修复 `MediaPreview` 非全屏播放时画面偏左、右侧留黑的问题（统一 Plyr 容器与 `<video>` 尺寸约束，确保居中与 `object-fit: contain`）。
+- 前端：修复 `MediaPreview` 画廊连续视频左右切换时偶发“黑屏仅有声音”的问题（对播放器容器使用 `:key` 强制重建，避免 Plyr DOM 包裹与 Vue patch 冲突）。
+- 前端/后端：修复聊天上游图片在 `MediaPreview` 点击“下载”会新开标签页预览的问题：新增同源代理下载接口 `GET /api/downloadImgUpload`，并在预览下载时对 `/img/Upload/*` 自动改走该接口（避免跨域 `<a download>` 失效）。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端/后端：修复 mtPhoto 相册图片预览“下载”实际下载缩略图的问题；现在点击下载将通过 mtPhoto `fileDownload` 获取原图。
+- 前端：mtPhoto 相册图片预览支持左右切换浏览，并确保切换后“上传/导入”作用于当前预览图片。
+- 前端：mtPhoto 相册预览支持查看详情（信息按钮 + 详情面板）。
+- 前端：修复 mtPhoto 相册预览“查看详情”未展示真实文件名的问题（按需解析并缓存）。
+- 前端：修复 mtPhoto 相册预览下载中文文件名被编码的问题（下载时解码 `Content-Disposition: filename`）。
+- 前端：全站图片库预览切换后同步当前媒体，避免“切换后仍对首张执行上传/重传”的不一致行为。
+- 前端/后端：抖音导入上传记录从 `media_file` 拆分至新表 `douyin_media_file`，并为“全站图片库”新增来源切换（全部/本地/抖音）与抖音 `sec_user_id` 筛选能力。
+- 前端/后端：抖音导入上传支持“未选择身份”场景：前端导入按钮始终可见并使用 `pre_identity` 兜底；后端在 MD5 复用时仍补写 `douyin_media_file` 记录以支持按 `sec_user_id` 筛选，并为去重查询新增索引 `idx_dmf_sec_user_md5 (sec_user_id, file_md5)`。
+- 前端/后端：调整抖音“导入”行为为仅本地落盘（不再自动上传到上游），并将抖音媒体库去重范围改为按 MD5 全局去重；导入后需在聊天页“所有图片/全站图片库”中手动点击上传到上游后发送（`POST /api/douyin/import` 返回 `localPath/localFilename`，不再返回上游 `msg/port`）。
+- 前端/后端：调整 mtPhoto“导入”行为为仅本地落盘（不再自动上传到上游），并将去重范围改为按 MD5 全局去重；导入后需在聊天页“所有图片/全站图片库”中手动点击上传到上游后发送（`POST /api/importMtPhotoMedia` 返回 `localPath/localFilename`，`uploaded=false`）。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端：调整瀑布流布局为按行从左到右渲染，保证“全站图片库/mtPhoto 相册”按时间排序时的视觉顺序一致。
+- 前端：扩大“全站图片库/mtPhoto 相册”弹窗与图片列表展示区域（放宽宽高限制并减少列表留白）。
+- 前端：紧凑化“全站图片库/mtPhoto 相册”弹窗图片列表的边距与网格间距，提升图片可视面积。
+- 后端：统一 `media_file.update_time` 的更新时间源为应用侧 `now`，避免与数据库 `CURRENT_TIMESTAMP` 混用导致排序异常。
+- Docker：默认时区设置为 `Asia/Shanghai`（东八区），避免容器内 `now` 与 DB 时区配置不一致导致时间偏移。
+- 后端：图片端口策略优化：`real` 改为并发竞速（HTTP 200/206 即胜出并取消其余请求），并在全部失败时降级到 `probe`（并发 TCP 通断）或最终回退 `fixed`，避免串行探测导致卡顿。
+- 后端：`/api/getFavoriteUserList` 对齐 `/api/getHistoryUserList` 的缓存增强逻辑，补全用户信息并补齐 `lastMsg/lastTime`。
+- 后端：修复 `lastMsg` 格式化将表情文本（如 `[doge]`）误识别为 `[文件]`，导致会话列表预览显示不正确的问题。
+- 前端：修复聊天列表（侧边栏）最后一条消息时间未使用统一格式化（`formatTime`）的问题。
+- 前端：修复 ChatRoomView 预览事件监听清理的生命周期注册，避免 Vue 警告。
+- 前端：修复在列表页收到新消息时，未读气泡可能不显示的问题（路由判定 + 会话状态清理双保险）。
+- 前端：修复 WebSocket 私信回显时 `isSelf` 误判，改为对齐上游 `randomdeskry.js` 的 `md5(user_id)` 判定逻辑，避免自己消息显示在左侧。
+- 前端：修复切换身份后 WebSocket 仍绑定旧用户，导致匹配无响应且仍收到旧身份消息。
+- 前端：修复图片端口策略为 real/probe 时，视频 URL 仍使用固定端口（8006）的问题。
+- 前端：修复聊天记录媒体消息偶发重复显示（WS 推送与历史拉取合并时按 remotePath + isSelf + 5s 时间窗口语义去重）。
+- 前端：修复聊天页在媒体加载/失败时可能出现的贴底滚动抖动（系统贴底 `auto`、用户触发 `smooth`；合并同帧滚动请求；`ChatMedia` 默认占位比例 + `layout` 事件）。
+- 前端：修复移动端键盘弹出时聊天最新消息被输入框/键盘遮挡（动态视口高度 + ResizeObserver 贴底滚动）。
+- 前端：修复在聊天页自己发送消息回显时，会话未置顶到“消息/收藏”列表且 lastMsg 预览未加 `我: ` 前缀的问题。
+- 前端：修复进入聊天后历史拉取/增量补齐到最新消息，但会话列表 lastMsg/lastTime 未同步更新的问题（从 `messageStore` 的最后一条消息回写预览）。
+- 前端：优化消息列表贴底滚动实现，禁用 scroll anchoring，并避免多套滚动 API 混用导致的渲染抖动。
+- 前端：修复部分设备高度取整偏小导致的输入框遮挡最后一条消息（padding 计算改用 `ceil`，并在视口 `resize` 时刷新测量/贴底）。
+- 前端：新增主题切换（深色/浅色/跟随系统），并将主要页面/组件的硬编码暗色逐步迁移到语义化颜色 tokens（CSS 变量 + Tailwind 映射）；新增设置入口“系统设置→外观→主题”，并补充主题 store 单元测试（`liao-theme-preference`、首屏防闪烁脚本、`documentElement.classList` 同步）。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端：修复移动端“系统设置→外观→主题”切换按钮文字因压缩换行导致竖排显示（小屏改为三列栅格 + `whitespace-nowrap`）。
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 前端：修复浅色主题下“图片管理”入口卡片文字对比度不足；并修复移动端“所有上传图片”弹窗头部在小屏挤压下出现逐字换行（竖排）的问题。
+  - 方案: [202601311525_ui-theme-media-menu-fix](archive/2026-01/202601311525_ui-theme-media-menu-fix/)
+  - ⚠️ EHRB: 主分支推送 - 用户已确认风险
+  - 检测依据: `master(分支)` + `git push`
+- 修复 `/api/getHistoryUserList` 在上游用户ID字段为 `UserID/userid` 时，未能填充 `lastMsg` / `lastTime` 的问题。
+- 修复上游返回的消息 `id/toid` 与 `myUserID` 不一致时，最后消息缓存会话Key无法命中导致 `lastMsg` / `lastTime` 缺失的问题。
+- 后端：补齐 Go 版 User History/鉴权关键日志，避免容器运行时仅有启动日志。
+- 后端：修复 Go 端错误读取 `Host` 请求头导致媒体 URL 回退 `localhost`，从而出现图片无法加载的问题（影响 `getAllUploadImages/getCachedImages` 等）。
+- 后端：修复 Go 端删除媒体对历史 `localPath`（无前导 `/` 或携带 `/upload` 前缀/完整 URL）兼容不足，导致返回 403 的问题。
+- 后端：修复 Go 端 `/api/deleteMedia` 兼容性：支持 `localPath` 含 `%2F` 编码、兼容 `local_path` 异常带 `/upload` 前缀/缺少前导 `/`，并取消按 `userId` 校验上传者归属以对齐“全站图片库”展示行为，避免误报 403。
+- 后端：修复 Go 版 WebSocket 下游广播在存在僵尸连接时可能写阻塞，导致匹配/消息回包延迟或丢失的问题（增加下游写超时并在发送失败时清理会话）。
+- 后端：修复 `/ws` 在 sign 绑定后仍可转发其他 `id` 消息的问题；现在仅转发与已绑定 `userId` 一致的消息，并在重复 sign（切换身份）时自动解绑旧身份。
+- 后端：修复 `/api/checkDuplicateMedia` 的 pHash 计算与阈值语义，对齐 Python `imagehash.phash`（median/DCT 顺序/重采样）并支持 `distanceThreshold` 默认 10。
+- 后端：`JWTService` 在密钥缺失时拒绝签发/校验 Token（与配置校验保持一致，避免误配导致隐患）。
+- 后端：修复 SPA 路由在 `/list`、`/chat` 等页面刷新/直达时偶发 404（Go 静态托管回退从固定白名单改为通用判定）。
