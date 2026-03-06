@@ -1,6 +1,7 @@
 package app
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -130,6 +131,48 @@ func TestHandleDownloadImgUpload_MoreBranches(t *testing.T) {
 		}
 		if strings.TrimSpace(rr.Header().Get("Content-Length")) != "3" {
 			t.Fatalf("content-length=%q", rr.Header().Get("Content-Length"))
+		}
+	})
+
+	t.Run("probe mode empty result falls back to default fixed port", func(t *testing.T) {
+		oldDetect := detectAvailablePort
+		detectAvailablePort = func(string) string { return " " }
+		t.Cleanup(func() { detectAvailablePort = oldDetect })
+
+		db, _, cleanup := newSQLMock(t)
+		defer cleanup()
+
+		sys := NewSystemConfigService(wrapMySQLDB(db))
+		sys.loaded = true
+		sys.cached = SystemConfig{
+			ImagePortMode:         ImagePortModeProbe,
+			ImagePortFixed:        defaultSystemConfig.ImagePortFixed,
+			ImagePortRealMinBytes: defaultSystemConfig.ImagePortRealMinBytes,
+		}
+
+		var gotHost string
+		a := &App{
+			httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				gotHost = r.URL.Host
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{"image/jpeg"}},
+					Body:       io.NopCloser(strings.NewReader("ok")),
+				}, nil
+			})},
+			systemConfig: sys,
+			imageServer:  NewImageServerService("img.example", "9011"),
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/downloadImgUpload?path=2026/01/a.jpg", nil)
+		rr := httptest.NewRecorder()
+		a.handleDownloadImgUpload(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+		}
+		wantHost := "img.example:" + defaultSystemConfig.ImagePortFixed
+		if gotHost != wantHost {
+			t.Fatalf("upstream host=%q, want %q", gotHost, wantHost)
 		}
 	})
 }

@@ -1485,6 +1485,169 @@ describe('stores/mtphoto', () => {
     await store.loadFolderRoot()
     expect(store.folderPage).toBe(1)
   })
+
+  it('openFromExternalFolder uses folderId shortcut and skips path resolution', async () => {
+    const store = useMtPhotoStore()
+    const systemConfigStore = useSystemConfigStore()
+    systemConfigStore.loaded = true
+    systemConfigStore.mtPhotoTimelineDeferSubfolderThreshold = 10
+
+    vi.mocked(mtphotoApi.getMtPhotoFolderFavorites).mockResolvedValueOnce({ items: [] } as any)
+    vi.mocked(mtphotoApi.getMtPhotoFolderContent).mockResolvedValueOnce({
+      path: '/folder/88',
+      folderList: Array.from({ length: 20 }, (_, i) => ({ id: i + 1 })),
+      fileList: [],
+      page: 1,
+      pageSize: 60,
+      total: 0,
+      totalPages: 0
+    } as any)
+
+    const ok = await store.openFromExternalFolder({ folderId: 88, folderName: 'F88' })
+    expect(ok).toBe(true)
+    expect(store.folderCurrentId).toBe(88)
+    expect(store.folderCurrentName).toBe('F88')
+    expect(store.mode).toBe('folders')
+    expect(store.view).toBe('folders')
+    expect(vi.mocked(mtphotoApi.getMtPhotoFolderRoot)).not.toHaveBeenCalled()
+    expect(vi.mocked(mtphotoApi.getMtPhotoFolderContent)).toHaveBeenCalledWith(88, 1, 60, false)
+  })
+
+  it('openFromExternalFolder resolves normalized folderPath and opens resolved folder', async () => {
+    const store = useMtPhotoStore()
+    const systemConfigStore = useSystemConfigStore()
+    systemConfigStore.loaded = true
+    systemConfigStore.mtPhotoTimelineDeferSubfolderThreshold = 10
+
+    vi.mocked(mtphotoApi.getMtPhotoFolderFavorites).mockResolvedValueOnce({ items: [] } as any)
+    vi.mocked(mtphotoApi.getMtPhotoFolderRoot).mockResolvedValueOnce({
+      path: '/root',
+      folderList: [{ id: 101, name: 'A', path: '/A', cover: '', sCover: null, subFolderNum: 1 }],
+      fileList: []
+    } as any)
+    vi.mocked(mtphotoApi.getMtPhotoFolderContent)
+      .mockResolvedValueOnce({
+        path: '/A',
+        folderList: [{ id: 202, name: 'B', path: '/A/B', cover: 'm-cover', sCover: '', subFolderNum: 20 }],
+        fileList: [],
+        page: 1,
+        pageSize: 1,
+        total: 1,
+        totalPages: 1
+      } as any)
+      .mockResolvedValueOnce({
+        path: '/A/B',
+        folderList: Array.from({ length: 20 }, (_, i) => ({ id: 300 + i })),
+        fileList: [],
+        page: 1,
+        pageSize: 60,
+        total: 0,
+        totalPages: 0
+      } as any)
+
+    const ok = await store.openFromExternalFolder({ folderPath: 'A\\\\B//' })
+    expect(ok).toBe(true)
+    expect(store.folderCurrentId).toBe(202)
+    expect(store.folderCurrentName).toBe('B')
+    expect(vi.mocked(mtphotoApi.getMtPhotoFolderContent)).toHaveBeenNthCalledWith(1, 101, 1, 1, false)
+    expect(vi.mocked(mtphotoApi.getMtPhotoFolderContent)).toHaveBeenNthCalledWith(2, 202, 1, 60, false)
+  })
+
+  it('openFromExternalFolder falls back to root when folderPath is empty', async () => {
+    const store = useMtPhotoStore()
+    const systemConfigStore = useSystemConfigStore()
+    systemConfigStore.loaded = true
+    systemConfigStore.mtPhotoTimelineDeferSubfolderThreshold = 10
+
+    vi.mocked(mtphotoApi.getMtPhotoFolderFavorites).mockResolvedValueOnce({ items: [] } as any)
+    vi.mocked(mtphotoApi.getMtPhotoFolderRoot).mockResolvedValueOnce({
+      path: '/root',
+      folderList: [],
+      fileList: [],
+      page: 1,
+      pageSize: 60,
+      total: 0,
+      totalPages: 0
+    } as any)
+
+    const ok = await store.openFromExternalFolder({ folderPath: '' })
+    expect(ok).toBe(false)
+    expect(store.folderCurrentId).toBeNull()
+    expect(store.folderCurrentName).toBe('根目录')
+    expect(vi.mocked(mtphotoApi.getMtPhotoFolderContent)).not.toHaveBeenCalled()
+    expect(vi.mocked(mtphotoApi.getMtPhotoFolderRoot)).toHaveBeenCalledTimes(1)
+  })
+
+  it('openFromExternalFolder falls back to root when path cannot be resolved', async () => {
+    const store = useMtPhotoStore()
+    const systemConfigStore = useSystemConfigStore()
+    systemConfigStore.loaded = true
+    systemConfigStore.mtPhotoTimelineDeferSubfolderThreshold = 10
+
+    vi.mocked(mtphotoApi.getMtPhotoFolderFavorites).mockResolvedValueOnce({ items: [] } as any)
+    vi.mocked(mtphotoApi.getMtPhotoFolderRoot)
+      .mockResolvedValueOnce({
+        path: '/root',
+        folderList: [{ id: 1, name: 'A', path: '/A', cover: '', sCover: null, subFolderNum: 1 }],
+        fileList: []
+      } as any)
+      .mockResolvedValueOnce({
+        path: '/root',
+        folderList: [],
+        fileList: [],
+        page: 1,
+        pageSize: 60,
+        total: 0,
+        totalPages: 0
+      } as any)
+    vi.mocked(mtphotoApi.getMtPhotoFolderContent).mockResolvedValueOnce({
+      path: '/A',
+      folderList: [],
+      fileList: [],
+      page: 1,
+      pageSize: 1,
+      total: 0,
+      totalPages: 0
+    } as any)
+
+    const ok = await store.openFromExternalFolder({ folderPath: '/A/B' })
+    expect(ok).toBe(false)
+    expect(store.folderCurrentId).toBeNull()
+    expect(store.folderCurrentName).toBe('根目录')
+    expect(vi.mocked(mtphotoApi.getMtPhotoFolderContent)).toHaveBeenCalledWith(1, 1, 1, false)
+    expect(vi.mocked(mtphotoApi.getMtPhotoFolderRoot)).toHaveBeenCalledTimes(2)
+  })
+
+  it('openFromExternalFolder catches resolve errors and still falls back to root', async () => {
+    const store = useMtPhotoStore()
+    const systemConfigStore = useSystemConfigStore()
+    systemConfigStore.loaded = true
+    systemConfigStore.mtPhotoTimelineDeferSubfolderThreshold = 10
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      vi.mocked(mtphotoApi.getMtPhotoFolderFavorites).mockResolvedValueOnce({ items: [] } as any)
+      vi.mocked(mtphotoApi.getMtPhotoFolderRoot)
+        .mockRejectedValueOnce(new Error('root boom'))
+        .mockResolvedValueOnce({
+          path: '/root',
+          folderList: [],
+          fileList: [],
+          page: 1,
+          pageSize: 60,
+          total: 0,
+          totalPages: 0
+        } as any)
+
+      const ok = await store.openFromExternalFolder({ folderPath: '/A' })
+      expect(ok).toBe(false)
+      expect(store.folderCurrentId).toBeNull()
+      expect(store.folderCurrentName).toBe('根目录')
+      expect(warnSpy).toHaveBeenCalled()
+      expect(vi.mocked(mtphotoApi.getMtPhotoFolderRoot)).toHaveBeenCalledTimes(2)
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
 })
 
 describe('stores/identity + user', () => {

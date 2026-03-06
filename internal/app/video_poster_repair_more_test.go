@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -170,5 +171,68 @@ func TestMediaUploadService_RepairVideoPosters_CommitFFmpegNotFound(t *testing.T
 
 	if _, err := svc.RepairVideoPosters(context.Background(), "definitely-not-a-real-ffmpeg-bin", "ffprobe", RepairVideoPostersRequest{Commit: true}); err == nil {
 		t.Fatalf("expected error")
+	}
+}
+
+func TestMediaUploadService_RepairVideoPosters_WarningsCappedAt200(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	rows := sqlmock.NewRows([]string{"id", "local_path", "file_type", "file_extension"})
+	for i := int64(1); i <= 250; i++ {
+		rows.AddRow(i, "   ", "video/mp4", "mp4")
+	}
+
+	mock.ExpectQuery(`FROM media_file`).
+		WithArgs(int64(0), 251).
+		WillReturnRows(rows)
+
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+	res, err := svc.RepairVideoPosters(context.Background(), "ffmpeg", "ffprobe", RepairVideoPostersRequest{
+		Commit: false,
+		Source: "local",
+		Limit:  250,
+	})
+	if err != nil {
+		t.Fatalf("RepairVideoPosters: %v", err)
+	}
+
+	if res.Scanned != 250 {
+		t.Fatalf("scanned=%d, want %d", res.Scanned, 250)
+	}
+	if res.Skipped != 250 {
+		t.Fatalf("skipped=%d, want %d", res.Skipped, 250)
+	}
+	if len(res.Warnings) != 200 {
+		t.Fatalf("warnings=%d, want %d", len(res.Warnings), 200)
+	}
+	if res.HasMore {
+		t.Fatalf("hasMore=%v, want false", res.HasMore)
+	}
+}
+
+func TestMediaUploadService_RepairVideoPosters_RowIterationError(t *testing.T) {
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	rows := sqlmock.NewRows([]string{"id", "local_path", "file_type", "file_extension"}).
+		AddRow(int64(1), "   ", "video/mp4", "mp4").
+		RowError(0, errors.New("row boom"))
+
+	mock.ExpectQuery(`FROM media_file`).
+		WithArgs(int64(0), 11).
+		WillReturnRows(rows)
+
+	svc := &MediaUploadService{db: wrapMySQLDB(db), fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}}
+	_, err := svc.RepairVideoPosters(context.Background(), "ffmpeg", "ffprobe", RepairVideoPostersRequest{
+		Commit: false,
+		Source: "local",
+		Limit:  10,
+	})
+	if err == nil {
+		t.Fatalf("expected row iteration error")
+	}
+	if !strings.Contains(err.Error(), "row boom") {
+		t.Fatalf("err=%v, want contains %q", err, "row boom")
 	}
 }
