@@ -266,3 +266,4 @@
 - 后端：修复 `/api/checkDuplicateMedia` 的 pHash 计算与阈值语义，对齐 Python `imagehash.phash`（median/DCT 顺序/重采样）并支持 `distanceThreshold` 默认 10。
 - 后端：`JWTService` 在密钥缺失时拒绝签发/校验 Token（与配置校验保持一致，避免误配导致隐患）。
 - 后端：修复 SPA 路由在 `/list`、`/chat` 等页面刷新/直达时偶发 404（Go 静态托管回退从固定白名单改为通用判定）。
+- 前端：聊天页头部新增“拉黑”按钮，点击后先弹出确认框；确认后通过 WebSocket 发送 `warningreport` 消息（`act=warningreport, id=currentChatUser.id, msg=随机UUID`），并补充组件/视图测试覆盖该交互链路。

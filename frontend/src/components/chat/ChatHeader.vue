@@ -63,6 +63,15 @@
           <i class="fas fa-sync-alt text-sm"></i>
         </button>
 
+        <!-- 拉黑按钮 -->
+        <button
+          @click="$emit('blacklist')"
+          class="ui-icon-btn ui-icon-btn-ghost text-rose-500/80 hover:text-rose-500"
+          title="拉黑该用户"
+        >
+          <i class="fas fa-user-slash text-sm"></i>
+        </button>
+
         <!-- 收藏按钮 -->
         <button
           @click="$emit('toggleFavorite')"
@@ -90,6 +99,7 @@ defineProps<Props>()
 defineEmits<{
   'back': []
   'toggleFavorite': []
+  'blacklist': []
   'clearAndReload': []
   'toggleSidebar': []
 }>()

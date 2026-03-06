@@ -57,11 +57,13 @@ describe('components/chat/ChatHeader.vue', () => {
     await wrapper.get('button[aria-label="显示列表"]').trigger('click')
     await wrapper.get('button[aria-label="返回"]').trigger('click')
     await wrapper.get('button[title="清空并重新加载聊天记录"]').trigger('click')
+    await wrapper.get('button[title="拉黑该用户"]').trigger('click')
     await wrapper.findAll('button').find(b => b.find('i').classes().includes('fa-star'))!.trigger('click')
 
     expect(wrapper.emitted('toggleSidebar')).toHaveLength(1)
     expect(wrapper.emitted('back')).toHaveLength(1)
     expect(wrapper.emitted('clearAndReload')).toHaveLength(1)
+    expect(wrapper.emitted('blacklist')).toHaveLength(1)
     expect(wrapper.emitted('toggleFavorite')).toHaveLength(1)
   })
 

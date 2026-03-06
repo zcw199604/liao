@@ -21,7 +21,8 @@ const uploadMocks = {
 
 const wsMocks = {
   connect: vi.fn(),
-  setScrollToBottom: vi.fn()
+  setScrollToBottom: vi.fn(),
+  send: vi.fn()
 }
 
 const chatMocks = {
@@ -122,7 +123,7 @@ const createStubs = (opts?: { isAtBottom?: boolean }) => {
   const ChatHeader = {
     name: 'ChatHeader',
     props: ['user', 'connected'],
-    emits: ['back', 'toggle-favorite', 'clear-and-reload', 'toggle-sidebar'],
+    emits: ['back', 'toggle-favorite', 'blacklist', 'clear-and-reload', 'toggle-sidebar'],
     template: '<div data-testid=\"chat-header\"></div>'
   }
 
@@ -434,6 +435,74 @@ describe('views/ChatRoomView.vue (more coverage)', () => {
     expect(douyinStore.showModal).toBe(true)
     expect(douyinStore.entryMode).toBe('favorites')
     expect(douyinStore.favoritesTab).toBe('users')
+  })
+
+  it('sends warningreport payload when blacklisting from header', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const router = createTestRouter()
+    await router.push('/chat')
+    await router.isReady()
+
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+
+    const chatStore = useChatStore()
+    chatStore.wsConnected = true
+    chatStore.enterChat({ id: 'u1', name: 'U1', nickname: 'U1' } as any)
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const stubs = createStubs()
+    const wrapper = mount(ChatRoomView, {
+      global: {
+        plugins: [pinia, router],
+        stubs: {
+          teleport: true,
+          Dialog: true,
+          Toast: true,
+          MediaPreview: true,
+          MediaTile: true,
+          ChatSidebar: true,
+          UploadMenu: stubs.UploadMenu,
+          EmojiPanel: stubs.EmojiPanel,
+          ChatInput: stubs.ChatInput,
+          ChatHeader: stubs.ChatHeader,
+          MessageList: stubs.MessageList
+        }
+      }
+    })
+
+    await flushAsync()
+    await flushAsync()
+
+    wrapper.findComponent({ name: 'ChatHeader' }).vm.$emit('blacklist')
+    await flushAsync()
+
+    expect((wrapper.vm as any).showBlacklistDialog).toBe(true)
+    expect(wsMocks.send).not.toHaveBeenCalled()
+
+    await (wrapper.vm as any).executeBlacklist()
+    await flushAsync()
+
+    expect(wsMocks.send).toHaveBeenCalledWith(expect.objectContaining({
+      act: 'warningreport',
+      id: 'u1'
+    }))
+    const payload = wsMocks.send.mock.calls[0]?.[0]
+    expect(payload?.msg).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(toastShow).toHaveBeenCalledWith('已发送拉黑请求')
+    expect((wrapper.vm as any).showBlacklistDialog).toBe(false)
+
+    chatStore.wsConnected = false
+    wrapper.findComponent({ name: 'ChatHeader' }).vm.$emit('blacklist')
+    await flushAsync()
+
+    expect(wsMocks.send).toHaveBeenCalledTimes(1)
+    expect(toastShow).toHaveBeenCalledWith('连接已断开，请刷新页面重试')
   })
 
   it('uploads file and handles send media branch', async () => {

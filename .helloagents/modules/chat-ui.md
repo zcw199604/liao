@@ -14,6 +14,20 @@
 - **最后更新:** 2026-02-07
 
 ## 行为规范
+### 聊天头部: 拉黑按钮（warningreport）
+**模块:** Chat UI  
+在 `ChatHeader` 新增“拉黑”按钮（`fa-user-slash`），由 `ChatRoomView` 接收事件并发送 WebSocket 指令。
+
+消息格式约束：
+- `act` 固定为 `warningreport`
+- `id` 使用当前会话对象 `currentChatUser.id`（被拉黑方）
+- `msg` 使用前端实时生成的随机 UUID（每次点击唯一）
+
+交互约束：
+- 点击拉黑按钮先弹出确认弹窗，用户确认后才发送 `warningreport`
+- 仅在 WebSocket 已连接时发送；未连接时提示“连接已断开，请刷新页面重试”
+- 发送成功后提示“已发送拉黑请求”
+
 ### 上传菜单: 聊天页“+”支持直达抖音收藏作者
 
 ### 上传菜单: 操作区宫格化（减负）

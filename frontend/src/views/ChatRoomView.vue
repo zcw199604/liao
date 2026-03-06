@@ -41,6 +41,7 @@
         :connected="chatStore.wsConnected"
         @back="handleBack"
         @toggle-favorite="handleToggleFavorite"
+        @blacklist="handleBlacklist"
         @clear-and-reload="handleClearAndReload"
         @toggle-sidebar="showSidebar = !showSidebar"
       />
@@ -124,6 +125,17 @@
       @confirm="executeClearAndReload"
     >
       确定要清空并重新加载聊天记录吗？<br/>本地缓存的消息将被清除。
+    </Dialog>
+
+    <!-- 拉黑确认弹窗 -->
+    <Dialog
+      v-model:visible="showBlacklistDialog"
+      title="拉黑用户"
+      confirm-text="确认拉黑"
+      :show-warning="true"
+      @confirm="executeBlacklist"
+    >
+      确定要拉黑 <strong>{{ chatStore.currentChatUser?.nickname || '该用户' }}</strong> 吗？
     </Dialog>
 
     <!-- 聊天历史图片/视频弹窗 -->
@@ -243,7 +255,7 @@ const douyinStore = useDouyinStore()
 const { sendText, sendImage, sendVideo, retryMessage, sendTypingStatus } = useMessage()
 const { uploadFile, getMediaUrl } = useUpload()
 const route = useRoute()
-const { connect, setScrollToBottom } = useWebSocket()
+const { connect, setScrollToBottom, send } = useWebSocket()
 const { show } = useToast()
 const { toggleFavorite, enterChat, startMatch } = useChat()
 
@@ -260,6 +272,7 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const messageListRef = ref<any>(null)
 
 const showClearDialog = ref(false)
+const showBlacklistDialog = ref(false)
 const pageRef = ref<HTMLElement | null>(null)
 const sidebarRef = ref<HTMLElement | null>(null)
 const showSidebar = ref(false)
@@ -655,6 +668,57 @@ const { coordsStart: drawerSwipeStart } = useSwipeAction(sidebarRef, {
 const handleToggleFavorite = () => {
   if (!chatStore.currentChatUser) return
   toggleFavorite(chatStore.currentChatUser)
+}
+
+const generateWarningReportUuid = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+
+  const bytes = new Uint8Array(16)
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes)
+  } else {
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = Math.floor(Math.random() * 256)
+    }
+  }
+
+  // RFC 4122 v4
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80
+
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+const handleBlacklist = () => {
+  if (!chatStore.currentChatUser) return
+  if (!chatStore.wsConnected) {
+    show('连接已断开，请刷新页面重试')
+    return
+  }
+
+  showBlacklistDialog.value = true
+}
+
+const executeBlacklist = () => {
+  if (!chatStore.currentChatUser) return
+  if (!chatStore.wsConnected) {
+    show('连接已断开，请刷新页面重试')
+    return
+  }
+
+  const ok = send({
+    act: 'warningreport',
+    id: chatStore.currentChatUser.id,
+    msg: generateWarningReportUuid()
+  })
+
+  if (ok !== false) {
+    show('已发送拉黑请求')
+    showBlacklistDialog.value = false
+  }
 }
 
 const handleClearAndReload = () => {
