@@ -7,6 +7,9 @@
 
 | 时间戳 | 名称 | 类型 | 涉及模块 | 决策 | 结果 |
 |--------|------|------|---------|------|------|
+| 202603080559 | mtphoto-tail-gap-analysis | - | - | - | ✅完成 |
+| 202603080545 | mtphoto-test-gap | - | - | - | ✅完成 |
+| 202603080527 | frontend-test-coverage-gap | - | - | - | ✅完成 |
 | 202602082347 | douyin-import-author-link-works | 新增 | Douyin/Media | douyin-import-author-link-works#D001, douyin-import-author-link-works#D002 | ✅完成 |
 | 202602071149 | chat-uploadmenu-douyin-favorites | - | - | - | ✅完成 |
 | 202602011533 | db-dualstack-mysql-postgres | 重构 | DB/internal/database | db-dualstack-mysql-postgres#D001, db-dualstack-mysql-postgres#D002, db-dualstack-mysql-postgres#D003, db-dualstack-mysql-postgres#D004 | ✅完成 |

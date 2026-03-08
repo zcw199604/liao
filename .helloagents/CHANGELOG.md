@@ -148,6 +148,10 @@
 - 后端：抖音用户作品列表抓取改为调用 TikTokDownloader 包装镜像的单页分页接口 `/douyin/account/page`，与游标分页行为对齐。
 
 ### 修复
+- 测试：补充 `mtphoto` 外部目录打开与路径解析回退分支用例（`stores-more.test.ts`）；全量 `npx vitest run --coverage` 通过，`mtphoto.ts` branches 提升至 `98.98%`，全局 branches 提升至 `99.43%`。
+  - 方案: [202603080545_mtphoto-test-gap](archive/2026-03/202603080545_mtphoto-test-gap/)
+- 测试：补充前端 `useUpload` 分支用例，覆盖 `source` 归一化与空抖音元数据过滤；`npx vitest run --coverage` 全局 branches 提升至 `99.07%`，恢复前端 coverage 门禁。
+  - 方案: [202603080527_frontend-test-coverage-gap](archive/2026-03/202603080527_frontend-test-coverage-gap/)
 - mtPhoto 文件夹模式移动端可用性修复：新增“收藏夹”抽屉入口与遮罩关闭，避免 `<1024px` 下收藏功能不可达；子目录区高度改为响应式上限，减少内容区挤压。
 - 前端：修复“媒体预览 → 详情 → 作者跳转”时被预览层遮挡的问题；跳转前会先关闭 `MediaPreview`，避免 `z-index` 覆盖。
 - 前端：修复作者跳转默认行为，改为优先进入本地“收藏作者（users）”并自动定位对应作者详情，不再直接触发“用户作品”再次解析。

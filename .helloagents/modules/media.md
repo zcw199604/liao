@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** 上传/重传媒体；记录发送日志；分页查询上传/发送历史；全站媒体库分页；删除与批量删除；历史数据修复（repair）
 - **状态:** ✅稳定
-- **最后更新:** 2026-02-09
+- **最后更新:** 2026-03-08
 
 ## 入口与交互
 - **聊天页上传菜单:** “所有上传图片”（浏览后发送）/“mtPhoto 相册”
@@ -17,6 +17,11 @@
 ### 需求: 上传与本地落盘
 **模块:** Media
 上传接口需将文件落盘到 `./upload` 并写入本地表（详见 `data.md`），同时对上游上传接口保持兼容。
+
+前端补充：`useUpload().uploadFile()` 在组装 `FormData` 时会先归一化上传来源与抖音元数据：
+- `options.source` 会先做 `trim().toLowerCase()`，仅接受 `local` / `douyin` / `mtphoto`；其他值统一回退为 `local`
+- 仅当归一化后的 `source === douyin` 时，才会追加 `douyinSecUserId` / `douyinDetailId` / `douyinAuthorUniqueId` / `douyinAuthorName`
+- 上述抖音元数据会先各自 `trim()`，只有去空白后仍非空的值才会写入 `FormData`，避免上传空参数
 
 补充：为提升“视频在列表中的缩略图体验”，当上传文件类型为 `video/*` 且成功落盘到本地 `./upload` 时，后端会使用 `ffmpeg` 生成一张封面图（poster）：
 - 生成路径：与视频同目录，文件名为 `{videoBase}.poster.jpg`（例如 `/videos/2026/01/30/xxx.mp4` → `/videos/2026/01/30/xxx.poster.jpg`）
