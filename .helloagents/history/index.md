@@ -1,6 +1,6 @@
 # 变更历史索引
 
-本文件记录所有已完成变更的索引，便于追溯和查询。
+本文件记录所有已完成变更与已归档历史方案的索引，便于追溯和查询。
 
 ---
 
@@ -12,6 +12,9 @@
 | 202603131116 | android-gradle-wrapper-upgrade | 修复 | ✅已完成 | [链接](2026-03/202603131116_android-gradle-wrapper-upgrade/) |
 | 202603131135 | android-build-unblock | 修复 | ✅已完成 | [链接](2026-03/202603131135_android-build-unblock/) |
 | 202603130550 | android-client-acceptance-fixes | 修复 | ✅已完成 | [链接](2026-03/202603130550_android-client-acceptance-fixes/) |
+| 202602231046 | mtphoto-favorites-management-enhance | 功能增强 | ⚠️实施中归档 | [链接](2026-02/202602231046_mtphoto-favorites-management-enhance/) |
+| 202602230406 | mtphoto-folder-preview-favorites | 新功能 | 🗃️已归档 | [链接](2026-02/202602230406_mtphoto-folder-preview-favorites/) |
+| 202602011522 | db-migrate-postgres | 重构 | 🗃️已归档 | [链接](2026-02/202602011522_db-migrate-postgres/) |
 | 202601041818 | fix_history_userlist_lastmsg | 修复 | ✅已完成 | [链接](2026-01/202601041818_fix_history_userlist_lastmsg/) |
 | 202601041854 | fix_lastmsg_key_normalize | 修复 | ✅已完成 | [链接](2026-01/202601041854_fix_lastmsg_key_normalize/) |
 | 202601042052 | frontend-tests | 测试 | ✅已完成 | [链接](2026-01/202601042052_frontend-tests/) |
@@ -171,6 +174,11 @@
 - [202601211234_douyin_downloader_ux](2026-01/202601211234_douyin_downloader_ux/) - 抖音下载弹窗交互增强（批量操作/剪贴板预填/文件大小探测/导入状态与去重提示）
 - [202601211358_sync_docs_remove_java](2026-01/202601211358_sync_docs_remove_java/) - 同步清理文档/知识库中的 Java 路径与旧构建指令（Java 源码已移除）
 - [202601211451_test_cases_hardening](2026-01/202601211451_test_cases_hardening/) - 测试体系加固：前端 Vitest 环境补丁 + 后端关键边界测试补齐
+
+### 2026-02
+- [202602231046_mtphoto-favorites-management-enhance](2026-02/202602231046_mtphoto-favorites-management-enhance/) - 旧 mtPhoto 收藏管理增强方案归档（代码已基本完成，仍待手工回归）
+- [202602230406_mtphoto-folder-preview-favorites](2026-02/202602230406_mtphoto-folder-preview-favorites/) - 旧 mtPhoto 目录预览/收藏增强方案归档（历史方案留档）
+- [202602011522_db-migrate-postgres](2026-02/202602011522_db-migrate-postgres/) - 旧 PostgreSQL 迁移方案归档（草稿，未执行）
 
 ### 2026-03
 - [202603131135_android-build-unblock](2026-03/202603131135_android-build-unblock/) - 修复主题资源、Room/KAPT 兼容与 Kotlin/Compose API 适配，恢复 Android 编译与单测
