@@ -113,3 +113,12 @@ sequenceDiagram
 | adr_id | title | date | status | affected_modules | details |
 |--------|-------|------|--------|------------------|---------|
 | ADR-001 | 采用 Go 单进程后端完全替换（推荐） | 2026-01-07 | ✅已采纳 | Backend | [链接](../history/2026-01/202601071248_go_backend_rewrite/how.md#adr-001-采用-go-单进程后端完全替换推荐) |
+
+
+## Android 原生客户端骨架（2026-03-13）
+
+- 新增 `android-app/` 目录，采用 **Kotlin + Jetpack Compose + Hilt + Retrofit + Room + DataStore + OkHttp WebSocket** 的首期工程骨架。
+- 当前先以 **单 `app` module + 包分层模拟模块化** 的方式落地，包结构对齐 `core/common`、`core/network`、`core/datastore`、`core/database`、`core/websocket` 与 `feature/auth|identity|chatlist|chatroom|settings`。
+- 网络层通过 `BaseUrlProvider + DynamicBaseUrlInterceptor + AuthInterceptor` 支持运行时切换联调地址，并复用现有 `/api` 鉴权规则。
+- WebSocket 侧遵循现有 `/ws?token=` 握手与 `sign` 绑定协议，并在客户端固定保留 **5 分钟 forceout 禁重连** 语义。
+- 首期页面只覆盖移动端主流程：登录、身份、会话列表、聊天、设置；媒体管理、抖音、mtPhoto、视频抽帧已在 Service 与目录结构层完成预留，等待后续补全 UI 与交互。

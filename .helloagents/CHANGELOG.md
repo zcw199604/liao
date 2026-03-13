@@ -7,6 +7,7 @@
 ## [Unreleased]
 
 ### 新增
+- Android：新增 `android-app/` 原生客户端首期工程骨架，落地 Compose + Hilt + Retrofit + Room + DataStore + WebSocket 基础设施，并补充登录 / 身份 / 会话列表 / 聊天 / 设置页面主流程与协议基线。
 - 后端：聊天用户列表新增本地归档兜底（表 `chat_user_archive`，迁移 `sql/{dialect}/007_chat_user_archive.sql`）。`/api/getHistoryUserList` 与 `/api/getFavoriteUserList` 会在上游成功时落库快照并合并返回归档用户（标记 `localArchived=true`），在上游失败时若本地有归档可直接回退返回；`/api/getMessageHistory` 会同步触达会话并更新归档最后消息，降低上游清理用户后的不可恢复风险。
 - 后端：删除会话接口（单删 `/deleteUpstreamUser`、批删 `/batchDeleteUpstreamUsers`）在上游删除成功后会同步清理本地 `chat_user_archive` 对应记录，避免手动删除后归档会话再次回流。
 - 前端：会话列表支持展示本地归档用户标签（`localArchived=true` 显示“归档”），用于区分上游仍存在用户与本地兜底恢复用户。
@@ -148,6 +149,11 @@
 - 后端：抖音用户作品列表抓取改为调用 TikTokDownloader 包装镜像的单页分页接口 `/douyin/account/page`，与游标分页行为对齐。
 
 ### 修复
+- Android：为 `android-app/` 补齐 Gradle Wrapper 8.9（`gradlew` / `gradlew.bat` / `gradle/wrapper/*`），解决仓库内缺少统一构建入口的问题；最新构建检查已推进到资源链接阶段。
+- Android：继续解阻本地构建，补齐 Material XML 宿主主题依赖、将 Room 升级到 `2.7.2`，并修正 Retrofit/Compose 兼容写法；`./gradlew :app:compileDebugKotlin` 与 `./gradlew testDebugUnitTest` 已通过。
+- Android：补齐身份页编辑 / 删除最小闭环（含当前会话同步/清理），并为会话列表增加显式空态、显式错误态与“全局收藏入口（占位）”按钮。
+- Android：修复 `LiaoWebSocketClient` 与聊天页对 `/ws` 的协议处理，新增最小 `code/act` 协议目录与结构化入站解析，统一处理 `code=-3/-4` 的 forceout，并在非 forceout 异常断线时执行真实自动重连与重新 `sign`；聊天页头部 Info 按钮已接线到 `ShowUserLoginInfo`，Snackbar 提示会在展示后消费。
+- Android：完成第二轮验收回写，补齐聊天页顶部 Info 按钮主动请求 `ShowUserLoginInfo`、Snackbar 消息消费，并同步修正首轮 Android 方案包说明；Claude 只读复核结论为“有条件通过”，无 P0/P1 剩余问题。
 - 测试：补充 `mtphoto` 外部目录打开与路径解析回退分支用例（`stores-more.test.ts`）；全量 `npx vitest run --coverage` 通过，`mtphoto.ts` branches 提升至 `98.98%`，全局 branches 提升至 `99.43%`。
   - 方案: [202603080545_mtphoto-test-gap](archive/2026-03/202603080545_mtphoto-test-gap/)
 - 测试：补充前端 `useUpload` 分支用例，覆盖 `source` 归一化与空抖音元数据过滤；`npx vitest run --coverage` 全局 branches 提升至 `99.07%`，恢复前端 coverage 门禁。

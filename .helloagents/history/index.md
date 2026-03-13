@@ -8,6 +8,10 @@
 
 | 时间戳 | 功能名称 | 类型 | 状态 | 方案包路径 |
 |--------|----------|------|------|------------|
+| 202603130550 | android-ws-protocol-reconnect | 修复 | ✅已完成 | [链接](2026-03/202603130550_android-ws-protocol-reconnect/) |
+| 202603131116 | android-gradle-wrapper-upgrade | 修复 | ✅已完成 | [链接](2026-03/202603131116_android-gradle-wrapper-upgrade/) |
+| 202603131135 | android-build-unblock | 修复 | ✅已完成 | [链接](2026-03/202603131135_android-build-unblock/) |
+| 202603130550 | android-client-acceptance-fixes | 修复 | ✅已完成 | [链接](2026-03/202603130550_android-client-acceptance-fixes/) |
 | 202601041818 | fix_history_userlist_lastmsg | 修复 | ✅已完成 | [链接](2026-01/202601041818_fix_history_userlist_lastmsg/) |
 | 202601041854 | fix_lastmsg_key_normalize | 修复 | ✅已完成 | [链接](2026-01/202601041854_fix_lastmsg_key_normalize/) |
 | 202601042052 | frontend-tests | 测试 | ✅已完成 | [链接](2026-01/202601042052_frontend-tests/) |
@@ -85,6 +89,8 @@
 | 202601211451 | test_cases_hardening | 测试 | ✅已完成 | [链接](2026-01/202601211451_test_cases_hardening/) |
 
 ---
+| 202603130243 | android-native-client | 功能 | ✅已完成 | [链接](2026-03/202603130243_android-native-client/) |
+| 202603130601 | android-identity-chatlist-fix | 修复 | ✅已完成 | [链接](2026-03/202603130601_android-identity-chatlist-fix/) |
 
 ## 按月归档
 
@@ -165,3 +171,11 @@
 - [202601211234_douyin_downloader_ux](2026-01/202601211234_douyin_downloader_ux/) - 抖音下载弹窗交互增强（批量操作/剪贴板预填/文件大小探测/导入状态与去重提示）
 - [202601211358_sync_docs_remove_java](2026-01/202601211358_sync_docs_remove_java/) - 同步清理文档/知识库中的 Java 路径与旧构建指令（Java 源码已移除）
 - [202601211451_test_cases_hardening](2026-01/202601211451_test_cases_hardening/) - 测试体系加固：前端 Vitest 环境补丁 + 后端关键边界测试补齐
+
+### 2026-03
+- [202603131135_android-build-unblock](2026-03/202603131135_android-build-unblock/) - 修复主题资源、Room/KAPT 兼容与 Kotlin/Compose API 适配，恢复 Android 编译与单测
+- [202603131116_android-gradle-wrapper-upgrade](2026-03/202603131116_android-gradle-wrapper-upgrade/) - 为 `android-app/` 补齐 Gradle Wrapper 8.9，并完成首次本地构建入口验证
+- [202603130550_android-ws-protocol-reconnect](2026-03/202603130550_android-ws-protocol-reconnect/) - Android WebSocket 最小协议目录、forceout(-3/-4) 处理与真实自动重连
+- [202603130550_android-client-acceptance-fixes](2026-03/202603130550_android-client-acceptance-fixes/) - 汇总第二轮 Android 验收修复，回写首轮 task/知识库，并经 Claude 复核确认无 P0/P1 阻断项
+- [202603130243_android-native-client](2026-03/202603130243_android-native-client/) - Android 原生客户端首轮骨架（Compose/Hilt/Retrofit/Room/DataStore/WebSocket）
+- [202603130601_android-identity-chatlist-fix](2026-03/202603130601_android-identity-chatlist-fix/) - 补齐 Android 身份页编辑/删除闭环，以及会话列表空态/错误态和全局收藏入口占位

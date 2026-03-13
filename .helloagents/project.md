@@ -5,6 +5,7 @@
 ## 技术栈
 - **后端:** Go 1.25.6（HTTP: chi；WebSocket: gorilla/websocket；DB: MySQL(go-sql-driver/mysql) / PostgreSQL(pgx)；Redis 可选: go-redis）
 - **前端:** Vue 3 / Vite / TypeScript
+- **Android 原生客户端:** Kotlin / Jetpack Compose / Hilt / Retrofit / OkHttp / Room / DataStore / WorkManager（目录：`android-app/`）
 - **缓存:** Redis（可选）/ 内存（默认）
 
 ---
@@ -25,4 +26,5 @@
 ## 测试与流程
 - **测试:** `go test ./...`
 - **前端单元测试:** `cd frontend && npm test`（如有）
+- **Android:** 仓库已内置 `android-app/gradlew`（Gradle 8.9）；安装 JDK 17 与 Android SDK 后，可在 `android-app/` 中执行 `./gradlew :app:compileDebugKotlin` / `./gradlew test` 做本地检查
 - **提交:** Conventional Commits：`feat:` / `fix:` / `refactor:` / `chore:`

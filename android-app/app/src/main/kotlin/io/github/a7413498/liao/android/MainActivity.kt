@@ -1,0 +1,25 @@
+/*
+ * 主 Activity 只负责挂载 Compose 根节点。
+ * 业务导航与页面状态统一下沉到 LiaoApp。
+ */
+package io.github.a7413498.liao.android
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.material3.Surface
+import io.github.a7413498.liao.android.app.LiaoApp
+import io.github.a7413498.liao.android.app.theme.LiaoTheme
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            LiaoTheme {
+                Surface {
+                    LiaoApp()
+                }
+            }
+        }
+    }
+}

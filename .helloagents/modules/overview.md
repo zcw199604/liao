@@ -47,6 +47,7 @@ Liao 是一个基于 WebSocket 的匿名匹配聊天应用/代理服务：前端
 | Douyin Downloader | 抖音作品抓取/下载/导入上传（对接 TikTokDownloader Web API） | ✅稳定 | [链接](./douyin-downloader.md) |
 | User History | 历史/收藏用户列表与缓存增强规范 | ✅稳定 | [链接](./user-history.md) |
 | WebSocket Proxy | `/ws` 下游/上游连接池与转发、forceout 防重连 | ✅稳定 | [链接](./websocket-proxy.md) |
+| Android Client | 原生 Android 客户端骨架、协议兼容层与移动端主流程页面 | 🚧开发中 | [链接](./android-client.md) |
 
 ---
 
@@ -63,4 +64,5 @@ Liao 是一个基于 WebSocket 的匿名匹配聊天应用/代理服务：前端
 
 - 后端（Go）：`go test ./...`
 - 前端（Vue/Vitest）：`cd frontend && npm test`
+- Android（首期骨架）：在安装 JDK 17 + Android SDK 后，于 Android Studio 打开 `android-app/` 并执行 Gradle Sync / test
 - 说明：Vitest 在 `jsdom` 下的浏览器能力由 `frontend/vitest.setup.ts` 提供最小 polyfills；当引入新组件/依赖需要额外 Web API 时，优先在该文件补齐以保证用例可重复执行。

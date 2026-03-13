@@ -19,6 +19,7 @@
 | mtphoto | mtPhoto 相册 | ✅ | [mtphoto.md](./mtphoto.md) |
 | user-history | 历史用户列表/最后消息缓存 | ✅ | [user-history.md](./user-history.md) |
 | websocket-proxy | WebSocket 代理（/ws）与连接池 | ✅ | [websocket-proxy.md](./websocket-proxy.md) |
+| android-client | 原生 Android 客户端骨架与协议兼容层 | 🚧 | [android-client.md](./android-client.md) |
 | frontend-theme | 前端主题与排版约定 | ✅ | [frontend-theme.md](./frontend-theme.md) |
 
 ## 通用文档
@@ -38,5 +39,6 @@
 chat-ui → websocket-proxy → 上游 WS
 chat-ui → auth/identity
 chat-ui → media → upload/
+android-client → auth / identity / websocket-proxy / user-history / media
 douyin-downloader → media/data
 ```

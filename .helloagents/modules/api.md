@@ -1632,3 +1632,13 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 - 历史 Java(Spring Boot) 版本已从仓库移除；本文仅维护 Go 现行实现。
 - 上传文件访问：
   - `GET /upload/**` → 映射到本地目录 `./upload/`
+
+
+## Android 客户端对接基线（2026-03-13）
+
+- HTTP 基址仍为 `/api`，除 `/api/auth/login`、`/api/auth/verify`、`/api/getMtPhotoThumb`、`/api/douyin/download`、`/api/douyin/cover` 外，其余接口均要求 `Authorization: Bearer <JWT>`。
+- 登录接口：`POST /api/auth/login`，`application/x-www-form-urlencoded`，字段 `accessCode`；成功返回 `code=0` 与顶层 `token`。
+- 身份接口：`GET /api/getIdentityList`、`POST /api/createIdentity`、`POST /api/quickCreateIdentity`、`POST /api/selectIdentity?id=`；Android 骨架已对齐这些路径。
+- 会话 / 历史接口：`POST /api/getHistoryUserList`、`POST /api/getFavoriteUserList`、`POST /api/getMessageHistory`，均保持 `myUserID / cookieData / referer / userAgent / serverPort / vipcode` 兼容字段。
+- WebSocket：握手路径 `GET /ws?token=<JWT>`；连接成功后 Android 端发送 `sign`，字段至少包含 `act/id/name/userSex/userip/useraddree/randomvipcode`，聊天页头部 Info 动作会发送 `ShowUserLoginInfo`。
+- forceout：后端当前常量位于 `internal/app/forceout.go`，时长 **5 分钟**；Android 骨架同步以 5 分钟为准，并统一处理 `code=-3/-4` 的禁止重连语义。
