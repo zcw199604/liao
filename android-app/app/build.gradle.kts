@@ -1,3 +1,5 @@
+import org.gradle.testing.jacoco.tasks.JacocoReport
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,7 +7,31 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("org.jetbrains.kotlin.kapt")
     id("com.google.dagger.hilt.android")
+    jacoco
 }
+
+val jacocoClassExcludes = listOf(
+    "**/R.class",
+    "**/R${'$'}*.class",
+    "**/BuildConfig.*",
+    "**/Manifest*.*",
+    "**/*Test*.*",
+    "android/**/*",
+    "**/*${'$'}Companion*",
+    "**/*${'$'}Lambda${'$'}*",
+    "**/*${'$'}inlined${'$'}*",
+    "**/*ComposableSingletons*",
+    "**/*Kt${'$'}*",
+    "**/hilt_aggregated_deps/**",
+    "**/*_Factory*",
+    "**/*_Provide*Factory*",
+    "**/*_HiltModules*",
+    "**/*_MembersInjector*",
+    "**/dagger/hilt/internal/**",
+    "**/*_GeneratedInjector*",
+    "**/*_Impl*",
+    "**/*Dao_Impl*",
+)
 
 android {
     namespace = "io.github.a7413498.liao.android"
@@ -106,5 +132,38 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("io.mockk:mockk:1.13.13")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
+}
+
+tasks.register<JacocoReport>("jacocoDebugUnitTestReport") {
+    group = "verification"
+    description = "运行 Debug 单元测试并生成 Android 覆盖率报告（XML/HTML）。"
+    dependsOn("testDebugUnitTest")
+
+    val buildDirFile = layout.buildDirectory.get().asFile
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
+    }
+
+    classDirectories.setFrom(
+        files(
+            fileTree(buildDirFile.resolve("tmp/kotlin-classes/debug")) {
+                exclude(jacocoClassExcludes)
+            },
+            fileTree(buildDirFile.resolve("intermediates/javac/debug/compileDebugJavaWithJavac/classes")) {
+                exclude(jacocoClassExcludes)
+            },
+        )
+    )
+    sourceDirectories.setFrom(files("src/main/java", "src/main/kotlin"))
+    executionData.setFrom(
+        files(
+            buildDirFile.resolve("jacoco/testDebugUnitTest.exec"),
+            buildDirFile.resolve("outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec"),
+        )
+    )
 }

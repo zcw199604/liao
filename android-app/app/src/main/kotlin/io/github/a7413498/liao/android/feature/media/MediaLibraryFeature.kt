@@ -59,6 +59,7 @@ import io.github.a7413498.liao.android.core.datastore.CachedMediaLibraryItemSnap
 import io.github.a7413498.liao.android.core.datastore.CachedMediaLibrarySnapshot
 import io.github.a7413498.liao.android.core.network.BaseUrlProvider
 import io.github.a7413498.liao.android.core.network.MediaApiService
+import java.net.URI
 import javax.inject.Inject
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
@@ -716,14 +717,14 @@ private fun MediaThumbnail(
     }
 }
 
-private fun ChatMessageType.openMimeType(): String = when (this) {
+internal fun ChatMessageType.openMimeType(): String = when (this) {
     ChatMessageType.IMAGE -> "image/*"
     ChatMessageType.VIDEO -> "video/*"
     ChatMessageType.FILE -> "*/*"
     ChatMessageType.TEXT -> "text/plain"
 }
 
-private fun ChatMessageType.displayLabel(fileName: String): String = when (this) {
+internal fun ChatMessageType.displayLabel(fileName: String): String = when (this) {
     ChatMessageType.IMAGE -> if (fileName.isNotBlank()) "图片 · $fileName" else "图片"
     ChatMessageType.VIDEO -> if (fileName.isNotBlank()) "视频 · $fileName" else "视频"
     ChatMessageType.FILE -> if (fileName.isNotBlank()) "文件 · $fileName" else "文件"
@@ -745,7 +746,7 @@ private fun openMediaExternally(context: Context, url: String, type: ChatMessage
         .onFailure { runCatching { context.startActivity(fallbackIntent) } }
 }
 
-private fun String?.toChatMessageType(url: String): ChatMessageType = when (this?.trim()?.lowercase()) {
+internal fun String?.toChatMessageType(url: String): ChatMessageType = when (this?.trim()?.lowercase()) {
     "image" -> ChatMessageType.IMAGE
     "video" -> ChatMessageType.VIDEO
     "file" -> ChatMessageType.FILE
@@ -761,11 +762,13 @@ private fun JsonObject.longOrNull(key: String): Long? =
 private fun JsonObject.intOrDefault(key: String, defaultValue: Int): Int =
     stringOrNull(key)?.toIntOrNull() ?: defaultValue
 
-private fun extractUploadLocalPath(rawUrl: String): String {
+internal fun extractUploadLocalPath(rawUrl: String): String {
     val trimmed = rawUrl.trim()
     if (trimmed.isBlank()) return ""
     val path = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-        Uri.parse(trimmed).path.orEmpty()
+        runCatching { URI(trimmed).path.orEmpty() }.getOrElse {
+            trimmed.substringAfter("://", trimmed).substringAfter('/', "")
+        }
     } else {
         trimmed
     }.substringBefore('?').substringBefore('#')
@@ -778,7 +781,7 @@ private fun extractUploadLocalPath(rawUrl: String): String {
     }
 }
 
-private fun formatFileSize(size: Long): String = when {
+internal fun formatFileSize(size: Long): String = when {
     size >= 1024 * 1024 * 1024 -> String.format("%.1f GB", size / 1024f / 1024f / 1024f)
     size >= 1024 * 1024 -> String.format("%.1f MB", size / 1024f / 1024f)
     size >= 1024 -> String.format("%.1f KB", size / 1024f)

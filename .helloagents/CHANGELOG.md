@@ -7,6 +7,18 @@
 ## [Unreleased]
 
 ### 新增
+- 测试：继续补充 Android `ChatRoomFeatureHelpersTest`、`ChatRoomRepositoryTest`、`DouyinRepositoryMappingsTest`、`DouyinRepositoryBranchTest`、`MtPhotoRepositoryMappingsTest`、`MtPhotoRepositoryBranchTest`，并修正 `DouyinRepositoryOperationsTest` 的 payload 捕获方式；2026-03-15 重新执行 `cd android-app && ./gradlew clean testDebugUnitTest jacocoDebugUnitTestReport --no-daemon` 后，Android Debug Unit Test 覆盖率提升至 `line 44.06% / branch 31.50% / method 43.61% / class 38.25%`，累计 28 个测试文件 / 184 条用例，已达成第三轮 `branch >= 30%` 目标。
+- Android：将 `chatroom` / `douyin` / `mtphoto` 的高收益纯 helper 调整为 `internal` 以支持 JVM 单测，并为聊天历史、媒体 URL、收藏、抖音映射、mtPhoto 目录/相册分支补齐更细粒度的 repository 回归。
+- 测试：继续补充 Android `VideoExtractCreateFeatureHelpersTest`、`VideoExtractTaskCenterFeatureHelpersTest`、`VideoExtractTaskCenterRepositoryTest`、`DouyinFeatureHelpersTest`、`DouyinRepositoryTest`、`DouyinRepositoryOperationsTest`、`MtPhotoFeatureHelpersTest`、`MtPhotoFolderFavoritesRepositoryTest` 与 `MtPhotoRepositoryTest`；2026-03-15 重新执行 `cd android-app && ./gradlew clean testDebugUnitTest jacocoDebugUnitTestReport --no-daemon` 后，Android Debug Unit Test 覆盖率提升至 `line 32.46% / branch 21.63% / method 35.00% / class 35.09%`，累计 22 个测试文件 / 134 条用例，已达成第二轮 `branch >= 20%` 目标。
+- Android：将 `douyin` / `mtphoto` / `videoextract` 的高收益纯 helper 调整为 `internal` 以支持 JVM 单测，并修复 `VideoExtractTaskCenterFeature` 的 subtitle / runtimeLogs 出现 `null` 文案噪音的问题。
+- 测试：继续补充 Android `AuthRepositoryTest`、`IdentityRepositoryTest`、`ChatListRepositoryTest`、`GlobalFavoritesRepositoryTest`、`MediaLibraryRepositoryTest`、`SettingsRepositoryTest` 与 `SettingsFeatureHelpersTest`，并收紧 JaCoCo `executionData` 到 Debug Unit Test 明确产物；2026-03-15 重新执行 `cd android-app && ./gradlew clean testDebugUnitTest jacocoDebugUnitTestReport --no-daemon` 后，Android Debug Unit Test 覆盖率提升至 `line 17.50% / branch 10.15% / method 19.25% / class 21.75%`，累计 13 个测试文件 / 93 条用例，已达成首轮 `branch >= 10%` 目标。
+- Android：清理 `videoextract` / `mtphoto` 同包重复顶层 helper 定义，恢复 `:app:compileDebugKotlin` 与 Android JVM 单测编译链路，避免覆盖率任务被主代码编译错误阻塞。
+- 测试：为 Android `app` 模块正式接入 `jacocoDebugUnitTestReport` 覆盖率任务，支持输出 XML/HTML 报告；2026-03-15 当前 Debug Unit Test 覆盖率为 `line 5.02% / branch 2.69% / method 6.82% / class 5.12%`。
+- 测试：继续补充 Android `MediaLibraryHelpersTest`，覆盖媒体 MIME/展示文案、类型回退推断、上传路径归一化与文件大小格式化；并将 `extractUploadLocalPath` 改为使用 `java.net.URI`，避免 JVM 单测依赖 Android `Uri.parse`，当前 Android 本地单测累计为 6 个文件 / 35 条用例。
+- 测试：继续补充 Android `NetworkStackUrlTest`，覆盖 API Base URL 归一化、`/api -> /ws` WebSocket URL 构造与动态 Base URL 请求重写；测试暴露并修复了 Android `HttpUrl.Builder.scheme("ws/wss")` 生成 WebSocket URL 的兼容问题，当前 Android 本地单测累计为 5 个文件 / 30 条用例。
+- 测试：继续补充 Android `CommonAndCacheSnapshotTest`，新增通用辅助函数（cookie/IP/文本归一化）与 DataStore 缓存快照序列化回归；当前 Android 本地单测累计为 4 个文件 / 25 条用例。
+- 测试：继续补充 Android `WebSocketProtocolCatalogTest`，新增 `resolveKnownAct`、`parseEnvelope/parseRoot` 容错、forceout 判定、文件消息时间线转换、匹配候选与重连退避上限回归；当前 Android 本地单测累计为 3 个文件 / 19 条用例。
+- 测试：补充 Android 本地单元测试覆盖说明，并新增 `NetworkModelAlignmentTest`，覆盖消息类型推断、DTO/时间线映射、历史消息与全局收藏 JSON 解析；同步记录当前未覆盖的 Compose UI / 仪器测试 / 集成链路范围。
 - Android：补齐应用级会话协调器 `AppCoordinatorViewModel`，统一管理启动恢复、token/currentSession 生命周期、forceout 跳登录、WS 自动连接与 Room 会话/消息实时落库。
 - Android：落地全局收藏真实页面（按身份分组、按 ID 取消收藏、切换身份直达聊天），并将会话列表“全局收藏”入口接入真实导航。
 - Android：聊天页补齐 optimistic 发送、回显合并、失败重试、收藏切换、拉黑、清空重载与在线状态查询等对齐能力；设置页补齐身份编辑（含 `updateIdentityId` / `chgname` / `modinfo`）与连接运维操作。

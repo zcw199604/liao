@@ -461,6 +461,19 @@ class DouyinRepository @Inject constructor(
         onFailure = { AppResult.Error(it.message ?: "更新标签失败", it) },
     )
 
+    internal fun mapMediaItemForTest(element: JsonElement, fallbackCoverUrl: String): DouyinMediaItem? =
+        element.toMediaItem(fallbackCoverUrl)
+
+    internal fun mapAccountItemForTest(element: JsonElement): DouyinAccountItem? = element.toAccountItem()
+
+    internal fun mapFavoriteUserForTest(element: JsonElement): DouyinFavoriteUser? = element.toFavoriteUser()
+
+    internal fun mapFavoriteAwemeForTest(element: JsonElement): DouyinFavoriteAweme? = element.toFavoriteAweme()
+
+    internal fun mapFavoriteTagForTest(element: JsonElement): DouyinFavoriteTag? = element.toFavoriteTag()
+
+    internal fun normalizeUrlForTest(raw: String): String = normalizeUrl(raw)
+
     private suspend fun listFavoriteUsersOrThrow(): List<DouyinFavoriteUser> {
         val root = douyinApiService.listFavoriteUsers() as? JsonObject ?: error("收藏作者列表响应格式异常")
         root.errorMessage()?.let(::error)
@@ -2194,7 +2207,7 @@ private fun EmptyCard(text: String) {
     }
 }
 
-private fun inferDouyinItemType(downloadUrl: String, sourceUrl: String, originalFilename: String): String {
+internal fun inferDouyinItemType(downloadUrl: String, sourceUrl: String, originalFilename: String): String {
     val candidates = listOf(downloadUrl, sourceUrl, originalFilename)
     val lower = candidates.joinToString(separator = "\n").lowercase()
     return when {
@@ -2204,7 +2217,7 @@ private fun inferDouyinItemType(downloadUrl: String, sourceUrl: String, original
     }
 }
 
-private fun resolveDouyinMediaTypeLabel(
+internal fun resolveDouyinMediaTypeLabel(
     mediaType: String,
     type: String,
     imageCount: Int,
@@ -2222,13 +2235,13 @@ private fun resolveDouyinMediaTypeLabel(
     }
 }
 
-private fun normalizeDouyinMediaType(raw: String): String = when (raw.trim().lowercase()) {
+internal fun normalizeDouyinMediaType(raw: String): String = when (raw.trim().lowercase()) {
     "livephoto", "live", "motionphoto", "实况" -> "livePhoto"
     "imagealbum", "album", "image", "图集", "图片" -> "imageAlbum"
     else -> "video"
 }
 
-private fun resolveFavoriteMediaType(type: String, mediaType: String, isLivePhoto: Boolean, imageCount: Int): String {
+internal fun resolveFavoriteMediaType(type: String, mediaType: String, isLivePhoto: Boolean, imageCount: Int): String {
     if (isLivePhoto) return "livePhoto"
     return when (normalizeDouyinMediaType(mediaType.ifBlank { type })) {
         "livePhoto" -> "livePhoto"
@@ -2237,15 +2250,15 @@ private fun resolveFavoriteMediaType(type: String, mediaType: String, isLivePhot
     }
 }
 
-private fun resolveTagNames(tagIds: List<Long>, tagMap: Map<Long, String>): String =
+internal fun resolveTagNames(tagIds: List<Long>, tagMap: Map<Long, String>): String =
     tagIds.mapNotNull { tagMap[it] }.distinct().joinToString(separator = "、")
 
-private fun defaultDouyinFileName(item: DouyinMediaItem): String {
+internal fun defaultDouyinFileName(item: DouyinMediaItem): String {
     val baseName = item.originalFilename.ifBlank { "douyin_${item.index + 1}" }
     return if (baseName.contains('.')) baseName else baseName + if (item.type == "video") ".mp4" else ".jpg"
 }
 
-private fun resolveDouyinImportActionText(
+internal fun resolveDouyinImportActionText(
     importing: Boolean,
     status: DouyinImportStatus?,
     defaultText: String,
@@ -2291,23 +2304,23 @@ private fun openDouyinExternally(context: Context, url: String, type: String) {
         .onFailure { runCatching { context.startActivity(fallbackIntent) } }
 }
 
-private fun JsonObject.errorMessage(): String? =
+internal fun JsonObject.errorMessage(): String? =
     stringOrNull("error") ?: stringOrNull("msg")
 
-private fun JsonObject.stringOrNull(key: String): String? =
+internal fun JsonObject.stringOrNull(key: String): String? =
     this[key]?.let { runCatching { it.jsonPrimitive.contentOrNull ?: it.jsonPrimitive.content }.getOrNull() }?.takeIf { it.isNotBlank() }
 
-private fun JsonObject.intOrDefault(key: String, defaultValue: Int): Int = stringOrNull(key)?.toIntOrNull() ?: defaultValue
+internal fun JsonObject.intOrDefault(key: String, defaultValue: Int): Int = stringOrNull(key)?.toIntOrNull() ?: defaultValue
 
-private fun JsonObject.intOrNull(key: String): Int? = stringOrNull(key)?.toIntOrNull()
+internal fun JsonObject.intOrNull(key: String): Int? = stringOrNull(key)?.toIntOrNull()
 
-private fun JsonObject.longOrNull(key: String): Long? = stringOrNull(key)?.toLongOrNull()
+internal fun JsonObject.longOrNull(key: String): Long? = stringOrNull(key)?.toLongOrNull()
 
-private fun JsonObject.doubleOrDefault(key: String, defaultValue: Double): Double = stringOrNull(key)?.toDoubleOrNull() ?: defaultValue
+internal fun JsonObject.doubleOrDefault(key: String, defaultValue: Double): Double = stringOrNull(key)?.toDoubleOrNull() ?: defaultValue
 
-private fun JsonObject.booleanOrFalse(key: String): Boolean = stringOrNull(key)?.toBooleanStrictOrNull() ?: false
+internal fun JsonObject.booleanOrFalse(key: String): Boolean = stringOrNull(key)?.toBooleanStrictOrNull() ?: false
 
-private fun JsonObject.longList(key: String): List<Long> =
+internal fun JsonObject.longList(key: String): List<Long> =
     (this[key] as? JsonArray)?.mapNotNull { element ->
         runCatching { element.jsonPrimitive.contentOrNull ?: element.jsonPrimitive.content }.getOrNull()?.toLongOrNull()
     }.orEmpty()

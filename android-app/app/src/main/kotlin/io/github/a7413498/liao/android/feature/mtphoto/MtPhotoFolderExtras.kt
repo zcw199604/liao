@@ -269,9 +269,3 @@ internal fun MtPhotoFolderFavoriteCard(
     }
 }
 
-private fun JsonObject.stringOrNull(key: String): String? =
-    this[key]?.let { runCatching { it.jsonPrimitive.contentOrNull ?: it.jsonPrimitive.content }.getOrNull() }?.takeIf { it.isNotBlank() }
-
-private fun JsonObject.longOrNull(key: String): Long? = stringOrNull(key)?.toLongOrNull()
-
-private fun JsonObject.booleanOrFalse(key: String): Boolean = stringOrNull(key)?.toBooleanStrictOrNull() ?: false

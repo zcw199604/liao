@@ -165,7 +165,7 @@ class ChatRoomRepository @Inject constructor(
         onFailure = { AppResult.Error(it.message ?: "建立聊天连接失败", it) },
     )
 
-    private fun currentApiOrigin(): String {
+    internal fun currentApiOrigin(): String {
         val apiBaseUrl = baseUrlProvider.currentApiBaseUrl()
         val isDefaultPort = (apiBaseUrl.isHttps && apiBaseUrl.port == 443) || (!apiBaseUrl.isHttps && apiBaseUrl.port == 80)
         val portSuffix = if (isDefaultPort) "" else ":${apiBaseUrl.port}"
@@ -180,7 +180,7 @@ class ChatRoomRepository @Inject constructor(
         return host
     }
 
-    private fun parseImageServerHost(raw: String): String {
+    internal fun parseImageServerHost(raw: String): String {
         val trimmed = raw.trim().removePrefix(""").removeSuffix(""")
         if (trimmed.isBlank()) error("图片服务器地址为空")
         val parsedFromJson = runCatching {
@@ -240,14 +240,14 @@ class ChatRoomRepository @Inject constructor(
         return resolvedPort
     }
 
-    private fun buildPosterUrlFromLocalPath(localPath: String): String {
+    internal fun buildPosterUrlFromLocalPath(localPath: String): String {
         val normalized = localPath.trim().substringBefore('?').substringBefore('#')
         if (!normalized.startsWith("/videos/")) return ""
         val posterPath = normalized.replace(Regex("\\.[^.]+$"), ".poster.jpg")
         return currentApiOrigin() + "/upload" + posterPath
     }
 
-    private suspend fun resolveMediaUrl(rawValue: String): String {
+    internal suspend fun resolveMediaUrl(rawValue: String): String {
         val normalized = rawValue.trim().removePrefix("[").removeSuffix("]")
         if (normalized.isBlank()) return ""
         if (normalized.startsWith("http://") || normalized.startsWith("https://")) return normalized
@@ -258,7 +258,7 @@ class ChatRoomRepository @Inject constructor(
         return "http://$imageHost:$port/img/Upload/$normalized"
     }
 
-    private fun inferMediaTypeFromPath(path: String, mimeType: String = ""): ChatMessageType {
+    internal fun inferMediaTypeFromPath(path: String, mimeType: String = ""): ChatMessageType {
         val normalizedMime = mimeType.lowercase(Locale.ROOT)
         return when {
             normalizedMime.startsWith("image/") -> ChatMessageType.IMAGE
@@ -1141,7 +1141,7 @@ private fun ChatTimelineMessage.toEntity(peerId: String): MessageEntity = Messag
     fileName = fileName,
 )
 
-private fun List<ChatTimelineMessage>.minNumericTid(): String? =
+internal fun List<ChatTimelineMessage>.minNumericTid(): String? =
     asSequence()
         .mapNotNull { message ->
             val rawTid = message.id.trim()
@@ -1150,7 +1150,7 @@ private fun List<ChatTimelineMessage>.minNumericTid(): String? =
         .minByOrNull { (_, numericTid) -> numericTid }
         ?.first
 
-private fun mergeTimelineMessages(
+internal fun mergeTimelineMessages(
     current: List<ChatTimelineMessage>,
     incoming: List<ChatTimelineMessage>,
 ): List<ChatTimelineMessage> {
@@ -1162,7 +1162,7 @@ private fun mergeTimelineMessages(
     return merged.values.toList()
 }
 
-private fun appendTimelineMessage(
+internal fun appendTimelineMessage(
     current: List<ChatTimelineMessage>,
     incoming: ChatTimelineMessage,
 ): List<ChatTimelineMessage> {
@@ -1175,7 +1175,7 @@ private fun appendTimelineMessage(
     return current + incoming
 }
 
-private fun mergeEchoMessage(
+internal fun mergeEchoMessage(
     current: List<ChatTimelineMessage>,
     incoming: ChatTimelineMessage,
 ): List<ChatTimelineMessage> {
@@ -1209,20 +1209,20 @@ private fun mergeEchoMessage(
     return appendTimelineMessage(current, incoming.copy(sendStatus = OutgoingMessageStatus.SENT, sendError = null))
 }
 
-private fun ChatTimelineMessage.displayContent(): String = when (type) {
+internal fun ChatTimelineMessage.displayContent(): String = when (type) {
     ChatMessageType.IMAGE -> if (fileName.isNotBlank()) "[图片] $fileName" else "[图片]"
     ChatMessageType.VIDEO -> if (fileName.isNotBlank()) "[视频] $fileName" else "[视频]"
     ChatMessageType.FILE -> if (fileName.isNotBlank()) "[文件] $fileName" else "[文件]"
     ChatMessageType.TEXT -> content
 }
 
-private fun OutgoingMessageStatus.displayText(): String = when (this) {
+internal fun OutgoingMessageStatus.displayText(): String = when (this) {
     OutgoingMessageStatus.SENDING -> "发送中"
     OutgoingMessageStatus.SENT -> "已发送"
     OutgoingMessageStatus.FAILED -> "发送失败"
 }
 
-private fun WebSocketState.toDisplayText(): String = when (this) {
+internal fun WebSocketState.toDisplayText(): String = when (this) {
     WebSocketState.Idle -> "Idle"
     WebSocketState.Connecting -> "Connecting"
     WebSocketState.Connected -> "Connected"
@@ -1238,14 +1238,14 @@ private fun WebSocketState.toDisplayText(): String = when (this) {
 private fun nowTimeLabel(): String =
     SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
 
-private fun ChatMessageType.openMimeType(): String = when (this) {
+internal fun ChatMessageType.openMimeType(): String = when (this) {
     ChatMessageType.IMAGE -> "image/*"
     ChatMessageType.VIDEO -> "video/*"
     ChatMessageType.FILE -> "*/*"
     ChatMessageType.TEXT -> "text/plain"
 }
 
-private fun ChatMessageType.displayLabel(fileName: String): String = when (this) {
+internal fun ChatMessageType.displayLabel(fileName: String): String = when (this) {
     ChatMessageType.IMAGE -> if (fileName.isNotBlank()) "图片 · $fileName" else "图片"
     ChatMessageType.VIDEO -> if (fileName.isNotBlank()) "视频 · $fileName" else "视频"
     ChatMessageType.FILE -> if (fileName.isNotBlank()) "文件 · $fileName" else "文件"

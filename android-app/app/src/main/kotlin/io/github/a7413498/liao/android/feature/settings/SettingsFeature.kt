@@ -502,7 +502,7 @@ class SettingsViewModel @Inject constructor(
     }
 }
 
-private fun WebSocketState.toDisplayText(): String = when (this) {
+internal fun WebSocketState.toDisplayText(): String = when (this) {
     WebSocketState.Idle -> "Idle"
     WebSocketState.Connecting -> "Connecting"
     WebSocketState.Connected -> "Connected"
@@ -511,25 +511,25 @@ private fun WebSocketState.toDisplayText(): String = when (this) {
     WebSocketState.Closed -> "Closed"
 }
 
-private fun defaultSystemConfig(): SystemConfigDto = SystemConfigDto(
+internal fun defaultSystemConfig(): SystemConfigDto = SystemConfigDto(
     imagePortMode = DEFAULT_IMAGE_PORT_MODE,
     imagePortFixed = DEFAULT_IMAGE_PORT_FIXED,
     imagePortRealMinBytes = DEFAULT_IMAGE_PORT_REAL_MIN_BYTES.toLong(),
     mtPhotoTimelineDeferSubfolderThreshold = DEFAULT_MTPHOTO_TIMELINE_THRESHOLD.toInt(),
 )
 
-private fun normalizeImagePortMode(value: String): String = when (value.trim().lowercase()) {
+internal fun normalizeImagePortMode(value: String): String = when (value.trim().lowercase()) {
     "fixed", "probe", "real" -> value.trim().lowercase()
     else -> DEFAULT_IMAGE_PORT_MODE
 }
 
-private fun String.toUiMode(): String = normalizeImagePortMode(this)
+internal fun String.toUiMode(): String = normalizeImagePortMode(this)
 
-private fun Long.toUiRealMinBytes(): String = if (this > 0) this.toString() else DEFAULT_IMAGE_PORT_REAL_MIN_BYTES
+internal fun Long.toUiRealMinBytes(): String = if (this > 0) this.toString() else DEFAULT_IMAGE_PORT_REAL_MIN_BYTES
 
-private fun Int.toUiMtPhotoThreshold(): String = if (this > 0) this.toString() else DEFAULT_MTPHOTO_TIMELINE_THRESHOLD
+internal fun Int.toUiMtPhotoThreshold(): String = if (this > 0) this.toString() else DEFAULT_MTPHOTO_TIMELINE_THRESHOLD
 
-private fun LiaoThemePreference.toDisplayLabel(): String = when (this) {
+internal fun LiaoThemePreference.toDisplayLabel(): String = when (this) {
     LiaoThemePreference.AUTO -> "跟随系统"
     LiaoThemePreference.LIGHT -> "浅色"
     LiaoThemePreference.DARK -> "深色"

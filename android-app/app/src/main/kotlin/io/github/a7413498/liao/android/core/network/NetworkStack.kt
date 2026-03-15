@@ -42,32 +42,55 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 
+internal fun normalizeApiBaseUrl(raw: String): HttpUrl {
+    val normalized = when {
+        raw.endsWith("/api/") -> raw
+        raw.endsWith("/api") -> "$raw/"
+        raw.endsWith("/") -> "${raw}api/"
+        else -> "$raw/api/"
+    }
+    return normalized.toHttpUrl()
+}
+
+internal fun buildWebSocketUrl(api: HttpUrl, token: String): String {
+    val wsPath = api.encodedPath.removeSuffix("/").removeSuffix("/api") + "/ws"
+    val httpLikeUrl = api.newBuilder()
+        .encodedPath(wsPath.ifBlank { "/ws" })
+        .setQueryParameter("token", token)
+        .build()
+        .toString()
+    return if (api.isHttps) {
+        httpLikeUrl.replaceFirst("https://", "wss://")
+    } else {
+        httpLikeUrl.replaceFirst("http://", "ws://")
+    }
+}
+
+internal fun resolveDynamicApiUrl(
+    dynamicBase: HttpUrl,
+    originalUrl: HttpUrl,
+    placeholderPrefix: String = "/api",
+): HttpUrl {
+    val relativePath = originalUrl.encodedPath.removePrefix(placeholderPrefix).trimStart('/')
+    val newUrlBuilder = dynamicBase.newBuilder()
+    if (relativePath.isNotBlank()) {
+        newUrlBuilder.addEncodedPathSegments(relativePath)
+    }
+    return newUrlBuilder.encodedQuery(originalUrl.encodedQuery).build()
+}
+
 @Singleton
 class BaseUrlProvider @Inject constructor(
     private val preferencesStore: AppPreferencesStore,
 ) {
-    fun currentApiBaseUrl(): HttpUrl {
-        val raw = runBlocking { preferencesStore.readBaseUrl() }
-        val normalized = when {
-            raw.endsWith("/api/") -> raw
-            raw.endsWith("/api") -> "$raw/"
-            raw.endsWith("/") -> "${raw}api/"
-            else -> "$raw/api/"
-        }
-        return normalized.toHttpUrl()
-    }
+    fun currentApiBaseUrl(): HttpUrl = normalizeApiBaseUrl(
+        raw = runBlocking { preferencesStore.readBaseUrl() },
+    )
 
-    fun currentWebSocketUrl(token: String): String {
-        val api = currentApiBaseUrl()
-        val scheme = if (api.isHttps) "wss" else "ws"
-        val wsPath = api.encodedPath.removeSuffix("/").removeSuffix("/api") + "/ws"
-        return api.newBuilder()
-            .scheme(scheme)
-            .encodedPath(wsPath.ifBlank { "/ws" })
-            .setQueryParameter("token", token)
-            .build()
-            .toString()
-    }
+    fun currentWebSocketUrl(token: String): String = buildWebSocketUrl(
+        api = currentApiBaseUrl(),
+        token = token,
+    )
 }
 
 @Singleton
@@ -76,15 +99,8 @@ class DynamicBaseUrlInterceptor @Inject constructor(
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
-        val placeholderPrefix = "/api"
         val dynamicBase = baseUrlProvider.currentApiBaseUrl()
-        val originalPath = original.url.encodedPath
-        val relativePath = originalPath.removePrefix(placeholderPrefix).trimStart('/')
-        val newUrlBuilder = dynamicBase.newBuilder()
-        if (relativePath.isNotBlank()) {
-            newUrlBuilder.addEncodedPathSegments(relativePath)
-        }
-        val newUrl = newUrlBuilder.encodedQuery(original.url.encodedQuery).build()
+        val newUrl = resolveDynamicApiUrl(dynamicBase = dynamicBase, originalUrl = original.url)
         val newRequest = original.newBuilder().url(newUrl).build()
         return chain.proceed(newRequest)
     }

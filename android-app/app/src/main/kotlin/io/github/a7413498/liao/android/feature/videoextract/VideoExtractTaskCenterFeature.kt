@@ -1004,18 +1004,18 @@ private fun VideoExtractTaskDetailCard(
     }
 }
 
-private fun VideoExtractTaskItem.displayTitle(): String = when {
+internal fun VideoExtractTaskItem.displayTitle(): String = when {
     sourceRef.isNotBlank() -> sourceRef.substringAfterLast('/').ifBlank { taskId }
     else -> taskId
 }
 
-private fun VideoExtractTaskItem.displaySubtitle(): String = listOf(
+internal fun VideoExtractTaskItem.displaySubtitle(): String = listOfNotNull(
     createdAt.substringBefore('T').takeIf { it.isNotBlank() },
     "${videoWidth}×${videoHeight}".takeIf { videoWidth > 0 && videoHeight > 0 },
     formatDuration(durationSec).takeIf { it != "-" },
 ).joinToString(separator = " · ")
 
-private fun VideoExtractTaskItem.statusText(): String = when (status.uppercase(Locale.ROOT)) {
+internal fun VideoExtractTaskItem.statusText(): String = when (status.uppercase(Locale.ROOT)) {
     "PENDING" -> "排队中"
     "PREPARING" -> "准备中"
     "RUNNING" -> "运行中"
@@ -1034,7 +1034,7 @@ private fun VideoExtractTaskItem.statusColor() = when (status.uppercase(Locale.R
     else -> MaterialTheme.colorScheme.outline
 }
 
-private fun VideoExtractTaskItem.modeText(): String = when (mode.lowercase(Locale.ROOT)) {
+internal fun VideoExtractTaskItem.modeText(): String = when (mode.lowercase(Locale.ROOT)) {
     "fps" -> "固定 FPS ${fps ?: ""}".trim()
     "all" -> "逐帧输出"
     "keyframe" -> if (keyframeMode.equals("scene", ignoreCase = true)) {
@@ -1045,7 +1045,7 @@ private fun VideoExtractTaskItem.modeText(): String = when (mode.lowercase(Local
     else -> mode
 }
 
-private fun VideoExtractTaskItem.progressText(): String {
+internal fun VideoExtractTaskItem.progressText(): String {
     val duration = durationSec
     val cursor = cursorOutTimeSec
     return if (duration != null && duration > 0 && cursor != null && cursor > 0) {
@@ -1056,7 +1056,7 @@ private fun VideoExtractTaskItem.progressText(): String {
     }
 }
 
-private fun VideoExtractTaskItem.limitText(): String {
+internal fun VideoExtractTaskItem.limitText(): String {
     val range = when {
         startSec != null || endSec != null -> "${startSec ?: 0.0} ~ ${endSec ?: "end"}s"
         else -> "全程"
@@ -1064,16 +1064,18 @@ private fun VideoExtractTaskItem.limitText(): String {
     return "时间区间：$range；maxFrames=$maxFrames；格式=${outputFormat.uppercase(Locale.ROOT)}${jpgQuality?.let { " / Q=$it" } ?: ""}"
 }
 
-private fun VideoExtractTaskItem.canCancel(): Boolean = status.uppercase(Locale.ROOT) in setOf("PENDING", "PREPARING", "RUNNING")
+internal fun VideoExtractTaskItem.canCancel(): Boolean = status.uppercase(Locale.ROOT) in setOf("PENDING", "PREPARING", "RUNNING")
 
-private fun VideoExtractTaskItem.canContinue(): Boolean = status.uppercase(Locale.ROOT) in setOf("PAUSED_LIMIT", "PAUSED_USER")
+internal fun VideoExtractTaskItem.canContinue(): Boolean = status.uppercase(Locale.ROOT) in setOf("PAUSED_LIMIT", "PAUSED_USER")
 
-private fun JsonObject.toTaskItem(origin: String): VideoExtractTaskItem? {
+internal fun JsonObject.toTaskItem(origin: String): VideoExtractTaskItem? {
     val taskId = stringOrNull("taskId") ?: return null
     val sourceType = stringOrNull("sourceType").orEmpty()
     val sourceRef = stringOrNull("sourceRef").orEmpty()
     val runtimeLogs = (this["runtime"] as? JsonObject)?.get("logs")?.jsonArray.orEmpty().mapNotNull {
-        runCatching { it.jsonPrimitive.contentOrNull ?: it.jsonPrimitive.content }.getOrNull()
+        runCatching { it.jsonPrimitive.contentOrNull ?: it.jsonPrimitive.content }
+            .getOrNull()
+            ?.takeUnless { value -> value.equals("null", ignoreCase = true) }
     }
     return VideoExtractTaskItem(
         taskId = taskId,
@@ -1105,19 +1107,17 @@ private fun JsonObject.toTaskItem(origin: String): VideoExtractTaskItem? {
     )
 }
 
-private fun JsonObject.toFrameItem(): VideoExtractFrameItem? {
+internal fun JsonObject.toFrameItem(): VideoExtractFrameItem? {
     val seq = intOrNull("seq") ?: return null
     val url = stringOrNull("url") ?: return null
     return VideoExtractFrameItem(seq = seq, url = url)
 }
 
-private fun JsonObject.intOrNull(key: String): Int? = stringOrNull(key)?.toIntOrNull()
-private fun JsonObject.intOrDefault(key: String, defaultValue: Int): Int = intOrNull(key) ?: defaultValue
-private fun JsonObject.doubleOrNull(key: String): Double? = stringOrNull(key)?.toDoubleOrNull()
-private fun JsonObject.booleanOrDefault(key: String, defaultValue: Boolean): Boolean =
+internal fun JsonObject.intOrNull(key: String): Int? = stringOrNull(key)?.toIntOrNull()
+internal fun JsonObject.booleanOrDefault(key: String, defaultValue: Boolean): Boolean =
     this[key]?.jsonPrimitive?.booleanOrNull ?: defaultValue
 
-private fun buildUploadPreviewUrl(origin: String, sourceType: String, sourceRef: String): String {
+internal fun buildUploadPreviewUrl(origin: String, sourceType: String, sourceRef: String): String {
     if (!sourceType.equals("upload", ignoreCase = true)) return ""
     var path = sourceRef.trim()
     if (path.isBlank()) return ""
@@ -1141,15 +1141,3 @@ private fun openUrlExternally(context: Context, rawUrl: String) {
     }
 }
 
-private fun formatDuration(seconds: Double?): String {
-    if (seconds == null || seconds <= 0) return "-"
-    val total = kotlin.math.round(seconds).toLong()
-    val h = total / 3600
-    val m = (total % 3600) / 60
-    val s = total % 60
-    return if (h > 0) {
-        String.format(Locale.US, "%d:%02d:%02d", h, m, s)
-    } else {
-        String.format(Locale.US, "%d:%02d", m, s)
-    }
-}

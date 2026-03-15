@@ -8,6 +8,16 @@
 
 | 时间戳 | 功能名称 | 类型 | 状态 | 方案包路径 |
 |--------|----------|------|------|------------|
+| 202603151234 | android-branch-coverage-30 | 测试 | ✅已完成 | [链接](2026-03/202603151234_android-branch-coverage-30/) |
+| 202603151042 | android-branch-coverage-10 | 测试 | [-]未执行 | [链接](2026-03/202603151042_android-branch-coverage-10/) |
+| 202603151201 | android-branch-coverage-20 | 测试 | ✅已完成 | [链接](2026-03/202603151201_android-branch-coverage-20/) |
+| 202603151043 | android-branch-coverage-10 | 测试 | ✅已完成 | [链接](2026-03/202603151043_android-branch-coverage-10/) |
+| 202603151025 | android-coverage-task | 测试 | ✅已完成 | [链接](2026-03/202603151025_android-coverage-task/) |
+| 202603151010 | android-media-helper-tests | 测试 | ✅已完成 | [链接](2026-03/202603151010_android-media-helper-tests/) |
+| 202603151005 | android-networkstack-url-tests | 测试 | ✅已完成 | [链接](2026-03/202603151005_android-networkstack-url-tests/) |
+| 202603150958 | android-cache-helper-tests | 测试 | ✅已完成 | [链接](2026-03/202603150958_android-cache-helper-tests/) |
+| 202603150953 | android-more-test-cases | 测试 | ✅已完成 | [链接](2026-03/202603150953_android-more-test-cases/) |
+| 202603150946 | android-test-coverage-status | 测试 | ✅已完成 | [链接](2026-03/202603150946_android-test-coverage-status/) |
 | 202603131455 | android-web-capability-alignment | 功能增强 | ✅已完成 | [链接](2026-03/202603131455_android-web-capability-alignment/) |
 | 202603130550 | android-ws-protocol-reconnect | 修复 | ✅已完成 | [链接](2026-03/202603130550_android-ws-protocol-reconnect/) |
 | 202603131116 | android-gradle-wrapper-upgrade | 修复 | ✅已完成 | [链接](2026-03/202603131116_android-gradle-wrapper-upgrade/) |
@@ -182,6 +192,10 @@
 - [202602011522_db-migrate-postgres](2026-02/202602011522_db-migrate-postgres/) - 旧 PostgreSQL 迁移方案归档（草稿，未执行）
 
 ### 2026-03
+- [202603151234_android-branch-coverage-30](2026-03/202603151234_android-branch-coverage-30/) - Android 补齐 chatroom / douyin / mtphoto 高收益单测，Debug Unit Test branch 覆盖率提升至 31.50%
+- [202603151042_android-branch-coverage-10](2026-03/202603151042_android-branch-coverage-10/) - Android branch 10% 提升的重复草稿方案包归档（未执行，已由 202603151043 方案替代）
+- [202603151201_android-branch-coverage-20](2026-03/202603151201_android-branch-coverage-20/) - Android 补齐 videoextract/douyin/mtphoto 高收益单测，Debug Unit Test branch 覆盖率提升至 21.63%
+- [202603151043_android-branch-coverage-10](2026-03/202603151043_android-branch-coverage-10/) - Android JaCoCo 统计口径收敛并补齐 Repository / helper JVM 单测，Debug Unit Test branch 覆盖率提升至 10.15%
 - [202603131135_android-build-unblock](2026-03/202603131135_android-build-unblock/) - 修复主题资源、Room/KAPT 兼容与 Kotlin/Compose API 适配，恢复 Android 编译与单测
 - [202603131116_android-gradle-wrapper-upgrade](2026-03/202603131116_android-gradle-wrapper-upgrade/) - 为 `android-app/` 补齐 Gradle Wrapper 8.9，并完成首次本地构建入口验证
 - [202603130550_android-ws-protocol-reconnect](2026-03/202603130550_android-ws-protocol-reconnect/) - Android WebSocket 最小协议目录、forceout(-3/-4) 处理与真实自动重连

@@ -687,7 +687,7 @@ private fun openTaskCreatedTip(context: Context, taskId: String) {
     android.widget.Toast.makeText(context, "任务已创建，可后续在任务中心查看：$taskId", android.widget.Toast.LENGTH_LONG).show()
 }
 
-private fun VideoExtractCreateUiState.validationError(): String? {
+internal fun VideoExtractCreateUiState.validationError(): String? {
     if (source == null) return "请先选择本地视频"
     if (probe == null) return probeError ?: "请先完成视频探测"
     val maxFramesValue = maxFrames.trim().toIntOrNull() ?: return "maxFrames 必须为正整数"
@@ -718,7 +718,7 @@ private fun VideoExtractCreateUiState.validationError(): String? {
     return null
 }
 
-private fun VideoExtractCreateUiState.toCreatePayloadOrError(): AppResult<VideoExtractCreatePayload> {
+internal fun VideoExtractCreateUiState.toCreatePayloadOrError(): AppResult<VideoExtractCreatePayload> {
     validationError()?.let { return AppResult.Error(it) }
     val start = startSec.trim().takeIf { it.isNotBlank() }?.toDoubleOrNull()
     val end = endSec.trim().takeIf { it.isNotBlank() }?.toDoubleOrNull()
@@ -741,26 +741,26 @@ private fun VideoExtractCreateUiState.toCreatePayloadOrError(): AppResult<VideoE
     )
 }
 
-private fun JsonObject.toProbeSummary(): VideoExtractProbeSummary = VideoExtractProbeSummary(
+internal fun JsonObject.toProbeSummary(): VideoExtractProbeSummary = VideoExtractProbeSummary(
     durationSec = doubleOrDefault("durationSec", 0.0),
     width = intOrDefault("width", 0),
     height = intOrDefault("height", 0),
     avgFps = doubleOrNull("avgFps"),
 )
 
-private fun JsonObject.intOrDefault(key: String, defaultValue: Int): Int =
+internal fun JsonObject.intOrDefault(key: String, defaultValue: Int): Int =
     stringOrNull(key)?.toIntOrNull() ?: defaultValue
 
-private fun JsonObject.longOrDefault(key: String, defaultValue: Long): Long =
+internal fun JsonObject.longOrDefault(key: String, defaultValue: Long): Long =
     stringOrNull(key)?.toLongOrNull() ?: defaultValue
 
-private fun JsonObject.doubleOrNull(key: String): Double? =
+internal fun JsonObject.doubleOrNull(key: String): Double? =
     stringOrNull(key)?.toDoubleOrNull()
 
-private fun JsonObject.doubleOrDefault(key: String, defaultValue: Double): Double =
+internal fun JsonObject.doubleOrDefault(key: String, defaultValue: Double): Double =
     doubleOrNull(key) ?: defaultValue
 
-private fun estimateFrames(state: VideoExtractCreateUiState): Int? {
+internal fun estimateFrames(state: VideoExtractCreateUiState): Int? {
     val probe = state.probe ?: return null
     val start = state.startSec.trim().toDoubleOrNull() ?: 0.0
     val end = state.endSec.trim().toDoubleOrNull()?.takeIf { it > 0 } ?: probe.durationSec
@@ -779,7 +779,7 @@ private fun estimateFrames(state: VideoExtractCreateUiState): Int? {
     }
 }
 
-private fun formatDuration(seconds: Double?): String {
+internal fun formatDuration(seconds: Double?): String {
     if (seconds == null || seconds <= 0) return "-"
     val total = kotlin.math.round(seconds).toLong()
     val h = total / 3600
@@ -792,7 +792,7 @@ private fun formatDuration(seconds: Double?): String {
     }
 }
 
-private fun Long.toReadableSize(): String {
+internal fun Long.toReadableSize(): String {
     if (this <= 0L) return "未知"
     val kb = 1024.0
     val mb = kb * 1024.0

@@ -240,6 +240,14 @@ class MtPhotoRepository @Inject constructor(
         onFailure = { AppResult.Error(it.message ?: "导入 mtPhoto 媒体失败", it) },
     )
 
+    internal fun mapAlbumSummaryForTest(element: JsonElement): MtPhotoAlbumSummary? = element.toAlbumSummary()
+
+    internal fun mapFolderSummaryForTest(element: JsonElement): MtPhotoFolderSummary? = element.toFolderSummary()
+
+    internal fun mapMediaSummaryForTest(element: JsonElement): MtPhotoMediaSummary? = element.toMediaSummary()
+
+    internal fun thumbUrlForTest(md5: String, size: String): String = thumbUrl(md5, size)
+
     private fun JsonElement.toAlbumSummary(): MtPhotoAlbumSummary? {
         val root = this as? JsonObject ?: return null
         val id = root.longOrNull("id") ?: return null
@@ -1270,29 +1278,29 @@ private fun SectionTitle(text: String) {
     )
 }
 
-private fun currentVisibleItemCount(state: MtPhotoUiState): Int = when (state.mode) {
+internal fun currentVisibleItemCount(state: MtPhotoUiState): Int = when (state.mode) {
     MtPhotoMode.ALBUMS -> if (state.selectedAlbum == null) state.albums.size else state.albumItems.size
     MtPhotoMode.FOLDERS -> state.currentFolders.size + state.folderItems.size
 }
 
-private fun JsonObject.stringOrNull(key: String): String? =
+internal fun JsonObject.stringOrNull(key: String): String? =
     this[key]?.let { runCatching { it.jsonPrimitive.contentOrNull ?: it.jsonPrimitive.content }.getOrNull() }?.takeIf { it.isNotBlank() }
 
-private fun JsonObject.longOrNull(key: String): Long? = stringOrNull(key)?.toLongOrNull()
+internal fun JsonObject.longOrNull(key: String): Long? = stringOrNull(key)?.toLongOrNull()
 
-private fun JsonObject.intOrDefault(key: String, defaultValue: Int): Int = stringOrNull(key)?.toIntOrNull() ?: defaultValue
+internal fun JsonObject.intOrDefault(key: String, defaultValue: Int): Int = stringOrNull(key)?.toIntOrNull() ?: defaultValue
 
-private fun JsonObject.booleanOrFalse(key: String): Boolean = stringOrNull(key)?.toBooleanStrictOrNull() ?: false
+internal fun JsonObject.booleanOrFalse(key: String): Boolean = stringOrNull(key)?.toBooleanStrictOrNull() ?: false
 
-private fun JsonObject.errorMessage(): String? = stringOrNull("error") ?: stringOrNull("msg")?.takeIf { this["data"] == null && this["folderList"] == null }
+internal fun JsonObject.errorMessage(): String? = stringOrNull("error") ?: stringOrNull("msg")?.takeIf { this["data"] == null && this["folderList"] == null }
 
-private fun String.toFolderName(fallback: String): String {
+internal fun String.toFolderName(fallback: String): String {
     val normalized = trim().replace('\\', '/')
     if (normalized.isBlank()) return fallback
     return normalized.substringAfterLast('/').ifBlank { fallback }
 }
 
-private fun firstCoverMd5(cover: String?, sCover: String?): String {
+internal fun firstCoverMd5(cover: String?, sCover: String?): String {
     val secondary = sCover?.trim().orEmpty()
     if (secondary.isNotBlank()) return secondary
     val primary = cover?.trim().orEmpty()
