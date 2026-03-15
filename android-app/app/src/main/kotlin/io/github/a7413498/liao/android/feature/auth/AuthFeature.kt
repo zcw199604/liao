@@ -6,7 +6,6 @@ package io.github.a7413498.liao.android.feature.auth
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -53,22 +52,36 @@ class AuthRepository @Inject constructor(
         onFailure = { AppResult.Error(it.message ?: "登录失败", it) },
     )
 
-    suspend fun hasValidToken(): Boolean = runCatching {
-        val token = preferencesStore.readAuthToken()
-        if (token.isNullOrBlank()) return false
-        authApiService.verify().valid == true
-    }.getOrElse {
-        LiaoLogger.w("AuthRepository", "Token 校验失败", it)
-        false
-    }
+    suspend fun restoreSessionState(): AppResult<Boolean> = runCatching {
+        val token = preferencesStore.readAuthToken().orEmpty()
+        if (token.isBlank()) return@runCatching false
+        val valid = authApiService.verify().valid == true
+        if (!valid) {
+            preferencesStore.clearAuthToken()
+            preferencesStore.clearCurrentSession()
+            return@runCatching false
+        }
+        preferencesStore.readCurrentSession() != null
+    }.fold(
+        onSuccess = { AppResult.Success(it) },
+        onFailure = {
+            LiaoLogger.w("AuthRepository", "Token 校验失败，已清理本地会话", it)
+            runCatching {
+                preferencesStore.clearAuthToken()
+                preferencesStore.clearCurrentSession()
+            }
+            AppResult.Error(it.message ?: "登录状态恢复失败", it)
+        },
+    )
 }
 
 data class LoginUiState(
     val baseUrl: String = "http://10.0.2.2:8080/api/",
     val accessCode: String = "",
-    val loading: Boolean = false,
+    val loading: Boolean = true,
     val errorMessage: String? = null,
     val loggedIn: Boolean = false,
+    val hasCurrentSession: Boolean = false,
 )
 
 @HiltViewModel
@@ -81,9 +94,25 @@ class LoginViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            uiState = uiState.copy(baseUrl = preferencesStore.readBaseUrl())
-            if (authRepository.hasValidToken()) {
-                uiState = uiState.copy(loggedIn = true)
+            val baseUrl = preferencesStore.readBaseUrl()
+            when (val result = authRepository.restoreSessionState()) {
+                is AppResult.Success -> {
+                    val hasToken = !preferencesStore.readAuthToken().isNullOrBlank()
+                    uiState = uiState.copy(
+                        baseUrl = baseUrl,
+                        loading = false,
+                        loggedIn = hasToken,
+                        hasCurrentSession = result.data,
+                    )
+                }
+
+                is AppResult.Error -> uiState = uiState.copy(
+                    baseUrl = baseUrl,
+                    loading = false,
+                    loggedIn = false,
+                    hasCurrentSession = false,
+                    errorMessage = result.message,
+                )
             }
         }
     }
@@ -101,7 +130,11 @@ class LoginViewModel @Inject constructor(
         viewModelScope.launch {
             uiState = uiState.copy(loading = true, errorMessage = null)
             when (val result = authRepository.login(uiState.baseUrl, uiState.accessCode)) {
-                is AppResult.Success -> uiState = uiState.copy(loading = false, loggedIn = true)
+                is AppResult.Success -> uiState = uiState.copy(
+                    loading = false,
+                    loggedIn = true,
+                    hasCurrentSession = false,
+                )
                 is AppResult.Error -> uiState = uiState.copy(loading = false, errorMessage = result.message)
             }
         }
@@ -111,13 +144,13 @@ class LoginViewModel @Inject constructor(
 @Composable
 fun LoginScreen(
     viewModel: LoginViewModel,
-    onLoginSuccess: () -> Unit,
+    onLoginSuccess: (Boolean) -> Unit,
 ) {
     val state = viewModel.uiState
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(state.loggedIn) {
-        if (state.loggedIn) onLoginSuccess()
+    LaunchedEffect(state.loggedIn, state.hasCurrentSession) {
+        if (state.loggedIn) onLoginSuccess(state.hasCurrentSession)
     }
 
     LaunchedEffect(state.errorMessage) {
@@ -143,6 +176,7 @@ fun LoginScreen(
                 onValueChange = viewModel::updateBaseUrl,
                 label = { Text("API Base URL") },
                 singleLine = true,
+                enabled = !state.loading,
             )
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
@@ -150,15 +184,15 @@ fun LoginScreen(
                 onValueChange = viewModel::updateAccessCode,
                 label = { Text("访问码") },
                 singleLine = true,
+                enabled = !state.loading,
             )
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !state.loading && state.accessCode.isNotBlank(),
                 onClick = viewModel::login,
-                contentPadding = PaddingValues(vertical = 14.dp),
             ) {
                 if (state.loading) {
-                    CircularProgressIndicator(strokeWidth = 2.dp)
+                    CircularProgressIndicator()
                 } else {
                     Text("登录")
                 }

@@ -123,7 +123,7 @@ export const useWebSocket = () => {
     // WebSocket URL中添加token参数
     const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const wsUrlWithToken = `${scheme}://${window.location.host}${WS_URL}?token=${encodeURIComponent(token)}`
-    console.log('正在连接 WebSocket (已携带Token):', wsUrlWithToken)
+    console.log('正在连接 WebSocket (已携带认证信息)')
 
     const socket = new WebSocket(wsUrlWithToken)
     const connection: ActiveWebSocketConnection = {

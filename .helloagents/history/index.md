@@ -8,6 +8,7 @@
 
 | 时间戳 | 功能名称 | 类型 | 状态 | 方案包路径 |
 |--------|----------|------|------|------------|
+| 202603131455 | android-web-capability-alignment | 功能增强 | ✅已完成 | [链接](2026-03/202603131455_android-web-capability-alignment/) |
 | 202603130550 | android-ws-protocol-reconnect | 修复 | ✅已完成 | [链接](2026-03/202603130550_android-ws-protocol-reconnect/) |
 | 202603131116 | android-gradle-wrapper-upgrade | 修复 | ✅已完成 | [链接](2026-03/202603131116_android-gradle-wrapper-upgrade/) |
 | 202603131135 | android-build-unblock | 修复 | ✅已完成 | [链接](2026-03/202603131135_android-build-unblock/) |

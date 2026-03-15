@@ -40,6 +40,7 @@ import retrofit2.http.Streaming
 import retrofit2.http.Url
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
+import okhttp3.RequestBody
 
 @Singleton
 class BaseUrlProvider @Inject constructor(
@@ -112,7 +113,10 @@ class TokenAuthenticator @Inject constructor(
 ) : Authenticator {
     override fun authenticate(route: Route?, response: Response): Request? {
         if (response.request.header("Authorization").isNullOrBlank()) return null
-        runBlocking { preferencesStore.clearAuthToken() }
+        runBlocking {
+            preferencesStore.clearAuthToken()
+            preferencesStore.clearCurrentSession()
+        }
         return null
     }
 }
@@ -200,7 +204,7 @@ interface ChatApiService {
         @Field("cookieData") cookieData: String,
         @Field("referer") referer: String,
         @Field("userAgent") userAgent: String,
-    ): List<ChatMessageDto>
+    ): JsonElement
 
     @FormUrlEncoded
     @POST("/api/reportReferrer")
@@ -247,6 +251,19 @@ interface FavoriteApiService {
         @Field("targetUserName") targetUserName: String,
     ): ApiEnvelope<JsonElement>
 
+    @FormUrlEncoded
+    @POST("/api/favorite/remove")
+    suspend fun removeFavorite(
+        @Field("identityId") identityId: String,
+        @Field("targetUserId") targetUserId: String,
+    ): ApiEnvelope<Unit>
+
+    @FormUrlEncoded
+    @POST("/api/favorite/removeById")
+    suspend fun removeFavoriteById(
+        @Field("id") id: Int,
+    ): ApiEnvelope<Unit>
+
     @GET("/api/favorite/listAll")
     suspend fun listAllFavorites(): ApiEnvelope<List<JsonElement>>
 }
@@ -254,7 +271,17 @@ interface FavoriteApiService {
 interface MediaApiService {
     @Multipart
     @POST("/api/uploadMedia")
-    suspend fun uploadMedia(@Part file: MultipartBody.Part): ResponseBody
+    suspend fun uploadMedia(
+        @Part file: MultipartBody.Part,
+        @Part("userid") userId: RequestBody,
+        @Part("cookieData") cookieData: RequestBody,
+        @Part("referer") referer: RequestBody,
+        @Part("userAgent") userAgent: RequestBody,
+        @Part("source") source: RequestBody,
+    ): JsonElement
+
+    @GET("/api/getImgServer")
+    suspend fun getImgServer(): ResponseBody
 
     @GET("/api/getAllUploadImages")
     suspend fun getAllUploadImages(
@@ -282,20 +309,61 @@ interface MediaApiService {
 
     @POST("/api/batchDeleteMedia")
     suspend fun batchDeleteMedia(@Body payload: JsonElement): ApiEnvelope<Unit>
+
+    @FormUrlEncoded
+    @POST("/api/reuploadHistoryImage")
+    suspend fun reuploadHistoryImage(
+        @Field("userId") userId: String,
+        @Field("localPath") localPath: String,
+        @Field("cookieData") cookieData: String,
+        @Field("referer") referer: String,
+        @Field("userAgent") userAgent: String,
+    ): JsonElement
 }
 
 interface MtPhotoApiService {
     @GET("/api/getMtPhotoAlbums")
     suspend fun getAlbums(): JsonElement
 
+    @FormUrlEncoded
+    @POST("/api/importMtPhotoMedia")
+    suspend fun importMtPhotoMedia(
+        @Field("userid") userId: String,
+        @Field("md5") md5: String,
+    ): JsonElement
+
     @GET("/api/getMtPhotoAlbumFiles")
-    suspend fun getAlbumFiles(@Query("albumId") albumId: Long): JsonElement
+    suspend fun getAlbumFiles(
+        @Query("albumId") albumId: Long,
+        @Query("page") page: Int = 1,
+        @Query("pageSize") pageSize: Int = 60,
+    ): JsonElement
 
     @GET("/api/getMtPhotoFolderRoot")
     suspend fun getFolderRoot(): JsonElement
 
     @GET("/api/getMtPhotoFolderContent")
-    suspend fun getFolderContent(@Query("folderId") folderId: Long): JsonElement
+    suspend fun getFolderContent(
+        @Query("folderId") folderId: Long,
+        @Query("page") page: Int = 1,
+        @Query("pageSize") pageSize: Int = 60,
+        @Query("includeTimeline") includeTimeline: Boolean = true,
+    ): JsonElement
+
+    @GET("/api/getMtPhotoFolderFavorites")
+    suspend fun getFolderFavorites(): JsonElement
+
+    @POST("/api/upsertMtPhotoFolderFavorite")
+    suspend fun upsertFolderFavorite(@Body payload: JsonElement): JsonElement
+
+    @POST("/api/removeMtPhotoFolderFavorite")
+    suspend fun removeFolderFavorite(@Body payload: JsonElement): JsonElement
+
+    @GET("/api/getMtPhotoSameMedia")
+    suspend fun getSameMedia(
+        @Query("md5") md5: String? = null,
+        @Query("localPath") localPath: String? = null,
+    ): JsonElement
 }
 
 interface DouyinApiService {
@@ -305,6 +373,56 @@ interface DouyinApiService {
     @POST("/api/douyin/account")
     suspend fun getAccount(@Body payload: JsonElement): JsonElement
 
+    @FormUrlEncoded
+    @POST("/api/douyin/import")
+    suspend fun importMedia(
+        @Field("userid") userId: String,
+        @Field("key") key: String,
+        @Field("index") index: Int,
+    ): JsonElement
+
+    @GET("/api/douyin/favoriteUser/list")
+    suspend fun listFavoriteUsers(): JsonElement
+
+    @POST("/api/douyin/favoriteUser/add")
+    suspend fun addFavoriteUser(@Body payload: JsonElement): JsonElement
+
+    @POST("/api/douyin/favoriteUser/remove")
+    suspend fun removeFavoriteUser(@Body payload: JsonElement): JsonElement
+
+    @GET("/api/douyin/favoriteAweme/list")
+    suspend fun listFavoriteAwemes(): JsonElement
+
+    @POST("/api/douyin/favoriteAweme/add")
+    suspend fun addFavoriteAweme(@Body payload: JsonElement): JsonElement
+
+    @POST("/api/douyin/favoriteAweme/remove")
+    suspend fun removeFavoriteAweme(@Body payload: JsonElement): JsonElement
+
+    @GET("/api/douyin/favoriteUser/tag/list")
+    suspend fun listFavoriteUserTags(): JsonElement
+
+    @POST("/api/douyin/favoriteUser/tag/add")
+    suspend fun addFavoriteUserTag(@Body payload: JsonElement): JsonElement
+
+    @POST("/api/douyin/favoriteUser/tag/remove")
+    suspend fun removeFavoriteUserTag(@Body payload: JsonElement): JsonElement
+
+    @POST("/api/douyin/favoriteUser/tag/apply")
+    suspend fun applyFavoriteUserTags(@Body payload: JsonElement): JsonElement
+
+    @GET("/api/douyin/favoriteAweme/tag/list")
+    suspend fun listFavoriteAwemeTags(): JsonElement
+
+    @POST("/api/douyin/favoriteAweme/tag/add")
+    suspend fun addFavoriteAwemeTag(@Body payload: JsonElement): JsonElement
+
+    @POST("/api/douyin/favoriteAweme/tag/remove")
+    suspend fun removeFavoriteAwemeTag(@Body payload: JsonElement): JsonElement
+
+    @POST("/api/douyin/favoriteAweme/tag/apply")
+    suspend fun applyFavoriteAwemeTags(@Body payload: JsonElement): JsonElement
+
     @Streaming
     @GET
     suspend fun downloadFile(@Url url: String): ResponseBody
@@ -313,6 +431,15 @@ interface DouyinApiService {
 interface SystemApiService {
     @GET("/api/getConnectionStats")
     suspend fun getConnectionStats(): ApiEnvelope<ConnectionStatsDto>
+
+    @POST("/api/disconnectAllConnections")
+    suspend fun disconnectAllConnections(): ApiEnvelope<Unit>
+
+    @GET("/api/getForceoutUserCount")
+    suspend fun getForceoutUserCount(): ApiEnvelope<Int>
+
+    @POST("/api/clearForceoutUsers")
+    suspend fun clearForceoutUsers(): ApiEnvelope<Unit>
 
     @GET("/api/getSystemConfig")
     suspend fun getSystemConfig(): ApiEnvelope<SystemConfigDto>
@@ -338,6 +465,28 @@ interface VideoExtractApiService {
 
     @POST("/api/createVideoExtractTask")
     suspend fun createTask(@Body payload: JsonElement): ApiEnvelope<JsonElement>
+
+    @GET("/api/getVideoExtractTaskList")
+    suspend fun getTaskList(
+        @Query("page") page: Int,
+        @Query("pageSize") pageSize: Int,
+    ): ApiEnvelope<JsonElement>
+
+    @GET("/api/getVideoExtractTaskDetail")
+    suspend fun getTaskDetail(
+        @Query("taskId") taskId: String,
+        @Query("cursor") cursor: Int = 0,
+        @Query("pageSize") pageSize: Int = 80,
+    ): ApiEnvelope<JsonElement>
+
+    @POST("/api/cancelVideoExtractTask")
+    suspend fun cancelTask(@Body payload: JsonElement): ApiEnvelope<Unit>
+
+    @POST("/api/continueVideoExtractTask")
+    suspend fun continueTask(@Body payload: JsonElement): ApiEnvelope<Unit>
+
+    @POST("/api/deleteVideoExtractTask")
+    suspend fun deleteTask(@Body payload: JsonElement): ApiEnvelope<Unit>
 }
 
 @Module
@@ -354,7 +503,7 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideLoggingInterceptor(): HttpLoggingInterceptor =
-        HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
+        HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.NONE }
 
     @Provides
     @Singleton

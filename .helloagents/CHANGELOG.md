@@ -7,6 +7,26 @@
 ## [Unreleased]
 
 ### 新增
+- Android：补齐应用级会话协调器 `AppCoordinatorViewModel`，统一管理启动恢复、token/currentSession 生命周期、forceout 跳登录、WS 自动连接与 Room 会话/消息实时落库。
+- Android：落地全局收藏真实页面（按身份分组、按 ID 取消收藏、切换身份直达聊天），并将会话列表“全局收藏”入口接入真实导航。
+- Android：聊天页补齐 optimistic 发送、回显合并、失败重试、收藏切换、拉黑、清空重载与在线状态查询等对齐能力；设置页补齐身份编辑（含 `updateIdentityId` / `chgname` / `modinfo`）与连接运维操作。
+- Android：对齐 `/api/getMessageHistory` 的 `contents_list` / `firstTid` 协议，聊天页新增“查看历史消息”分页入口并修正仅在首屏或新消息时自动贴底；会话列表开始消费 `MatchSuccess` / `ConnectNotice` / `MatchCancelled` typed events，且 `AppCoordinatorViewModel` 会将匹配成功对象写入 Room 会话缓存。
+- Android：聊天页新增媒体 BottomSheet，支持选择图片 / 视频 / 文件上传、保留“已上传待发送”列表、查询聊天历史媒体并直接浏览；发送媒体时会调用 `recordImageSend` 回写关系记录。
+- Android：图片消息改为直接预览渲染，视频 / 文件消息改为可点击打开的卡片展示，不再只显示原始 `[path]`。
+- Android：新增“图片管理”真实页面，支持浏览全站上传媒体、打开图片/视频/文件、单项删除、批量删除与分页加载更多。
+- Android：设置页新增图片端口策略配置（`imagePortMode` / `imagePortFixed` / `imagePortRealMinBytes` / `mtPhotoTimelineDeferSubfolderThreshold`）与“图片管理”入口，并将聊天页媒体 URL 解析对齐为 `fixed` 直连、`probe/real` 统一走 `/api/resolveImagePort`。
+- Android：新增 mtPhoto 页面与设置入口，支持相册/目录基础浏览、缩略图预览，以及按 `mtPhotoTimelineDeferSubfolderThreshold` 触发目录时间线延迟加载。
+- Android：聊天页媒体 BottomSheet 新增 mtPhoto 相册入口；预览项支持“导入到会话”，会先调用 `/api/importMtPhotoMedia` 落本地，再通过 `/api/reuploadHistoryImage` 回灌到当前会话的待发送媒体列表。
+- Android：mtPhoto 目录模式补齐目录收藏主流程（查看/收藏/取消/直达目录），图片管理页新增“查看 mtPhoto 同媒体”入口，可基于上传媒体本地路径查询并跳转到对应 mtPhoto 目录。
+- Android：新增抖音下载入口页，支持分享文本/链接/作品 ID 解析、主结果封面与媒体列表展示，并提供图片预览、外部打开与系统下载队列入口。
+- Android：抖音下载页已补齐导入主流程，支持调用 `/api/douyin/import` 导入本地媒体库；聊天页媒体 BottomSheet 新增“抖音下载”入口，导入结果会经 `/api/reuploadHistoryImage` 回灌到当前会话待发送列表。
+- Android：抖音下载页升级为三模式（作品解析 / 用户作品 / 收藏），新增作者收藏、作品收藏，以及两类标签的创建 / 删除 / 应用最小可用能力。
+- Android：设置页新增“视频抽帧”入口与独立创建页，支持本地视频选择、`/api/uploadVideoExtractInput` 上传、`/api/probeVideo` 探测，并按 Web 默认参数模型提交 `/api/createVideoExtractTask`。
+- Android：新增“抽帧任务中心”页面，支持查看任务列表、详情、已生成帧结果，并补齐取消 / 继续 / 删除等生命周期操作。
+- Android：设置页新增主题偏好（跟随系统 / 浅色 / 深色），并通过 DataStore 持久化；应用启动时会按该偏好应用 Material 主题。
+- Android：扩展离线恢复链路——全局收藏继续使用 Room 缓存；系统配置、全局媒体库、抽帧任务列表与任务详情新增 DataStore JSON 快照；设置页、媒体库、抽帧任务中心在网络失败时可回退最近缓存，聊天页图片端口解析与 mtPhoto 时间线阈值也可复用缓存系统配置。
+- Android：完成 13.x / 14.x 收口审计——认证态迁移到加密首选项保存，当前身份恢复不再持久化 cookie；应用禁用 `allowBackup`，OkHttp 基础日志降为 `NONE`，未识别 WS 事件日志仅输出 `code/act/bytes` 元信息；并完成 `go test ./...` 与 `cd frontend && npm run build` 验证。
+
 - Android：新增 `android-app/` 原生客户端首期工程骨架，落地 Compose + Hilt + Retrofit + Room + DataStore + WebSocket 基础设施，并补充登录 / 身份 / 会话列表 / 聊天 / 设置页面主流程与协议基线。
 - 后端：聊天用户列表新增本地归档兜底（表 `chat_user_archive`，迁移 `sql/{dialect}/007_chat_user_archive.sql`）。`/api/getHistoryUserList` 与 `/api/getFavoriteUserList` 会在上游成功时落库快照并合并返回归档用户（标记 `localArchived=true`），在上游失败时若本地有归档可直接回退返回；`/api/getMessageHistory` 会同步触达会话并更新归档最后消息，降低上游清理用户后的不可恢复风险。
 - 后端：删除会话接口（单删 `/deleteUpstreamUser`、批删 `/batchDeleteUpstreamUsers`）在上游删除成功后会同步清理本地 `chat_user_archive` 对应记录，避免手动删除后归档会话再次回流。

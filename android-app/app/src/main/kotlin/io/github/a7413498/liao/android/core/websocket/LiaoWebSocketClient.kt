@@ -4,9 +4,13 @@
  */
 package io.github.a7413498.liao.android.core.websocket
 
+import io.github.a7413498.liao.android.core.common.ChatMessageType
+import io.github.a7413498.liao.android.core.common.ChatPeer
 import io.github.a7413498.liao.android.core.common.ChatTimelineMessage
 import io.github.a7413498.liao.android.core.common.CurrentIdentitySession
 import io.github.a7413498.liao.android.core.common.LiaoLogger
+import io.github.a7413498.liao.android.core.common.inferFileName
+import io.github.a7413498.liao.android.core.common.inferMessageType
 import io.github.a7413498.liao.android.core.common.inferPrivateMessageIsSelf
 import io.github.a7413498.liao.android.core.network.BaseUrlProvider
 import java.util.concurrent.atomic.AtomicLong
@@ -68,6 +72,8 @@ enum class LiaoWsKnownAct(val wireName: String) {
     ShowUserLoginInfo("ShowUserLoginInfo"),
     WarningReport("warningreport"),
     RandomOut("randomOut"),
+    ChangeName("chgname"),
+    ModifyInfo("modinfo"),
     PrivateMessage("touser_*"),
 }
 
@@ -91,6 +97,8 @@ object LiaoWsProtocolCatalog {
         const val SHOW_USER_LOGIN_INFO = "ShowUserLoginInfo"
         const val WARNING_REPORT = "warningreport"
         const val RANDOM_OUT = "randomOut"
+        const val CHANGE_NAME = "chgname"
+        const val MODIFY_INFO = "modinfo"
 
         fun privateMessage(targetUserId: String, targetUserName: String): String =
             "touser_${targetUserId}_${targetUserName}"
@@ -146,17 +154,14 @@ object LiaoWsProtocolCatalog {
         )
     }.getOrNull()
 
-    private fun JsonObject.intOrNull(key: String): Int? =
-        this[key]?.jsonPrimitive?.intOrNull
+    fun parseRoot(raw: String, json: Json = parserJson): JsonObject? = runCatching {
+        json.parseToJsonElement(raw).jsonObject
+    }.getOrNull()
 
-    private fun JsonObject.stringOrEmpty(key: String): String =
-        this[key]?.jsonPrimitive?.contentOrNull.orEmpty().trim()
-
-    private fun JsonObject.booleanOrFalse(key: String): Boolean =
-        this[key]?.jsonPrimitive?.booleanOrNull ?: false
-
-    private fun JsonObject.objectOrNull(key: String): JsonObject? =
-        this[key] as? JsonObject
+    private fun JsonObject.intOrNull(key: String): Int? = this[key]?.jsonPrimitive?.intOrNull
+    private fun JsonObject.stringOrEmpty(key: String): String = this[key]?.jsonPrimitive?.contentOrNull.orEmpty().trim()
+    private fun JsonObject.booleanOrFalse(key: String): Boolean = this[key]?.jsonPrimitive?.booleanOrNull ?: false
+    private fun JsonObject.objectOrNull(key: String): JsonObject? = this[key] as? JsonObject
 
     private fun JsonObject.toProtocolUser(): LiaoWsProtocolUser = LiaoWsProtocolUser(
         id = stringOrEmpty("id"),
@@ -206,6 +211,7 @@ data class LiaoWsEnvelope(
         if (sender.id.isBlank()) return null
         val messageContent = content
         if (messageContent.isBlank()) return null
+        val inferredType = inferMessageType(messageContent)
         val resolvedTime = time.ifBlank { "刚刚" }
         val resolvedTid = tid.ifBlank { "${resolvedTime}_${sender.id}_${messageContent.hashCode()}" }
         return ChatTimelineMessage(
@@ -219,8 +225,31 @@ data class LiaoWsEnvelope(
                 currentUserId = currentUserId,
                 fromUserId = sender.id,
             ),
+            type = inferredType,
+            mediaUrl = if (inferredType == ChatMessageType.TEXT) "" else messageContent.removePrefix("[").removeSuffix("]"),
+            fileName = if (inferredType == ChatMessageType.TEXT) "" else inferFileName(messageContent),
         )
     }
+}
+
+data class MatchCandidate(
+    val id: String,
+    val name: String,
+    val sex: String,
+    val age: String,
+    val address: String,
+) {
+    fun toPeer(): ChatPeer = ChatPeer(
+        id = id,
+        name = name,
+        sex = sex,
+        ip = "",
+        address = address,
+        isFavorite = false,
+        lastMessage = "匹配成功",
+        lastTime = "刚刚",
+        unreadCount = 0,
+    )
 }
 
 sealed interface LiaoWsEvent {
@@ -237,6 +266,36 @@ sealed interface LiaoWsEvent {
         val envelope: LiaoWsEnvelope,
         val forbiddenUntilMillis: Long,
         val reason: String,
+    ) : LiaoWsEvent
+
+    data class ConnectNotice(
+        override val raw: String,
+        val envelope: LiaoWsEnvelope,
+        val message: String,
+    ) : LiaoWsEvent
+
+    data class Typing(
+        override val raw: String,
+        val peerId: String,
+        val peerName: String,
+        val typing: Boolean,
+    ) : LiaoWsEvent
+
+    data class OnlineStatus(
+        override val raw: String,
+        val envelope: LiaoWsEnvelope,
+        val message: String,
+    ) : LiaoWsEvent
+
+    data class MatchSuccess(
+        override val raw: String,
+        val candidate: MatchCandidate,
+    ) : LiaoWsEvent
+
+    data class MatchCancelled(
+        override val raw: String,
+        val envelope: LiaoWsEnvelope,
+        val message: String,
     ) : LiaoWsEvent
 
     data class Notice(
@@ -336,11 +395,11 @@ class LiaoWebSocketClient @Inject constructor(
         }
     )
 
-    fun sendWarningReport(senderId: String, targetUserId: String): Boolean = sendJson(
+    fun sendWarningReport(targetUserId: String, warningId: String): Boolean = sendJson(
         buildJsonObject {
             put("act", JsonPrimitive(LiaoWsProtocolCatalog.Acts.WARNING_REPORT))
-            put("id", JsonPrimitive(senderId))
-            put("msg", JsonPrimitive(targetUserId))
+            put("id", JsonPrimitive(targetUserId))
+            put("msg", JsonPrimitive(warningId))
         }
     )
 
@@ -348,6 +407,26 @@ class LiaoWebSocketClient @Inject constructor(
         buildJsonObject {
             put("act", JsonPrimitive(LiaoWsProtocolCatalog.Acts.RANDOM_OUT))
             put("id", JsonPrimitive(senderId))
+        }
+    )
+
+    fun sendChangeName(senderId: String, newName: String): Boolean = sendJson(
+        buildJsonObject {
+            put("act", JsonPrimitive(LiaoWsProtocolCatalog.Acts.CHANGE_NAME))
+            put("id", JsonPrimitive(senderId))
+            put("msg", JsonPrimitive(newName))
+        }
+    )
+
+    fun sendModifyInfo(senderId: String, userSex: String): Boolean = sendJson(
+        buildJsonObject {
+            put("act", JsonPrimitive(LiaoWsProtocolCatalog.Acts.MODIFY_INFO))
+            put("id", JsonPrimitive(senderId))
+            put("userSex", JsonPrimitive(userSex))
+            put("address_show", JsonPrimitive("false"))
+            put("randomhealthmode", JsonPrimitive("0"))
+            put("randomvipsex", JsonPrimitive("0"))
+            put("randomvipaddress", JsonPrimitive("0"))
         }
     )
 
@@ -462,9 +541,7 @@ class LiaoWebSocketClient @Inject constructor(
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
             if (!isActiveSocket(socketSerial, webSocket)) return
             releaseActiveSocket(webSocket)
-            if (_state.value is WebSocketState.Forceout) {
-                return
-            }
+            if (_state.value is WebSocketState.Forceout) return
             scheduleReconnect(trigger = "onClosed(code=$code, reason=$reason)")
         }
 
@@ -472,9 +549,7 @@ class LiaoWebSocketClient @Inject constructor(
             if (!isActiveSocket(socketSerial, webSocket)) return
             LiaoLogger.e(TAG, "WebSocket 连接失败", t)
             releaseActiveSocket(webSocket)
-            if (_state.value is WebSocketState.Forceout) {
-                return
-            }
+            if (_state.value is WebSocketState.Forceout) return
             scheduleReconnect(trigger = "onFailure")
         }
     }
@@ -515,6 +590,37 @@ class LiaoWebSocketClient @Inject constructor(
             return
         }
 
+        val root = LiaoWsProtocolCatalog.parseRoot(raw = raw, json = json)
+        val typingEvent = parseTypingEvent(raw = raw, envelope = envelope)
+        if (typingEvent != null) {
+            _events.tryEmit(typingEvent)
+            return
+        }
+
+        when (envelope.knownCode) {
+            LiaoWsKnownCode.ConnectNotice -> {
+                _events.tryEmit(LiaoWsEvent.ConnectNotice(raw = raw, envelope = envelope, message = envelope.content.ifBlank { "连接成功" }))
+                return
+            }
+
+            LiaoWsKnownCode.OnlineStatus -> {
+                _events.tryEmit(LiaoWsEvent.OnlineStatus(raw = raw, envelope = envelope, message = envelope.content.ifBlank { "已返回在线状态" }))
+                return
+            }
+
+            LiaoWsKnownCode.MatchSuccess -> {
+                parseMatchCandidate(root)?.let { _events.tryEmit(LiaoWsEvent.MatchSuccess(raw = raw, candidate = it)) }
+                return
+            }
+
+            LiaoWsKnownCode.MatchCancel -> {
+                _events.tryEmit(LiaoWsEvent.MatchCancelled(raw = raw, envelope = envelope, message = envelope.content.ifBlank { "匹配已取消" }))
+                return
+            }
+
+            else -> Unit
+        }
+
         val chatMessage = envelope.toTimelineMessage(currentUserId = currentSession?.id)
         if (chatMessage != null) {
             _events.tryEmit(LiaoWsEvent.ChatMessage(raw = raw, envelope = envelope, timelineMessage = chatMessage))
@@ -522,21 +628,43 @@ class LiaoWebSocketClient @Inject constructor(
         }
 
         if (envelope.content.isNotBlank()) {
-            _events.tryEmit(
-                LiaoWsEvent.Notice(
-                    raw = raw,
-                    envelope = envelope,
-                    message = envelope.content,
-                )
-            )
+            _events.tryEmit(LiaoWsEvent.Notice(raw = raw, envelope = envelope, message = envelope.content))
             return
         }
 
         _events.tryEmit(LiaoWsEvent.Unknown(raw = raw, envelope = envelope))
     }
 
-    private fun isForceoutActive(nowMillis: Long = System.currentTimeMillis()): Boolean =
-        nowMillis < forceoutUntilMillis
+    private fun parseTypingEvent(raw: String, envelope: LiaoWsEnvelope): LiaoWsEvent.Typing? {
+        val act = envelope.act.orEmpty()
+        val typing = when {
+            act.startsWith("inputStatusOn_") -> true
+            act.startsWith("inputStatusOff_") -> false
+            envelope.knownCode == LiaoWsKnownCode.InputStart -> true
+            envelope.knownCode == LiaoWsKnownCode.InputStop -> false
+            else -> return null
+        }
+        val parts = act.split("_")
+        val peerId = parts.getOrNull(1).orEmpty()
+        val peerName = parts.getOrNull(2).orEmpty().ifBlank { envelope.fromUser?.displayName.orEmpty() }
+        if (peerId.isBlank()) return null
+        return LiaoWsEvent.Typing(raw = raw, peerId = peerId, peerName = peerName, typing = typing)
+    }
+
+    private fun parseMatchCandidate(root: JsonObject?): MatchCandidate? {
+        root ?: return null
+        val id = root["sel_userid"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        if (id.isBlank()) return null
+        return MatchCandidate(
+            id = id,
+            name = root["sel_userNikename"]?.jsonPrimitive?.contentOrNull.orEmpty().ifBlank { "匿名用户" },
+            sex = root["sel_userSex"]?.jsonPrimitive?.contentOrNull.orEmpty().ifBlank { "未知" },
+            age = root["sel_userAge"]?.jsonPrimitive?.contentOrNull.orEmpty().ifBlank { "0" },
+            address = root["sel_userAddress"]?.jsonPrimitive?.contentOrNull.orEmpty().ifBlank { "未知" },
+        )
+    }
+
+    private fun isForceoutActive(nowMillis: Long = System.currentTimeMillis()): Boolean = nowMillis < forceoutUntilMillis
 
     private fun isActiveSocket(socketSerial: Long, socket: WebSocket): Boolean =
         activeSocketSerial == socketSerial && webSocket === socket
@@ -555,9 +683,7 @@ class LiaoWebSocketClient @Inject constructor(
 
     private fun closeSocket(socket: WebSocket, code: Int, reason: String) {
         val closed = runCatching { socket.close(code, reason) }.getOrDefault(false)
-        if (!closed) {
-            socket.cancel()
-        }
+        if (!closed) socket.cancel()
     }
 
     companion object {

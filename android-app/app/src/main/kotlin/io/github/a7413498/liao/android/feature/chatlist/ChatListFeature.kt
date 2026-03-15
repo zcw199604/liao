@@ -1,6 +1,6 @@
 /*
  * 会话列表模块负责加载历史 / 收藏会话，并同步更新本地会话缓存。
- * 当前实现补齐了显式空态、错误态与全局收藏入口占位，方便后续继续扩展。
+ * 当前版本改为以 Room 缓存为真实展示数据源，并允许通过 WS 驱动实时更新。
  */
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 
@@ -50,10 +50,17 @@ import io.github.a7413498.liao.android.core.common.AppResult
 import io.github.a7413498.liao.android.core.common.ChatPeer
 import io.github.a7413498.liao.android.core.database.ConversationDao
 import io.github.a7413498.liao.android.core.database.ConversationEntity
+import io.github.a7413498.liao.android.core.database.toPeer as toCachedPeer
 import io.github.a7413498.liao.android.core.datastore.AppPreferencesStore
 import io.github.a7413498.liao.android.core.network.ChatApiService
 import io.github.a7413498.liao.android.core.network.toPeer
+import io.github.a7413498.liao.android.core.websocket.LiaoWebSocketClient
+import io.github.a7413498.liao.android.core.websocket.LiaoWsEvent
 import javax.inject.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class ChatListRepository @Inject constructor(
@@ -61,11 +68,20 @@ class ChatListRepository @Inject constructor(
     private val conversationDao: ConversationDao,
     private val preferencesStore: AppPreferencesStore,
 ) {
-    suspend fun loadHistory(): AppResult<List<ChatPeer>> = loadConversations(isFavorite = false)
+    fun observeConversations(tab: ConversationTab): Flow<List<ChatPeer>> =
+        conversationDao.observeAll().map { items ->
+            items.filter { if (tab == ConversationTab.HISTORY) true else it.isFavorite }.map { it.toCachedPeer() }
+        }
 
-    suspend fun loadFavorite(): AppResult<List<ChatPeer>> = loadConversations(isFavorite = true)
+    suspend fun loadHistory(): AppResult<Unit> = loadConversations(isFavorite = false)
 
-    private suspend fun loadConversations(isFavorite: Boolean): AppResult<List<ChatPeer>> = runCatching {
+    suspend fun loadFavorite(): AppResult<Unit> = loadConversations(isFavorite = true)
+
+    suspend fun markPeerRead(peerId: String) {
+        conversationDao.markAsRead(peerId)
+    }
+
+    private suspend fun loadConversations(isFavorite: Boolean): AppResult<Unit> = runCatching {
         val session = preferencesStore.readCurrentSession() ?: error("请先选择身份")
         val items = if (isFavorite) {
             chatApiService.getFavoriteUserList(
@@ -83,21 +99,21 @@ class ChatListRepository @Inject constructor(
             ).filterNot { it.id == session.id }.map { it.toPeer() }
         }
         conversationDao.upsert(items.map {
+            val current = conversationDao.getById(it.id)
             ConversationEntity(
                 id = it.id,
                 name = it.name,
-                sex = it.sex,
-                ip = it.ip,
-                address = it.address,
-                isFavorite = it.isFavorite,
-                lastMessage = it.lastMessage,
-                lastTime = it.lastTime,
-                unreadCount = it.unreadCount,
+                sex = it.sex.ifBlank { current?.sex.orEmpty() },
+                ip = it.ip.ifBlank { current?.ip.orEmpty() },
+                address = it.address.ifBlank { current?.address.orEmpty() },
+                isFavorite = if (isFavorite) true else (current?.isFavorite ?: it.isFavorite),
+                lastMessage = it.lastMessage.ifBlank { current?.lastMessage.orEmpty() },
+                lastTime = it.lastTime.ifBlank { current?.lastTime.orEmpty() },
+                unreadCount = current?.unreadCount ?: it.unreadCount,
             )
         })
-        items
     }.fold(
-        onSuccess = { AppResult.Success(it) },
+        onSuccess = { AppResult.Success(Unit) },
         onFailure = { AppResult.Error(it.message ?: "加载会话失败", it) },
     )
 }
@@ -118,22 +134,24 @@ data class ChatListUiState(
 @HiltViewModel
 class ChatListViewModel @Inject constructor(
     private val repository: ChatListRepository,
+    private val webSocketClient: LiaoWebSocketClient,
 ) : ViewModel() {
     var uiState by mutableStateOf(ChatListUiState())
         private set
 
+    private var observeJob: Job? = null
+
     init {
+        observeCurrentTab()
+        observeWebSocketEvents()
         refresh()
     }
 
     fun switchTab(tab: ConversationTab) {
         if (uiState.tab == tab) return
-        uiState = uiState.copy(tab = tab)
+        uiState = uiState.copy(tab = tab, loading = true, errorMessage = null)
+        observeCurrentTab()
         refresh()
-    }
-
-    fun showGlobalFavoriteEntryTip() {
-        uiState = uiState.copy(infoMessage = "已预留全局收藏入口，后续将接入独立页面。")
     }
 
     fun consumeInfoMessage() {
@@ -146,17 +164,46 @@ class ChatListViewModel @Inject constructor(
         viewModelScope.launch {
             uiState = uiState.copy(loading = true, errorMessage = null)
             when (val result = if (uiState.tab == ConversationTab.HISTORY) repository.loadHistory() else repository.loadFavorite()) {
-                is AppResult.Success -> uiState = uiState.copy(
-                    loading = false,
-                    items = result.data,
-                    errorMessage = null,
-                )
+                is AppResult.Success -> uiState = uiState.copy(loading = false, errorMessage = null)
+                is AppResult.Error -> uiState = uiState.copy(loading = false, errorMessage = result.message)
+            }
+        }
+    }
 
-                is AppResult.Error -> uiState = uiState.copy(
-                    loading = false,
-                    items = emptyList(),
-                    errorMessage = result.message,
-                )
+    fun markPeerRead(peerId: String) {
+        viewModelScope.launch {
+            repository.markPeerRead(peerId)
+        }
+    }
+
+    private fun observeCurrentTab() {
+        observeJob?.cancel()
+        observeJob = viewModelScope.launch {
+            repository.observeConversations(uiState.tab).collect { items ->
+                uiState = uiState.copy(items = items, loading = false)
+            }
+        }
+    }
+
+    private fun observeWebSocketEvents() {
+        viewModelScope.launch {
+            webSocketClient.events.collectLatest { event ->
+                when (event) {
+                    is LiaoWsEvent.ConnectNotice -> {
+                        if (event.message.isNotBlank()) {
+                            uiState = uiState.copy(infoMessage = event.message)
+                        }
+                    }
+                    is LiaoWsEvent.MatchCancelled -> {
+                        if (event.message.isNotBlank()) {
+                            uiState = uiState.copy(infoMessage = event.message)
+                        }
+                    }
+                    is LiaoWsEvent.MatchSuccess -> {
+                        uiState = uiState.copy(infoMessage = "匹配成功：${event.candidate.name}")
+                    }
+                    else -> Unit
+                }
             }
         }
     }
@@ -197,6 +244,7 @@ private fun ChatListStateCard(
 fun ChatListScreen(
     viewModel: ChatListViewModel,
     onOpenSettings: () -> Unit,
+    onOpenGlobalFavorites: () -> Unit,
     onOpenChat: (String, String) -> Unit,
 ) {
     val state = viewModel.uiState
@@ -209,12 +257,18 @@ fun ChatListScreen(
         }
     }
 
+    LaunchedEffect(state.errorMessage) {
+        if (!state.errorMessage.isNullOrBlank() && state.items.isNotEmpty()) {
+            snackbarHostState.showSnackbar(state.errorMessage)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("会话列表") },
                 actions = {
-                    TextButton(onClick = viewModel::showGlobalFavoriteEntryTip) {
+                    TextButton(onClick = onOpenGlobalFavorites) {
                         Text("全局收藏")
                     }
                     IconButton(onClick = onOpenSettings) {
@@ -249,10 +303,10 @@ fun ChatListScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 OutlinedButton(
-                    onClick = viewModel::showGlobalFavoriteEntryTip,
+                    onClick = onOpenGlobalFavorites,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text("全局收藏入口（占位）")
+                    Text("全局收藏")
                 }
                 Button(
                     onClick = viewModel::refresh,
@@ -263,7 +317,7 @@ fun ChatListScreen(
                 }
             }
             when {
-                state.loading -> {
+                state.loading && state.items.isEmpty() -> {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -274,7 +328,7 @@ fun ChatListScreen(
                     }
                 }
 
-                !state.errorMessage.isNullOrBlank() -> {
+                !state.errorMessage.isNullOrBlank() && state.items.isEmpty() -> {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -287,8 +341,8 @@ fun ChatListScreen(
                             description = state.errorMessage,
                             primaryActionText = "重试",
                             onPrimaryAction = viewModel::refresh,
-                            secondaryActionText = "打开全局收藏入口",
-                            onSecondaryAction = viewModel::showGlobalFavoriteEntryTip,
+                            secondaryActionText = "打开全局收藏",
+                            onSecondaryAction = onOpenGlobalFavorites,
                         )
                     }
                 }
@@ -306,12 +360,12 @@ fun ChatListScreen(
                             description = if (state.tab == ConversationTab.HISTORY) {
                                 "开始聊天后，这里会显示最近联系的人。"
                             } else {
-                                "你还没有收藏任何会话，可以先使用上方的全局收藏入口占位按钮。"
+                                "你还没有收藏任何会话，可以通过全局收藏查看不同身份下的收藏对象。"
                             },
                             primaryActionText = "刷新",
                             onPrimaryAction = viewModel::refresh,
-                            secondaryActionText = "查看全局收藏入口",
-                            onSecondaryAction = viewModel::showGlobalFavoriteEntryTip,
+                            secondaryActionText = "查看全局收藏",
+                            onSecondaryAction = onOpenGlobalFavorites,
                         )
                     }
                 }
@@ -328,7 +382,10 @@ fun ChatListScreen(
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onOpenChat(peer.id, peer.name) }
+                                    .clickable {
+                                        viewModel.markPeerRead(peer.id)
+                                        onOpenChat(peer.id, peer.name)
+                                    }
                             ) {
                                 Column(
                                     modifier = Modifier.padding(16.dp),

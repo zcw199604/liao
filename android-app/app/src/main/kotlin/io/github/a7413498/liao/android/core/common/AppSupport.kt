@@ -34,6 +34,19 @@ data class ChatPeer(
     val unreadCount: Int = 0,
 )
 
+enum class ChatMessageType {
+    TEXT,
+    IMAGE,
+    VIDEO,
+    FILE,
+}
+
+enum class OutgoingMessageStatus {
+    SENDING,
+    SENT,
+    FAILED,
+}
+
 data class ChatTimelineMessage(
     val id: String,
     val fromUserId: String,
@@ -42,6 +55,33 @@ data class ChatTimelineMessage(
     val content: String,
     val time: String,
     val isSelf: Boolean,
+    val type: ChatMessageType = ChatMessageType.TEXT,
+    val mediaUrl: String = "",
+    val fileName: String = "",
+    val clientId: String = "",
+    val sendStatus: OutgoingMessageStatus = OutgoingMessageStatus.SENT,
+    val sendError: String? = null,
+) {
+    val peerId: String
+        get() = if (isSelf) toUserId else fromUserId
+
+    fun lastMessagePreview(): String {
+        val base = when (type) {
+            ChatMessageType.IMAGE -> if (fileName.isNotBlank()) "[图片] $fileName" else "[图片]"
+            ChatMessageType.VIDEO -> if (fileName.isNotBlank()) "[视频] $fileName" else "[视频]"
+            ChatMessageType.FILE -> if (fileName.isNotBlank()) "[文件] $fileName" else "[文件]"
+            ChatMessageType.TEXT -> content.ifBlank { "[空消息]" }
+        }
+        return if (isSelf) "我: $base" else base
+    }
+}
+
+data class GlobalFavoriteItem(
+    val id: Int,
+    val identityId: String,
+    val targetUserId: String,
+    val targetUserName: String,
+    val createTime: String,
 )
 
 object LiaoLogger {
@@ -69,3 +109,21 @@ fun inferPrivateMessageIsSelf(currentUserId: String, fromUserId: String): Boolea
     if (currentUserId.isBlank() || fromUserId.isBlank()) return false
     return md5Hex(currentUserId).equals(fromUserId, ignoreCase = true)
 }
+
+fun inferMessageType(content: String): ChatMessageType = when {
+    content.startsWith("[") && content.endsWith("]") -> {
+        val path = content.removePrefix("[").removeSuffix("]").lowercase()
+        when {
+            path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".gif") || path.endsWith(".webp") -> ChatMessageType.IMAGE
+            path.endsWith(".mp4") || path.endsWith(".mov") || path.endsWith(".mkv") || path.endsWith(".webm") -> ChatMessageType.VIDEO
+            else -> ChatMessageType.FILE
+        }
+    }
+
+    else -> ChatMessageType.TEXT
+}
+
+fun inferFileName(content: String): String =
+    content.removePrefix("[").removeSuffix("]").substringAfterLast('/').substringAfterLast('\\')
+
+fun normalizeTextForMatch(value: String): String = value.trim().replace("\r\n", "\n")
