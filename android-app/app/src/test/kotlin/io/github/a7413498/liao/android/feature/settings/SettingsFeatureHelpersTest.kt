@@ -37,6 +37,15 @@ class SettingsFeatureHelpersTest {
         assertEquals("深色", LiaoThemePreference.DARK.toDisplayLabel())
     }
 
+
+    @Test
+    fun `resolved current theme label should reflect preference and system mode`() {
+        assertEquals("浅色", resolveCurrentThemeLabel(LiaoThemePreference.AUTO, systemDark = false))
+        assertEquals("深色", resolveCurrentThemeLabel(LiaoThemePreference.AUTO, systemDark = true))
+        assertEquals("浅色", resolveCurrentThemeLabel(LiaoThemePreference.LIGHT, systemDark = true))
+        assertEquals("深色", resolveCurrentThemeLabel(LiaoThemePreference.DARK, systemDark = false))
+    }
+
     private object SystemConfigDtoFixtures {
         val defaults = io.github.a7413498.liao.android.core.network.SystemConfigDto(
             imagePortMode = "fixed",

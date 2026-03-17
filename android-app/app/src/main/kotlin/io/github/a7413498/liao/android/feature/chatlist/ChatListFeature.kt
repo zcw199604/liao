@@ -41,10 +41,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.a7413498.liao.android.app.testing.ChatListTestTags
 import io.github.a7413498.liao.android.BuildConfig
 import io.github.a7413498.liao.android.core.common.AppResult
 import io.github.a7413498.liao.android.core.common.ChatPeer
@@ -217,8 +219,9 @@ private fun ChatListStateCard(
     onPrimaryAction: () -> Unit,
     secondaryActionText: String,
     onSecondaryAction: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -264,147 +267,191 @@ fun ChatListScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("会话列表") },
-                actions = {
-                    TextButton(onClick = onOpenGlobalFavorites) {
-                        Text("全局收藏")
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(imageVector = Icons.Outlined.Settings, contentDescription = "设置")
-                    }
-                }
-            )
-        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            TabRow(selectedTabIndex = state.tab.ordinal) {
-                Tab(
-                    selected = state.tab == ConversationTab.HISTORY,
-                    onClick = { viewModel.switchTab(ConversationTab.HISTORY) },
-                    text = { Text("历史") },
-                )
-                Tab(
-                    selected = state.tab == ConversationTab.FAVORITE,
-                    onClick = { viewModel.switchTab(ConversationTab.FAVORITE) },
-                    text = { Text("收藏") },
-                )
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                OutlinedButton(
+        ChatListScreenContent(
+            state = state,
+            onSwitchTab = viewModel::switchTab,
+            onRefresh = viewModel::refresh,
+            onOpenGlobalFavorites = onOpenGlobalFavorites,
+            onOpenSettings = onOpenSettings,
+            onOpenChat = onOpenChat,
+            onMarkPeerRead = viewModel::markPeerRead,
+            modifier = Modifier.padding(padding),
+        )
+    }
+}
+
+internal fun chatListErrorTitle(tab: ConversationTab): String =
+    if (tab == ConversationTab.HISTORY) "历史会话加载失败" else "收藏会话加载失败"
+
+internal fun chatListEmptyTitle(tab: ConversationTab): String =
+    if (tab == ConversationTab.HISTORY) "暂无历史会话" else "暂无收藏会话"
+
+internal fun chatListEmptyDescription(tab: ConversationTab): String =
+    if (tab == ConversationTab.HISTORY) {
+        "开始聊天后，这里会显示最近联系的人。"
+    } else {
+        "你还没有收藏任何会话，可以通过全局收藏查看不同身份下的收藏对象。"
+    }
+
+@Composable
+fun ChatListScreenContent(
+    state: ChatListUiState,
+    onSwitchTab: (ConversationTab) -> Unit,
+    onRefresh: () -> Unit,
+    onOpenGlobalFavorites: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenChat: (String, String) -> Unit,
+    onMarkPeerRead: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxSize(),
+    ) {
+        TopAppBar(
+            title = { Text("会话列表") },
+            actions = {
+                TextButton(
                     onClick = onOpenGlobalFavorites,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.testTag(ChatListTestTags.TOP_GLOBAL_FAVORITES_BUTTON),
                 ) {
                     Text("全局收藏")
                 }
-                Button(
-                    onClick = viewModel::refresh,
-                    enabled = !state.loading,
-                    modifier = Modifier.weight(1f),
+                IconButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier.testTag(ChatListTestTags.SETTINGS_BUTTON),
                 ) {
-                    Text("刷新列表")
+                    Icon(imageVector = Icons.Outlined.Settings, contentDescription = "设置")
                 }
             }
-            when {
-                state.loading && state.items.isEmpty() -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
-                    }
+        )
+        TabRow(selectedTabIndex = state.tab.ordinal) {
+            Tab(
+                selected = state.tab == ConversationTab.HISTORY,
+                onClick = { onSwitchTab(ConversationTab.HISTORY) },
+                text = { Text("历史") },
+                modifier = Modifier.testTag(ChatListTestTags.HISTORY_TAB),
+            )
+            Tab(
+                selected = state.tab == ConversationTab.FAVORITE,
+                onClick = { onSwitchTab(ConversationTab.FAVORITE) },
+                text = { Text("收藏") },
+                modifier = Modifier.testTag(ChatListTestTags.FAVORITE_TAB),
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OutlinedButton(
+                onClick = onOpenGlobalFavorites,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag(ChatListTestTags.QUICK_GLOBAL_FAVORITES_BUTTON),
+            ) {
+                Text("全局收藏")
+            }
+            Button(
+                onClick = onRefresh,
+                enabled = !state.loading,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag(ChatListTestTags.REFRESH_BUTTON),
+            ) {
+                Text("刷新列表")
+            }
+        }
+        when {
+            state.loading && state.items.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.testTag(ChatListTestTags.LOADING_INDICATOR))
                 }
+            }
 
-                !state.errorMessage.isNullOrBlank() && state.items.isEmpty() -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        ChatListStateCard(
-                            title = if (state.tab == ConversationTab.HISTORY) "历史会话加载失败" else "收藏会话加载失败",
-                            description = state.errorMessage,
-                            primaryActionText = "重试",
-                            onPrimaryAction = viewModel::refresh,
-                            secondaryActionText = "打开全局收藏",
-                            onSecondaryAction = onOpenGlobalFavorites,
-                        )
-                    }
+            !state.errorMessage.isNullOrBlank() && state.items.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    ChatListStateCard(
+                        title = chatListErrorTitle(state.tab),
+                        description = state.errorMessage,
+                        primaryActionText = "重试",
+                        onPrimaryAction = onRefresh,
+                        secondaryActionText = "打开全局收藏",
+                        onSecondaryAction = onOpenGlobalFavorites,
+                        modifier = Modifier.testTag(ChatListTestTags.STATE_CARD),
+                    )
                 }
+            }
 
-                state.items.isEmpty() -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        ChatListStateCard(
-                            title = if (state.tab == ConversationTab.HISTORY) "暂无历史会话" else "暂无收藏会话",
-                            description = if (state.tab == ConversationTab.HISTORY) {
-                                "开始聊天后，这里会显示最近联系的人。"
-                            } else {
-                                "你还没有收藏任何会话，可以通过全局收藏查看不同身份下的收藏对象。"
-                            },
-                            primaryActionText = "刷新",
-                            onPrimaryAction = viewModel::refresh,
-                            secondaryActionText = "查看全局收藏",
-                            onSecondaryAction = onOpenGlobalFavorites,
-                        )
-                    }
+            state.items.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    ChatListStateCard(
+                        title = chatListEmptyTitle(state.tab),
+                        description = chatListEmptyDescription(state.tab),
+                        primaryActionText = "刷新",
+                        onPrimaryAction = onRefresh,
+                        secondaryActionText = "查看全局收藏",
+                        onSecondaryAction = onOpenGlobalFavorites,
+                        modifier = Modifier.testTag(ChatListTestTags.STATE_CARD),
+                    )
                 }
+            }
 
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        items(state.items, key = { it.id }) { peer ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        viewModel.markPeerRead(peer.id)
-                                        onOpenChat(peer.id, peer.name)
-                                    }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = 16.dp)
+                        .testTag(ChatListTestTags.LIST),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(state.items, key = { it.id }) { peer ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag(ChatListTestTags.item(peer.id))
+                                .clickable {
+                                    onMarkPeerRead(peer.id)
+                                    onOpenChat(peer.id, peer.name)
+                                }
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
-                                Column(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                    ) {
-                                        Text(text = peer.name, style = MaterialTheme.typography.titleMedium)
-                                        Text(text = peer.lastTime.ifBlank { "--" })
-                                    }
-                                    Text(text = peer.lastMessage.ifBlank { "暂无消息" }, maxLines = 2)
-                                    if (peer.unreadCount > 0) {
-                                        Text(
-                                            text = "未读 ${peer.unreadCount}",
-                                            color = MaterialTheme.colorScheme.primary,
-                                        )
-                                    }
+                                    Text(text = peer.name, style = MaterialTheme.typography.titleMedium)
+                                    Text(text = peer.lastTime.ifBlank { "--" })
+                                }
+                                Text(text = peer.lastMessage.ifBlank { "暂无消息" }, maxLines = 2)
+                                if (peer.unreadCount > 0) {
+                                    Text(
+                                        text = "未读 ${peer.unreadCount}",
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
                                 }
                             }
                         }

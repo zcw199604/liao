@@ -25,10 +25,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.a7413498.liao.android.app.testing.LoginTestTags
 import io.github.a7413498.liao.android.core.common.AppResult
 import io.github.a7413498.liao.android.core.common.LiaoLogger
 import io.github.a7413498.liao.android.core.datastore.AppPreferencesStore
@@ -160,42 +162,73 @@ fun LoginScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { padding ->
-        Column(
+        LoginScreenContent(
+            state = state,
+            onBaseUrlChange = viewModel::updateBaseUrl,
+            onAccessCodeChange = viewModel::updateAccessCode,
+            onLoginClick = viewModel::login,
+            modifier = Modifier.padding(padding),
+        )
+    }
+}
+
+internal fun isLoginActionEnabled(state: LoginUiState): Boolean = !state.loading && state.accessCode.isNotBlank()
+
+@Composable
+fun LoginScreenContent(
+    state: LoginUiState,
+    onBaseUrlChange: (String) -> Unit,
+    onAccessCodeChange: (String) -> Unit,
+    onLoginClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            text = "Liao Android",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.testTag(LoginTestTags.TITLE),
+        )
+        Text(
+            text = "请输入服务地址与访问码，完成后端登录。",
+            modifier = Modifier.testTag(LoginTestTags.DESCRIPTION),
+        )
+        OutlinedTextField(
             modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(padding)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .fillMaxWidth()
+                .testTag(LoginTestTags.BASE_URL_INPUT),
+            value = state.baseUrl,
+            onValueChange = onBaseUrlChange,
+            label = { Text("API Base URL") },
+            singleLine = true,
+            enabled = !state.loading,
+        )
+        OutlinedTextField(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(LoginTestTags.ACCESS_CODE_INPUT),
+            value = state.accessCode,
+            onValueChange = onAccessCodeChange,
+            label = { Text("访问码") },
+            singleLine = true,
+            enabled = !state.loading,
+        )
+        Button(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(LoginTestTags.LOGIN_BUTTON),
+            enabled = isLoginActionEnabled(state),
+            onClick = onLoginClick,
         ) {
-            Text(text = "Liao Android", style = MaterialTheme.typography.headlineMedium)
-            Text(text = "请输入服务地址与访问码，完成后端登录。")
-            OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = state.baseUrl,
-                onValueChange = viewModel::updateBaseUrl,
-                label = { Text("API Base URL") },
-                singleLine = true,
-                enabled = !state.loading,
-            )
-            OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = state.accessCode,
-                onValueChange = viewModel::updateAccessCode,
-                label = { Text("访问码") },
-                singleLine = true,
-                enabled = !state.loading,
-            )
-            Button(
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !state.loading && state.accessCode.isNotBlank(),
-                onClick = viewModel::login,
-            ) {
-                if (state.loading) {
-                    CircularProgressIndicator()
-                } else {
-                    Text("登录")
-                }
+            if (state.loading) {
+                CircularProgressIndicator(modifier = Modifier.testTag(LoginTestTags.LOADING_INDICATOR))
+            } else {
+                Text("登录")
             }
         }
     }

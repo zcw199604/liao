@@ -34,10 +34,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.a7413498.liao.android.app.testing.IdentityTestTags
 import io.github.a7413498.liao.android.core.common.AppResult
 import io.github.a7413498.liao.android.core.common.generateCookie
 import io.github.a7413498.liao.android.core.common.generateRandomIp
@@ -354,185 +356,250 @@ fun IdentityScreen(
         }
     }
 
-    if (state.confirmDeleteIdentity != null) {
+    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
+        IdentityScreenContent(
+            state = state,
+            onNameChange = viewModel::updateName,
+            onSexChange = viewModel::updateSex,
+            onSubmitIdentity = viewModel::submitIdentity,
+            onQuickCreate = viewModel::quickCreate,
+            onCancelEditing = viewModel::cancelEditing,
+            onSelectIdentity = viewModel::select,
+            onStartEditing = viewModel::startEditing,
+            onConfirmDeleteIdentity = viewModel::confirmDelete,
+            onDismissDeleteDialog = viewModel::dismissDeleteDialog,
+            onDeleteConfirmed = viewModel::deleteConfirmed,
+            modifier = Modifier.padding(padding),
+        )
+    }
+}
+
+internal fun identityIntroText(editingIdentityId: String?): String =
+    if (editingIdentityId.isNullOrBlank()) {
+        "可创建新身份，或选择已有身份进入聊天。"
+    } else {
+        "当前处于编辑模式，保存后会同步刷新列表与当前会话。"
+    }
+
+internal fun identityPrimaryActionLabel(editingIdentityId: String?): String =
+    if (editingIdentityId.isNullOrBlank()) "创建身份" else "保存编辑"
+
+internal fun identitySecondaryActionLabel(editingIdentityId: String?): String =
+    if (editingIdentityId.isNullOrBlank()) "快速创建" else "取消编辑"
+
+@Composable
+fun IdentityScreenContent(
+    state: IdentityUiState,
+    onNameChange: (String) -> Unit,
+    onSexChange: (String) -> Unit,
+    onSubmitIdentity: () -> Unit,
+    onQuickCreate: () -> Unit,
+    onCancelEditing: () -> Unit,
+    onSelectIdentity: (IdentityDto) -> Unit,
+    onStartEditing: (IdentityDto) -> Unit,
+    onConfirmDeleteIdentity: (IdentityDto) -> Unit,
+    onDismissDeleteDialog: () -> Unit,
+    onDeleteConfirmed: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    state.confirmDeleteIdentity?.let { identity ->
         AlertDialog(
-            onDismissRequest = viewModel::dismissDeleteDialog,
+            onDismissRequest = onDismissDeleteDialog,
             title = { Text("确认删除身份") },
-            text = { Text("删除后将无法在本地身份池中继续使用 ${state.confirmDeleteIdentity.name}。") },
+            text = { Text("删除后将无法在本地身份池中继续使用 ${identity.name}。") },
             confirmButton = {
-                TextButton(onClick = viewModel::deleteConfirmed, enabled = !state.saving) {
+                TextButton(
+                    onClick = onDeleteConfirmed,
+                    enabled = !state.saving,
+                    modifier = Modifier.testTag(IdentityTestTags.DELETE_DIALOG_CONFIRM),
+                ) {
                     Text("删除")
                 }
             },
             dismissButton = {
-                TextButton(onClick = viewModel::dismissDeleteDialog, enabled = !state.saving) {
+                TextButton(
+                    onClick = onDismissDeleteDialog,
+                    enabled = !state.saving,
+                    modifier = Modifier.testTag(IdentityTestTags.DELETE_DIALOG_CANCEL),
+                ) {
                     Text("取消")
                 }
-            }
+            },
         )
     }
 
-    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text("选择身份", style = MaterialTheme.typography.headlineSmall)
-            Text(
-                text = if (state.editingIdentityId.isNullOrBlank()) {
-                    "可创建新身份，或选择已有身份进入聊天。"
-                } else {
-                    "当前处于编辑模式，保存后会同步刷新列表与当前会话。"
-                },
-                style = MaterialTheme.typography.bodyMedium,
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            "选择身份",
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.testTag(IdentityTestTags.TITLE),
+        )
+        Text(
+            text = identityIntroText(state.editingIdentityId),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.testTag(IdentityTestTags.DESCRIPTION),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag(IdentityTestTags.NAME_INPUT),
+                value = state.nameInput,
+                onValueChange = onNameChange,
+                label = { Text("名字") },
+                singleLine = true,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    modifier = Modifier.weight(1f),
-                    value = state.nameInput,
-                    onValueChange = viewModel::updateName,
-                    label = { Text("名字") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    modifier = Modifier.weight(1f),
-                    value = state.sexInput,
-                    onValueChange = viewModel::updateSex,
-                    label = { Text("性别（男/女）") },
-                    singleLine = true,
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            OutlinedTextField(
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag(IdentityTestTags.SEX_INPUT),
+                value = state.sexInput,
+                onValueChange = onSexChange,
+                label = { Text("性别（男/女）") },
+                singleLine = true,
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Button(
+                onClick = onSubmitIdentity,
+                enabled = !state.saving,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag(IdentityTestTags.PRIMARY_ACTION_BUTTON),
             ) {
-                Button(
-                    onClick = viewModel::submitIdentity,
-                    enabled = !state.saving,
-                    modifier = Modifier.weight(1f),
+                Text(identityPrimaryActionLabel(state.editingIdentityId))
+            }
+            OutlinedButton(
+                onClick = if (state.editingIdentityId.isNullOrBlank()) onQuickCreate else onCancelEditing,
+                enabled = !state.saving,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag(IdentityTestTags.SECONDARY_ACTION_BUTTON),
+            ) {
+                Text(identitySecondaryActionLabel(state.editingIdentityId))
+            }
+        }
+        when {
+            state.loading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Text(if (state.editingIdentityId.isNullOrBlank()) "创建身份" else "保存编辑")
-                }
-                if (state.editingIdentityId.isNullOrBlank()) {
-                    OutlinedButton(
-                        onClick = viewModel::quickCreate,
-                        enabled = !state.saving,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text("快速创建")
-                    }
-                } else {
-                    OutlinedButton(
-                        onClick = viewModel::cancelEditing,
-                        enabled = !state.saving,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text("取消编辑")
-                    }
+                    CircularProgressIndicator(modifier = Modifier.testTag(IdentityTestTags.LOADING_INDICATOR))
                 }
             }
-            when {
-                state.loading -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
 
-                state.identities.isEmpty() -> {
-                    Box(
+            state.identities.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center,
+                            .testTag(IdentityTestTags.EMPTY_STATE),
                     ) {
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                Text("暂无身份", style = MaterialTheme.typography.titleMedium)
-                                Text("可先手动创建，或使用快速创建生成一个临时身份。")
-                            }
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text("暂无身份", style = MaterialTheme.typography.titleMedium)
+                            Text("可先手动创建，或使用快速创建生成一个临时身份。")
                         }
                     }
                 }
+            }
 
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        items(state.identities, key = { it.id }) { identity ->
-                            val isEditing = state.editingIdentityId == identity.id
-                            Card(modifier = Modifier.fillMaxWidth()) {
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .testTag(IdentityTestTags.LIST),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(state.identities, key = { it.id }) { identity ->
+                        val isEditing = state.editingIdentityId == identity.id
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag(IdentityTestTags.itemCard(identity.id)),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
                                 Column(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(enabled = !state.saving) { onSelectIdentity(identity) },
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
                                 ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable(enabled = !state.saving) { viewModel.select(identity) },
-                                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                        ) {
-                                            Text(
-                                                text = identity.name,
-                                                style = MaterialTheme.typography.titleMedium,
-                                            )
-                                            if (isEditing) {
-                                                Text(
-                                                    text = "编辑中",
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                )
-                                            }
-                                        }
-                                        Text(text = "${identity.sex} · ${identity.id.take(8)}")
-                                        Text(text = "最近使用：${identity.lastUsedAt.orEmpty().ifBlank { "未记录" }}")
-                                        Text(
-                                            text = "点击上方区域即可直接选择该身份",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
                                     ) {
-                                        OutlinedButton(
-                                            onClick = { viewModel.startEditing(identity) },
-                                            enabled = !state.saving,
-                                            modifier = Modifier.weight(1f),
-                                        ) {
-                                            Text(if (isEditing) "继续编辑" else "编辑")
+                                        Text(
+                                            text = identity.name,
+                                            style = MaterialTheme.typography.titleMedium,
+                                        )
+                                        if (isEditing) {
+                                            Text(
+                                                text = "编辑中",
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
                                         }
-                                        OutlinedButton(
-                                            onClick = { viewModel.confirmDelete(identity) },
-                                            enabled = !state.saving,
-                                            modifier = Modifier.weight(1f),
-                                        ) {
-                                            Text("删除")
-                                        }
-                                        TextButton(
-                                            onClick = { viewModel.select(identity) },
-                                            enabled = !state.saving,
-                                            modifier = Modifier.weight(1f),
-                                        ) {
-                                            Text("选择")
-                                        }
+                                    }
+                                    Text(text = "${identity.sex} · ${identity.id.take(8)}")
+                                    Text(text = "最近使用：${identity.lastUsedAt.orEmpty().ifBlank { "未记录" }}")
+                                    Text(
+                                        text = "点击上方区域即可直接选择该身份",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { onStartEditing(identity) },
+                                        enabled = !state.saving,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag(IdentityTestTags.editButton(identity.id)),
+                                    ) {
+                                        Text(if (isEditing) "继续编辑" else "编辑")
+                                    }
+                                    OutlinedButton(
+                                        onClick = { onConfirmDeleteIdentity(identity) },
+                                        enabled = !state.saving,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag(IdentityTestTags.deleteButton(identity.id)),
+                                    ) {
+                                        Text("删除")
+                                    }
+                                    TextButton(
+                                        onClick = { onSelectIdentity(identity) },
+                                        enabled = !state.saving,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag(IdentityTestTags.selectButton(identity.id)),
+                                    ) {
+                                        Text("选择")
                                     }
                                 }
                             }

@@ -325,4 +325,136 @@ class SettingsRepositoryTest {
         assertTrue(result is AppResult.Success)
         assertEquals("已清空禁连用户", (result as AppResult.Success).data)
     }
+
+    @Test
+    fun `load snapshot should return error when local read fails before aggregation`() = runTest {
+        coEvery { preferencesStore.readCurrentSession() } returns null
+        coEvery { preferencesStore.readBaseUrl() } throws IllegalStateException("base url down")
+
+        val result = repository.loadSnapshot()
+
+        assertTrue(result is AppResult.Error)
+        assertEquals("base url down", (result as AppResult.Error).message)
+    }
+
+    @Test
+    fun `save theme preference should surface persistence failure`() = runTest {
+        coEvery { preferencesStore.saveThemePreference(LiaoThemePreference.AUTO) } throws IllegalStateException("theme save failed")
+
+        val result = repository.saveThemePreference(LiaoThemePreference.AUTO)
+
+        assertTrue(result is AppResult.Error)
+        assertEquals("theme save failed", (result as AppResult.Error).message)
+    }
+
+    @Test
+    fun `save base url should surface persistence failure`() = runTest {
+        coEvery { preferencesStore.saveBaseUrl("https://demo.test") } throws IllegalStateException("save base url failed")
+
+        val result = repository.saveBaseUrl("https://demo.test")
+
+        assertTrue(result is AppResult.Error)
+        assertEquals("save base url failed", (result as AppResult.Error).message)
+    }
+
+    @Test
+    fun `save identity should reject blank id and missing session`() = runTest {
+        coEvery { preferencesStore.readCurrentSession() } returns CurrentIdentitySession(
+            id = "id-1",
+            name = "Alice",
+            sex = "女",
+            cookie = "cookie",
+            ip = "1.1.1.1",
+            area = "深圳",
+        )
+
+        val blankId = repository.saveIdentity(identityId = "   ", name = "Alice", sex = "女")
+
+        assertTrue(blankId is AppResult.Error)
+        assertEquals("身份 ID 不能为空", (blankId as AppResult.Error).message)
+
+        coEvery { preferencesStore.readCurrentSession() } returns null
+
+        val missingSession = repository.saveIdentity(identityId = "id-2", name = "Alice", sex = "女")
+
+        assertTrue(missingSession is AppResult.Error)
+        assertEquals("请先选择身份", (missingSession as AppResult.Error).message)
+    }
+
+    @Test
+    fun `save identity should reject blank sex and surface update id api error`() = runTest {
+        coEvery { preferencesStore.readCurrentSession() } returns CurrentIdentitySession(
+            id = "id-1",
+            name = "Alice",
+            sex = "女",
+            cookie = "cookie",
+            ip = "1.1.1.1",
+            area = "深圳",
+        )
+
+        val blankSex = repository.saveIdentity(identityId = "id-1", name = "Alice", sex = "   ")
+
+        assertTrue(blankSex is AppResult.Error)
+        assertEquals("性别不能为空", (blankSex as AppResult.Error).message)
+
+        coEvery {
+            identityApiService.updateIdentityId(
+                oldId = "id-1",
+                newId = "id-2",
+                name = "Alice2",
+                sex = "男",
+            )
+        } returns ApiEnvelope(code = 1, msg = "更新身份失败", data = null)
+
+        val updateIdError = repository.saveIdentity(identityId = "id-2", name = "Alice2", sex = "男")
+
+        assertTrue(updateIdError is AppResult.Error)
+        assertEquals("更新身份失败", (updateIdError as AppResult.Error).message)
+    }
+
+    @Test
+    fun `logout should surface fallback error when cleanup fails`() = runTest {
+        every { webSocketClient.disconnect(manual = true) } just runs
+        coEvery { preferencesStore.clearAuthToken() } throws IllegalStateException()
+
+        val result = repository.logout()
+
+        assertTrue(result is AppResult.Error)
+        assertEquals("退出登录失败", (result as AppResult.Error).message)
+    }
+
+    @Test
+    fun `disconnect all connections should support success and fallback error message`() = runTest {
+        coEvery { systemApiService.disconnectAllConnections() } returns ApiEnvelope(code = 0)
+
+        val success = repository.disconnectAllConnections()
+
+        assertTrue(success is AppResult.Success)
+        assertEquals("已请求断开全部连接", (success as AppResult.Success).data)
+
+        coEvery { systemApiService.disconnectAllConnections() } throws IllegalStateException()
+
+        val failure = repository.disconnectAllConnections()
+
+        assertTrue(failure is AppResult.Error)
+        assertEquals("断开所有连接失败", (failure as AppResult.Error).message)
+    }
+
+    @Test
+    fun `clear forceout users should prefer message field and use fallback error message`() = runTest {
+        coEvery { systemApiService.clearForceoutUsers() } returns ApiEnvelope(code = 0, msg = null, message = "message-success")
+
+        val success = repository.clearForceoutUsers()
+
+        assertTrue(success is AppResult.Success)
+        assertEquals("message-success", (success as AppResult.Success).data)
+
+        coEvery { systemApiService.clearForceoutUsers() } throws IllegalStateException()
+
+        val failure = repository.clearForceoutUsers()
+
+        assertTrue(failure is AppResult.Error)
+        assertEquals("清空禁连用户失败", (failure as AppResult.Error).message)
+    }
+
 }

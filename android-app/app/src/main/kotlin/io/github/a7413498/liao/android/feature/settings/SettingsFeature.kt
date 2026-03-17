@@ -37,10 +37,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.a7413498.liao.android.app.testing.SettingsTestTags
 import io.github.a7413498.liao.android.app.theme.LiaoThemePreference
 import io.github.a7413498.liao.android.core.common.AppResult
 import io.github.a7413498.liao.android.core.common.generateCookie
@@ -584,15 +586,7 @@ fun SettingsScreen(
 ) {
     val state = viewModel.uiState
     val snackbarHostState = remember { SnackbarHostState() }
-    val scrollState = rememberScrollState()
     val systemDark = isSystemInDarkTheme()
-    val resolvedThemeLabel = remember(state.themePreference, systemDark) {
-        when (state.themePreference) {
-            LiaoThemePreference.AUTO -> if (systemDark) "深色" else "浅色"
-            LiaoThemePreference.LIGHT -> "浅色"
-            LiaoThemePreference.DARK -> "深色"
-        }
-    }
 
     LaunchedEffect(state.message) {
         state.message?.let {
@@ -608,22 +602,97 @@ fun SettingsScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("设置") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回")
-                    }
-                }
-            )
-        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
+        SettingsScreenContent(
+            state = state,
+            systemDark = systemDark,
+            onBack = onBack,
+            onUpdateThemePreference = viewModel::updateThemePreference,
+            onBaseUrlChange = viewModel::updateBaseUrl,
+            onSaveBaseUrl = viewModel::saveBaseUrl,
+            onIdentityIdChange = viewModel::updateIdentityId,
+            onIdentityNameChange = viewModel::updateIdentityName,
+            onIdentitySexChange = viewModel::updateIdentitySex,
+            onSaveIdentity = viewModel::saveIdentity,
+            onOpenGlobalFavorites = onOpenGlobalFavorites,
+            onOpenMediaLibrary = onOpenMediaLibrary,
+            onOpenMtPhoto = onOpenMtPhoto,
+            onOpenDouyin = onOpenDouyin,
+            onOpenVideoExtract = onOpenVideoExtract,
+            onOpenVideoExtractTasks = onOpenVideoExtractTasks,
+            onRefresh = viewModel::refresh,
+            onDisconnectAllConnections = viewModel::disconnectAllConnections,
+            onClearForceoutUsers = viewModel::clearForceoutUsers,
+            onUpdateImagePortMode = viewModel::updateImagePortMode,
+            onUpdateImagePortFixed = viewModel::updateImagePortFixed,
+            onUpdateImagePortRealMinBytes = viewModel::updateImagePortRealMinBytes,
+            onUpdateMtPhotoTimelineDeferSubfolderThreshold = viewModel::updateMtPhotoTimelineDeferSubfolderThreshold,
+            onSaveSystemConfig = viewModel::saveSystemConfig,
+            onLogout = viewModel::logout,
+            modifier = Modifier.padding(padding),
+        )
+    }
+}
+
+internal fun resolveCurrentThemeLabel(preference: LiaoThemePreference, systemDark: Boolean): String = when (preference) {
+    LiaoThemePreference.AUTO -> if (systemDark) "深色" else "浅色"
+    LiaoThemePreference.LIGHT -> "浅色"
+    LiaoThemePreference.DARK -> "深色"
+}
+
+@Composable
+fun SettingsScreenContent(
+    state: SettingsUiState,
+    systemDark: Boolean,
+    onBack: () -> Unit,
+    onUpdateThemePreference: (LiaoThemePreference) -> Unit,
+    onBaseUrlChange: (String) -> Unit,
+    onSaveBaseUrl: () -> Unit,
+    onIdentityIdChange: (String) -> Unit,
+    onIdentityNameChange: (String) -> Unit,
+    onIdentitySexChange: (String) -> Unit,
+    onSaveIdentity: () -> Unit,
+    onOpenGlobalFavorites: () -> Unit,
+    onOpenMediaLibrary: () -> Unit,
+    onOpenMtPhoto: () -> Unit,
+    onOpenDouyin: () -> Unit,
+    onOpenVideoExtract: () -> Unit,
+    onOpenVideoExtractTasks: () -> Unit,
+    onRefresh: () -> Unit,
+    onDisconnectAllConnections: () -> Unit,
+    onClearForceoutUsers: () -> Unit,
+    onUpdateImagePortMode: (String) -> Unit,
+    onUpdateImagePortFixed: (String) -> Unit,
+    onUpdateImagePortRealMinBytes: (String) -> Unit,
+    onUpdateMtPhotoTimelineDeferSubfolderThreshold: (String) -> Unit,
+    onSaveSystemConfig: () -> Unit,
+    onLogout: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scrollState = rememberScrollState()
+    val resolvedThemeLabel = remember(state.themePreference, systemDark) {
+        resolveCurrentThemeLabel(state.themePreference, systemDark)
+    }
+
+    Column(
+        modifier = modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+    ) {
+        TopAppBar(
+            title = { Text("设置") },
+            navigationIcon = {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.testTag(SettingsTestTags.BACK_BUTTON),
+                ) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "返回")
+                }
+            }
+        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .verticalScroll(scrollState)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -636,42 +705,52 @@ fun SettingsScreen(
                 Text(
                     text = "主题：${state.themePreference.toDisplayLabel()} · 当前：$resolvedThemeLabel",
                     style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.testTag(SettingsTestTags.THEME_SUMMARY),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ModeOptionButton(
                         label = "系统",
                         selected = state.themePreference == LiaoThemePreference.AUTO,
-                        onClick = { viewModel.updateThemePreference(LiaoThemePreference.AUTO) },
-                        modifier = Modifier.weight(1f),
+                        onClick = { onUpdateThemePreference(LiaoThemePreference.AUTO) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(SettingsTestTags.THEME_AUTO_BUTTON),
                     )
                     ModeOptionButton(
                         label = "浅色",
                         selected = state.themePreference == LiaoThemePreference.LIGHT,
-                        onClick = { viewModel.updateThemePreference(LiaoThemePreference.LIGHT) },
-                        modifier = Modifier.weight(1f),
+                        onClick = { onUpdateThemePreference(LiaoThemePreference.LIGHT) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(SettingsTestTags.THEME_LIGHT_BUTTON),
                     )
                     ModeOptionButton(
                         label = "深色",
                         selected = state.themePreference == LiaoThemePreference.DARK,
-                        onClick = { viewModel.updateThemePreference(LiaoThemePreference.DARK) },
-                        modifier = Modifier.weight(1f),
+                        onClick = { onUpdateThemePreference(LiaoThemePreference.DARK) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(SettingsTestTags.THEME_DARK_BUTTON),
                     )
                 }
             }
 
             SettingsSection(title = "连接与地址") {
                 OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(SettingsTestTags.BASE_URL_INPUT),
                     value = state.baseUrl,
-                    onValueChange = viewModel::updateBaseUrl,
+                    onValueChange = onBaseUrlChange,
                     label = { Text("API Base URL") },
                     enabled = !state.savingBaseUrl,
                 )
                 Text("Token：${state.tokenPreview}")
                 Text("WebSocket：${state.connectionStateLabel}")
                 Button(
-                    onClick = viewModel::saveBaseUrl,
+                    onClick = onSaveBaseUrl,
                     enabled = !state.savingBaseUrl && state.baseUrl.isNotBlank(),
+                    modifier = Modifier.testTag(SettingsTestTags.SAVE_BASE_URL_BUTTON),
                 ) {
                     Text(if (state.savingBaseUrl) "保存中..." else "保存地址")
                 }
@@ -685,27 +764,27 @@ fun SettingsScreen(
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = state.currentIdentityId,
-                    onValueChange = viewModel::updateIdentityId,
+                    onValueChange = onIdentityIdChange,
                     label = { Text("身份 ID") },
                     enabled = !state.savingIdentity,
                 )
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = state.currentIdentityName,
-                    onValueChange = viewModel::updateIdentityName,
+                    onValueChange = onIdentityNameChange,
                     label = { Text("昵称") },
                     enabled = !state.savingIdentity,
                 )
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = state.currentIdentitySex,
-                    onValueChange = viewModel::updateIdentitySex,
+                    onValueChange = onIdentitySexChange,
                     label = { Text("性别") },
                     enabled = !state.savingIdentity,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(
-                        onClick = viewModel::saveIdentity,
+                        onClick = onSaveIdentity,
                         enabled = !state.savingIdentity && state.currentIdentityId.isNotBlank() && state.currentIdentityName.isNotBlank(),
                         modifier = Modifier.weight(1f),
                     ) {
@@ -713,7 +792,9 @@ fun SettingsScreen(
                     }
                     OutlinedButton(
                         onClick = onOpenGlobalFavorites,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(SettingsTestTags.OPEN_GLOBAL_FAVORITES_BUTTON),
                     ) {
                         Text("全局收藏")
                     }
@@ -721,13 +802,17 @@ fun SettingsScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(
                         onClick = onOpenMediaLibrary,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(SettingsTestTags.OPEN_MEDIA_LIBRARY_BUTTON),
                     ) {
                         Text("图片管理")
                     }
                     OutlinedButton(
                         onClick = onOpenMtPhoto,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(SettingsTestTags.OPEN_MTPHOTO_BUTTON),
                     ) {
                         Text("mtPhoto 相册")
                     }
@@ -735,20 +820,26 @@ fun SettingsScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(
                         onClick = onOpenDouyin,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(SettingsTestTags.OPEN_DOUYIN_BUTTON),
                     ) {
                         Text("抖音下载")
                     }
                     OutlinedButton(
                         onClick = onOpenVideoExtract,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(SettingsTestTags.OPEN_VIDEO_EXTRACT_BUTTON),
                     ) {
                         Text("视频抽帧")
                     }
                 }
                 OutlinedButton(
                     onClick = onOpenVideoExtractTasks,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(SettingsTestTags.OPEN_VIDEO_EXTRACT_TASKS_BUTTON),
                 ) {
                     Text("抽帧任务中心")
                 }
@@ -760,15 +851,15 @@ fun SettingsScreen(
                 Text("下游连接：${state.connectionStats.downstream}")
                 Text("禁连用户：${state.forceoutUserCount}")
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = viewModel::refresh, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = onRefresh, modifier = Modifier.weight(1f)) {
                         Text("刷新统计")
                     }
-                    OutlinedButton(onClick = viewModel::disconnectAllConnections, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = onDisconnectAllConnections, modifier = Modifier.weight(1f)) {
                         Text("断开全部")
                     }
                 }
                 OutlinedButton(
-                    onClick = viewModel::clearForceoutUsers,
+                    onClick = onClearForceoutUsers,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text("清空禁连")
@@ -784,26 +875,32 @@ fun SettingsScreen(
                     ModeOptionButton(
                         label = "固定",
                         selected = state.imagePortMode == "fixed",
-                        onClick = { viewModel.updateImagePortMode("fixed") },
-                        modifier = Modifier.weight(1f),
+                        onClick = { onUpdateImagePortMode("fixed") },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(SettingsTestTags.IMAGE_PORT_MODE_FIXED_BUTTON),
                     )
                     ModeOptionButton(
                         label = "探测",
                         selected = state.imagePortMode == "probe",
-                        onClick = { viewModel.updateImagePortMode("probe") },
-                        modifier = Modifier.weight(1f),
+                        onClick = { onUpdateImagePortMode("probe") },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(SettingsTestTags.IMAGE_PORT_MODE_PROBE_BUTTON),
                     )
                     ModeOptionButton(
                         label = "真实",
                         selected = state.imagePortMode == "real",
-                        onClick = { viewModel.updateImagePortMode("real") },
-                        modifier = Modifier.weight(1f),
+                        onClick = { onUpdateImagePortMode("real") },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(SettingsTestTags.IMAGE_PORT_MODE_REAL_BUTTON),
                     )
                 }
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = state.imagePortFixed,
-                    onValueChange = viewModel::updateImagePortFixed,
+                    onValueChange = onUpdateImagePortFixed,
                     label = { Text("固定图片端口") },
                     enabled = !state.savingSystemConfig,
                     singleLine = true,
@@ -812,7 +909,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         modifier = Modifier.fillMaxWidth(),
                         value = state.imagePortRealMinBytes,
-                        onValueChange = viewModel::updateImagePortRealMinBytes,
+                        onValueChange = onUpdateImagePortRealMinBytes,
                         label = { Text("最小字节阈值") },
                         enabled = !state.savingSystemConfig,
                         singleLine = true,
@@ -821,7 +918,7 @@ fun SettingsScreen(
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = state.mtPhotoTimelineDeferSubfolderThreshold,
-                    onValueChange = viewModel::updateMtPhotoTimelineDeferSubfolderThreshold,
+                    onValueChange = onUpdateMtPhotoTimelineDeferSubfolderThreshold,
                     label = { Text("mtPhoto 时间线延迟阈值") },
                     enabled = !state.savingSystemConfig,
                     singleLine = true,
@@ -831,17 +928,21 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Button(
-                    onClick = viewModel::saveSystemConfig,
+                    onClick = onSaveSystemConfig,
                     enabled = !state.savingSystemConfig,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(SettingsTestTags.SAVE_SYSTEM_CONFIG_BUTTON),
                 ) {
                     Text(if (state.savingSystemConfig) "保存中..." else "保存图片端口策略")
                 }
             }
 
             OutlinedButton(
-                onClick = viewModel::logout,
-                modifier = Modifier.fillMaxWidth(),
+                onClick = onLogout,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(SettingsTestTags.LOGOUT_BUTTON),
             ) {
                 Text("退出登录")
             }
