@@ -69,22 +69,24 @@ android-app/
 
 ## 测试覆盖情况
 
-- 当前已具备 **44 个 Android 本地单元测试文件 / 269 条用例**，并配套 `MainDispatcherRule.kt` 统一管理 `Dispatchers.Main`；当前 JVM 回归已覆盖协议、Repository、helper 与关键 ViewModel，可通过 `cd android-app && ./gradlew testDebugUnitTest --no-daemon` 执行。
+- 当前已具备 **47 个 Android 本地测试源文件 / 292 条用例**，并配套 `MainDispatcherRule.kt` 统一管理 `Dispatchers.Main`；当前 JVM 回归已覆盖协议、Repository、helper 与关键 ViewModel，可通过 `cd android-app && ./gradlew testDebugUnitTest --no-daemon` 执行。
 - 当前已具备 **4 个 Compose `androidTest` 页面测试文件 / 13 条仪器用例**，覆盖登录 / 身份 / 会话列表 / 设置四个默认页面；另有 1 个 `ComposeUiTestSupport.kt` 提供统一 `LiaoTheme` 测试包装。
 - `ProtocolAlignmentTest.kt` / `NetworkModelAlignmentTest.kt` / `WebSocketProtocolCatalogTest.kt` / `CommonAndCacheSnapshotTest.kt` / `NetworkStackUrlTest.kt` / `MediaLibraryHelpersTest.kt`：覆盖协议目录、DTO/时间线映射、缓存快照、URL 重写、媒体 MIME/展示文案等纯 Kotlin 基线逻辑。
 - `NetworkModelBranchTest.kt`：补齐 `ChatMessageDto/HistoryMessageDto` 时间线映射、收藏 JSON 解析、`stringOrNull` / `inferPrivateMessageIsSelf` / `inferMessageType` 的边界与容错分支。
-- `LoginViewModelTest.kt` / `IdentityViewModelTest.kt` / `ChatListViewModelTest.kt` / `SettingsViewModelTest.kt` / `AppCoordinatorViewModelTest.kt` / `MtPhotoViewModelTest.kt` / `MediaLibraryViewModelTest.kt` / `DouyinViewModelTest.kt` / `VideoExtractTaskCenterViewModelTest.kt` / `ChatRoomViewModelTest.kt`：补齐默认页面、应用级启动协调器、mtPhoto、全局媒体库、抖音解析、抽帧任务中心与聊天页 ViewModel 的初始化、刷新、切页、选择、删除、同媒体查询、消息消费、保存、forceout、目录收藏、时间线延迟加载、标签管理、历史分页、媒体面板、发送超时与任务动作等 JVM 分支，并配套 `MainDispatcherRule.kt` 提供 `Dispatchers.Main` 测试调度器。
+- `LoginViewModelTest.kt` / `IdentityViewModelTest.kt` / `ChatListViewModelTest.kt` / `SettingsViewModelTest.kt` / `AppCoordinatorViewModelTest.kt` / `MtPhotoViewModelTest.kt` / `MediaLibraryViewModelTest.kt` / `DouyinViewModelTest.kt` / `VideoExtractCreateViewModelTest.kt` / `VideoExtractTaskCenterViewModelTest.kt` / `ChatRoomViewModelTest.kt`：补齐默认页面、应用级启动协调器、mtPhoto、全局媒体库、抖音解析、视频抽帧创建页、抽帧任务中心与聊天页 ViewModel 的初始化、上传、探测、创建、刷新、切页、选择、删除、同媒体查询、消息消费、保存、forceout、目录收藏、时间线延迟加载、标签管理、历史分页、媒体面板、入站事件分发、发送超时与任务动作等 JVM 分支，并配套 `MainDispatcherRule.kt` 提供 `Dispatchers.Main` 测试调度器。
 - `AuthRepositoryTest.kt` / `IdentityRepositoryTest.kt` / `ChatListRepositoryTest.kt` / `GlobalFavoritesRepositoryTest.kt` / `MediaLibraryRepositoryTest.kt` / `SettingsRepositoryTest.kt` / `MtPhotoSameMediaRepositoryTest.kt` / `AuthFeatureHelpersTest.kt` / `IdentityFeatureHelpersTest.kt` / `ChatListFeatureHelpersTest.kt` / `SettingsFeatureHelpersTest.kt`：覆盖登录/恢复会话、身份 CRUD、列表合并、全局收藏、媒体库、mtPhoto 同媒体查询、系统配置 fallback，以及默认页面 helper / 文案 / 按钮启用条件分支。
-- `VideoExtractCreateFeatureHelpersTest.kt` / `VideoExtractTaskCenterFeatureHelpersTest.kt` / `VideoExtractTaskCenterRepositoryTest.kt` / `VideoExtractTaskCenterViewModelTest.kt`：覆盖视频抽帧创建校验、payload 组装、任务中心文案/路径/JSON 映射，以及任务列表/详情缓存 fallback、删除更新与 ViewModel 刷新/分页/详情/继续/终止/删除动作分支。
-- `ChatRoomFeatureHelpersTest.kt` / `ChatRoomRepositoryTest.kt` / `ChatRoomViewModelTest.kt`：覆盖聊天时间线合并、回显匹配、显示文案、连接建立、收藏切换、历史回退、媒体 URL 解析，以及 ViewModel 绑定初始化、历史分页、媒体面板、在线状态、发送超时、失败重试与清空重载等高价值分支。
+- `WebSocketProtocolCatalogTest.kt` / `LiaoWebSocketClientTest.kt`：覆盖 WebSocket 协议目录、envelope 解析、时间线转换、连接建立、重复连接守卫、旧连接替换、sign/私聊/提示/改名/改资料指令发送、入站消息/bytes 事件分发、forceout 与关闭失败 fallback / 重连调度等高收益分支。
+- `VideoExtractCreateFeatureHelpersTest.kt` / `VideoExtractCreateRepositoryTest.kt` / `VideoExtractCreateViewModelTest.kt` / `VideoExtractTaskCenterFeatureHelpersTest.kt` / `VideoExtractTaskCenterRepositoryTest.kt` / `VideoExtractTaskCenterViewModelTest.kt`：覆盖视频抽帧创建校验、上传元数据解析、multipart 构造、probe/createTask payload 组装与错误兜底、创建页上传/探测/创建守卫，以及任务中心文案/路径/JSON 映射、任务列表/详情缓存 fallback、删除更新与 ViewModel 刷新/分页/详情/继续/终止/删除动作分支。
+- `ChatRoomFeatureHelpersTest.kt` / `ChatRoomRepositoryTest.kt` / `ChatRoomViewModelTest.kt`：覆盖聊天时间线合并、回显匹配、显示文案、连接建立、收藏切换、历史回退、媒体 URL 解析，以及 ViewModel 绑定初始化、历史分页并发守卫、媒体面板缓存守卫、在线状态、通知/强制下线、非当前会话消息忽略、空 peer guard、发送超时、失败重试 fallback clientId 与清空重载等高价值分支。
 - `DouyinFeatureHelpersTest.kt` / `DouyinRepositoryTest.kt` / `DouyinRepositoryOperationsTest.kt` / `DouyinRepositoryMappingsTest.kt` / `DouyinRepositoryBranchTest.kt` / `DouyinViewModelTest.kt`：覆盖抖音媒体类型归一化、导入文案、JSON 字段解析、详情/账号/收藏分页，以及 ViewModel 模式切换、导入、收藏、标签编辑/管理与消息消费等成功/失败/边界分支。
 - `MtPhotoFeatureHelpersTest.kt` / `MtPhotoFolderFavoritesRepositoryTest.kt` / `MtPhotoRepositoryTest.kt` / `MtPhotoRepositoryMappingsTest.kt` / `MtPhotoRepositoryBranchTest.kt`：覆盖 mtPhoto 可见项计数、错误文案、目录名/封面 MD5 归一化，以及目录收藏/相册目录仓储的成功、失败、fallback、默认值、映射与缩略图 URL 分支。
 - Android UI 测试当前直接面向 `LoginScreenContent`、`IdentityScreenContent`、`ChatListScreenContent`、`SettingsScreenContent`，避免 Hilt / Room / DataStore / WebSocket 实依赖，先建立稳定的页面内容 smoke 基线。
 - 现已正式接入覆盖率命令：`cd android-app && ./gradlew testDebugUnitTest jacocoDebugUnitTestReport --no-daemon`，会输出 XML/HTML 报告到 `app/build/reports/jacoco/jacocoDebugUnitTestReport/`，且 `executionData` 仅统计 Debug Unit Test 明确产物。
-- 2026-03-17 最新本地单测覆盖率（Debug Unit Test，fresh JaCoCo）：`line 68.37%`、`branch 40.27%`、`method 70.94%`、`class 77.54%`。
+- 2026-03-17 最新本地单测覆盖率（Debug Unit Test，fresh JaCoCo）：`line 75.19%`、`branch 44.16%`、`method 76.59%`、`class 82.11%`。
+- 其中 `LiaoWebSocketClient` 当前 JaCoCo 分支覆盖率已提升至 `61.99%`（`106/171`），`VideoExtractCreateRepository` 维持 `70.24%`（`59/84`），`VideoExtractCreateViewModel` 维持 `100%`（`10/10`）。
 - 2026-03-16 已验证：`./gradlew :app:compileDebugAndroidTestKotlin --no-daemon` ✅、`./gradlew :app:assembleDebugAndroidTest --no-daemon` ✅；当前环境**无模拟器/真机**，因此尚未执行 `connectedDebugAndroidTest`。
 - 当前**未覆盖/未闭环**：Hilt 注入链路、Room/DataStore 持久化集成、真实网络/WebSocket 生命周期、系统权限与多设备并发/弱网场景，以及基于设备的真实 `androidTest` 执行结果。
-- 因此现阶段 Android 测试覆盖属于“**JVM 回归已提升到 line 68%+ / branch 40%+，同时已建立四个默认页面的 Compose `androidTest` 骨架，但设备执行与系统级集成回归仍待补齐**”的状态。
+- 因此现阶段 Android 测试覆盖属于“**JVM 回归已提升到 line 75%+ / branch 44%+，同时已建立四个默认页面的 Compose `androidTest` 骨架，但设备执行与系统级集成回归仍待补齐**”的状态。
 
 ## 已知限制
 

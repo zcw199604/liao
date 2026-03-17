@@ -8,7 +8,14 @@
 
 | 时间戳 | 功能名称 | 类型 | 状态 | 方案包路径 |
 |--------|----------|------|------|------------|
+| 202603171930 | websocket-client-coverage | 测试 | ✅已完成 | [链接](2026-03/202603171930_websocket-client-coverage/) |
+| 202603171745 | videoextract-create-coverage | 测试 | ✅已完成 | [链接](2026-03/202603171745_videoextract-create-coverage/) |
+| 202603171405 | videoextract-taskcenter-viewmodel-coverage | 测试 | ✅已完成 | [链接](2026-03/202603171405_videoextract-taskcenter-viewmodel-coverage/) |
+| 202603171140 | douyin-viewmodel-coverage | 测试 | ✅已完成 | [链接](2026-03/202603171140_douyin-viewmodel-coverage/) |
 | 202603171015 | android-medialibrary-viewmodel-coverage | 测试 | ✅已完成 | [链接](2026-03/202603171015_android-medialibrary-viewmodel-coverage/) |
+| 202603170825 | chatroom-viewmodel-hotspot-followup | 测试 | ✅已完成 | [链接](2026-03/202603170825_chatroom-viewmodel-hotspot-followup/) |
+| 202603170713 | chatroom-viewmodel-coverage | 测试 | ✅已完成 | [链接](2026-03/202603170713_chatroom-viewmodel-coverage/) |
+| 202603170407 | android-medialibrary-viewmodel-coverage | 测试 | [-]未执行 | [链接](2026-03/202603170407_android-medialibrary-viewmodel-coverage/) |
 | 202603161541 | android-viewmodel-branch-continue | 测试 | ✅已完成 | [链接](2026-03/202603161541_android-viewmodel-branch-continue/) |
 | 202603161509 | android-branch-coverage-rebound | 测试 | ✅已完成 | [链接](2026-03/202603161509_android-branch-coverage-rebound/) |
 | 202603161330 | android-ui-androidtest-coverage-40 | 测试 | ✅已完成 | [链接](2026-03/202603161330_android-ui-androidtest-coverage-40/) |
@@ -196,10 +203,13 @@
 - [202602011522_db-migrate-postgres](2026-02/202602011522_db-migrate-postgres/) - 旧 PostgreSQL 迁移方案归档（草稿，未执行）
 
 ### 2026-03
-- [202603170713_chatroom-viewmodel-coverage](2026-03/202603170713_chatroom-viewmodel-coverage/) - 继续补齐 ChatRoomViewModel 高收益 JVM 单测，Debug Unit Test branch 覆盖率提升至 40.27%
+- [202603171930_websocket-client-coverage](2026-03/202603171930_websocket-client-coverage/) - 继续补齐 LiaoWebSocketClient 高收益 JVM 单测，Debug Unit Test branch 覆盖率提升至 44.16%，类分支覆盖率提升至 61.99%
+- [202603171745_videoextract-create-coverage](2026-03/202603171745_videoextract-create-coverage/) - 继续补齐 VideoExtractCreate Repository / ViewModel 高收益 JVM 单测，Debug Unit Test branch 覆盖率提升至 42.28%
 - [202603171405_videoextract-taskcenter-viewmodel-coverage](2026-03/202603171405_videoextract-taskcenter-viewmodel-coverage/) - 继续补齐 VideoExtractTaskCenterViewModel 高收益 JVM 单测，Debug Unit Test branch 覆盖率提升至 38.64%
 - [202603171140_douyin-viewmodel-coverage](2026-03/202603171140_douyin-viewmodel-coverage/) - 继续补齐 DouyinViewModel 高收益 JVM 单测，Debug Unit Test branch 覆盖率提升至 37.35%
 - [202603171015_android-medialibrary-viewmodel-coverage](2026-03/202603171015_android-medialibrary-viewmodel-coverage/) - 继续补齐 MediaLibraryViewModel 高收益 JVM 单测，Debug Unit Test branch 覆盖率提升至 35.76%
+- [202603170825_chatroom-viewmodel-hotspot-followup](2026-03/202603170825_chatroom-viewmodel-hotspot-followup/) - 继续补齐 ChatRoomViewModel 剩余高收益 JVM 单测，Debug Unit Test branch 覆盖率提升至 40.81%，类分支覆盖率提升至 76.39%
+- [202603170713_chatroom-viewmodel-coverage](2026-03/202603170713_chatroom-viewmodel-coverage/) - 继续补齐 ChatRoomViewModel 高收益 JVM 单测，Debug Unit Test branch 覆盖率提升至 40.27%
 - [202603170407_android-medialibrary-viewmodel-coverage](2026-03/202603170407_android-medialibrary-viewmodel-coverage/) - Android MediaLibraryViewModel 重复草稿方案归档（未执行，已由 202603171015 方案替代）
 - [202603161541_android-viewmodel-branch-continue](2026-03/202603161541_android-viewmodel-branch-continue/) - 继续补齐 AppCoordinator / mtPhoto ViewModel 高收益 JVM 单测，Debug Unit Test branch 覆盖率提升至 35.21%
 - [202603161509_android-branch-coverage-rebound](2026-03/202603161509_android-branch-coverage-rebound/) - 补齐 mtPhoto 同媒体、网络模型、默认页面与应用级协调器 ViewModel 高收益 JVM 单测，Debug Unit Test branch 覆盖率提升至 33.91%
