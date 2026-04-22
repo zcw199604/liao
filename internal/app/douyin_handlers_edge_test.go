@@ -404,6 +404,9 @@ func TestSanitizeFilename(t *testing.T) {
 	if got := sanitizeFilename("a/b:c*?\"<>\n\t|"); !strings.Contains(got, "_") {
 		t.Fatalf("got=%q", got)
 	}
+	if got := sanitizeFilename("3.5 版本.mp4"); strings.Contains(got, ".") || got != "35 版本mp4" {
+		t.Fatalf("got=%q", got)
+	}
 	long := strings.Repeat("中", 200)
 	if got := sanitizeFilename(long); len([]rune(got)) != 100 {
 		t.Fatalf("len=%d got=%q", len([]rune(got)), got)

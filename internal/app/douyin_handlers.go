@@ -2626,6 +2626,7 @@ func sanitizeFilename(input string) string {
 	}
 
 	// 替换常见非法字符（Windows/URL/控制字符）
+	// 额外去掉标题中的点号，避免浏览器/系统在保存时误判扩展名。
 	replacer := strings.NewReplacer(
 		"/", "_",
 		"\\", "_",
@@ -2636,6 +2637,7 @@ func sanitizeFilename(input string) string {
 		"<", "_",
 		">", "_",
 		"|", "_",
+		".", "",
 		"\n", " ",
 		"\r", " ",
 		"\t", " ",

@@ -520,6 +520,116 @@ func TestHandleDouyinImport_LocalOnlySuccess(t *testing.T) {
 	}
 }
 
+func TestHandleDouyinImport_VideoFilenameFromContentType(t *testing.T) {
+	fileBytes := []byte("video-bytes")
+	sum := md5.Sum(fileBytes)
+	md5Value := hex.EncodeToString(sum[:])
+
+	downloadURL := "https://v26-web.douyinvod.com/aweme/v1/play/?video_id=live1"
+	title := `目标是打卡各地的网球场 以及10年内打到3.5
+#网球记录 
+#网球训练 
+#广州网球场`
+	expectedOriginalFilename := "目标是打卡各地的网球场 以及10年内打到35 #网球记录 #网球训练 #广州网球场.mp4"
+
+	down := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "video/mp4")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(fileBytes)
+	}))
+	t.Cleanup(down.Close)
+
+	db, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`(?s)FROM media_file.*WHERE file_md5 = [?].*LIMIT 1`).
+		WithArgs(md5Value).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`(?s)FROM douyin_media_file.*WHERE file_md5 = [?].*LIMIT 1`).
+		WithArgs(md5Value).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`(?s)FROM douyin_media_file.*WHERE file_md5 = [?].*LIMIT 1`).
+		WithArgs(md5Value).
+		WillReturnError(sql.ErrNoRows)
+	expectInsertReturningID(
+		mock,
+		`(?s)INSERT INTO douyin_media_file`,
+		1,
+		"u1",
+		sqlmock.AnyArg(),
+		"7631159318440651683",
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+		expectedOriginalFilename,
+		sqlmock.AnyArg(),
+		"",
+		"",
+		sqlmock.AnyArg(),
+		int64(len(fileBytes)),
+		"video/mp4",
+		"mp4",
+		md5Value,
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
+	)
+
+	uploadRoot := t.TempDir()
+	app := &App{
+		douyinDownloader: NewDouyinDownloaderService("http://127.0.0.1:1", "", "", "", 60*time.Second),
+		fileStorage:      &FileStorageService{baseUploadAbs: uploadRoot},
+		mediaUpload:      &MediaUploadService{db: wrapMySQLDB(db)},
+	}
+
+	key := app.douyinDownloader.CacheDetail(&douyinCachedDetail{
+		DetailID:  "7631159318440651683",
+		Title:     title,
+		Downloads: []string{down.URL + "/proxy-video"},
+	})
+
+	rr := httptest.NewRecorder()
+	req := newDouyinImportFormRequest(t, url.Values{
+		"userid": {"u1"},
+		"key":    {key},
+		"index":  {"0"},
+	})
+	app.handleDouyinImport(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, body=%s", rr.Code, rr.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	localFilename, _ := resp["localFilename"].(string)
+	if !strings.HasSuffix(localFilename, ".mp4") {
+		t.Fatalf("localFilename=%q, want suffix .mp4", localFilename)
+	}
+	if strings.Contains(localFilename, expectedOriginalFilename) {
+		t.Fatalf("localFilename should be generated storage name, got=%q", localFilename)
+	}
+	localPath, _ := resp["localPath"].(string)
+	if !strings.HasPrefix(localPath, "/douyin/videos/") {
+		t.Fatalf("localPath=%q", localPath)
+	}
+	if !strings.HasSuffix(localPath, ".mp4") {
+		t.Fatalf("localPath=%q, want suffix .mp4", localPath)
+	}
+
+	full := filepath.Join(uploadRoot, filepath.FromSlash(strings.TrimPrefix(localPath, "/")))
+	if st, err := os.Stat(full); err != nil || st == nil || st.Size() != int64(len(fileBytes)) {
+		t.Fatalf("file=%s stat=%v size=%v", full, err, st)
+	}
+
+	if got := buildDouyinOriginalFilename(title, "7631159318440651683", 0, 1, ".mp4"); got != expectedOriginalFilename {
+		t.Fatalf("originalFilename=%q, want %q", got, expectedOriginalFilename)
+	}
+	if got := guessExtFromURL(downloadURL); got != "" {
+		t.Fatalf("guessExtFromURL(%q)=%q, want empty", downloadURL, got)
+	}
+}
+
 func TestHandleDouyinImport_DefaultUserIDAndCrossHostRedirectDropsCookie(t *testing.T) {
 	oldURL := "http://www.douyin.com/video/old.mp4"
 	finalURL := "http://cdn.example.com/final.jpg"
