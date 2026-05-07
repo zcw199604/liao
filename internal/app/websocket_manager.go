@@ -46,6 +46,7 @@ type UpstreamWebSocketManager struct {
 	forceout *ForceoutManager
 	cache    UserInfoCacheService
 	history  ChatHistoryCacheService
+	archive  UserArchiveService
 
 	mu                    sync.Mutex
 	upstreamClients       map[string]*UpstreamWebSocketClient
@@ -54,9 +55,13 @@ type UpstreamWebSocketManager struct {
 	connectionCreateMilli map[string]int64
 }
 
-func NewUpstreamWebSocketManager(httpClient *http.Client, fallbackWS string, forceout *ForceoutManager, cache UserInfoCacheService, history ChatHistoryCacheService) *UpstreamWebSocketManager {
+func NewUpstreamWebSocketManager(httpClient *http.Client, fallbackWS string, forceout *ForceoutManager, cache UserInfoCacheService, history ChatHistoryCacheService, archives ...UserArchiveService) *UpstreamWebSocketManager {
 	if strings.TrimSpace(fallbackWS) == "" {
 		fallbackWS = "ws://localhost:9999"
+	}
+	var archive UserArchiveService
+	if len(archives) > 0 {
+		archive = archives[0]
 	}
 	return &UpstreamWebSocketManager{
 		httpClient:            httpClient,
@@ -64,6 +69,7 @@ func NewUpstreamWebSocketManager(httpClient *http.Client, fallbackWS string, for
 		forceout:              forceout,
 		cache:                 cache,
 		history:               history,
+		archive:               archive,
 		upstreamClients:       make(map[string]*UpstreamWebSocketClient),
 		downstreamSessions:    make(map[string]map[*DownstreamSession]struct{}),
 		pendingCloseTasks:     make(map[string]*time.Timer),
@@ -602,6 +608,11 @@ func (c *UpstreamWebSocketClient) onMessage(message string) {
 					Address:  toString(node["sel_userAddress"]),
 				})
 			}
+			if target != "" && target != c.userID && c.manager != nil && c.manager.archive != nil {
+				c.manager.archive.PersistUserList(context.Background(), c.userID, []map[string]any{
+					buildMatchedUserArchiveSnapshot(node, target),
+				}, UserArchiveListSourceHistory)
+			}
 		}
 
 		if code == 7 {
@@ -784,6 +795,37 @@ func firstNonNil(values ...any) any {
 		}
 	}
 	return nil
+}
+
+func buildMatchedUserArchiveSnapshot(node map[string]any, targetUserID string) map[string]any {
+	nickname := strings.TrimSpace(toString(node["sel_userNikename"]))
+	if nickname == "" {
+		nickname = "匿名用户"
+	}
+	address := strings.TrimSpace(toString(node["sel_userAddress"]))
+	if address == "" {
+		address = "未知"
+	}
+	sex := strings.TrimSpace(toString(node["sel_userSex"]))
+	if sex == "" {
+		sex = "未知"
+	}
+	age := strings.TrimSpace(toString(node["sel_userAge"]))
+	if age == "" {
+		age = "0"
+	}
+
+	return map[string]any{
+		"id":       targetUserID,
+		"name":     nickname,
+		"nickname": nickname,
+		"sex":      sex,
+		"age":      age,
+		"area":     address,
+		"address":  address,
+		"lastMsg":  "匹配成功",
+		"lastTime": time.Now().Format("2006-01-02 15:04:05"),
+	}
 }
 
 func md5HexLower(input string) string {

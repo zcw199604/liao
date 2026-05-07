@@ -1133,8 +1133,11 @@ onMounted(async () => {
   // 连接WebSocket
   connect()
 
-	// 加载数据
-	if (chatStore.historyUsers.length === 0 && chatStore.favoriteUsers.length === 0) {
+	// 加载数据；身份变化时必须刷新列表，避免复用上一个身份的内存列表。
+	if (
+	  chatStore.listOwnerUserId !== userStore.currentUser.id ||
+	  (chatStore.historyUsers.length === 0 && chatStore.favoriteUsers.length === 0)
+	) {
 	  isInitialLoadingUsers.value = true
 	  try {
 	    await loadUsers()

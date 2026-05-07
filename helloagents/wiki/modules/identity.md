@@ -22,6 +22,7 @@
 #### 场景: 选择身份
 - 更新 `last_used_at`。
 - 前端进入需要身份的页面前必须存在 `currentUser`。
+- 聊天列表由 `chat` store 的 `listOwnerUserId` 隔离，选择不同身份后列表加载必须以当前身份为 owner。
 
 ## API接口
 - `GET /api/getIdentityList`

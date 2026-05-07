@@ -26,6 +26,10 @@
 - 列表接口可合并本地归档项。
 - 删除上游用户成功后应同步清理本地归档，避免手动删除后回流。
 
+#### 场景: 匹配成功但未聊天
+- WebSocket 收到上游 `code=15` 匹配成功事件时，应以当前身份 ID 作为 owner，将匹配用户快照写入 `chat_user_archive` 的 history 来源。
+- 刷新历史列表时，先保持上游返回用户顺序，再把上游缺失的本地归档用户追加到列表末尾。
+
 ### 需求: Redis 聊天记录缓存
 **模块:** User History  
 `getMessageHistory` 在 Redis 模式下可缓存并合并 `contents_list`。
@@ -52,5 +56,6 @@
 ## 依赖
 - `internal/app/user_history_handlers.go`
 - `internal/app/user_archive.go`
+- `internal/app/websocket_manager.go`
 - `internal/app/user_info_cache*.go`
 - `internal/app/chat_history_cache*.go`

@@ -195,7 +195,7 @@ func New(cfg config.Config) (*App, error) {
 	application.systemConfig = NewSystemConfigService(db, systemDefaults)
 	application.imagePortResolver = NewImagePortResolver(application.httpClient)
 	_ = application.systemConfig.EnsureDefaults(context.Background())
-	application.wsManager = NewUpstreamWebSocketManager(application.httpClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache, application.chatHistoryCache)
+	application.wsManager = NewUpstreamWebSocketManager(application.httpClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache, application.chatHistoryCache, application.userArchive)
 	application.mediaUpload = NewMediaUploadService(db, cfg.ServerPort, application.fileStorage, application.imageServer, application.httpClient)
 	application.douyinDownloader = NewDouyinDownloaderService(cfg.TikTokDownloaderBaseURL, cfg.TikTokDownloaderToken, cfg.DouyinDefaultCookie, cfg.DouyinDefaultProxy, time.Duration(cfg.TikTokDownloaderTimeoutSeconds)*time.Second)
 	if strings.TrimSpace(cfg.CookieCloudBaseURL) != "" {

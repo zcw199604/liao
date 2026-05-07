@@ -272,6 +272,31 @@ func (s *spyUserInfoCache) BatchEnrichWithLastMessage(userList []map[string]any,
 	return userList
 }
 
+type spyUserArchive struct {
+	mu      sync.Mutex
+	owner   string
+	source  UserArchiveListSource
+	records []map[string]any
+}
+
+func (s *spyUserArchive) PersistUserList(_ context.Context, ownerUserID string, users []map[string]any, source UserArchiveListSource) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.owner = ownerUserID
+	s.source = source
+	s.records = cloneUserListForArchive(users)
+}
+
+func (s *spyUserArchive) MergeArchivedUsers(_ context.Context, _ string, upstream []map[string]any, _ UserArchiveListSource) []map[string]any {
+	return upstream
+}
+
+func (s *spyUserArchive) TouchConversation(context.Context, string, string) {}
+
+func (s *spyUserArchive) SaveLastMessage(context.Context, string, string, string, string) {}
+
+func (s *spyUserArchive) DeleteConversation(context.Context, string, string) {}
+
 func TestUpstreamWebSocketClient_OnMessage_CachesUserInfoAndLastMessage(t *testing.T) {
 	cache := &spyUserInfoCache{}
 	m := NewUpstreamWebSocketManager(nil, "ws://unused", nil, cache, nil)
@@ -301,6 +326,30 @@ func TestUpstreamWebSocketClient_OnMessage_CachesUserInfoAndLastMessage(t *testi
 	cache.mu.Unlock()
 	if got != 3 {
 		t.Fatalf("messages=%d, want 3 (compat writes)", got)
+	}
+}
+
+func TestUpstreamWebSocketClient_OnMessage_ArchivesMatchedUser(t *testing.T) {
+	archive := &spyUserArchive{}
+	m := NewUpstreamWebSocketManager(nil, "ws://unused", nil, nil, nil, archive)
+	c := NewUpstreamWebSocketClient("owner1", "ws://unused", m)
+
+	c.onMessage(`{"code":15,"sel_userid":"target1","sel_userNikename":"Bob","sel_userSex":"男","sel_userAge":"20","sel_userAddress":"BJ"}`)
+
+	archive.mu.Lock()
+	defer archive.mu.Unlock()
+	if archive.owner != "owner1" {
+		t.Fatalf("owner=%q, want owner1", archive.owner)
+	}
+	if archive.source != UserArchiveListSourceHistory {
+		t.Fatalf("source=%q, want history", archive.source)
+	}
+	if len(archive.records) != 1 {
+		t.Fatalf("records=%d, want 1", len(archive.records))
+	}
+	record := archive.records[0]
+	if record["id"] != "target1" || record["nickname"] != "Bob" || record["lastMsg"] != "匹配成功" {
+		t.Fatalf("unexpected archive record: %v", record)
 	}
 }
 

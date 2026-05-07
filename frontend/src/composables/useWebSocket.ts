@@ -108,6 +108,7 @@ export const useWebSocket = () => {
     }
 
     const desiredUserId = String(currentUser.id || '')
+    chatStore.ensureListOwner(desiredUserId)
     const existing = activeConnection
     if (existing && (existing.socket.readyState === WebSocket.OPEN || existing.socket.readyState === WebSocket.CONNECTING)) {
       if (existing.userId === desiredUserId) {

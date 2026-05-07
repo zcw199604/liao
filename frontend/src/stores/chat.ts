@@ -29,6 +29,7 @@ export const useChatStore = defineStore('chat', () => {
   const userMap = ref<Map<string, User>>(new Map())  // userId -> User对象（唯一数据源）
   const historyUserIds = ref<string[]>([])           // 历史列表的用户ID顺序
   const favoriteUserIds = ref<string[]>([])          // 收藏列表的用户ID顺序
+  const listOwnerUserId = ref('')                    // 当前列表所属身份ID
 
   // === 其他状态 ===
   const currentChatUser = ref<User | null>(null)
@@ -110,6 +111,19 @@ export const useChatStore = defineStore('chat', () => {
     historyUserIds.value = []
     favoriteUserIds.value = []
     currentChatUser.value = null
+    listOwnerUserId.value = ''
+  }
+
+  const ensureListOwner = (ownerUserId: string) => {
+    const nextOwnerUserId = String(ownerUserId || '').trim()
+    if (!nextOwnerUserId) return false
+
+    if (listOwnerUserId.value && listOwnerUserId.value !== nextOwnerUserId) {
+      clearAllUsers()
+    }
+
+    listOwnerUserId.value = nextOwnerUserId
+    return true
   }
 
   // === 工具方法：删除用户 ===
@@ -131,6 +145,7 @@ export const useChatStore = defineStore('chat', () => {
   // === 加载历史用户列表 ===
   const loadHistoryUsers = async (userId: string, userName: string) => {
     try {
+      ensureListOwner(userId)
       const cookieData = generateCookie(userId, userName)
       const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
       const userAgent = navigator.userAgent
@@ -170,6 +185,7 @@ export const useChatStore = defineStore('chat', () => {
   // === 加载收藏用户列表 ===
   const loadFavoriteUsers = async (userId: string, userName: string) => {
     try {
+      ensureListOwner(userId)
       const cookieData = generateCookie(userId, userName)
       const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
       const userAgent = navigator.userAgent
@@ -279,6 +295,7 @@ export const useChatStore = defineStore('chat', () => {
     // 新增：直接访问底层数据（供高级操作）
     historyUserIds,
     favoriteUserIds,
+    listOwnerUserId,
 
     // 方法
     loadHistoryUsers,
@@ -300,6 +317,7 @@ export const useChatStore = defineStore('chat', () => {
     getUserByNickname,
     updateUser,
     clearAllUsers,
+    ensureListOwner,
     removeUser
   }
 })

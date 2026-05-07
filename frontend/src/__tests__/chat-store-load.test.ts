@@ -73,6 +73,39 @@ describe('stores/chat load list branches', () => {
     expect(store.historyUserIds).toEqual(['u1'])
   })
 
+  it('loadHistoryUsers clears stale list data when owner identity changes', async () => {
+    const store = useChatStore()
+
+    store.listOwnerUserId = 'me-a'
+    store.historyUserIds = ['old-history']
+    store.favoriteUserIds = ['old-favorite']
+    store.upsertUser({
+      id: 'old-history',
+      name: 'Old',
+      nickname: 'Old',
+      sex: '未知',
+      age: '0',
+      area: '',
+      address: '',
+      ip: '',
+      isFavorite: false,
+      lastMsg: 'old',
+      lastTime: '旧时间',
+      unreadCount: 0
+    } as any)
+
+    ;(chatApi.getHistoryUserList as any).mockResolvedValueOnce([
+      { id: 'new-history', nickname: 'New', lastMsg: 'new', lastTime: '新时间' }
+    ])
+
+    await store.loadHistoryUsers('me-b', 'MeB')
+
+    expect(store.listOwnerUserId).toBe('me-b')
+    expect(store.historyUserIds).toEqual(['new-history'])
+    expect(store.favoriteUserIds).toEqual([])
+    expect(store.getUser('old-history')).toBeUndefined()
+  })
+
   it('loadHistoryUsers uses fallback name/nickname when both are missing and keeps unreadCount via || 0', async () => {
     const store = useChatStore()
 

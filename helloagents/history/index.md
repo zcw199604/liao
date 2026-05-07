@@ -12,10 +12,14 @@
 | 202601062034 | refine_unread_route_cleanup | 修复 | 已完成 | [链接](2026-01/202601062034_refine_unread_route_cleanup/) |
 | 202601071248 | go_backend_rewrite | 重构 | 已完成 | [链接](2026-01/202601071248_go_backend_rewrite/) |
 | 202601071533 | release_v1_0_0 | 发布 | 已完成 | [链接](2026-01/202601071533_release_v1_0_0/) |
+| 202605072331 | matched_user_archive | 功能 | 已完成 | [链接](2026-05/202605072331_matched_user_archive/) |
 
 ---
 
 ## 按月归档
+
+### 2026-05
+- [202605072331_matched_user_archive](2026-05/202605072331_matched_user_archive/) - 保存匹配未聊天用户并隔离不同身份列表。
 
 ### 2026-01
 - [202601062010_fix_unread_badge_list](2026-01/202601062010_fix_unread_badge_list/) - 修复列表页未读气泡不显示。
