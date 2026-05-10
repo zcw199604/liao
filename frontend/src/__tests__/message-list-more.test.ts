@@ -270,6 +270,78 @@ describe('components/chat/MessageList.vue (more coverage)', () => {
     expect(dispatchSpy).toHaveBeenCalled()
   })
 
+  it('dispatches preview-media when MessageList video media emits preview', async () => {
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const messageStore = useMessageStore()
+    messageStore.isLoadingHistory = false
+
+    const wrapper = mount(MessageList, {
+      props: {
+        messages: [
+          {
+            tid: 'seg-video',
+            time: '2026-01-01 00:00:00.000',
+            isSelf: false,
+            sendStatus: '',
+            isImage: false,
+            isVideo: false,
+            isFile: false,
+            content: '',
+            segments: [{ kind: 'video', url: 'http://x/seg.mp4' }],
+            fromuser: { id: 'u1', nickname: 'u1', name: 'u1', sex: '未知', ip: '' }
+          },
+          {
+            tid: 'fallback-video',
+            time: '2026-01-01 00:00:01.000',
+            isSelf: false,
+            sendStatus: '',
+            isImage: false,
+            isVideo: true,
+            videoUrl: 'http://x/fallback.mp4',
+            isFile: false,
+            content: '',
+            fromuser: { id: 'u1', nickname: 'u1', name: 'u1', sex: '未知', ip: '' }
+          }
+        ] as any,
+        isTyping: false,
+        loadingMore: false,
+        canLoadMore: true
+      },
+      global: {
+        plugins: [pinia],
+        stubs: {
+          Skeleton: true,
+          ChatMedia: {
+            props: ['src', 'type', 'previewable'],
+            emits: ['preview', 'layout'],
+            template: `<button class="chat-media" :data-src="src" :data-type="type" :data-previewable="String(previewable)" @click="$emit('preview', src)" />`
+          }
+        }
+      }
+    })
+
+    await flushAsync()
+    const media = wrapper.findAll('.chat-media')
+    expect(media).toHaveLength(2)
+    expect(media[0]!.attributes('data-previewable')).not.toBe('false')
+    expect(media[1]!.attributes('data-previewable')).not.toBe('false')
+
+    await media[0]!.trigger('click')
+    expect(dispatchSpy).toHaveBeenLastCalledWith(expect.objectContaining({
+      type: 'preview-media',
+      detail: { url: 'http://x/seg.mp4', type: 'video' }
+    }))
+
+    await media[1]!.trigger('click')
+    expect(dispatchSpy).toHaveBeenLastCalledWith(expect.objectContaining({
+      type: 'preview-media',
+      detail: { url: 'http://x/fallback.mp4', type: 'video' }
+    }))
+  })
+
   it('copyToClipboard shows success/fail toasts and ignores empty text', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)

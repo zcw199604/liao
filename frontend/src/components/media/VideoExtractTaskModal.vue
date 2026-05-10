@@ -842,14 +842,56 @@ const doDelete = async () => {
   }
 }
 
+const normalizeContinueNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : Number.NaN
+}
+
 const doContinue = async () => {
   const t = videoExtractStore.selectedTask
   if (!t) return
+  const endSec = normalizeContinueNumber(continueEndSec.value)
+  const maxFrames = normalizeContinueNumber(continueMaxFrames.value)
+
+  if (Number.isNaN(endSec) || Number.isNaN(maxFrames)) {
+    show('请输入有效的继续抽帧参数')
+    return
+  }
+  if (endSec === null && maxFrames === null) {
+    show('请至少填写新的 endSec 或 maxFrames')
+    return
+  }
+
+  if (endSec !== null) {
+    if (endSec < 0) {
+      show('endSec 必须为非负数字')
+      return
+    }
+    const baseline = Number(t.cursorOutTimeSec ?? t.startSec ?? 0)
+    if (Number.isFinite(baseline) && endSec <= baseline) {
+      show('endSec 必须大于当前进度')
+      return
+    }
+  }
+
+  if (maxFrames !== null) {
+    if (maxFrames <= 0 || !Number.isInteger(maxFrames)) {
+      show('maxFrames 必须为正整数')
+      return
+    }
+    const framesExtracted = Number(t.framesExtracted ?? 0)
+    if (Number.isFinite(framesExtracted) && maxFrames <= framesExtracted) {
+      show('maxFrames 必须大于已输出帧数')
+      return
+    }
+  }
+
   continueSubmitting.value = true
   try {
     const payload: any = { taskId: t.taskId }
-    if (continueEndSec.value !== null) payload.endSec = continueEndSec.value
-    if (continueMaxFrames.value !== null) payload.maxFrames = continueMaxFrames.value
+    if (endSec !== null) payload.endSec = endSec
+    if (maxFrames !== null) payload.maxFrames = maxFrames
     await videoExtractStore.continueTask(payload)
     show('已提交继续抽帧')
     continueEndSec.value = null

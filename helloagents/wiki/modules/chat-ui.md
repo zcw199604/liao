@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** Vue 路由守卫、聊天列表、聊天室、WebSocket 消息解析、消息 stores、媒体弹窗、设置抽屉。
 - **状态:** 稳定
-- **最后更新:** 2026-05-07
+- **最后更新:** 2026-05-10
 
 ## 规范
 
@@ -43,6 +43,15 @@
 #### 场景: 身份切换后进入列表
 - `chat` store 记录 `listOwnerUserId`。
 - 加载历史/收藏列表前发现 owner 变化时，应清空旧身份的 `userMap`、历史 ID、收藏 ID 和当前聊天对象，再加载新身份列表。
+
+### 需求: 聊天媒体预览入口
+**模块:** Chat UI
+聊天消息中的图片和视频进入统一 `MediaPreview` 能力，以复用视频播放、快退/快进、倍速、抓帧和抽帧入口。
+
+#### 场景: 消息列表视频预览
+- `MessageList.vue` 的 segments 视频和 fallback 视频都通过 `ChatMedia` 默认预览能力派发 `preview-media`。
+- 视频预览事件的 `detail.type` 为 `video`，由上层预览容器打开 `MediaPreview`。
+- `ChatMedia.previewable` 默认保持兼容；只有调用方显式禁用时才不进入预览。
 
 ## API接口
 通过 `frontend/src/api/*` 调用后端 `/api`，通过 `frontend/src/composables/useWebSocket.ts` 连接 `/ws`。

@@ -592,7 +592,13 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
       Object.defineProperty(video, 'ended', { configurable: true, get: () => false })
       Object.defineProperty(video, 'duration', { configurable: true, value: 100 })
       Object.defineProperty(video, 'currentTime', { configurable: true, writable: true, value: 5 })
-      Object.defineProperty(video, 'volume', { configurable: true, writable: true, value: 0.5 })
+      Object.defineProperty(video, 'volume', {
+        configurable: true,
+        get: () => 0.5,
+        set: () => {
+          throw new Error('volume blocked')
+        }
+      })
 
       video.play = vi.fn().mockImplementation(async () => {
         paused = false
@@ -842,6 +848,93 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
     Object.defineProperty(HTMLCanvasElement.prototype, 'toBlob', { configurable: true, value: originalToBlob })
 
     clickSpy.mockRestore()
+  })
+
+  it('keeps fullscreen capture controls visible and clears pending tap while capture is running', async () => {
+    vi.useFakeTimers()
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const originalGetContext = HTMLCanvasElement.prototype.getContext
+    const originalToBlob = HTMLCanvasElement.prototype.toBlob
+
+    try {
+      const wrapper = mount(MediaPreview, {
+        props: {
+          visible: true,
+          url: '/upload/videos/2026/01/a.mp4',
+          type: 'video',
+          mediaList: [{ url: '/upload/videos/2026/01/a.mp4', type: 'video' }]
+        },
+        global: { stubs: { teleport: true } }
+      })
+      await flushAsync()
+
+      const vm = wrapper.vm as any
+      const videoWrapperEl = wrapper.get('.media-preview-video-wrapper').element as HTMLElement
+      const video = wrapper.get('video').element as HTMLVideoElement
+
+      let paused = false
+      Object.defineProperty(video, 'paused', { configurable: true, get: () => paused })
+      Object.defineProperty(video, 'ended', { configurable: true, get: () => false })
+      Object.defineProperty(video, 'readyState', { configurable: true, value: 2 })
+      Object.defineProperty(video, 'videoWidth', { configurable: true, value: 100 })
+      Object.defineProperty(video, 'videoHeight', { configurable: true, value: 100 })
+      Object.defineProperty(video, 'currentTime', { configurable: true, value: 0, writable: true })
+      video.play = vi.fn().mockImplementation(async () => {
+        paused = false
+      })
+      video.pause = vi.fn().mockImplementation(() => {
+        paused = true
+        video.dispatchEvent(new Event('pause'))
+      })
+
+      Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', { configurable: true, value: vi.fn().mockReturnValue({ drawImage: vi.fn() }) })
+      Object.defineProperty(HTMLCanvasElement.prototype, 'toBlob', {
+        configurable: true,
+        value: (cb: (b: Blob | null) => void) => setTimeout(() => cb(new Blob(['x'], { type: 'image/png' })), 1200)
+      })
+
+      const makeEvent = (pointerId: number, clientX: number, clientY: number) =>
+        ({
+          pointerId,
+          clientX,
+          clientY,
+          button: 0,
+          cancelable: true,
+          preventDefault: vi.fn(),
+          target: null,
+          currentTarget: videoWrapperEl
+        } as any)
+
+      vm.handleVideoPointerDown(makeEvent(1, 10, 10))
+      vm.handleVideoPointerUp(makeEvent(1, 10, 10))
+      await flushAsync()
+
+      vm.isVideoFullscreen = true
+      const capturePromise = vm.handleCaptureFrame()
+      await flushAsync()
+
+      expect(video.pause).toHaveBeenCalledTimes(1)
+      expect(vm.isVideoPlaying).toBe(false)
+      expect(vm.captureFrameLoading).toBe(true)
+      expect(vm.showVideoOverlayControls).toBe(true)
+
+      await vi.advanceTimersByTimeAsync(1000)
+      await flushAsync()
+      expect(vm.captureFrameLoading).toBe(true)
+      expect(vm.showVideoOverlayControls).toBe(true)
+
+      await vi.advanceTimersByTimeAsync(300)
+      await capturePromise
+      await flushAsync()
+
+      expect(video.play).not.toHaveBeenCalled()
+      expect(vm.captureFrameLoading).toBe(false)
+    } finally {
+      vi.useRealTimers()
+      Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', { configurable: true, value: originalGetContext })
+      Object.defineProperty(HTMLCanvasElement.prototype, 'toBlob', { configurable: true, value: originalToBlob })
+      clickSpy.mockRestore()
+    }
   })
 
   it('capture frame uploads with douyin source metadata when current media is douyin video', async () => {
@@ -1102,7 +1195,7 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
     vi.useRealTimers()
   })
 
-  it('video gesture fallbacks cover stepPx/volume fallback and volume gesture unsupported hint', async () => {
+  it('video gesture fallbacks cover stepPx/volume fallback and synced native volume', async () => {
     const originalRaf = (globalThis as any).requestAnimationFrame
     const originalCaf = (globalThis as any).cancelAnimationFrame
     ;(globalThis as any).requestAnimationFrame = (cb: any) => {
@@ -1159,14 +1252,15 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
           ...extra
         } as any)
 
-      // First vertical gesture sets volumeGestureSupported=false (plyr branch does not mutate video.volume)
+      // First vertical gesture uses the pixel fallback and syncs native video.volume.
       vm.handleVideoPointerDown(makeEvent(1, 0, 0))
       vm.handleVideoPointerMove(makeEvent(1, 0, 200))
       vm.handleVideoPointerUp(makeEvent(1, 0, 200))
       await flushAsync()
-      expect(toastShow).toHaveBeenCalledWith('当前浏览器限制网页调节音量，请使用实体音量键')
+      expect(video.volume).toBe(0)
+      expect(toastShow).not.toHaveBeenCalledWith('当前浏览器限制网页调节音量，请使用实体音量键')
 
-      // Second vertical gesture hits volumeGestureSupported === false early-return path
+      // Second vertical gesture remains safe after volume support has been detected.
       vm.handleVideoPointerDown(makeEvent(2, 0, 0))
       vm.handleVideoPointerMove(makeEvent(2, 0, 200))
       vm.handleVideoPointerUp(makeEvent(2, 0, 200))

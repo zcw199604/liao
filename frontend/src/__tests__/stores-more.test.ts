@@ -1943,16 +1943,18 @@ describe('stores/videoExtract', () => {
     expect(store.showCreateModal).toBe(false)
   })
 
-  it('openCreateFromMedia handles blank url and mtPhoto detection for /api urls', async () => {
+  it('openCreateFromMedia rejects blank or unresolvable urls and handles mtPhoto detection for /api urls', async () => {
     vi.mocked(videoExtractApi.probeVideo).mockResolvedValue({ code: 0, data: {} } as any)
 
     const store = useVideoExtractStore()
 
-    // Blank url -> mediaUrl should be undefined and label empty.
     const okBlank = await store.openCreateFromMedia({ type: 'video' } as any, 'u1')
-    expect(okBlank).toBe(true)
-    expect(store.createSource?.mediaUrl).toBeUndefined()
-    expect(store.createSourceLabel).toBe('')
+    expect(okBlank).toBe(false)
+    expect(store.showCreateModal).toBe(false)
+
+    const okRemote = await store.openCreateFromMedia({ type: 'video', url: 'https://cdn.example.com/a.mp4' } as any, 'u1')
+    expect(okRemote).toBe(false)
+    expect(store.showCreateModal).toBe(false)
 
     // /api url + md5 -> mtPhoto source.
     const okApi = await store.openCreateFromMedia({ type: 'video', url: '/api/download/xxx', md5: 'm2' } as any, 'u2')
@@ -2065,6 +2067,15 @@ describe('stores/videoExtract', () => {
     await expect(store.createTask({ mode: 'keyframe', maxFrames: 1, outputFormat: 'jpg' } as any)).rejects.toThrow('bad')
   })
 
+  it('createTask blocks submit until video probe succeeds', async () => {
+    vi.mocked(videoExtractApi.probeVideo).mockResolvedValue({ code: 1, msg: 'probe failed' } as any)
+    const store = useVideoExtractStore()
+    await store.openCreateFromMedia({ type: 'video', url: '/upload/videos/a.mp4' } as any, 'u1')
+
+    await expect(store.createTask({ mode: 'keyframe', maxFrames: 1, outputFormat: 'jpg' } as any)).rejects.toThrow('视频探测失败，请刷新后重试')
+    expect(videoExtractApi.createVideoExtractTask).not.toHaveBeenCalled()
+  })
+
   it('createTask error message falls back to res.message and then default', async () => {
     vi.mocked(videoExtractApi.probeVideo).mockResolvedValue({ code: 0, data: {} } as any)
     const store = useVideoExtractStore()
@@ -2169,6 +2180,42 @@ describe('stores/videoExtract', () => {
     expect(videoExtractApi.getVideoExtractTaskDetail).not.toHaveBeenCalled()
   })
 
+  it('refreshTaskDetail deduplicates merged frames by seq when loading more', async () => {
+    vi.mocked(videoExtractApi.getVideoExtractTaskDetail).mockResolvedValue({
+      code: 0,
+      data: {
+        task: { taskId: 't1', status: 'RUNNING' },
+        frames: {
+          items: [
+            { seq: 2, url: 'b-duplicate' },
+            { seq: 3, url: 'c' }
+          ],
+          nextCursor: 4,
+          hasMore: false
+        }
+      }
+    } as any)
+
+    const store = useVideoExtractStore()
+    store.selectedTaskId = 't1'
+    store.frames = {
+      items: [
+        { seq: 1, url: 'a' },
+        { seq: 2, url: 'b' }
+      ],
+      nextCursor: 2,
+      hasMore: true
+    } as any
+
+    await store.refreshTaskDetail(false)
+
+    expect(store.frames.items).toEqual([
+      { seq: 1, url: 'a' },
+      { seq: 2, url: 'b' },
+      { seq: 3, url: 'c' }
+    ])
+  })
+
   it('loadMoreFrames calls refreshTaskDetail when hasMore is true', async () => {
     vi.mocked(videoExtractApi.getVideoExtractTaskDetail).mockResolvedValue({
       code: 0,
@@ -2184,6 +2231,21 @@ describe('stores/videoExtract', () => {
 
     await store.loadMoreFrames()
     expect(videoExtractApi.getVideoExtractTaskDetail).toHaveBeenCalledTimes(1)
+  })
+
+  it('continueTask blocks empty and non-expanding continue payloads', async () => {
+    const store = useVideoExtractStore()
+    store.selectedTask = {
+      taskId: 't1',
+      startSec: 0,
+      cursorOutTimeSec: 12,
+      framesExtracted: 8
+    } as any
+
+    await expect(store.continueTask({ taskId: 't1' })).rejects.toThrow('请至少填写新的 endSec 或 maxFrames')
+    await expect(store.continueTask({ taskId: 't1', endSec: 12 })).rejects.toThrow('endSec 必须大于当前进度')
+    await expect(store.continueTask({ taskId: 't1', maxFrames: 8 })).rejects.toThrow('maxFrames 必须大于已输出帧数')
+    expect(videoExtractApi.continueVideoExtractTask).not.toHaveBeenCalled()
   })
 
   it('loadMoreFrames returns early when selectedTaskId is empty', async () => {

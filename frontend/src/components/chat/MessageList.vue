@@ -82,8 +82,8 @@
                       v-else-if="seg.kind === 'video'"
                       type="video"
                       :src="getMediaUrl(seg.url)"
-                      :previewable="false"
                       @layout="handleMediaLayout"
+                      @preview="(url) => previewMedia(url, 'video')"
                     />
 
                     <div
@@ -144,8 +144,8 @@
                   v-else-if="row.message.isVideo"
                   type="video"
                   :src="getMediaUrl(row.message.videoUrl || row.message.content || '')"
-                  :previewable="false"
                   @layout="handleMediaLayout"
+                  @preview="(url) => previewMedia(url, 'video')"
                 />
 
                 <!-- 文件 -->
