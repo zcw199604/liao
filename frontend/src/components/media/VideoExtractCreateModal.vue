@@ -427,6 +427,8 @@ const riskText = computed(() => {
 
 const validationError = computed(() => {
   if (!videoExtractStore.createSource) return '缺少视频来源'
+  if (videoExtractStore.probeError) return '视频探测失败，请刷新后重试'
+  if (!probe.value) return '请先完成视频探测'
   if (!maxFrames.value || maxFrames.value <= 0) return 'maxFrames 必须大于 0'
   if (mode.value === 'fps' && (!fps.value || fps.value <= 0)) return 'fps 必须大于 0'
   const s = startSec.value

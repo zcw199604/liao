@@ -36,8 +36,36 @@ export const useVideoExtractStore = defineStore('videoExtract', () => {
   const polling = ref(false)
   let pollTimer: ReturnType<typeof setTimeout> | null = null
 
+  const clearCreateState = () => {
+    createSource.value = null
+    probe.value = null
+    probeError.value = ''
+    showCreateModal.value = false
+  }
+
   const isRunningStatus = (status?: string) => {
     return status === 'PENDING' || status === 'PREPARING' || status === 'RUNNING'
+  }
+
+  const isUsableUploadLocalPath = (value: string) => {
+    const p = String(value || '').trim()
+    return p.startsWith('/videos/') || p.startsWith('/tmp/video_extract_inputs/')
+  }
+
+  const mergeFrameItems = (existing: any[], incoming: any[]) => {
+    const seenSeq = new Set<number>()
+    const result: any[] = []
+
+    for (const item of [...existing, ...incoming]) {
+      const seq = Number(item?.seq)
+      if (Number.isFinite(seq)) {
+        if (seenSeq.has(seq)) continue
+        seenSeq.add(seq)
+      }
+      result.push(item)
+    }
+
+    return result
   }
 
   const openCreateFromMedia = async (media: UploadedMedia, userId?: string) => {
@@ -57,6 +85,16 @@ export const useVideoExtractStore = defineStore('videoExtract', () => {
     } else {
       sourceType = 'upload'
       localPath = extractUploadLocalPath(url)
+    }
+
+    if (sourceType === 'upload' && !isUsableUploadLocalPath(localPath)) {
+      clearCreateState()
+      return false
+    }
+
+    if (sourceType === 'mtPhoto' && !md5Value) {
+      clearCreateState()
+      return false
     }
 
     createSource.value = {
@@ -131,6 +169,9 @@ export const useVideoExtractStore = defineStore('videoExtract', () => {
     jpgQuality?: number
   }) => {
     if (!createSource.value) throw new Error('缺少视频来源')
+    if (probeLoading.value) throw new Error('视频探测中，请稍后再试')
+    if (probeError.value) throw new Error('视频探测失败，请刷新后重试')
+    if (!probe.value) throw new Error('请先完成视频探测')
     const body: any = {
       userId: createSource.value.userId,
       sourceType: createSource.value.sourceType,
@@ -186,7 +227,7 @@ export const useVideoExtractStore = defineStore('videoExtract', () => {
         if (resetCursor) {
           frames.value = page
         } else {
-          const merged = [...frames.value.items, ...page.items]
+          const merged = mergeFrameItems(frames.value.items, page.items)
           frames.value = { ...page, items: merged }
         }
       }
@@ -210,7 +251,32 @@ export const useVideoExtractStore = defineStore('videoExtract', () => {
   }
 
   const continueTask = async (data: { taskId: string; endSec?: number; maxFrames?: number }) => {
-    await videoExtractApi.continueVideoExtractTask(data)
+    const taskId = String(data.taskId || '').trim()
+    if (!taskId) throw new Error('缺少任务ID')
+
+    const hasEndSec = data.endSec !== undefined && data.endSec !== null
+    const hasMaxFrames = data.maxFrames !== undefined && data.maxFrames !== null
+    if (!hasEndSec && !hasMaxFrames) throw new Error('请至少填写新的 endSec 或 maxFrames')
+
+    const body: { taskId: string; endSec?: number; maxFrames?: number } = { taskId }
+
+    if (hasEndSec) {
+      const endSec = Number(data.endSec)
+      if (!Number.isFinite(endSec) || endSec < 0) throw new Error('endSec 必须为非负数字')
+      const baseline = Number(selectedTask.value?.cursorOutTimeSec ?? selectedTask.value?.startSec ?? 0)
+      if (Number.isFinite(baseline) && endSec <= baseline) throw new Error('endSec 必须大于当前进度')
+      body.endSec = endSec
+    }
+
+    if (hasMaxFrames) {
+      const maxFrames = Number(data.maxFrames)
+      if (!Number.isFinite(maxFrames) || maxFrames <= 0 || !Number.isInteger(maxFrames)) throw new Error('maxFrames 必须为正整数')
+      const extracted = Number(selectedTask.value?.framesExtracted ?? 0)
+      if (Number.isFinite(extracted) && maxFrames <= extracted) throw new Error('maxFrames 必须大于已输出帧数')
+      body.maxFrames = maxFrames
+    }
+
+    await videoExtractApi.continueVideoExtractTask(body)
     await refreshTaskDetail(true)
     startPolling()
     await loadTasks(listPage.value)

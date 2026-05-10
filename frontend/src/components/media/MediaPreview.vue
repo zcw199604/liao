@@ -660,12 +660,20 @@ const setVideoSpeed = (r: number, opts?: { setDefault?: boolean }) => {
     } catch {
       // ignore
     }
-  } else {
+  }
+
+  try {
     video.playbackRate = rate
+  } catch {
+    // ignore
   }
 
   if (opts?.setDefault) {
-    video.defaultPlaybackRate = rate
+    try {
+      video.defaultPlaybackRate = rate
+    } catch {
+      // ignore
+    }
   }
 }
 
@@ -681,12 +689,15 @@ const setVideoCurrentTime = (t: number) => {
   if (plyrInstance) {
     try {
       plyrInstance.currentTime = clamped
-      return
     } catch {
       // ignore
     }
   }
-  video.currentTime = clamped
+  try {
+    video.currentTime = clamped
+  } catch {
+    // ignore
+  }
 }
 
 const setVideoVolume = (v: number) => {
@@ -698,10 +709,14 @@ const setVideoVolume = (v: number) => {
     try {
       plyrInstance.volume = next
     } catch {
-      video.volume = next
+      // ignore
     }
-  } else {
+  }
+
+  try {
     video.volume = next
+  } catch {
+    // ignore
   }
 
   if (volumeGestureSupported === null) {
@@ -723,6 +738,7 @@ const clearOverlayHideTimer = () => {
 const showOverlayWithAutoHide = () => {
   showVideoOverlayControls.value = true
   clearOverlayHideTimer()
+  if (captureFrameLoading.value) return
   overlayHideTimer = setTimeout(() => {
     showVideoOverlayControls.value = false
     overlayHideTimer = null
@@ -919,6 +935,7 @@ const stopTempSpeedBoost = () => {
       // ignore
     }
   }
+  syncVideoPlayState()
   speedBoostWasPaused = false
 }
 
@@ -957,6 +974,7 @@ const handleSpeedPressCancel = () => {
 const isTargetInPlyrControls = (target: EventTarget | null): boolean => {
   const el = target instanceof Element ? target : null
   if (!el) return false
+  if (!plyrInstance && el.closest('video[controls]')) return true
   return !!el.closest('.plyr__controls, .plyr__control, .plyr__progress, .plyr__volume')
 }
 
@@ -1082,6 +1100,7 @@ const handleVideoPointerUp = (e: PointerEvent) => {
   const moved = Math.max(Math.abs(videoGesture.latestDx), Math.abs(videoGesture.latestDy))
   const asTap = elapsed < 500 && moved < VIDEO_GESTURE_THRESHOLD_PX
   const wasStarted = videoGesture.started
+  if (wasStarted) applyVideoGestureFrame()
   cancelVideoGestureRaf()
   videoGesture = null
 
@@ -1182,14 +1201,20 @@ const handleCaptureFrame = async () => {
     return
   }
 
+  clearTapState()
+  const keepOverlayVisible = isVideoFullscreen.value
   captureFrameLoading.value = true
+  if (keepOverlayVisible) showOverlayDuringGesture()
   try {
     // 用户希望“暂停后抓帧”，这里若仍在播放则先暂停，确保画面稳定。
     if (!video.paused) {
       video.pause()
+      syncVideoPlayState()
       if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
         await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()))
       }
+    } else {
+      syncVideoPlayState()
     }
 
     // HAVE_CURRENT_DATA=2，保证当前帧可用
@@ -1254,6 +1279,8 @@ const handleCaptureFrame = async () => {
     }
   } finally {
     captureFrameLoading.value = false
+    syncVideoPlayState()
+    if (keepOverlayVisible) showOverlayWithAutoHide()
   }
 }
 

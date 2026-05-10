@@ -31,6 +31,16 @@ vi.mock('@/composables/useSettings', () => ({
   })
 }))
 
+vi.mock('@/api/videoExtract', () => ({
+  probeVideo: vi.fn(),
+  createVideoExtractTask: vi.fn(),
+  getVideoExtractTaskList: vi.fn(),
+  getVideoExtractTaskDetail: vi.fn(),
+  cancelVideoExtractTask: vi.fn(),
+  continueVideoExtractTask: vi.fn(),
+  deleteVideoExtractTask: vi.fn()
+}))
+
 const plyrPlay = vi.fn().mockResolvedValue(undefined)
 const plyrPause = vi.fn()
 const plyrDestroy = vi.fn()
@@ -75,9 +85,13 @@ vi.mock('plyr', () => {
 
 import SettingsDrawer from '@/components/settings/SettingsDrawer.vue'
 import MediaPreview from '@/components/media/MediaPreview.vue'
+import VideoExtractCreateModal from '@/components/media/VideoExtractCreateModal.vue'
+import VideoExtractTaskModal from '@/components/media/VideoExtractTaskModal.vue'
 
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
+import { useVideoExtractStore } from '@/stores/videoExtract'
+import * as videoExtractApi from '@/api/videoExtract'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -649,5 +663,83 @@ describe('components/media/MediaPreview.vue', () => {
     ;(globalThis as any).fetch = originalFetch
     ;(URL as any).createObjectURL = originalCreateObjectURL
     ;(URL as any).revokeObjectURL = originalRevokeObjectURL
+  })
+})
+
+describe('components/media/VideoExtract modals', () => {
+  it('disables create while probe is missing or failed', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const store = useVideoExtractStore()
+    store.showCreateModal = true
+    store.createSource = { sourceType: 'upload', localPath: '/videos/a.mp4' } as any
+    store.probe = null
+    store.probeError = ''
+
+    const wrapper = mount(VideoExtractCreateModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          MediaPreview: true
+        }
+      }
+    })
+
+    await nextTick()
+    const createButton = () => wrapper.findAll('button').find(btn => btn.text().includes('创建任务'))
+
+    expect(createButton()?.attributes('disabled')).toBeDefined()
+
+    store.probe = { durationSec: 10, width: 1, height: 1 } as any
+    await nextTick()
+    expect(createButton()?.attributes('disabled')).toBeUndefined()
+
+    store.probeError = 'bad'
+    await nextTick()
+    expect(createButton()?.attributes('disabled')).toBeDefined()
+  })
+
+  it('blocks continue submit when no new limit is provided', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    vi.mocked(videoExtractApi.continueVideoExtractTask).mockResolvedValue({ code: 0 } as any)
+
+    const store = useVideoExtractStore()
+    store.showTaskModal = true
+    store.selectedTaskId = 't1'
+    store.selectedTask = {
+      taskId: 't1',
+      sourceType: 'upload',
+      sourceRef: '/videos/a.mp4',
+      outputDirLocalPath: '/frames',
+      outputFormat: 'jpg',
+      mode: 'keyframe',
+      maxFrames: 100,
+      framesExtracted: 12,
+      videoWidth: 1,
+      videoHeight: 1,
+      startSec: 0,
+      cursorOutTimeSec: 8,
+      status: 'PAUSED_LIMIT'
+    } as any
+
+    const wrapper = mount(VideoExtractTaskModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          MediaPreview: true
+        }
+      }
+    })
+
+    await nextTick()
+    const continueButton = wrapper.findAll('button').find(btn => btn.text().trim() === '继续')
+    expect(continueButton).toBeTruthy()
+    await continueButton!.trigger('click')
+
+    expect(toastShow).toHaveBeenCalledWith('请至少填写新的 endSec 或 maxFrames')
+    expect(videoExtractApi.continueVideoExtractTask).not.toHaveBeenCalled()
   })
 })
