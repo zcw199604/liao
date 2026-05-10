@@ -11,6 +11,13 @@
 
 ---
 
+## 项目规模
+- **规模判定:** 大型项目。
+- **扫描口径:** 排除 `.git/`、`node_modules/`、`target/`、`logs/`、`upload/`、`reports/`、`src/main/resources/static/`、`helloagents/` 与旧备份目录。
+- **当前统计:** 有效文件约 748 个，其中 Go/TypeScript/Vue/Kotlin/SQL/KTS 代码与脚本文件约 526 个。
+
+---
+
 ## 开发约定
 - **后端入口:** `cmd/liao`，业务实现位于 `internal/app`，配置位于 `internal/config`，数据库工具位于 `internal/database`。
 - **接口命名:** REST 路径保留项目历史 camelCase 约定，例如 `/api/getHistoryUserList`、`/api/uploadMedia`。

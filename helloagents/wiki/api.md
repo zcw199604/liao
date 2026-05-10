@@ -50,6 +50,8 @@
 | POST | `/api/getFavoriteUserList` | 代理上游收藏用户列表并做本地增强 |
 | POST | `/api/reportReferrer` | 上报 referrer 到上游 |
 | POST | `/api/getMessageHistory` | 获取消息历史，Redis 模式下可合并本地聊天记录缓存 |
+| POST | `/api/toggleFavorite` | 代理上游添加聊天收藏 |
+| POST | `/api/cancelFavorite` | 代理上游取消聊天收藏 |
 | POST | `/api/deleteUpstreamUser` | 删除上游会话用户并清理本地归档 |
 | POST | `/api/batchDeleteUpstreamUsers` | 批量删除上游会话用户并清理本地归档 |
 

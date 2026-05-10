@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** 历史用户列表、收藏用户列表、消息历史、上游删除、最后消息缓存、用户信息缓存、本地归档。
 - **状态:** 稳定
-- **最后更新:** 2026-05-07
+- **最后更新:** 2026-05-10
 
 ## 规范
 
@@ -45,6 +45,8 @@
 - `POST /api/getFavoriteUserList`
 - `POST /api/reportReferrer`
 - `POST /api/getMessageHistory`
+- `POST /api/toggleFavorite`
+- `POST /api/cancelFavorite`
 - `POST /api/deleteUpstreamUser`
 - `POST /api/batchDeleteUpstreamUsers`
 
