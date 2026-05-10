@@ -1,0 +1,1232 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>视频抽帧操作界面优化方案</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f6f8;
+      --surface: #ffffff;
+      --surface-2: #f0f2f5;
+      --surface-3: #e7ebef;
+      --text: #17202a;
+      --muted: #637083;
+      --line: #d6dde5;
+      --line-strong: #b8c3cf;
+      --teal: #0f766e;
+      --teal-soft: #d9f1ed;
+      --violet: #6d5bd0;
+      --violet-soft: #ece7fb;
+      --amber: #a16207;
+      --amber-soft: #fff1cf;
+      --red: #b42318;
+      --red-soft: #fde7e5;
+      --blue: #2563eb;
+      --blue-soft: #e4edff;
+      --green: #15803d;
+      --green-soft: #dcfce7;
+      --shadow: 0 18px 46px rgba(20, 28, 38, 0.10);
+      font-family: Inter, "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .page {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: end;
+      padding: 20px 0 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 0;
+    }
+
+    .topbar p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      height: 28px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 18px 0 20px;
+    }
+
+    .summary-item {
+      min-height: 78px;
+      padding: 14px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .summary-item strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .summary-item span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .option-selector {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin: 20px 0;
+    }
+
+    .option-button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: var(--surface);
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+      transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+      min-height: 112px;
+    }
+
+    .option-button:hover,
+    .option-button.is-active {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, .12);
+    }
+
+    .option-button.is-active {
+      transform: translateY(-1px);
+    }
+
+    .option-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 15px;
+    }
+
+    .option-title small {
+      color: var(--teal);
+      background: var(--teal-soft);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .option-button p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .panel {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel.is-active {
+      display: block;
+    }
+
+    .panel-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-2);
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .panel-head p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .select-hint {
+      display: inline-flex;
+      align-items: center;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      color: var(--teal);
+      font-weight: 700;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .panel-body {
+      padding: 20px;
+    }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr) 300px;
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .preview-grid.two-col {
+      grid-template-columns: 330px minmax(0, 1fr);
+    }
+
+    .preview-grid.mobile-focus {
+      grid-template-columns: minmax(0, 1fr) 340px;
+    }
+
+    .rail,
+    .workspace,
+    .side-summary,
+    .phone {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    .rail-head,
+    .workspace-head,
+    .side-head {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-2);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .steps {
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--teal-soft);
+      color: var(--teal);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .step strong {
+      display: block;
+      font-size: 13px;
+    }
+
+    .step span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .video-box {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      background:
+        linear-gradient(135deg, rgba(15, 118, 110, .28), transparent 46%),
+        linear-gradient(45deg, #1f2937, #334155);
+      overflow: hidden;
+    }
+
+    .video-box::before {
+      content: "";
+      position: absolute;
+      inset: 18px;
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 8px;
+    }
+
+    .play {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.92);
+      display: grid;
+      place-items: center;
+      color: var(--teal);
+      font-size: 24px;
+      padding-left: 3px;
+    }
+
+    .video-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .range-bar {
+      margin: 14px 12px;
+      height: 38px;
+      border-radius: 8px;
+      background: var(--surface-3);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .range-selected {
+      position: absolute;
+      left: 12%;
+      right: 22%;
+      top: 7px;
+      bottom: 7px;
+      border-radius: 8px;
+      background: var(--teal);
+    }
+
+    .range-tick {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: rgba(23, 32, 42, .14);
+    }
+
+    .preset-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .preset {
+      min-height: 92px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: var(--surface);
+    }
+
+    .preset.is-recommended {
+      border-color: var(--teal);
+      background: var(--teal-soft);
+    }
+
+    .preset strong {
+      display: block;
+      font-size: 13px;
+    }
+
+    .preset span {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      padding: 0 12px 12px;
+    }
+
+    .field {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      min-height: 64px;
+    }
+
+    .field label {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .field b {
+      display: block;
+      margin-top: 5px;
+      font-size: 14px;
+    }
+
+    .metric-list {
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .metric {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+    }
+
+    .metric:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .metric strong {
+      font-size: 16px;
+    }
+
+    .primary,
+    .secondary,
+    .danger,
+    .plain {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 0 14px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .primary {
+      background: var(--teal);
+      color: #fff;
+    }
+
+    .secondary {
+      background: var(--surface-2);
+      color: var(--text);
+      border-color: var(--line);
+    }
+
+    .danger {
+      background: var(--red-soft);
+      color: var(--red);
+      border-color: #f3b3ad;
+    }
+
+    .plain {
+      background: #fff;
+      color: var(--muted);
+      border-color: var(--line);
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 0 12px 12px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+      overflow-x: auto;
+    }
+
+    .tab {
+      height: 30px;
+      padding: 0 10px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .tab.is-active {
+      color: var(--teal);
+      background: var(--teal-soft);
+      border-color: var(--teal);
+      font-weight: 700;
+    }
+
+    .search-line {
+      padding: 10px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .search-line input {
+      width: 100%;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 10px;
+      background: var(--surface);
+    }
+
+    .task-list {
+      display: grid;
+    }
+
+    .task-row {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: start;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .task-row.is-active {
+      background: #f8fafc;
+      border-left: 3px solid var(--teal);
+      padding-left: 9px;
+    }
+
+    .task-row input {
+      margin-top: 4px;
+    }
+
+    .task-row strong {
+      display: block;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .task-row span {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 58px;
+      height: 24px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .status.running {
+      color: var(--green);
+      background: var(--green-soft);
+    }
+
+    .status.pause {
+      color: var(--amber);
+      background: var(--amber-soft);
+    }
+
+    .status.failed {
+      color: var(--red);
+      background: var(--red-soft);
+    }
+
+    .status.done {
+      color: var(--blue);
+      background: var(--blue-soft);
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .timeline {
+      margin: 0 12px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .timeline-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--teal);
+      flex: 0 0 auto;
+    }
+
+    .frames {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 8px;
+      padding: 12px;
+    }
+
+    .frame {
+      aspect-ratio: 1 / 1;
+      border-radius: 8px;
+      background:
+        linear-gradient(135deg, rgba(109, 91, 208, .30), transparent 52%),
+        linear-gradient(45deg, #d9e2ec, #f8fafc);
+      border: 1px solid var(--line);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .frame span {
+      position: absolute;
+      left: 6px;
+      bottom: 5px;
+      color: #334155;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .batch-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 12px 12px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .mobile-demo {
+      min-height: 640px;
+      background: #111827;
+      padding: 12px;
+      color: #eef2ff;
+    }
+
+    .mobile-screen {
+      min-height: 616px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #0f172a;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .mobile-top {
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      border-bottom: 1px solid rgba(255,255,255,.12);
+    }
+
+    .mobile-content {
+      flex: 1;
+      padding: 12px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .mobile-panel {
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 8px;
+      padding: 12px;
+      background: rgba(255,255,255,.06);
+    }
+
+    .mobile-panel strong {
+      display: block;
+      font-size: 13px;
+    }
+
+    .mobile-panel span {
+      display: block;
+      margin-top: 4px;
+      color: #cbd5e1;
+      font-size: 12px;
+    }
+
+    .mobile-cta {
+      padding: 12px;
+      border-top: 1px solid rgba(255,255,255,.12);
+      background: #111827;
+    }
+
+    .mobile-cta button {
+      width: 100%;
+      border: 0;
+      border-radius: 8px;
+      height: 42px;
+      background: #14b8a6;
+      color: #062c2a;
+      font-weight: 900;
+    }
+
+    .decision {
+      margin-top: 20px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+    }
+
+    .decision h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+    }
+
+    .decision table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .decision th,
+    .decision td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .decision th {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .notes {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 1100px) {
+      .summary-grid,
+      .option-selector {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .preview-grid,
+      .preview-grid.two-col,
+      .preview-grid.mobile-focus {
+        grid-template-columns: 1fr;
+      }
+
+      .side-summary {
+        order: -1;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .page {
+        padding: 14px;
+      }
+
+      .topbar,
+      .panel-head {
+        grid-template-columns: 1fr;
+      }
+
+      .badge-row {
+        justify-content: flex-start;
+      }
+
+      .summary-grid,
+      .option-selector,
+      .preset-grid,
+      .field-grid,
+      .detail-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .frames {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .batch-bar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .decision {
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <div>
+        <h1>视频抽帧操作界面优化方案</h1>
+        <p>基于当前 Vue 抽帧创建弹窗、任务中心和 3 个子代理只读分析结果，整理 3 个可选择的操作示例。</p>
+      </div>
+      <div class="badge-row" aria-label="分析范围">
+        <span class="badge">创建流程</span>
+        <span class="badge">任务中心</span>
+        <span class="badge">移动端体验</span>
+      </div>
+    </header>
+
+    <section class="summary-grid" aria-label="当前问题摘要">
+      <div class="summary-item">
+        <strong>参数暴露过早</strong>
+        <span>I 帧、场景阈值、FPS、JPG 质量同时出现，普通操作需要先理解专业概念。</span>
+      </div>
+      <div class="summary-item">
+        <strong>入口闭环完整</strong>
+        <span>媒体预览、设置抽屉和任务中心上传都能进入抽帧，但缺少按目标推荐的路径。</span>
+      </div>
+      <div class="summary-item">
+        <strong>任务中心过载</strong>
+        <span>列表、上传、详情、终止、续跑、删除、预览和日志挤在一个 Modal。</span>
+      </div>
+      <div class="summary-item">
+        <strong>状态操作可再明确</strong>
+        <span>续跑应从“填写绝对 endSec/maxFrames”改为“追加多少秒/多少帧”。</span>
+      </div>
+    </section>
+
+    <nav class="option-selector" aria-label="方案选择">
+      <button class="option-button is-active" data-target="option-a" type="button">
+        <span class="option-title">方案一：预设向导 <small>推荐先做</small></span>
+        <p>把创建任务改成按用途选择，默认给出安全参数，高级项折叠。</p>
+      </button>
+      <button class="option-button" data-target="option-b" type="button">
+        <span class="option-title">方案二：任务工作台 <small>适合重度使用</small></span>
+        <p>强化任务列表、状态筛选、批量操作、失败恢复和续跑向导。</p>
+      </button>
+      <button class="option-button" data-target="option-c" type="button">
+        <span class="option-title">方案三：一体化工作台 <small>移动端友好</small></span>
+        <p>把来源、区间、创建、运行状态和结果预览放到同一个操作台。</p>
+      </button>
+    </nav>
+
+    <section id="option-a" class="panel is-active">
+      <div class="panel-head">
+        <div>
+          <h2>方案一：预设向导</h2>
+          <p>目标是降低创建任务的学习成本。用户先选“想要什么结果”，系统映射为模式、FPS、格式和上限。</p>
+        </div>
+        <span class="select-hint">适合优先落地</span>
+      </div>
+      <div class="panel-body">
+        <div class="preview-grid">
+          <aside class="rail">
+            <div class="rail-head">
+              <span>操作步骤</span>
+              <span class="muted">5 步</span>
+            </div>
+            <div class="steps">
+              <div class="step"><span class="step-num">1</span><div><strong>确认来源</strong><span>来自媒体库或上传视频</span></div></div>
+              <div class="step"><span class="step-num">2</span><div><strong>预览并选区间</strong><span>默认全程，也可拖选片段</span></div></div>
+              <div class="step"><span class="step-num">3</span><div><strong>选择用途预设</strong><span>封面、每秒截图、场景变化、全帧</span></div></div>
+              <div class="step"><span class="step-num">4</span><div><strong>确认输出量</strong><span>展示风险和存储占用</span></div></div>
+              <div class="step"><span class="step-num">5</span><div><strong>创建并查看结果</strong><span>直接进入任务详情</span></div></div>
+            </div>
+          </aside>
+
+          <section class="workspace">
+            <div class="workspace-head">
+              <span>创建任务示例</span>
+              <span class="muted">sample.mov · 03:24</span>
+            </div>
+            <div class="video-box" aria-label="视频预览示意">
+              <span class="play">▶</span>
+            </div>
+            <div class="video-meta">
+              <span>1920 × 1080</span>
+              <span>29.97 FPS</span>
+              <span>预计可输出 6120 帧</span>
+            </div>
+            <div class="range-bar" aria-label="时间区间示意">
+              <i class="range-tick" style="left: 20%"></i>
+              <i class="range-tick" style="left: 40%"></i>
+              <i class="range-tick" style="left: 60%"></i>
+              <i class="range-tick" style="left: 80%"></i>
+              <span class="range-selected"></span>
+            </div>
+            <div class="preset-grid">
+              <div class="preset is-recommended"><strong>智能精选</strong><span>场景变化，最多 500 张，JPG</span></div>
+              <div class="preset"><strong>每秒截图</strong><span>1 FPS，适合做缩略图列表</span></div>
+              <div class="preset"><strong>封面候选</strong><span>截取当前片段前后 20 张</span></div>
+              <div class="preset"><strong>高级导出</strong><span>展开全部参数</span></div>
+            </div>
+            <div class="field-grid">
+              <div class="field"><label>模式</label><b>场景变化</b></div>
+              <div class="field"><label>输出</label><b>JPG · 质量 5</b></div>
+              <div class="field"><label>上限</label><b>500 张</b></div>
+            </div>
+          </section>
+
+          <aside class="side-summary">
+            <div class="side-head">
+              <span>创建摘要</span>
+              <span class="muted">推荐</span>
+            </div>
+            <div class="metric-list">
+              <div class="metric"><span>预计输出</span><strong>约 180-420 张</strong></div>
+              <div class="metric"><span>风险等级</span><strong style="color: var(--green)">低</strong></div>
+              <div class="metric"><span>运行方式</span><strong>异步任务</strong></div>
+              <div class="metric"><span>后续动作</span><strong>自动打开详情</strong></div>
+            </div>
+            <div class="button-row">
+              <button class="primary" type="button">开始抽帧</button>
+              <button class="secondary" type="button">高级设置</button>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section id="option-b" class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>方案二：任务工作台</h2>
+          <p>目标是优化任务管理。适合任务数量多、经常暂停续跑、需要批量清理或失败恢复的用户。</p>
+        </div>
+        <span class="select-hint">适合任务多时</span>
+      </div>
+      <div class="panel-body">
+        <div class="preview-grid two-col">
+          <aside class="rail">
+            <div class="rail-head">
+              <span>任务列表</span>
+              <span class="muted">67 个</span>
+            </div>
+            <div class="tabs">
+              <button class="tab is-active" type="button">需处理 6</button>
+              <button class="tab" type="button">运行中 2</button>
+              <button class="tab" type="button">已完成</button>
+              <button class="tab" type="button">全部</button>
+            </div>
+            <div class="search-line">
+              <input value="sample" aria-label="搜索任务">
+              <button class="plain" type="button">筛选</button>
+            </div>
+            <div class="task-list">
+              <div class="task-row is-active">
+                <input type="checkbox" checked aria-label="选择任务">
+                <div><strong>sample-travel.mov</strong><span>已输出 500 / 500 · 因上限暂停</span></div>
+                <span class="status pause">需续跑</span>
+              </div>
+              <div class="task-row">
+                <input type="checkbox" aria-label="选择任务">
+                <div><strong>city-night.mp4</strong><span>排队中 · 1 FPS</span></div>
+                <span class="status running">运行中</span>
+              </div>
+              <div class="task-row">
+                <input type="checkbox" checked aria-label="选择任务">
+                <div><strong>screen-recording.mp4</strong><span>ffmpeg 启动失败</span></div>
+                <span class="status failed">失败</span>
+              </div>
+              <div class="task-row">
+                <input type="checkbox" aria-label="选择任务">
+                <div><strong>product-demo.mov</strong><span>已完成 · 324 张</span></div>
+                <span class="status done">完成</span>
+              </div>
+            </div>
+          </aside>
+
+          <section class="workspace">
+            <div class="workspace-head">
+              <span>任务详情</span>
+              <span class="muted">task_20260510_0831</span>
+            </div>
+            <div class="detail-grid">
+              <div class="field"><label>状态</label><b>因上限暂停</b></div>
+              <div class="field"><label>游标</label><b>102.4s / 204s</b></div>
+              <div class="field"><label>输出</label><b>500 张</b></div>
+              <div class="field"><label>模式</label><b>1 FPS</b></div>
+            </div>
+            <div class="timeline">
+              <div class="timeline-line"><span class="dot"></span><span>已完成 0s 到 102.4s，触发 maxFrames=500。</span></div>
+              <div class="timeline-line"><span class="dot" style="background: var(--amber)"></span><span>建议续跑：追加 500 张或继续到视频末尾。</span></div>
+              <div class="timeline-line"><span class="dot" style="background: var(--blue)"></span><span>失败任务可复制参数重建，或在后端支持后直接重试。</span></div>
+            </div>
+            <div class="field-grid">
+              <div class="field"><label>续跑方式</label><b>追加 500 张</b></div>
+              <div class="field"><label>结束位置</label><b>继续到 204s</b></div>
+              <div class="field"><label>文件处理</label><b>保留已有帧</b></div>
+            </div>
+            <div class="button-row">
+              <button class="primary" type="button">继续抽帧</button>
+              <button class="secondary" type="button">复制参数重建</button>
+              <button class="danger" type="button">删除任务</button>
+            </div>
+            <div class="workspace-head" style="border-top: 1px solid var(--line)">
+              <span>帧图预览</span>
+              <span class="muted">按需加载</span>
+            </div>
+            <div class="frames">
+              <div class="frame"><span>001</span></div>
+              <div class="frame"><span>002</span></div>
+              <div class="frame"><span>003</span></div>
+              <div class="frame"><span>004</span></div>
+              <div class="frame"><span>005</span></div>
+              <div class="frame"><span>006</span></div>
+              <div class="frame"><span>007</span></div>
+              <div class="frame"><span>008</span></div>
+              <div class="frame"><span>009</span></div>
+              <div class="frame"><span>010</span></div>
+              <div class="frame"><span>011</span></div>
+              <div class="frame"><span>012</span></div>
+            </div>
+            <div class="batch-bar">
+              <strong>已选 2 个任务</strong>
+              <div class="button-row" style="padding: 0">
+                <button class="secondary" type="button">批量续跑</button>
+                <button class="secondary" type="button">批量重试</button>
+                <button class="danger" type="button">批量删除</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section id="option-c" class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>方案三：一体化工作台</h2>
+          <p>目标是减少弹窗跳转。来源、片段、预设、进度和结果都在一个工作台内完成，移动端使用底部主操作。</p>
+        </div>
+        <span class="select-hint">适合重构体验</span>
+      </div>
+      <div class="panel-body">
+        <div class="preview-grid mobile-focus">
+          <section class="workspace">
+            <div class="workspace-head">
+              <span>桌面工作台示例</span>
+              <span class="muted">来源到结果不跳转</span>
+            </div>
+            <div class="video-box" aria-label="桌面视频预览示意">
+              <span class="play">▶</span>
+            </div>
+            <div class="video-meta">
+              <span>当前播放点 01:12</span>
+              <span>区间 00:52-01:32</span>
+              <span>智能关键帧</span>
+            </div>
+            <div class="preset-grid">
+              <div class="preset is-recommended"><strong>当前片段</strong><span>围绕播放点截取 40 秒</span></div>
+              <div class="preset"><strong>全程</strong><span>按推荐上限保护</span></div>
+              <div class="preset"><strong>手动区间</strong><span>输入或拖选时间</span></div>
+              <div class="preset"><strong>从任务续跑</strong><span>接上未完成任务</span></div>
+            </div>
+            <div class="detail-grid">
+              <div class="field"><label>当前状态</label><b>准备创建</b></div>
+              <div class="field"><label>预计输出</label><b>约 80 张</b></div>
+              <div class="field"><label>输出格式</label><b>JPG</b></div>
+              <div class="field"><label>结果位置</label><b>同页预览</b></div>
+            </div>
+            <div class="button-row">
+              <button class="primary" type="button">创建并在此查看</button>
+              <button class="secondary" type="button">打开历史任务</button>
+            </div>
+            <div class="frames">
+              <div class="frame"><span>准备</span></div>
+              <div class="frame"><span>结果</span></div>
+              <div class="frame"><span>将在</span></div>
+              <div class="frame"><span>这里</span></div>
+              <div class="frame"><span>按需</span></div>
+              <div class="frame"><span>加载</span></div>
+            </div>
+          </section>
+
+          <aside class="phone">
+            <div class="mobile-demo">
+              <div class="mobile-screen">
+                <div class="mobile-top">
+                  <strong>抽帧工作台</strong>
+                  <span class="muted" style="color:#cbd5e1">03:24</span>
+                </div>
+                <div class="mobile-content">
+                  <div class="video-box" style="border-radius: 8px; min-height: 150px">
+                    <span class="play">▶</span>
+                  </div>
+                  <div class="mobile-panel">
+                    <strong>推荐：智能关键帧</strong>
+                    <span>JPG，最多 500 张，适合快速挑图。</span>
+                  </div>
+                  <div class="mobile-panel">
+                    <strong>区间</strong>
+                    <span>全程 · 可切换为当前播放点附近。</span>
+                  </div>
+                  <div class="mobile-panel">
+                    <strong>预计输出</strong>
+                    <span>受内容影响，预计 180-420 张。</span>
+                  </div>
+                  <div class="mobile-panel">
+                    <strong>高级设置</strong>
+                    <span>FPS、场景阈值、JPG 质量放入底部抽屉。</span>
+                  </div>
+                </div>
+                <div class="mobile-cta">
+                  <button type="button">开始抽帧</button>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section class="decision">
+      <h2>选择建议</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>方案</th>
+            <th>优先级</th>
+            <th>最小落地范围</th>
+            <th>主要风险</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>方案一：预设向导</td>
+            <td>高</td>
+            <td>优先改创建弹窗，保留现有任务中心和 API。</td>
+            <td>需要定义预设到现有参数的映射，并补组件测试。</td>
+          </tr>
+          <tr>
+            <td>方案二：任务工作台</td>
+            <td>中</td>
+            <td>增强任务中心列表、续跑、删除确认、状态筛选。</td>
+            <td>批量操作和失败重试可能需要后端补幂等接口。</td>
+          </tr>
+          <tr>
+            <td>方案三：一体化工作台</td>
+            <td>中低</td>
+            <td>新建工作台式入口，逐步替代创建弹窗和任务中心。</td>
+            <td>体验最好但改动最大，需重新验证移动端滚动和状态流转。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="notes">建议先选方案一作为低风险迭代；如果你更关注大量任务管理，再选方案二；如果愿意做一次较大的体验重构，再选方案三。</p>
+    </section>
+  </main>
+
+  <script>
+    const buttons = Array.from(document.querySelectorAll('.option-button'));
+    const panels = Array.from(document.querySelectorAll('.panel'));
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = button.getAttribute('data-target');
+        buttons.forEach((item) => item.classList.toggle('is-active', item === button));
+        panels.forEach((panel) => panel.classList.toggle('is-active', panel.id === target));
+        const active = document.getElementById(target);
+        if (active) active.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+  </script>
+</body>
+</html>
