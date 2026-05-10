@@ -54,3 +54,4 @@ build/
 src/main/resources/static/
 temp-old-index.html
 .ace-tool/
+.playwright-cli/
