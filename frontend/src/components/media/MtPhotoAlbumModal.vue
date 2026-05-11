@@ -550,6 +550,7 @@ import MediaPreview from '@/components/media/MediaPreview.vue'
 import InfiniteMediaGrid from '@/components/common/InfiniteMediaGrid.vue'
 import MediaTile from '@/components/common/MediaTile.vue'
 import type { UploadedMedia } from '@/types'
+import { encodeLocalMediaUrl } from '@/utils/media'
 
 const mtPhotoStore = useMtPhotoStore()
 const userStore = useUserStore()
@@ -882,7 +883,7 @@ const handleMediaClick = async (item: MtPhotoMediaItem) => {
     try {
       const res = await mtphotoApi.resolveMtPhotoFilePath(item.md5)
       if (res?.filePath) {
-        previewUrl.value = res.filePath
+        previewUrl.value = encodeLocalMediaUrl(res.filePath)
         const filename = extractBasename(res.filePath)
         if (filename) {
           mtPhotoOriginalFilenameCache.set(item.md5, filename)

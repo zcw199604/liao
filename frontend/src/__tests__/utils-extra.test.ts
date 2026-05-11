@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { generateCookie, parseCookie } from '@/utils/cookie'
 import { extractFileName, formatFileSize, getFileExtension, isImageFile, isVideoFile } from '@/utils/file'
-import { extractRemoteFilePathFromImgUploadUrl, extractUploadLocalPath, inferMediaTypeFromUrl } from '@/utils/media'
+import { encodeLocalMediaUrl, extractRemoteFilePathFromImgUploadUrl, extractUploadLocalPath, inferMediaTypeFromUrl } from '@/utils/media'
 
 describe('utils/cookie', () => {
   it('generateCookie includes userid/nickname/timestamp/random', () => {
@@ -73,6 +73,16 @@ describe('utils/media', () => {
     expect(extractRemoteFilePathFromImgUploadUrl('http://s:9006/img/Upload/2026/01/a.jpg')).toBe('2026/01/a.jpg')
     expect(extractRemoteFilePathFromImgUploadUrl('')).toBe('')
     expect(extractRemoteFilePathFromImgUploadUrl('http://x/other')).toBe('http://x/other')
+  })
+
+  it('encodeLocalMediaUrl escapes local path segments without treating # as fragment', () => {
+    const raw = '/lsp/tg/红杏征婚_nagexiaoniu/document_756665_榨精公主又上线了  07_16_21#sao #红杏征婚 #nagexiaoniu #a_158922….mp4'
+    const encoded = encodeLocalMediaUrl(raw)
+
+    expect(encoded).toContain('%23sao%20%23')
+    expect(encoded).toContain('%20%2007_16_21')
+    expect(encoded).toContain('%E7%BA%A2%E6%9D%8F%E5%BE%81%E5%A9%9A_nagexiaoniu')
+    expect(encodeLocalMediaUrl('https://example.com/a b#c.mp4')).toBe('https://example.com/a b#c.mp4')
   })
 
   it('inferMediaTypeFromUrl infers type ignoring query/hash', () => {
