@@ -21,6 +21,23 @@ export const extractRemoteFilePathFromImgUploadUrl = (url: string): string => {
   return url
 }
 
+export const encodeLocalMediaUrl = (url: string): string => {
+  const raw = String(url || '').trim()
+  if (!raw) return ''
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) || raw.startsWith('//')) return raw
+  if (!raw.startsWith('/')) return raw
+
+  const queryIndex = raw.indexOf('?')
+  const pathPart = queryIndex >= 0 ? raw.slice(0, queryIndex) : raw
+  const suffix = queryIndex >= 0 ? raw.slice(queryIndex) : ''
+  const encodedPath = pathPart
+    .split('/')
+    .map((part, index) => (index === 0 ? '' : encodeURIComponent(part)))
+    .join('/')
+
+  return `${encodedPath}${suffix}`
+}
+
 export const inferMediaTypeFromUrl = (url: string): 'image' | 'video' | 'file' => {
   if (!url) return 'file'
   // 移除 URL 参数干扰
@@ -29,4 +46,3 @@ export const inferMediaTypeFromUrl = (url: string): 'image' | 'video' | 'file' =
   if (isImageFile(cleanUrl)) return 'image'
   return 'file'
 }
-
