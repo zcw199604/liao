@@ -162,7 +162,7 @@ func (a *App) handleProbeVideo(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": "解析 mtPhoto 文件路径失败: " + err.Error()})
 			return
 		}
-		full, err := resolveLspLocalPath(a.cfg.LspRoot, item.FilePath)
+		full, _, err := resolveExistingLspLocalPath(a.cfg.LspRoot, item.FilePath)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": "文件路径非法: " + err.Error()})
 			return

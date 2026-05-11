@@ -407,7 +407,7 @@ func (a *App) calculateMD5FromSupportedLocalPath(localPathRaw string) (string, e
 	}
 
 	if strings.HasPrefix(localPath, "/lsp/") {
-		absPath, err := resolveLspLocalPath(a.cfg.LspRoot, localPath)
+		absPath, _, err := resolveExistingLspLocalPath(a.cfg.LspRoot, localPath)
 		if err != nil {
 			return "", fmt.Errorf("localPath 非法: %w", err)
 		}
@@ -480,7 +480,7 @@ func (a *App) handleImportMtPhotoMedia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2) 将 /lsp/... 映射到实际文件系统路径（支持 LSP_ROOT 重定向）
-	absPath, err := resolveLspLocalPath(a.cfg.LspRoot, item.FilePath)
+	absPath, _, err := resolveExistingLspLocalPath(a.cfg.LspRoot, item.FilePath)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "文件路径非法: " + err.Error()})
 		return
