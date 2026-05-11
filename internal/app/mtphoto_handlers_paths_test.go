@@ -63,6 +63,10 @@ func TestApp_calculateMD5FromSupportedLocalPath_AndResolveMD5(t *testing.T) {
 	if err := os.WriteFile(lspFile, []byte("lsp-data"), 0o644); err != nil {
 		t.Fatalf("write lsp file failed: %v", err)
 	}
+	lspEscapedSpaceFile := filepath.Join(lspRoot, "a", "space%20%20name.txt")
+	if err := os.WriteFile(lspEscapedSpaceFile, []byte("lsp-space-data"), 0o644); err != nil {
+		t.Fatalf("write lsp escaped space file failed: %v", err)
+	}
 
 	uploadRoot := t.TempDir()
 	uploadLocalPath := "/images/2026/03/u.txt"
@@ -86,6 +90,10 @@ func TestApp_calculateMD5FromSupportedLocalPath_AndResolveMD5(t *testing.T) {
 	lspMD5, err := app.calculateMD5FromSupportedLocalPath("/lsp/a/b.txt")
 	if err != nil || strings.TrimSpace(lspMD5) == "" {
 		t.Fatalf("lsp md5 failed: md5=%q err=%v", lspMD5, err)
+	}
+	lspEscapedSpaceMD5, err := app.calculateMD5FromSupportedLocalPath("/lsp/a/space  name.txt")
+	if err != nil || strings.TrimSpace(lspEscapedSpaceMD5) == "" {
+		t.Fatalf("lsp escaped space fallback md5 failed: md5=%q err=%v", lspEscapedSpaceMD5, err)
 	}
 
 	if _, err := app.calculateMD5FromSupportedLocalPath("/tmp/other.txt"); err == nil {

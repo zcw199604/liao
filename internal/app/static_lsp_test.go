@@ -144,6 +144,32 @@ func TestLspFileServer_ServesFile(t *testing.T) {
 	}
 }
 
+func TestLspFileServer_ServesEscapedSpaceFilenameFallback(t *testing.T) {
+	root := t.TempDir()
+	full := filepath.Join(root, "a", "name%20%20with-space.txt")
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(full, []byte("SPACE_OK"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	a := &App{}
+	a.cfg.LspRoot = root
+	h := a.lspFileServer()
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/lsp/a/name%20%20with-space.txt", nil)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, want %d, body=%q", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	if rr.Body.String() != "SPACE_OK" {
+		t.Fatalf("body=%q, want %q", rr.Body.String(), "SPACE_OK")
+	}
+}
+
 func TestLspFileServer_NotFoundPaths(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "d")

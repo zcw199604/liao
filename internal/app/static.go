@@ -70,7 +70,7 @@ func (a *App) lspFileServer() http.Handler {
 
 		// 将 URL 路径 /lsp/... 映射到本地根目录（默认 /lsp，可通过 LSP_ROOT 配置）。
 		// 安全要求：禁止 path traversal（..），确保最终路径始终在根目录内。
-		fullPath, err := resolveLspLocalPath(a.cfg.LspRoot, r.URL.Path)
+		fullPath, fi, err := resolveExistingLspLocalPath(a.cfg.LspRoot, r.URL.Path)
 		if err != nil {
 			slog.Warn("lsp路径非法", "path", r.URL.Path, "error", err)
 			http.NotFound(w, r)
@@ -78,23 +78,120 @@ func (a *App) lspFileServer() http.Handler {
 		}
 		slog.Info("lsp文件路径", "fullPath", fullPath)
 
-		// 检查文件是否存在
-		fi, err := os.Stat(fullPath)
-		if err != nil {
-			slog.Error("lsp文件不存在", "fullPath", fullPath, "error", err)
-			http.NotFound(w, r)
-			return
-		}
-		if fi.IsDir() {
-			slog.Warn("lsp路径是目录", "fullPath", fullPath)
-			http.NotFound(w, r)
-			return
-		}
-
 		slog.Info("lsp文件找到", "fullPath", fullPath, "size", fi.Size())
 		// 提供文件服务
 		http.ServeFile(w, r, fullPath)
 	})
+}
+
+func resolveExistingLspLocalPath(root, requestPath string) (string, os.FileInfo, error) {
+	candidates, err := resolveLspLocalPathCandidates(root, requestPath)
+	if err != nil {
+		return "", nil, err
+	}
+
+	var firstPath string
+	var firstErr error
+	for _, candidate := range candidates {
+		if firstPath == "" {
+			firstPath = candidate
+		}
+		fi, err := os.Stat(candidate)
+		if err == nil && !fi.IsDir() {
+			return candidate, fi, nil
+		}
+		if firstErr == nil {
+			if err != nil {
+				firstErr = err
+			} else {
+				firstErr = fmt.Errorf("路径是目录")
+			}
+		}
+	}
+
+	if firstErr == nil {
+		firstErr = os.ErrNotExist
+	}
+	return firstPath, nil, firstErr
+}
+
+func resolveLspLocalPathCandidates(root, requestPath string) ([]string, error) {
+	variants := lspRequestPathSpaceVariants(requestPath)
+	candidates := make([]string, 0, len(variants))
+	seen := map[string]struct{}{}
+	var firstErr error
+
+	for _, variant := range variants {
+		fullPath, err := resolveLspLocalPath(root, variant)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if _, ok := seen[fullPath]; ok {
+			continue
+		}
+		seen[fullPath] = struct{}{}
+		candidates = append(candidates, fullPath)
+	}
+
+	if len(candidates) == 0 {
+		if firstErr == nil {
+			firstErr = fmt.Errorf("路径解析失败")
+		}
+		return nil, firstErr
+	}
+	return candidates, nil
+}
+
+func lspRequestPathSpaceVariants(requestPath string) []string {
+	variants := []string{requestPath}
+	seen := map[string]struct{}{requestPath: {}}
+	add := func(v string) {
+		if v == "" {
+			return
+		}
+		if _, ok := seen[v]; ok {
+			return
+		}
+		seen[v] = struct{}{}
+		variants = append(variants, v)
+	}
+
+	if strings.Contains(requestPath, " ") {
+		add(strings.ReplaceAll(requestPath, " ", "%20"))
+	}
+	decodedSpaces := decodeEscapedSpacesOnly(requestPath)
+	if decodedSpaces != requestPath {
+		add(decodedSpaces)
+	}
+
+	return variants
+}
+
+func decodeEscapedSpacesOnly(value string) string {
+	if !strings.Contains(value, "%") {
+		return value
+	}
+
+	var b strings.Builder
+	b.Grow(len(value))
+	changed := false
+	for i := 0; i < len(value); {
+		if i+2 < len(value) && value[i] == '%' && value[i+1] == '2' && value[i+2] == '0' {
+			b.WriteByte(' ')
+			i += 3
+			changed = true
+			continue
+		}
+		b.WriteByte(value[i])
+		i++
+	}
+	if !changed {
+		return value
+	}
+	return b.String()
 }
 
 func resolveLspLocalPath(root, requestPath string) (string, error) {

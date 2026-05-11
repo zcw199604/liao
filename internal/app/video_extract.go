@@ -445,7 +445,7 @@ func (s *VideoExtractService) CreateTask(ctx context.Context, req VideoExtractCr
 			}
 			return "", VideoProbeResult{}, fmt.Errorf("解析 mtPhoto 文件路径失败")
 		}
-		inputAbs, err = resolveLspLocalPath(s.cfg.LspRoot, item.FilePath)
+		inputAbs, _, err = resolveExistingLspLocalPath(s.cfg.LspRoot, item.FilePath)
 		if err != nil {
 			return "", VideoProbeResult{}, fmt.Errorf("文件路径非法: %w", err)
 		}
