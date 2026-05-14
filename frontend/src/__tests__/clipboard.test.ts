@@ -53,6 +53,18 @@ describe('utils/clipboard', () => {
     expect((document as any).execCommand).toHaveBeenCalledWith('copy')
   })
 
+  it('returns false when execCommand throws', async () => {
+    setClipboard(undefined)
+    ;(document as any).execCommand = vi.fn(() => {
+      throw new Error('denied')
+    })
+
+    const ok = await copyToClipboard('hi')
+
+    expect(ok).toBe(false)
+    document.body.querySelectorAll('textarea').forEach(el => el.remove())
+  })
+
   it('returns false when document is unavailable', async () => {
     setClipboard(undefined)
 

@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +17,11 @@ import (
 
 	"liao/internal/database"
 )
+
+type errReadCloserUserHistoryUpload struct{}
+
+func (errReadCloserUserHistoryUpload) Read(_ []byte) (int, error) { return 0, errors.New("read err") }
+func (errReadCloserUserHistoryUpload) Close() error               { return nil }
 
 func TestUploadRequestBuilders_CreateFormFileErrorBranches(t *testing.T) {
 	mediaSvc := &MediaUploadService{httpClient: &http.Client{Timeout: time.Second}}
@@ -44,6 +51,65 @@ func TestUploadRequestBuilders_CreateFormFileErrorBranches(t *testing.T) {
 	); err == nil {
 		t.Fatalf("expected create form file error for upstream upload")
 	}
+}
+
+func TestAppUploadBytesToUpstream_ErrorBranchesAndHeaders(t *testing.T) {
+	t.Run("invalid upload URL", func(t *testing.T) {
+		app := &App{httpClient: &http.Client{Timeout: time.Second}}
+		if _, err := app.uploadBytesToUpstream(context.Background(), "://bad", "example.com:80", "a.jpg", []byte("x"), "", "ref", "ua"); err == nil {
+			t.Fatalf("expected invalid URL error")
+		}
+	})
+
+	t.Run("Do error", func(t *testing.T) {
+		app := &App{httpClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, errors.New("network fail")
+		})}}
+		if _, err := app.uploadBytesToUpstream(context.Background(), "http://example.com/upload", "example.com:80", "a.jpg", []byte("x"), "", "ref", "ua"); err == nil {
+			t.Fatalf("expected Do error")
+		}
+	})
+
+	t.Run("read body error", func(t *testing.T) {
+		app := &App{httpClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: errReadCloserUserHistoryUpload{}, Header: make(http.Header)}, nil
+		})}}
+		if _, err := app.uploadBytesToUpstream(context.Background(), "http://example.com/upload", "example.com:80", "a.jpg", []byte("x"), "", "ref", "ua"); err == nil {
+			t.Fatalf("expected read body error")
+		}
+	})
+
+	t.Run("non-2xx response", func(t *testing.T) {
+		app := &App{httpClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: http.StatusBadGateway, Status: "502 Bad Gateway", Body: io.NopCloser(strings.NewReader("bad")), Header: make(http.Header)}, nil
+		})}}
+		if _, err := app.uploadBytesToUpstream(context.Background(), "http://example.com/upload", "example.com:80", "a.jpg", []byte("x"), "", "ref", "ua"); err == nil {
+			t.Fatalf("expected non-2xx error")
+		}
+	})
+
+	t.Run("success omits empty cookie and sets host", func(t *testing.T) {
+		app := &App{httpClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if req.Host != "example.com" {
+				t.Fatalf("host=%q", req.Host)
+			}
+			if req.Header.Get("Cookie") != "" {
+				t.Fatalf("cookie should be empty, got %q", req.Header.Get("Cookie"))
+			}
+			if req.Header.Get("Referer") != "ref" || req.Header.Get("User-Agent") != "ua" {
+				t.Fatalf("headers=%v", req.Header)
+			}
+			_, _ = io.ReadAll(req.Body)
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Body: io.NopCloser(strings.NewReader("OK")), Header: make(http.Header)}, nil
+		})}}
+		got, err := app.uploadBytesToUpstream(context.Background(), "http://example.com/upload", "example.com:80", "a.jpg", []byte("x"), "", "ref", "ua")
+		if err != nil {
+			t.Fatalf("err=%v", err)
+		}
+		if got != "OK" {
+			t.Fatalf("got=%q", got)
+		}
+	})
 }
 
 func TestHandleDownloadImgUpload_RequestBuildErrorBranch(t *testing.T) {

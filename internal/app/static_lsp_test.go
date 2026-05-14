@@ -196,6 +196,31 @@ func TestLspFileServer_ServesEscapedHashFilename(t *testing.T) {
 	}
 }
 
+func TestLspPathSpaceVariantsAndDecodeBranches(t *testing.T) {
+	variants := lspRequestPathSpaceVariants("/lsp/a/name with space.txt")
+	if len(variants) != 2 {
+		t.Fatalf("variants=%v, want original plus escaped-space variant", variants)
+	}
+	if variants[1] != "/lsp/a/name%20with%20space.txt" {
+		t.Fatalf("escaped variant=%q", variants[1])
+	}
+
+	escaped := lspRequestPathSpaceVariants("/lsp/a/name%20with%20space.txt")
+	if len(escaped) != 2 {
+		t.Fatalf("escaped variants=%v, want original plus decoded-space variant", escaped)
+	}
+	if escaped[1] != "/lsp/a/name with space.txt" {
+		t.Fatalf("decoded variant=%q", escaped[1])
+	}
+
+	if got := decodeEscapedSpacesOnly("/lsp/a/%2F%2x%20%2"); got != "/lsp/a/%2F%2x %2" {
+		t.Fatalf("decodeEscapedSpacesOnly=%q", got)
+	}
+	if got := decodeEscapedSpacesOnly("/lsp/a/plain.txt"); got != "/lsp/a/plain.txt" {
+		t.Fatalf("decode without percent=%q", got)
+	}
+}
+
 func TestLspFileServer_NotFoundPaths(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "d")

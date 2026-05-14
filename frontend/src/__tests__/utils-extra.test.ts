@@ -85,6 +85,14 @@ describe('utils/media', () => {
     expect(encodeLocalMediaUrl('https://example.com/a b#c.mp4')).toBe('https://example.com/a b#c.mp4')
   })
 
+  it('encodeLocalMediaUrl covers empty, protocol-relative, non-local, and query-only branches', () => {
+    expect(encodeLocalMediaUrl('')).toBe('')
+    expect(encodeLocalMediaUrl('   ')).toBe('')
+    expect(encodeLocalMediaUrl('//cdn.example.com/a b.png')).toBe('//cdn.example.com/a b.png')
+    expect(encodeLocalMediaUrl('relative/a b.png')).toBe('relative/a b.png')
+    expect(encodeLocalMediaUrl('/images/a b.png?download=1#frag')).toBe('/images/a%20b.png?download=1#frag')
+  })
+
   it('inferMediaTypeFromUrl infers type ignoring query/hash', () => {
     expect(inferMediaTypeFromUrl('http://x/a.png?x=1')).toBe('image')
     expect(inferMediaTypeFromUrl('http://x/a.mp4#t=1')).toBe('video')

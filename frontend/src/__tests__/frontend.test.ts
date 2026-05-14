@@ -213,6 +213,23 @@ describe('stores/auth', () => {
     expect(store.loginLoading).toBe(false)
   })
 
+  it('login returns false and resets loading when api throws', async () => {
+    setActivePinia(createPinia())
+
+    const mockedLogin = vi.mocked(authApi.login)
+    mockedLogin.mockRejectedValue(new Error('network'))
+
+    const store = useAuthStore()
+    store.loginLoading = true
+    const ok = await store.login('code')
+
+    expect(ok).toBe(false)
+    expect(store.token).toBe('')
+    expect(store.isAuthenticated).toBe(false)
+    expect(store.loginLoading).toBe(false)
+    expect(localStorage.getItem('authToken')).toBeNull()
+  })
+
   it('checkToken returns false when token is empty', async () => {
     setActivePinia(createPinia())
 

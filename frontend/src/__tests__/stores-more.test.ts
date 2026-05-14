@@ -2014,6 +2014,29 @@ describe('stores/videoExtract', () => {
     expect(store.createSourceLabel).toBe('Nice.mp4')
   })
 
+  it('openCreateFromMedia accepts temporary video extract inputs and localFilename display fallback', async () => {
+    vi.mocked(videoExtractApi.probeVideo).mockResolvedValue({ code: 0, data: { durationSec: 3 } } as any)
+    const store = useVideoExtractStore()
+
+    const ok = await store.openCreateFromMedia(
+      {
+        type: 'video',
+        url: '/tmp/video_extract_inputs/input with space.mp4',
+        localFilename: 'Input.mp4'
+      } as any,
+      ''
+    )
+
+    expect(ok).toBe(true)
+    expect(store.createSource).toMatchObject({
+      sourceType: 'upload',
+      localPath: '/tmp/video_extract_inputs/input with space.mp4',
+      displayName: 'Input.mp4'
+    })
+    expect(store.createSource?.userId).toBeUndefined()
+    expect(store.createSourceLabel).toBe('Input.mp4')
+  })
+
   it('createSourceLabel falls back to localPath when displayName is missing', async () => {
     vi.mocked(videoExtractApi.probeVideo).mockResolvedValue({ code: 0, data: {} } as any)
     const store = useVideoExtractStore()
@@ -2056,6 +2079,18 @@ describe('stores/videoExtract', () => {
     vi.mocked(videoExtractApi.createVideoExtractTask).mockResolvedValue({ code: 0, data: { taskId: 't1' } } as any)
     const created = await store.createTask({ mode: 'keyframe', maxFrames: 1, outputFormat: 'jpg' } as any)
     expect(created.taskId).toBe('t1')
+  })
+
+  it('createTask blocks while probing and when probe result is missing', async () => {
+    const store = useVideoExtractStore()
+    store.createSource = { sourceType: 'upload', localPath: '/videos/a.mp4' } as any
+
+    store.probeLoading = true
+    await expect(store.createTask({ mode: 'keyframe', maxFrames: 1, outputFormat: 'jpg' } as any)).rejects.toThrow('视频探测中，请稍后再试')
+
+    store.probeLoading = false
+    store.probe = null
+    await expect(store.createTask({ mode: 'keyframe', maxFrames: 1, outputFormat: 'jpg' } as any)).rejects.toThrow('请先完成视频探测')
   })
 
   it('createTask throws when backend returns error', async () => {
@@ -2246,6 +2281,51 @@ describe('stores/videoExtract', () => {
     await expect(store.continueTask({ taskId: 't1', endSec: 12 })).rejects.toThrow('endSec 必须大于当前进度')
     await expect(store.continueTask({ taskId: 't1', maxFrames: 8 })).rejects.toThrow('maxFrames 必须大于已输出帧数')
     expect(videoExtractApi.continueVideoExtractTask).not.toHaveBeenCalled()
+  })
+
+  it('continueTask validates blank id, invalid numbers, and sends valid end/max payloads', async () => {
+    vi.mocked(videoExtractApi.continueVideoExtractTask).mockResolvedValue({ code: 0 } as any)
+    vi.mocked(videoExtractApi.getVideoExtractTaskDetail).mockResolvedValue({
+      code: 0,
+      data: { task: { taskId: 't1', status: 'SUCCESS' }, frames: { items: [], nextCursor: 0, hasMore: false } }
+    } as any)
+    vi.mocked(videoExtractApi.getVideoExtractTaskList).mockResolvedValue({ data: { items: [], total: 0, page: 2, pageSize: 20 } } as any)
+
+    const store = useVideoExtractStore()
+    store.listPage = 2
+    store.selectedTaskId = 't1'
+    store.selectedTask = { taskId: 't1', startSec: 5, framesExtracted: 2 } as any
+
+    await expect(store.continueTask({ taskId: '  ', endSec: 10 })).rejects.toThrow('缺少任务ID')
+    await expect(store.continueTask({ taskId: 't1', endSec: -1 })).rejects.toThrow('endSec 必须为非负数字')
+    await expect(store.continueTask({ taskId: 't1', maxFrames: 1.5 })).rejects.toThrow('maxFrames 必须为正整数')
+
+    await store.continueTask({ taskId: 't1', endSec: 9, maxFrames: 4 })
+    expect(videoExtractApi.continueVideoExtractTask).toHaveBeenCalledWith({ taskId: 't1', endSec: 9, maxFrames: 4 })
+    expect(videoExtractApi.getVideoExtractTaskDetail).toHaveBeenCalled()
+    expect(videoExtractApi.getVideoExtractTaskList).toHaveBeenCalledWith(2, 20)
+    expect(store.polling).toBe(true)
+    store.stopPolling()
+  })
+
+  it('closeCreateModal and closeTaskModal reset modal state and selected task data', () => {
+    const store = useVideoExtractStore()
+    store.showCreateModal = true
+    store.closeCreateModal()
+    expect(store.showCreateModal).toBe(false)
+
+    store.showTaskModal = true
+    store.selectedTaskId = 't1'
+    store.selectedTask = { taskId: 't1' } as any
+    store.frames = { items: [{ seq: 1 }], nextCursor: 2, hasMore: true } as any
+    store.polling = true
+
+    store.closeTaskModal()
+    expect(store.showTaskModal).toBe(false)
+    expect(store.selectedTaskId).toBe('')
+    expect(store.selectedTask).toBeNull()
+    expect(store.frames).toEqual({ items: [], nextCursor: 0, hasMore: false })
+    expect(store.polling).toBe(false)
   })
 
   it('loadMoreFrames returns early when selectedTaskId is empty', async () => {

@@ -33,6 +33,17 @@ describe('stores/favorite', () => {
     expect(store.allFavorites).toHaveLength(1)
   })
 
+  it('loadAllFavorites keeps list and resets loading when api throws', async () => {
+    const store = useFavoriteStore()
+    store.allFavorites = [{ id: 1, identityId: 'me', targetUserId: 'u1', targetUserName: 'U1' } as any]
+
+    vi.mocked(favoriteApi.listAllFavorites).mockRejectedValue(new Error('network'))
+    await store.loadAllFavorites()
+
+    expect(store.allFavorites).toHaveLength(1)
+    expect(store.loading).toBe(false)
+  })
+
   it('addFavorite returns true on success (and reloads), false otherwise', async () => {
     const store = useFavoriteStore()
 
@@ -47,6 +58,16 @@ describe('stores/favorite', () => {
     const bad = await store.addFavorite('me', 'u2', 'U2')
     expect(bad).toBe(false)
     expect(favoriteApi.listAllFavorites).toHaveBeenCalledTimes(1)
+  })
+
+  it('addFavorite returns false when api throws and does not reload list', async () => {
+    const store = useFavoriteStore()
+    vi.mocked(favoriteApi.addFavorite).mockRejectedValue(new Error('network'))
+
+    const ok = await store.addFavorite('me', 'u1', 'U1')
+
+    expect(ok).toBe(false)
+    expect(favoriteApi.listAllFavorites).not.toHaveBeenCalled()
   })
 
   it('removeFavorite returns true on success and updates list, false otherwise', async () => {
@@ -66,6 +87,19 @@ describe('stores/favorite', () => {
     expect(bad).toBe(false)
   })
 
+  it('removeFavorite returns false and preserves list when api throws', async () => {
+    const store = useFavoriteStore()
+    store.allFavorites = [
+      { id: 1, identityId: 'me', targetUserId: 'u1', targetUserName: 'U1' } as any
+    ]
+    vi.mocked(favoriteApi.removeFavorite).mockRejectedValue(new Error('network'))
+
+    const ok = await store.removeFavorite('me', 'u1')
+
+    expect(ok).toBe(false)
+    expect(store.allFavorites).toHaveLength(1)
+  })
+
   it('removeFavoriteById returns true on success and updates list, false otherwise', async () => {
     const store = useFavoriteStore()
     store.allFavorites = [
@@ -81,5 +115,18 @@ describe('stores/favorite', () => {
     vi.mocked(favoriteApi.removeFavoriteById).mockResolvedValueOnce({ code: 1 } as any)
     const bad = await store.removeFavoriteById(1)
     expect(bad).toBe(false)
+  })
+
+  it('removeFavoriteById returns false and preserves list when api throws', async () => {
+    const store = useFavoriteStore()
+    store.allFavorites = [
+      { id: 1, identityId: 'me', targetUserId: 'u1', targetUserName: 'U1' } as any
+    ]
+    vi.mocked(favoriteApi.removeFavoriteById).mockRejectedValue(new Error('network'))
+
+    const ok = await store.removeFavoriteById(1)
+
+    expect(ok).toBe(false)
+    expect(store.allFavorites).toHaveLength(1)
   })
 })
