@@ -85,12 +85,17 @@ vi.mock('plyr', () => {
 
 import SettingsDrawer from '@/components/settings/SettingsDrawer.vue'
 import MediaPreview from '@/components/media/MediaPreview.vue'
+import AllUploadImageModal from '@/components/media/AllUploadImageModal.vue'
+import MtPhotoAlbumModal from '@/components/media/MtPhotoAlbumModal.vue'
 import VideoExtractCreateModal from '@/components/media/VideoExtractCreateModal.vue'
 import VideoExtractTaskModal from '@/components/media/VideoExtractTaskModal.vue'
 
 import { useChatStore } from '@/stores/chat'
+import { useMediaStore } from '@/stores/media'
+import { useMtPhotoStore } from '@/stores/mtphoto'
 import { useUserStore } from '@/stores/user'
 import { useVideoExtractStore } from '@/stores/videoExtract'
+import * as mtphotoApi from '@/api/mtphoto'
 import * as videoExtractApi from '@/api/videoExtract'
 
 beforeEach(() => {
@@ -666,6 +671,114 @@ describe('components/media/MediaPreview.vue', () => {
   })
 })
 
+describe('components/media/AllUploadImageModal.vue', () => {
+  it('uses media wording for normal and management library titles', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const mediaStore = useMediaStore()
+    mediaStore.showAllUploadImageModal = true
+    mediaStore.allUploadTotal = 2
+    mediaStore.managementMode = false
+
+    const wrapper = mount(AllUploadImageModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          Dialog: true,
+          MediaPreview: true,
+          MediaTile: true,
+          MediaTileActionButton: true,
+          MediaTileSelectMark: true,
+          InfiniteMediaGrid: {
+            props: ['items'],
+            template: '<div data-testid="grid"><slot name="empty"></slot></div>'
+          }
+        }
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.text()).toContain('媒体库')
+    expect(wrapper.text()).not.toContain('所有上传图片')
+
+    mediaStore.managementMode = true
+    await nextTick()
+
+    expect(wrapper.text()).toContain('管理已上传媒体')
+    expect(wrapper.text()).not.toContain('管理已上传图片')
+  })
+})
+
+describe('components/media/MtPhotoAlbumModal.vue', () => {
+  it('passes image and video import text to media preview by selected mtPhoto item type', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const userStore = useUserStore()
+    userStore.currentUser = {
+      id: 'me',
+      name: 'Me',
+      nickname: 'Me',
+      sex: '男',
+      ip: '127.0.0.1',
+      area: 'CN',
+      cookie: 'c'
+    } as any
+
+    const mtPhotoStore = useMtPhotoStore()
+    mtPhotoStore.showModal = true
+    mtPhotoStore.mode = 'albums'
+    mtPhotoStore.view = 'album'
+    mtPhotoStore.mediaItems = [
+      { id: 1, md5: 'img-md5', type: 'image', fileName: 'a.jpg', fileType: 'JPG' },
+      { id: 2, md5: 'vid-md5', type: 'video', fileName: 'b.mp4', fileType: 'MP4' }
+    ] as any
+
+    vi.spyOn(mtphotoApi, 'resolveMtPhotoFilePath').mockResolvedValue({ filePath: '/mtphoto/b.mp4' } as any)
+
+    const wrapper = mount(MtPhotoAlbumModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          MediaPreview: {
+            props: ['visible', 'url', 'type', 'uploadText'],
+            template: '<div data-testid="mt-preview" :data-visible="String(visible)" :data-url="url" :data-type="type" :data-upload-text="uploadText" />'
+          },
+          InfiniteMediaGrid: {
+            props: ['items'],
+            template: '<div><div v-for="(item, index) in items" :key="index"><slot :item="item" :index="index"></slot></div></div>'
+          },
+          MediaTile: {
+            props: ['src', 'type'],
+            emits: ['click'],
+            template: '<button data-testid="mt-media-tile" :data-type="type" @click="$emit(\'click\')"><slot></slot><slot name="center"></slot></button>'
+          }
+        }
+      }
+    })
+
+    await nextTick()
+
+    const tiles = wrapper.findAll('[data-testid="mt-media-tile"]')
+    expect(tiles).toHaveLength(2)
+
+    await (wrapper.vm as any).handleMediaClick(mtPhotoStore.mediaItems[0])
+    await nextTick()
+    expect(wrapper.get('[data-testid="mt-preview"]').attributes('data-visible')).toBe('true')
+    expect(wrapper.get('[data-testid="mt-preview"]').attributes('data-type')).toBe('image')
+    expect(wrapper.get('[data-testid="mt-preview"]').attributes('data-upload-text')).toBe('导入此图片')
+
+    await (wrapper.vm as any).handleMediaClick(mtPhotoStore.mediaItems[1])
+    await Promise.resolve()
+    await nextTick()
+    expect(mtphotoApi.resolveMtPhotoFilePath).toHaveBeenCalledWith('vid-md5')
+    expect(wrapper.get('[data-testid="mt-preview"]').attributes('data-type')).toBe('video')
+    expect(wrapper.get('[data-testid="mt-preview"]').attributes('data-upload-text')).toBe('导入此视频')
+  })
+})
+
 describe('components/media/VideoExtract modals', () => {
   it('disables create while probe is missing or failed', async () => {
     const pinia = createPinia()
@@ -698,6 +811,94 @@ describe('components/media/VideoExtract modals', () => {
     store.probeError = 'bad'
     await nextTick()
     expect(createButton()?.attributes('disabled')).toBeDefined()
+  })
+
+  it('opens source preview without recursive extract task action', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const store = useVideoExtractStore()
+    store.showCreateModal = true
+    store.createSource = { sourceType: 'upload', localPath: '/videos/a.mp4', displayName: 'a.mp4' } as any
+    store.probe = { durationSec: 10, width: 1, height: 1 } as any
+    store.probeError = ''
+
+    const wrapper = mount(VideoExtractCreateModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          MediaPreview: {
+            props: ['visible', 'showExtractTask'],
+            template: '<div data-testid="media-preview" :data-visible="String(visible)" :data-show-extract-task="String(showExtractTask)" />'
+          }
+        }
+      }
+    })
+
+    await nextTick()
+    const previewButton = wrapper.findAll('button').find(btn => btn.text().includes('预览源视频'))
+    expect(previewButton).toBeTruthy()
+    const legacyPreviewCaptureLabel = ['预览/', '抓', '帧'].join('')
+    expect(wrapper.text()).not.toContain(legacyPreviewCaptureLabel)
+
+    await previewButton!.trigger('click')
+    await nextTick()
+
+    const preview = wrapper.get('[data-testid="media-preview"]')
+    expect(preview.attributes('data-visible')).toBe('true')
+    expect(preview.attributes('data-show-extract-task')).toBe('false')
+  })
+
+  it('opens task source video preview without recursive extract task action', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const store = useVideoExtractStore()
+    store.showTaskModal = true
+    store.selectedTaskId = 't1'
+    store.selectedTask = {
+      taskId: 't1',
+      sourceType: 'upload',
+      sourceRef: '/videos/a.mp4',
+      outputDirLocalPath: '/frames',
+      outputFormat: 'jpg',
+      mode: 'keyframe',
+      maxFrames: 100,
+      framesExtracted: 12,
+      videoWidth: 1920,
+      videoHeight: 1080,
+      startSec: 0,
+      cursorOutTimeSec: 8,
+      status: 'RUNNING'
+    } as any
+
+    const wrapper = mount(VideoExtractTaskModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          Dialog: true,
+          InfiniteMediaGrid: true,
+          MediaTile: true,
+          MediaPreview: {
+            props: ['visible', 'url', 'type', 'showExtractTask'],
+            template: '<div data-testid="task-media-preview" :data-visible="String(visible)" :data-url="url" :data-type="type" :data-show-extract-task="String(showExtractTask)" />'
+          }
+        }
+      }
+    })
+
+    await nextTick()
+    const sourcePreviewButton = wrapper.find('button[title^="预览源视频"]')
+    expect(sourcePreviewButton.exists()).toBe(true)
+
+    await sourcePreviewButton.trigger('click')
+    await nextTick()
+
+    const preview = wrapper.get('[data-testid="task-media-preview"]')
+    expect(preview.attributes('data-visible')).toBe('true')
+    expect(preview.attributes('data-url')).toBe('/upload/videos/a.mp4')
+    expect(preview.attributes('data-type')).toBe('video')
+    expect(preview.attributes('data-show-extract-task')).toBe('false')
   })
 
   it('blocks continue submit when no new limit is provided', async () => {

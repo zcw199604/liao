@@ -125,6 +125,108 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
     expect(wrapperCustom.findAll('button').some((b) => b.text().includes('自定义上传'))).toBe(true)
   })
 
+  it('renders video tools menu and hides extract task when disabled', async () => {
+    const wrapper = mount(MediaPreview, {
+      props: {
+        visible: true,
+        url: '/upload/videos/2026/01/a.mp4',
+        type: 'video',
+        mediaList: [{ url: '/upload/videos/2026/01/a.mp4', type: 'video' }]
+      },
+      global: { stubs: { teleport: true, MediaDetailPanel: true } }
+    })
+
+    await flushAsync()
+
+    const toolsButton = wrapper.find('button[title="视频工具"]')
+    expect(toolsButton.exists()).toBe(true)
+    await toolsButton.trigger('click')
+    await flushAsync()
+
+    expect(wrapper.text()).toContain('保存当前帧')
+    expect(wrapper.text()).toContain('创建抽帧任务')
+
+    const wrapperNoExtract = mount(MediaPreview, {
+      props: {
+        visible: true,
+        url: '/upload/videos/2026/01/a.mp4',
+        type: 'video',
+        showExtractTask: false,
+        mediaList: [{ url: '/upload/videos/2026/01/a.mp4', type: 'video' }]
+      },
+      global: { stubs: { teleport: true, MediaDetailPanel: true } }
+    })
+
+    await flushAsync()
+    await wrapperNoExtract.find('button[title="视频工具"]').trigger('click')
+    await flushAsync()
+
+    expect(wrapperNoExtract.text()).toContain('保存当前帧')
+    expect(wrapperNoExtract.text()).not.toContain('创建抽帧任务')
+  })
+
+  it('respects video tool prop combinations and closes menu after extract action', async () => {
+    const wrapperHidden = mount(MediaPreview, {
+      props: {
+        visible: true,
+        url: '/upload/videos/2026/01/a.mp4',
+        type: 'video',
+        showVideoTools: false,
+        mediaList: [{ url: '/upload/videos/2026/01/a.mp4', type: 'video' }]
+      },
+      global: { stubs: { teleport: true, MediaDetailPanel: true } }
+    })
+    await flushAsync()
+    expect(wrapperHidden.find('button[title="视频工具"]').exists()).toBe(false)
+
+    const wrapperNoActions = mount(MediaPreview, {
+      props: {
+        visible: true,
+        url: '/upload/videos/2026/01/a.mp4',
+        type: 'video',
+        showCaptureFrame: false,
+        showExtractTask: false,
+        mediaList: [{ url: '/upload/videos/2026/01/a.mp4', type: 'video' }]
+      },
+      global: { stubs: { teleport: true, MediaDetailPanel: true } }
+    })
+    await flushAsync()
+    expect(wrapperNoActions.find('button[title="视频工具"]').exists()).toBe(false)
+
+    const wrapperOnlyExtract = mount(MediaPreview, {
+      props: {
+        visible: true,
+        url: '/upload/videos/2026/01/a.mp4',
+        type: 'video',
+        showCaptureFrame: false,
+        mediaList: [{ url: '/upload/videos/2026/01/a.mp4', type: 'video' }]
+      },
+      global: { stubs: { teleport: true, MediaDetailPanel: true } }
+    })
+    await flushAsync()
+
+    await wrapperOnlyExtract.find('button[title="视频工具"]').trigger('click')
+    await flushAsync()
+
+    expect(wrapperOnlyExtract.text()).not.toContain('保存当前帧')
+    const extractButton = wrapperOnlyExtract.findAll('button').find(btn => btn.text().includes('创建抽帧任务'))
+    expect(extractButton).toBeTruthy()
+
+    openCreateFromMediaMock.mockResolvedValueOnce(true)
+    await extractButton!.trigger('click')
+    await flushAsync()
+
+    expect(openCreateFromMediaMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: '/upload/videos/2026/01/a.mp4',
+        type: 'video'
+      }),
+      undefined
+    )
+    expect((wrapperOnlyExtract.vm as any).showVideoToolMenu).toBe(false)
+    expect(wrapperOnlyExtract.emitted('update:visible')?.some(args => args[0] === false)).toBe(true)
+  })
+
   it('opens local favorite douyin works when detail panel emits open-author-works', async () => {
     vi.useFakeTimers()
 
@@ -813,7 +915,7 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
     video.pause = vi.fn()
 
     await (wrapper2.vm as any).handleCaptureFrame()
-    expect(toastShow).toHaveBeenCalledWith('视频未加载完成，无法抓帧')
+    expect(toastShow).toHaveBeenCalledWith('视频未加载完成，无法保存当前帧')
 
     // force a successful flow: mock canvas + toBlob
     const originalGetContext = HTMLCanvasElement.prototype.getContext
@@ -1023,7 +1125,7 @@ describe('components/media/MediaPreview.vue (more coverage)', () => {
 
     await flushAsync()
     await (wrapper.vm as any).handleExtractFrames()
-    expect(toastShow).toHaveBeenCalledWith('当前媒体不支持抽帧')
+    expect(toastShow).toHaveBeenCalledWith('当前媒体不支持创建抽帧任务')
   })
 
   it('keydown navigates media list and Escape closes', async () => {

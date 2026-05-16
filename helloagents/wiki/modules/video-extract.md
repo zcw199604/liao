@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** 源视频上传/清理、ffprobe 探测、ffmpeg 抽帧、任务队列、暂停/续跑/删除、帧索引分页。
 - **状态:** 稳定
-- **最后更新:** 2026-05-10
+- **最后更新:** 2026-05-16
 
 ## 规范
 
@@ -32,12 +32,13 @@
 
 ### 需求: 从媒体预览创建抽帧任务
 **模块:** Video Extract
-`MediaPreview` 中的视频抽帧入口会调用 `videoExtractStore.openCreateFromMedia`，将可定位的 upload 视频或 mtPhoto 视频转为抽帧创建来源，然后关闭预览并打开 `VideoExtractCreateModal`。
+`MediaPreview` 中“视频工具”菜单的“创建抽帧任务”入口会调用 `videoExtractStore.openCreateFromMedia`，将可定位的 upload 视频或 mtPhoto 视频转为抽帧创建来源，然后关闭预览并打开 `VideoExtractCreateModal`。
 
 #### 场景: 入口可用性
 - 仅当视频能够解析为 upload `localPath` 或 mtPhoto `md5` 时允许进入抽帧创建。
 - upload 来源只接受 `/videos/` 或 `/tmp/video_extract_inputs/` 下的可定位本地路径；空 URL、普通远程 URL 和不可解析来源不会打开创建弹窗。
 - mtPhoto 来源要求 `md5` 且 URL 来自 `/lsp/` 或 `/api/` 路径。
+- 抽帧创建弹窗和抽帧任务中心中的源视频预览会传入 `showExtractTask=false`，避免在任务流程内重复显示“创建抽帧任务”入口。
 
 #### 场景: 创建门禁
 - 创建任务前必须完成 ffprobe 探测。

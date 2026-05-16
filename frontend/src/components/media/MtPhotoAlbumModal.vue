@@ -530,6 +530,7 @@
         :url="previewUrl"
         :type="previewType"
         :can-upload="previewCanUpload"
+        :upload-text="previewUploadText"
         :media-list="previewMediaList"
         :resolve-original-filename="resolveMtPhotoOriginalFilename"
         @upload="confirmImportUpload"
@@ -562,6 +563,9 @@ const previewType = ref<'image' | 'video' | 'file'>('image')
 const previewCanUpload = ref(true)
 const previewMediaList = ref<UploadedMedia[]>([])
 const previewMD5 = ref('')
+const previewUploadText = computed(() => {
+  return `导入此${previewType.value === 'video' ? '视频' : '图片'}`
+})
 
 const favoriteTagsInput = ref('')
 const favoriteNoteInput = ref('')

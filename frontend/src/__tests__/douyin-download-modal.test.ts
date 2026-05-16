@@ -678,6 +678,57 @@ describe('components/media/DouyinDownloadModal.vue', () => {
     expect(payload?.items?.[0]?.pinnedRank).toBe(0)
   })
 
+  it('passes image and video import text to media preview by selected douyin item type', async () => {
+    localStorage.setItem('douyin_auto_clipboard', '0')
+    localStorage.setItem('douyin_auto_resolve_clipboard', '0')
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          teleport: true,
+          MediaPreview: {
+            props: ['visible', 'url', 'type', 'uploadText'],
+            template: '<div data-testid="douyin-preview" :data-visible="String(visible)" :data-url="url" :data-type="type" :data-upload-text="uploadText" />'
+          },
+          MediaTile: true,
+          MediaTileBadge: true,
+          MediaTileSelectMark: true
+        }
+      }
+    })
+
+    const douyinStore = useDouyinStore()
+    douyinStore.showModal = true
+    await nextTick()
+
+    const vm = wrapper.vm as any
+    vm.detail = {
+      key: 'k1',
+      detailId: 'a1',
+      type: '混合',
+      title: 'T',
+      items: [
+        { index: 0, type: 'image', url: 'u0', downloadUrl: '/api/douyin/download?key=k1&index=0', originalFilename: 'a.jpg' },
+        { index: 1, type: 'video', url: 'u1', downloadUrl: '/api/douyin/download?key=k1&index=1', originalFilename: 'b.mp4' }
+      ]
+    }
+
+    vm.openPreview(0)
+    await nextTick()
+    expect(wrapper.get('[data-testid="douyin-preview"]').attributes('data-visible')).toBe('true')
+    expect(wrapper.get('[data-testid="douyin-preview"]').attributes('data-type')).toBe('image')
+    expect(wrapper.get('[data-testid="douyin-preview"]').attributes('data-upload-text')).toBe('导入此图片')
+
+    vm.openPreview(1)
+    await nextTick()
+    expect(wrapper.get('[data-testid="douyin-preview"]').attributes('data-type')).toBe('video')
+    expect(wrapper.get('[data-testid="douyin-preview"]').attributes('data-upload-text')).toBe('导入此视频')
+  })
+
   it('batch import and download update counters and show summary', async () => {
     vi.useFakeTimers()
     const originalFetch = (globalThis as any).fetch

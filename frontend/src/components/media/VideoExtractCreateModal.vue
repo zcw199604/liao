@@ -27,10 +27,10 @@
               class="px-3 py-2 text-xs rounded-lg bg-surface-3 hover:bg-surface-hover text-fg transition disabled:opacity-50 disabled:cursor-not-allowed border border-line"
               :disabled="!sourcePreviewMedia"
               @click="openSourcePreview"
-              title="预览源视频（支持倍速与抓帧）"
+              title="预览源视频（支持倍速与保存当前帧）"
             >
               <i class="fas fa-play mr-1"></i>
-              预览/抓帧
+              预览源视频
             </button>
             <button
               class="px-3 py-2 text-xs rounded-lg bg-surface-3 hover:bg-surface-hover text-fg transition border border-line"
@@ -273,6 +273,7 @@
     :type="'video'"
     :can-upload="false"
     :media-list="sourcePreviewMediaList"
+    :show-extract-task="false"
   />
 </template>
 

@@ -160,7 +160,7 @@
                       v-if="canPreviewSourceVideo(videoExtractStore.selectedTask)"
                       class="px-3 py-2 text-xs rounded-lg bg-surface-3 hover:bg-surface-hover text-fg transition border border-line"
                       @click="openSourcePreview(videoExtractStore.selectedTask)"
-                      title="预览源视频（支持倍速与抓帧）"
+                      title="预览源视频（支持倍速与保存当前帧）"
                     >
                       <i class="fas fa-play mr-1"></i>
                       源视频
@@ -444,6 +444,7 @@
           :type="previewType"
           :can-upload="false"
           :media-list="previewMediaList"
+          :show-extract-task="false"
           @media-change="handlePreviewMediaChange"
         />
       </div>

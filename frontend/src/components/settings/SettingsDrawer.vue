@@ -136,7 +136,7 @@
                 <div class="p-4 flex items-center justify-between z-10 relative">
                    <div>
                       <div class="text-2xl font-bold text-white mb-1">{{ mediaStore.allUploadTotal || 0 }}</div>
-                      <div class="text-xs text-white/70 group-hover:text-purple-200 transition-colors">所有上传图片</div>
+                      <div class="text-xs text-white/70 group-hover:text-purple-200 transition-colors">所有上传媒体</div>
                    </div>
                    <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-purple-500 group-hover:text-white transition-all">
                       <i class="fas fa-chevron-right"></i>
@@ -149,7 +149,7 @@
              
              <p class="text-xs text-gray-500 mt-3 flex items-center gap-1.5">
                <i class="fas fa-info-circle"></i>
-               <span>点击卡片进入管理或清理历史图片</span>
+               <span>点击卡片进入管理或清理历史媒体</span>
              </p>
 
              <div

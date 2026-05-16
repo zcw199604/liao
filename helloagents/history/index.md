@@ -14,6 +14,7 @@
 | 202601071533 | release_v1_0_0 | 发布 | 已完成 | [链接](2026-01/202601071533_release_v1_0_0/) |
 | 202605072331 | matched_user_archive | 功能 | 已完成 | [链接](2026-05/202605072331_matched_user_archive/) |
 | 202605101413 | media_preview_video_ops | 修复 | 部分完成 | [链接](2026-05/202605101413_media_preview_video_ops/) |
+| 202605160822 | media_preview_video_action_rework | 重构 | 已完成 | [链接](2026-05/202605160822_media_preview_video_action_rework/) |
 
 ---
 
@@ -22,6 +23,7 @@
 ### 2026-05
 - [202605072331_matched_user_archive](2026-05/202605072331_matched_user_archive/) - 保存匹配未聊天用户并隔离不同身份列表。
 - [202605101413_media_preview_video_ops](2026-05/202605101413_media_preview_video_ops/) - 收敛聊天视频预览、媒体预览抓帧状态和视频抽帧前端门禁。
+- [202605160822_media_preview_video_action_rework](2026-05/202605160822_media_preview_video_action_rework/) - 将视频预览处理动作收敛为视频工具菜单并统一保存当前帧/创建抽帧任务语义。
 
 ### 2026-01
 - [202601062010_fix_unread_badge_list](2026-01/202601062010_fix_unread_badge_list/) - 修复列表页未读气泡不显示。

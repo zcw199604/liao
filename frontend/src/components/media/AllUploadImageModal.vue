@@ -19,7 +19,7 @@
           <div class="flex flex-wrap items-center gap-2 min-w-0">
             <i class="fas fa-images" :class="mediaStore.managementMode ? 'text-purple-500' : 'text-blue-500'"></i>
             <h3 class="text-lg font-bold text-fg whitespace-nowrap shrink-0">
-              {{ mediaStore.managementMode ? '管理已上传图片' : '所有上传图片' }}
+              {{ mediaStore.managementMode ? '管理已上传媒体' : '媒体库' }}
             </h3>
             <span class="text-xs text-fg-subtle ml-2 whitespace-nowrap shrink-0">(共 {{ mediaStore.allUploadTotal }} 个)</span>
 
@@ -179,7 +179,7 @@
           </template>
 
           <template #finished-text>
-            已加载全部 {{ mediaStore.allUploadTotal }} 张图片
+            已加载全部 {{ mediaStore.allUploadTotal }} 个媒体
           </template>
         </InfiniteMediaGrid>
 
@@ -208,7 +208,7 @@
         </div>
 
         <div v-else class="px-6 py-4 border-t border-line text-center text-xs text-fg-subtle">
-          {{ mediaStore.managementMode ? '提示：点击图片预览，右上角可删除（桌面端悬停显示）' : '点击图片预览，在预览中可上传/重新上传，再在上方\"已上传的文件\"中点击发送' }}
+          {{ mediaStore.managementMode ? '提示：点击媒体预览，右上角可删除（桌面端悬停显示）' : '点击媒体预览，在预览中可上传/重新上传，再在上方\"已上传的文件\"中点击发送' }}
         </div>
       </div>
 

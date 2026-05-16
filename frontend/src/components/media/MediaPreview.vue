@@ -184,7 +184,7 @@
 	              @error="handleMediaError"
 		            ></video>
 
-		            <!-- 全屏左上：倍速/慢放（避免与右侧抓帧/抽帧重叠；同时保证真全屏时仍可调速） -->
+		            <!-- 全屏左上：倍速/慢放（避免与右侧视频工具重叠；同时保证真全屏时仍可调速） -->
 		            <div
 		              v-if="isVideoFullscreen"
 		              ref="speedMenuRef"
@@ -262,34 +262,48 @@
 		              </div>
 		            </div>
 
-		            <!-- 全屏右侧：抓帧/抽帧快捷按钮（随控制浮层显示/隐藏） -->
+		            <!-- 全屏右侧：视频工具菜单（随控制浮层显示/隐藏） -->
 		            <div
-		              v-if="isVideoFullscreen && showVideoOverlayControls"
+		              v-if="isVideoFullscreen && showVideoOverlayControls && canShowVideoTools"
 		              class="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-50 pointer-events-none"
 		            >
-		              <div class="pointer-events-auto flex flex-col gap-3">
+		              <div ref="videoToolMenuRef" class="relative pointer-events-auto" @pointerdown.stop>
 		                <button
-		                  class="w-11 h-11 rounded-full bg-black/35 hover:bg-black/45 text-white border border-white/15 backdrop-blur-md shadow-xl transition active:scale-95 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
-		                  title="抓帧（暂停并抓取当前帧）"
-		                  :disabled="captureFrameLoading"
-		                  @click.stop="handleCaptureFrame"
+		                  class="ui-overlay-icon-btn"
+		                  title="视频工具"
+		                  @click.stop="handleToggleVideoToolMenu"
 		                  @pointerdown.stop
 		                >
-		                  <span
-		                    v-if="captureFrameLoading"
-		                    class="w-4 h-4 border-2 border-white/90 border-t-transparent rounded-full animate-spin"
-		                  ></span>
-		                  <i v-else class="fas fa-camera"></i>
+		                  <i class="fas fa-tools text-sm"></i>
 		                </button>
-		                <button
-		                  v-if="canExtractFrames"
-		                  class="w-11 h-11 rounded-full bg-black/35 hover:bg-black/45 text-white border border-white/15 backdrop-blur-md shadow-xl transition active:scale-95 flex items-center justify-center"
-		                  title="抽帧（进入抽帧任务）"
-		                  @click.stop="handleExtractFrames"
-		                  @pointerdown.stop
+
+		                <div
+		                  v-if="showVideoToolMenu"
+		                  class="absolute right-14 top-1/2 -translate-y-1/2 min-w-[172px] ui-overlay-menu z-50"
+		                  @click.stop
 		                >
-		                  <i class="fas fa-film"></i>
-		                </button>
+		                  <button
+		                    v-if="canShowCaptureFrame"
+		                    class="w-full px-4 py-2.5 text-left text-sm text-white/90 hover:bg-white/10 transition flex items-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
+		                    :disabled="captureFrameLoading"
+		                    @click.stop="handleVideoToolCaptureFrame"
+		                  >
+		                    <span
+		                      v-if="captureFrameLoading"
+		                      class="w-4 h-4 border-2 border-white/90 border-t-transparent rounded-full animate-spin"
+		                    ></span>
+		                    <i v-else class="fas fa-camera w-4 text-center"></i>
+		                    <span>保存当前帧</span>
+		                  </button>
+		                  <button
+		                    v-if="canShowExtractTask"
+		                    class="w-full px-4 py-2.5 text-left text-sm text-white/90 hover:bg-white/10 transition flex items-center gap-3"
+		                    @click.stop="handleVideoToolExtractFrames"
+		                  >
+		                    <i class="fas fa-film w-4 text-center"></i>
+		                    <span>创建抽帧任务</span>
+		                  </button>
+		                </div>
 		              </div>
 		            </div>
 		          </div>
@@ -365,29 +379,48 @@
 	          </div>
 	        </div>
 
-	        <!-- 上传按钮（如果允许上传） -->
+	        <!-- 底部主操作区 -->
 	        <div class="absolute bottom-28 left-1/2 transform -translate-x-1/2 flex items-center gap-3 z-50">
-		          <button
-		            v-if="currentMedia.type === 'video' && !isVideoFullscreen"
-		            class="h-11 px-4 bg-black/35 hover:bg-black/45 text-white rounded-full font-medium transition shadow-xl backdrop-blur-md border border-white/15 flex items-center gap-2 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-		            title="暂停并抓取当前帧（下载+上传）"
-		            :disabled="captureFrameLoading"
-		            @click.stop="handleCaptureFrame"
-		          >
-            <span v-if="captureFrameLoading" class="w-4 h-4 border-2 border-white/90 border-t-transparent rounded-full animate-spin"></span>
-            <i v-else class="fas fa-camera"></i>
-            <span>抓帧</span>
-          </button>
+          <div
+            v-if="canShowVideoTools && !isVideoFullscreen"
+            ref="videoToolMenuRef"
+            class="relative"
+          >
+            <button
+              class="h-11 px-4 bg-black/35 hover:bg-black/45 text-white rounded-full font-medium transition shadow-xl backdrop-blur-md border border-white/15 flex items-center gap-2 active:scale-95"
+              title="视频工具"
+              @click.stop="handleToggleVideoToolMenu"
+            >
+              <i class="fas fa-tools"></i>
+              <span>视频工具</span>
+              <i class="fas fa-chevron-up text-[10px] text-white/70"></i>
+            </button>
 
-		          <button
-		            v-if="canExtractFrames && !isVideoFullscreen"
-		            @click.stop="handleExtractFrames"
-		            class="h-11 px-4 bg-black/35 hover:bg-black/45 text-white rounded-full font-medium transition shadow-xl backdrop-blur-md border border-white/15 flex items-center gap-2 active:scale-95"
-		            title="从该视频抽取图片"
-		          >
-            <i class="fas fa-film"></i>
-            <span>抽帧</span>
-          </button>
+            <div
+              v-if="showVideoToolMenu"
+              class="absolute left-1/2 bottom-14 -translate-x-1/2 min-w-[176px] ui-overlay-menu z-50"
+              @click.stop
+            >
+              <button
+                v-if="canShowCaptureFrame"
+                class="w-full px-4 py-2.5 text-left text-sm text-white/90 hover:bg-white/10 transition flex items-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
+                :disabled="captureFrameLoading"
+                @click.stop="handleVideoToolCaptureFrame"
+              >
+                <span v-if="captureFrameLoading" class="w-4 h-4 border-2 border-white/90 border-t-transparent rounded-full animate-spin"></span>
+                <i v-else class="fas fa-camera w-4 text-center"></i>
+                <span>保存当前帧</span>
+              </button>
+              <button
+                v-if="canShowExtractTask"
+                class="w-full px-4 py-2.5 text-left text-sm text-white/90 hover:bg-white/10 transition flex items-center gap-3"
+                @click.stop="handleVideoToolExtractFrames"
+              >
+                <i class="fas fa-film w-4 text-center"></i>
+                <span>创建抽帧任务</span>
+              </button>
+            </div>
+          </div>
 
           <button
             v-if="canUpload"
@@ -452,6 +485,9 @@ interface Props {
   uploadText?: string
   mediaList?: UploadedMedia[]
   resolveOriginalFilename?: (media: UploadedMedia) => Promise<string | undefined | null>
+  showVideoTools?: boolean
+  showCaptureFrame?: boolean
+  showExtractTask?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -459,7 +495,10 @@ const props = withDefaults(defineProps<Props>(), {
   uploadDisabled: false,
   uploadLoading: false,
   uploadText: '',
-  mediaList: () => []
+  mediaList: () => [],
+  showVideoTools: true,
+  showCaptureFrame: true,
+  showExtractTask: true
 })
 
 const emit = defineEmits<{
@@ -500,6 +539,8 @@ let plyrInstance: Plyr | null = null
 
 const speedMenuRef = ref<HTMLElement | null>(null)
 const showSpeedMenu = ref(false)
+const videoToolMenuRef = ref<HTMLElement | null>(null)
+const showVideoToolMenu = ref(false)
 const isTempSpeedBoosting = ref(false)
 let speedLongPressTimer: ReturnType<typeof setTimeout> | null = null
 let suppressSpeedClick = false
@@ -591,20 +632,27 @@ const handleVideoLoadedMetadata = () => {
   syncVideoPlayState()
 }
 
+const isPointerInside = (root: HTMLElement | null, target: EventTarget | null) => {
+  if (!root) return false
+  return target instanceof Node && root.contains(target)
+}
+
 const handleDocumentPointerDown = (e: PointerEvent) => {
-  if (!showSpeedMenu.value) return
-  const root = speedMenuRef.value
-  if (!root) {
+  const target = e.target
+  if (showSpeedMenu.value && !isPointerInside(speedMenuRef.value, target)) {
     showSpeedMenu.value = false
-    return
   }
-  const t = e.target
-  if (t instanceof Node && root.contains(t)) return
-  showSpeedMenu.value = false
+  if (showVideoToolMenu.value && !isPointerInside(videoToolMenuRef.value, target)) {
+    showVideoToolMenu.value = false
+  }
 }
 
 const closeSpeedMenu = () => {
   showSpeedMenu.value = false
+}
+
+const closeVideoToolMenu = () => {
+  showVideoToolMenu.value = false
 }
 
 const handleToggleSpeedMenu = () => {
@@ -612,7 +660,13 @@ const handleToggleSpeedMenu = () => {
     suppressSpeedClick = false
     return
   }
+  closeVideoToolMenu()
   showSpeedMenu.value = !showSpeedMenu.value
+}
+
+const handleToggleVideoToolMenu = () => {
+  closeSpeedMenu()
+  showVideoToolMenu.value = !showVideoToolMenu.value
 }
 
 const selectPlaybackRate = (r: number) => {
@@ -1206,7 +1260,7 @@ const handleCaptureFrame = async () => {
   captureFrameLoading.value = true
   if (keepOverlayVisible) showOverlayDuringGesture()
   try {
-    // 用户希望“暂停后抓帧”，这里若仍在播放则先暂停，确保画面稳定。
+    // 用户希望保存当前画面，这里若仍在播放则先暂停，确保画面稳定。
     if (!video.paused) {
       video.pause()
       syncVideoPlayState()
@@ -1219,7 +1273,7 @@ const handleCaptureFrame = async () => {
 
     // HAVE_CURRENT_DATA=2，保证当前帧可用
     if (video.readyState < 2 || video.videoWidth <= 0 || video.videoHeight <= 0) {
-      show('视频未加载完成，无法抓帧')
+      show('视频未加载完成，无法保存当前帧')
       return
     }
 
@@ -1228,7 +1282,7 @@ const handleCaptureFrame = async () => {
     canvas.height = video.videoHeight
     const ctx = canvas.getContext('2d')
     if (!ctx) {
-      show('Canvas 不可用，无法抓帧')
+      show('Canvas 不可用，无法保存当前帧')
       return
     }
 
@@ -1237,10 +1291,10 @@ const handleCaptureFrame = async () => {
     } catch (e: any) {
       const name = String(e?.name || '')
       if (name === 'SecurityError') {
-        show('跨域视频受浏览器安全限制，无法抓帧；建议先上传到本地库或使用“抽帧”功能')
+        show('跨域视频受浏览器安全限制，无法保存当前帧；建议先上传到本地库或创建抽帧任务')
         return
       }
-      show('抓帧失败')
+      show('保存当前帧失败')
       return
     }
 
@@ -1248,7 +1302,7 @@ const handleCaptureFrame = async () => {
       canvas.toBlob(b => resolve(b), 'image/png')
     })
     if (!blob) {
-      show('抓帧失败')
+      show('保存当前帧失败')
       return
     }
 
@@ -1266,16 +1320,16 @@ const handleCaptureFrame = async () => {
     // 2) 上传到图片库（需要身份）
     const u = userStore.currentUser
     if (!u?.id || !u?.name) {
-      show('已下载抓帧图片；选择身份后可自动上传到图片库')
+      show('已下载当前帧图片；选择身份后可自动上传到图片库')
       return
     }
 
     const file = new File([blob], filename, { type: blob.type || 'image/png' })
     const uploaded = await uploadFile(file, u.id, u.name, buildCaptureUploadOptions(currentMedia.value))
     if (uploaded) {
-      show('抓帧已下载并上传（可在上传列表中使用）')
+      show('当前帧已下载并上传（可在上传列表中使用）')
     } else {
-      show('抓帧已下载，但上传失败')
+      show('当前帧已下载，但上传失败')
     }
   } finally {
     captureFrameLoading.value = false
@@ -1456,10 +1510,20 @@ const handleOpenAuthorWorks = (secUserId: string) => {
 const handleExtractFrames = async () => {
   const ok = await videoExtractStore.openCreateFromMedia(currentMedia.value, userStore.currentUser?.id)
   if (!ok) {
-    show('当前媒体不支持抽帧')
+    show('当前媒体不支持创建抽帧任务')
     return
   }
   handleClose()
+}
+
+const handleVideoToolCaptureFrame = async () => {
+  closeVideoToolMenu()
+  await handleCaptureFrame()
+}
+
+const handleVideoToolExtractFrames = async () => {
+  closeVideoToolMenu()
+  await handleExtractFrames()
 }
 
 // 判断是否有详细信息
@@ -1516,6 +1580,19 @@ const canExtractFrames = computed(() => {
   if (url.startsWith('/videos/') || url.startsWith('/upload/')) return true
   if (url.includes('/upload/')) return true
   return false
+})
+
+const canShowCaptureFrame = computed(() => {
+  return !!props.showCaptureFrame && currentMedia.value.type === 'video'
+})
+
+const canShowExtractTask = computed(() => {
+  return !!props.showExtractTask && canExtractFrames.value
+})
+
+const canShowVideoTools = computed(() => {
+  if (!props.showVideoTools || currentMedia.value.type !== 'video') return false
+  return canShowCaptureFrame.value || canShowExtractTask.value
 })
 
 // 整合后的媒体列表
@@ -1909,6 +1986,7 @@ watch(
     cancelVideoGestureRaf()
     videoGesture = null
     closeSpeedMenu()
+    closeVideoToolMenu()
     handleSpeedPressCancel()
     stopLivePhotoHold()
     resetMediaLoadState()
@@ -1976,6 +2054,7 @@ const handleClose = () => {
   cancelVideoGestureRaf()
   videoGesture = null
   closeSpeedMenu()
+  closeVideoToolMenu()
   handleSpeedPressCancel()
   stopLivePhotoHold()
   resetZoom()
@@ -2127,6 +2206,8 @@ watch(() => props.visible, (val) => {
   if (val) {
     resetZoom()
     resetMediaLoadState()
+    closeSpeedMenu()
+    closeVideoToolMenu()
     showDetails.value = false
     showMtPhotoSamePanel.value = false
     mtPhotoSameLoading.value = false
@@ -2170,6 +2251,7 @@ watch(() => props.visible, (val) => {
     cancelVideoGestureRaf()
     videoGesture = null
     closeSpeedMenu()
+    closeVideoToolMenu()
     handleSpeedPressCancel()
     destroyPlyr()
     window.removeEventListener('keydown', handleKeydown)
@@ -2189,6 +2271,8 @@ onUnmounted(() => {
   exitVideoFullscreen()
   clearOverlayHideTimer()
   resetMediaLoadState()
+  closeSpeedMenu()
+  closeVideoToolMenu()
 })
 </script>
 
