@@ -13,6 +13,29 @@ export interface User {
   unreadCount?: number
   lastMessageTime?: string
   localArchived?: boolean
+  localTemporary?: boolean
+  temporarySourceIdentityId?: string
+}
+
+export interface ContactCandidate {
+  targetUserId: string
+  targetUserName?: string
+  name?: string
+  nickname?: string
+  sex?: string
+  age?: string
+  area?: string
+  address?: string
+  lastMsg?: string
+  lastTime?: string
+  sources: string[]
+  localArchived?: boolean
+  snapshot?: Record<string, any>
+}
+
+export interface ContactCandidatesResponse {
+  sourceIdentityId: string
+  items: ContactCandidate[]
 }
 
 export interface Identity {

@@ -45,6 +45,13 @@
         @clear-and-reload="handleClearAndReload"
         @toggle-sidebar="showSidebar = !showSidebar"
       />
+      <div
+        v-if="isTemporaryConversation"
+        class="mx-4 mt-2 rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs text-blue-200 flex items-center gap-2 shadow-sm"
+      >
+        <i class="fas fa-random"></i>
+        <span class="truncate">临时接入会话，发送首条消息后会刷新当前身份历史</span>
+      </div>
     </div>
 
     <MessageList
@@ -374,7 +381,18 @@ const swipeTransition = `transform ${SWIPE_RESET_DURATION_MS}ms cubic-bezier(0.2
 
 const messages = computed(() => {
   if (!chatStore.currentChatUser) return []
-  return messageStore.getMessages(chatStore.currentChatUser.id)
+  if (!userStore.currentUser) return []
+  return messageStore.getMessages(userStore.currentUser.id, chatStore.currentChatUser.id)
+})
+
+const currentConversationKey = computed(() => {
+  if (!chatStore.currentChatUser || !userStore.currentUser) return ''
+  return messageStore.conversationKey(userStore.currentUser.id, chatStore.currentChatUser.id)
+})
+
+const isTemporaryConversation = computed(() => {
+  if (!chatStore.currentChatUser || !userStore.currentUser) return false
+  return chatStore.isTemporaryConversation(userStore.currentUser.id, chatStore.currentChatUser.id)
 })
 
 const canLoadMore = computed(() => {
@@ -733,7 +751,7 @@ const executeClearAndReload = async () => {
 
   try {
     // 1. 清空本地缓存的聊天记录
-    messageStore.clearHistory(userId)
+    messageStore.clearHistory(userStore.currentUser.id, userId)
     show('正在重新加载聊天记录...')
 
     // 2. 重新加载聊天记录
@@ -768,7 +786,7 @@ const executeClearAndReload = async () => {
 const handleLoadMore = async () => {
   if (!chatStore.currentChatUser || !userStore.currentUser) return
 
-  const lastTid = messageStore.firstTidMap[chatStore.currentChatUser.id]
+  const lastTid = currentConversationKey.value ? messageStore.firstTidMap[currentConversationKey.value] : undefined
   const count = await messageStore.loadHistory(userStore.currentUser.id, chatStore.currentChatUser.id, {
     isFirst: false,
     firstTid: lastTid,

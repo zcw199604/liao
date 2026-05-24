@@ -29,6 +29,28 @@ type UserArchiveService interface {
 	DeleteConversation(ctx context.Context, ownerUserID, targetUserID string)
 }
 
+// UserArchiveCandidateLister 是可选的只读归档候选查询能力。
+type UserArchiveCandidateLister interface {
+	ListContactCandidates(ctx context.Context, ownerUserID string, limit int) ([]ContactCandidate, error)
+}
+
+// ContactCandidate 表示可被当前身份临时接入的联系人候选。
+type ContactCandidate struct {
+	TargetUserID   string         `json:"targetUserId"`
+	TargetUserName string         `json:"targetUserName,omitempty"`
+	Name           string         `json:"name,omitempty"`
+	Nickname       string         `json:"nickname,omitempty"`
+	Sex            string         `json:"sex,omitempty"`
+	Age            string         `json:"age,omitempty"`
+	Area           string         `json:"area,omitempty"`
+	Address        string         `json:"address,omitempty"`
+	LastMsg        string         `json:"lastMsg,omitempty"`
+	LastTime       string         `json:"lastTime,omitempty"`
+	Sources        []string       `json:"sources"`
+	LocalArchived  bool           `json:"localArchived,omitempty"`
+	Snapshot       map[string]any `json:"snapshot,omitempty"`
+}
+
 // DBUserArchiveService 基于数据库实现 UserArchiveService。
 type DBUserArchiveService struct {
 	db *database.DB
@@ -235,6 +257,83 @@ func (s *DBUserArchiveService) DeleteConversation(ctx context.Context, ownerUser
 	}
 }
 
+func (s *DBUserArchiveService) ListContactCandidates(ctx context.Context, ownerUserID string, limit int) ([]ContactCandidate, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if s == nil || s.db == nil || ownerUserID == "" {
+		return nil, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 300 {
+		limit = 300
+	}
+
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT target_user_id, snapshot_json, last_msg, last_time, seen_in_history, seen_in_favorite
+		FROM chat_user_archive
+		WHERE owner_user_id = ?
+		ORDER BY last_seen_at DESC, updated_at DESC, id DESC
+		LIMIT ?`,
+		ownerUserID,
+		limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]ContactCandidate, 0)
+	for rows.Next() {
+		var (
+			targetUserID   string
+			snapshotRaw    sql.NullString
+			lastMsg        sql.NullString
+			lastTime       sql.NullString
+			seenInHistory  int
+			seenInFavorite int
+		)
+		if err := rows.Scan(&targetUserID, &snapshotRaw, &lastMsg, &lastTime, &seenInHistory, &seenInFavorite); err != nil {
+			return nil, err
+		}
+
+		snapshot := map[string]any{}
+		if strings.TrimSpace(snapshotRaw.String) != "" {
+			if err := json.Unmarshal([]byte(snapshotRaw.String), &snapshot); err != nil {
+				slog.Warn("反序列化归档候选快照失败", "ownerUserID", ownerUserID, "targetUserID", targetUserID, "error", err)
+				snapshot = map[string]any{}
+			}
+		}
+		ensureArchivedUserID(snapshot, strings.TrimSpace(targetUserID))
+		if strings.TrimSpace(toString(snapshot["lastMsg"])) == "" && strings.TrimSpace(lastMsg.String) != "" {
+			snapshot["lastMsg"] = strings.TrimSpace(lastMsg.String)
+		}
+		if strings.TrimSpace(toString(snapshot["lastTime"])) == "" && strings.TrimSpace(lastTime.String) != "" {
+			snapshot["lastTime"] = strings.TrimSpace(lastTime.String)
+		}
+
+		candidate, ok := contactCandidateFromUser(snapshot, "archive", true)
+		if !ok {
+			continue
+		}
+		if seenInHistory == 1 {
+			candidate.Sources = appendUniqueString(candidate.Sources, string(UserArchiveListSourceHistory))
+		}
+		if seenInFavorite == 1 {
+			candidate.Sources = appendUniqueString(candidate.Sources, string(UserArchiveListSourceFavorite))
+		}
+		result = append(result, candidate)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 type archiveUpsertInput struct {
 	OwnerUserID    string
 	TargetUserID   string
@@ -298,6 +397,87 @@ func sanitizeArchivedUserSnapshot(user map[string]any, targetUserID string) map[
 	}
 	ensureArchivedUserID(clean, targetUserID)
 	return clean
+}
+
+func sanitizeContactCandidateSnapshot(user map[string]any, targetUserID string) map[string]any {
+	clean := sanitizeArchivedUserSnapshot(user, targetUserID)
+	for key := range clean {
+		lower := strings.ToLower(strings.TrimSpace(key))
+		if lower == "" {
+			delete(clean, key)
+			continue
+		}
+		if strings.Contains(lower, "cookie") ||
+			strings.Contains(lower, "token") ||
+			strings.Contains(lower, "jwt") ||
+			strings.Contains(lower, "authorization") ||
+			strings.Contains(lower, "accesscode") ||
+			strings.Contains(lower, "access_code") ||
+			strings.Contains(lower, "password") ||
+			strings.Contains(lower, "secret") {
+			delete(clean, key)
+		}
+	}
+	ensureArchivedUserID(clean, targetUserID)
+	return clean
+}
+
+func firstNonEmptyString(values ...any) string {
+	for _, value := range values {
+		if s := strings.TrimSpace(toString(value)); s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+func contactCandidateFromUser(user map[string]any, source string, localArchived bool) (ContactCandidate, bool) {
+	targetUserID := strings.TrimSpace(extractUserID(user))
+	if targetUserID == "" {
+		return ContactCandidate{}, false
+	}
+
+	snapshot := sanitizeContactCandidateSnapshot(user, targetUserID)
+	nickname := firstNonEmptyString(
+		snapshot["nickname"],
+		snapshot["name"],
+		snapshot["targetUserName"],
+		snapshot["UserName"],
+		snapshot["userName"],
+		snapshot["sel_userNikename"],
+	)
+	name := firstNonEmptyString(snapshot["name"], nickname)
+	area := firstNonEmptyString(snapshot["area"], snapshot["address"], snapshot["userAddress"], snapshot["sel_userAddress"])
+	address := firstNonEmptyString(snapshot["address"], snapshot["area"], snapshot["userAddress"], snapshot["sel_userAddress"])
+
+	return ContactCandidate{
+		TargetUserID:   targetUserID,
+		TargetUserName: firstNonEmptyString(snapshot["targetUserName"], nickname, name),
+		Name:           name,
+		Nickname:       nickname,
+		Sex:            firstNonEmptyString(snapshot["sex"], snapshot["userSex"], snapshot["sel_userSex"]),
+		Age:            firstNonEmptyString(snapshot["age"], snapshot["userAge"], snapshot["sel_userAge"]),
+		Area:           area,
+		Address:        address,
+		LastMsg:        firstNonEmptyString(snapshot["lastMsg"]),
+		LastTime:       firstNonEmptyString(snapshot["lastTime"]),
+		Sources:        []string{source},
+		LocalArchived:  localArchived,
+		Snapshot:       snapshot,
+	}, true
+}
+
+func appendUniqueString(values []string, next string) []string {
+	next = strings.TrimSpace(next)
+	if next == "" {
+		return values
+	}
+	for _, existing := range values {
+		if existing == next {
+			return values
+		}
+	}
+	return append(values, next)
 }
 
 func ensureArchivedUserID(user map[string]any, targetUserID string) {

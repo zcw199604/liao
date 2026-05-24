@@ -7,6 +7,7 @@ import * as chatApi from '@/api/chat'
 import { generateCookie } from '@/utils/cookie'
 import { generateRandomHexId } from '@/utils/id'
 import { useToast } from '@/composables/useToast'
+import type { ContactCandidate, User } from '@/types'
 
 export const useChat = () => {
   const chatStore = useChatStore()
@@ -142,7 +143,7 @@ export const useChat = () => {
 
     // 加载聊天历史 - 增量渲染策略
     if (loadHistory && userStore.currentUser) {
-      const cachedMessages = messageStore.getMessages(user.id)
+      const cachedMessages = messageStore.getMessages(userStore.currentUser.id, user.id)
 
       if (cachedMessages.length > 0) {
         // 有缓存：立即显示，增量获取新消息
@@ -170,6 +171,46 @@ export const useChat = () => {
         })
       }
     }
+  }
+
+  const userFromContactCandidate = (candidate: ContactCandidate): User => {
+    const snapshot = candidate.snapshot || {}
+    const nickname = candidate.nickname ||
+      candidate.name ||
+      candidate.targetUserName ||
+      String(snapshot.nickname || snapshot.name || '') ||
+      candidate.targetUserId
+
+    return {
+      id: candidate.targetUserId,
+      name: candidate.name || nickname,
+      nickname,
+      sex: candidate.sex || String(snapshot.sex || snapshot.userSex || '未知'),
+      age: candidate.age || String(snapshot.age || snapshot.userAge || '0'),
+      area: candidate.area || candidate.address || String(snapshot.area || snapshot.address || snapshot.userAddress || '未知'),
+      address: candidate.address || candidate.area || String(snapshot.address || snapshot.area || snapshot.userAddress || '未知'),
+      ip: String(snapshot.ip || ''),
+      isFavorite: candidate.sources.includes('favorite'),
+      lastMsg: candidate.lastMsg || '临时接入',
+      lastTime: candidate.lastTime || '刚刚',
+      unreadCount: 0,
+      localArchived: Boolean(candidate.localArchived),
+      localTemporary: true
+    }
+  }
+
+  const enterTemporaryChatFromCandidate = (candidate: ContactCandidate, sourceIdentityId: string, loadHistory: boolean = false) => {
+    if (!userStore.currentUser) return null
+    const user = userFromContactCandidate(candidate)
+    chatStore.enterTemporaryChat(userStore.currentUser.id, user, sourceIdentityId)
+    if (loadHistory) {
+      void messageStore.loadHistory(userStore.currentUser.id, user.id, {
+        isFirst: true,
+        firstTid: '0',
+        myUserName: userStore.currentUser.name
+      })
+    }
+    return user
   }
 
   const exitChat = () => {
@@ -238,6 +279,7 @@ export const useChat = () => {
     handleAutoMatch,
     enterChatAndStopMatch,
     enterChat,
+    enterTemporaryChatFromCandidate,
     exitChat,
     toggleFavorite
   }

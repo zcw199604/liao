@@ -1,5 +1,5 @@
 import request, { createFormData } from './request'
-import type { ApiResponse, User } from '@/types'
+import type { ApiResponse, ContactCandidatesResponse, User } from '@/types'
 
 // 获取历史用户列表（POST请求，urlencoded）
 export const getHistoryUserList = (myUserID: string, cookieData: string, referer: string, userAgent: string) => {
@@ -28,6 +28,28 @@ export const getFavoriteUserList = (myUserID: string, cookieData: string, refere
   })
   return request.post<any, any>('/getFavoriteUserList', formData, {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+  })
+}
+
+export const getContactCandidates = (params: {
+  sourceIdentityId: string
+  includeUpstream?: boolean
+  q?: string
+  limit?: number
+  cookieData?: string
+  referer?: string
+  userAgent?: string
+}) => {
+  return request.get<any, ApiResponse<ContactCandidatesResponse> & { warnings?: string[] }>('/chat/contactCandidates', {
+    params: {
+      sourceIdentityId: params.sourceIdentityId,
+      includeUpstream: params.includeUpstream === false ? '0' : '1',
+      q: params.q || undefined,
+      limit: params.limit,
+      cookieData: params.cookieData || undefined,
+      referer: params.referer || undefined,
+      userAgent: params.userAgent || undefined
+    }
   })
 }
 

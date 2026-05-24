@@ -118,6 +118,14 @@
 	          <div class="mt-2 flex items-center justify-end">
 	            <button
 	              type="button"
+	              class="chat-cross-identity-btn mr-2"
+	              @click="openCrossIdentityPicker"
+	            >
+	              <i class="fas fa-random text-[10px]"></i>
+	              <span>从其他身份接入</span>
+	            </button>
+	            <button
+	              type="button"
 	              data-testid="chat-sidebar-archive-filter-toggle"
 	              class="chat-archive-filter-btn"
 	              :class="{
@@ -387,6 +395,11 @@
       @confirm="applyDaySelection"
     />
 
+    <CrossIdentityContactPicker
+      v-model:visible="showCrossIdentityPicker"
+      @select="handleCrossIdentitySelect"
+    />
+
     <!-- 在线状态弹窗 -->
     <Dialog
       v-model:visible="showOnlineStatusDialog"
@@ -428,12 +441,13 @@ import Toast from '@/components/common/Toast.vue'
 import SettingsDrawer from '@/components/settings/SettingsDrawer.vue'
 import Dialog from '@/components/common/Dialog.vue'
 import ChatDayBulkDeleteModal from '@/components/chat/ChatDayBulkDeleteModal.vue'
+import CrossIdentityContactPicker from '@/components/chat/CrossIdentityContactPicker.vue'
 import PullToRefresh from '@/components/common/PullToRefresh.vue'
 import Skeleton from '@/components/common/Skeleton.vue'
 import MatchButton from '@/components/chat/MatchButton.vue'
 import MatchOverlay from '@/components/chat/MatchOverlay.vue'
 import DraggableBadge from '@/components/common/DraggableBadge.vue'
-import type { User } from '@/types'
+import type { ContactCandidate, User } from '@/types'
 import { deleteUser, batchDeleteUsers } from '@/api/chat'
 
 const props = defineProps<{
@@ -450,7 +464,7 @@ const chatStore = useChatStore()
 const userStore = useUserStore()
 const messageStore = useMessageStore()
 const favoriteStore = useFavoriteStore()
-const { loadUsers } = useChat()
+const { loadUsers, enterTemporaryChatFromCandidate } = useChat()
 const { connect, disconnect, checkUserOnlineStatus } = useWebSocket()
 const { show } = useToast()
 
@@ -463,6 +477,7 @@ const userToDelete = ref<User | null>(null)
 const listAreaRef = ref<HTMLElement | null>(null)
 const isRefreshing = ref(false)
 const isInitialLoadingUsers = ref(false)
+const showCrossIdentityPicker = ref(false)
 
 // 列表搜索：仅在当前 tab 的本地用户列表中过滤
 const searchKeyword = ref('')
@@ -1083,6 +1098,19 @@ const handleOpenSettings = () => {
   showTopMenu.value = false
   settingsMode.value = 'identity'
   showSettings.value = true
+}
+
+const openCrossIdentityPicker = () => {
+  closeContextMenu()
+  showTopMenu.value = false
+  showCrossIdentityPicker.value = true
+}
+
+const handleCrossIdentitySelect = (candidate: ContactCandidate, sourceIdentityId: string) => {
+  const user = enterTemporaryChatFromCandidate(candidate, sourceIdentityId, false)
+  if (!user) return
+  chatStore.listScrollTop = listAreaRef.value?.scrollTop || 0
+  router.push(`/chat/${user.id}`)
 }
 
 const handleOpenSystemSettings = () => {

@@ -1,6 +1,7 @@
 // 消息发送能力：封装 WebSocket 发送，并提供乐观 UI（sending/failed）与重试入口。
 import { useUserStore } from '@/stores/user'
 import { useMessageStore } from '@/stores/message'
+import { useChatStore } from '@/stores/chat'
 import { useWebSocket } from './useWebSocket'
 import * as mediaApi from '@/api/media'
 import { extractRemoteFilePathFromImgUploadUrl } from '@/utils/media'
@@ -9,6 +10,7 @@ import type { ChatMessage, MessageSegment } from '@/types'
 export const useMessage = () => {
   const userStore = useUserStore()
   const messageStore = useMessageStore()
+  const chatStore = useChatStore()
   const { send } = useWebSocket()
 
   const formatNow = () => {
@@ -33,26 +35,45 @@ export const useMessage = () => {
   }
 
   const upsertOptimisticMessage = (params: {
+    ownerUserId: string
     targetUserId: string
     clientId: string
     nextMessage: ChatMessage
   }) => {
+    const messageKey = messageStore.conversationKey(params.ownerUserId, params.targetUserId)
     const updated = messageStore.updateMessageByClientId(
-      params.targetUserId,
+      messageKey,
       params.clientId,
       msg => {
         Object.assign(msg, params.nextMessage)
       }
     )
     if (!updated) {
-      messageStore.addMessage(params.targetUserId, params.nextMessage)
+      messageStore.addMessage(messageKey, params.nextMessage)
     }
+  }
+
+  const refreshTemporaryConversationAfterSend = (targetUser: any) => {
+    const currentUser = userStore.currentUser
+    const targetUserId = String(targetUser?.id || '')
+    if (!currentUser || !targetUserId) return
+    if (!chatStore.isTemporaryConversation(currentUser.id, targetUserId)) return
+
+    void chatStore.loadHistoryUsers(currentUser.id, currentUser.name).then(() => {
+      if (chatStore.historyUserIds.includes(targetUserId)) {
+        chatStore.markConversationFormal(currentUser.id, targetUserId)
+      }
+    }).catch((e) => {
+      console.warn('临时会话首发后刷新历史失败:', e)
+    })
   }
 
   // 发送文本消息
   const sendText = (content: string, targetUser: any, options?: { clientId?: string }) => {
     if (!userStore.currentUser || !targetUser) return
 
+    const targetUserId = String(targetUser.id)
+    const messageKey = messageStore.conversationKey(userStore.currentUser.id, targetUserId)
     const clientId = options?.clientId || generateClientId()
     const now = formatNow()
 
@@ -79,11 +100,12 @@ export const useMessage = () => {
     }
 
     upsertOptimisticMessage({
+      ownerUserId: userStore.currentUser.id,
       targetUserId: String(targetUser.id),
       clientId,
       nextMessage: optimisticMessage
     })
-    messageStore.startOptimisticTimeout(String(targetUser.id), clientId)
+    messageStore.startOptimisticTimeout(messageKey, clientId)
 
     const message = {
       act: buildAct(targetUser),
@@ -93,12 +115,14 @@ export const useMessage = () => {
 
     const ok = send(message) !== false
     if (!ok) {
-      messageStore.updateMessageByClientId(String(targetUser.id), clientId, msg => {
+      messageStore.updateMessageByClientId(messageKey, clientId, msg => {
         if (msg.sendStatus === 'sending') {
           msg.sendStatus = 'failed'
-          msg.sendError = msg.sendError || '发送失败'
+          msg.sendError = '发送失败'
         }
       })
+    } else {
+      refreshTemporaryConversationAfterSend(targetUser)
     }
   }
 
@@ -109,6 +133,8 @@ export const useMessage = () => {
     const filePath = extractRemoteFilePathFromImgUploadUrl(mediaUrl)
     if (!filePath) return
 
+    const targetUserId = String(targetUser.id)
+    const messageKey = messageStore.conversationKey(userStore.currentUser.id, targetUserId)
     const clientId = options?.clientId || generateClientId()
     const now = formatNow()
     const segments: MessageSegment[] = [{ kind: 'image', path: filePath, url: mediaUrl }]
@@ -136,11 +162,12 @@ export const useMessage = () => {
     }
 
     upsertOptimisticMessage({
+      ownerUserId: userStore.currentUser.id,
       targetUserId: String(targetUser.id),
       clientId,
       nextMessage: optimisticMessage
     })
-    messageStore.startOptimisticTimeout(String(targetUser.id), clientId)
+    messageStore.startOptimisticTimeout(messageKey, clientId)
 
     const message = {
       act: buildAct(targetUser),
@@ -150,12 +177,14 @@ export const useMessage = () => {
 
     const ok = send(message) !== false
     if (!ok) {
-      messageStore.updateMessageByClientId(String(targetUser.id), clientId, msg => {
+      messageStore.updateMessageByClientId(messageKey, clientId, msg => {
         if (msg.sendStatus === 'sending') {
           msg.sendStatus = 'failed'
-          msg.sendError = msg.sendError || '发送失败'
+          msg.sendError = '发送失败'
         }
       })
+    } else {
+      refreshTemporaryConversationAfterSend(targetUser)
     }
 
     // 记录发送关系到数据库（用于历史图片查询）
@@ -178,6 +207,8 @@ export const useMessage = () => {
     const filePath = extractRemoteFilePathFromImgUploadUrl(mediaUrl)
     if (!filePath) return
 
+    const targetUserId = String(targetUser.id)
+    const messageKey = messageStore.conversationKey(userStore.currentUser.id, targetUserId)
     const clientId = options?.clientId || generateClientId()
     const now = formatNow()
     const segments: MessageSegment[] = [{ kind: 'video', path: filePath, url: mediaUrl }]
@@ -205,11 +236,12 @@ export const useMessage = () => {
     }
 
     upsertOptimisticMessage({
+      ownerUserId: userStore.currentUser.id,
       targetUserId: String(targetUser.id),
       clientId,
       nextMessage: optimisticMessage
     })
-    messageStore.startOptimisticTimeout(String(targetUser.id), clientId)
+    messageStore.startOptimisticTimeout(messageKey, clientId)
 
     const message = {
       act: buildAct(targetUser),
@@ -219,12 +251,14 @@ export const useMessage = () => {
 
     const ok = send(message) !== false
     if (!ok) {
-      messageStore.updateMessageByClientId(String(targetUser.id), clientId, msg => {
+      messageStore.updateMessageByClientId(messageKey, clientId, msg => {
         if (msg.sendStatus === 'sending') {
           msg.sendStatus = 'failed'
-          msg.sendError = msg.sendError || '发送失败'
+          msg.sendError = '发送失败'
         }
       })
+    } else {
+      refreshTemporaryConversationAfterSend(targetUser)
     }
 
     // 记录发送关系到数据库
@@ -250,13 +284,14 @@ export const useMessage = () => {
     if (!targetUserId || !clientId) return
 
     const now = formatNow()
-    messageStore.updateMessageByClientId(targetUserId, clientId, msg => {
+    const messageKey = messageStore.conversationKey(userStore.currentUser.id, targetUserId)
+    messageStore.updateMessageByClientId(messageKey, clientId, msg => {
       msg.sendStatus = 'sending'
       msg.sendError = undefined
       msg.time = now
       msg.tid = ''
     })
-    messageStore.startOptimisticTimeout(targetUserId, clientId)
+    messageStore.startOptimisticTimeout(messageKey, clientId)
 
     const payload = {
       act: buildAct(targetUser),
@@ -266,12 +301,14 @@ export const useMessage = () => {
 
     const ok = send(payload) !== false
     if (!ok) {
-      messageStore.updateMessageByClientId(targetUserId, clientId, msg => {
+      messageStore.updateMessageByClientId(messageKey, clientId, msg => {
         if (msg.sendStatus === 'sending') {
           msg.sendStatus = 'failed'
-          msg.sendError = msg.sendError || '发送失败'
+          msg.sendError = '发送失败'
         }
       })
+    } else {
+      refreshTemporaryConversationAfterSend(targetUser)
     }
   }
 

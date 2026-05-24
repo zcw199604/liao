@@ -94,6 +94,18 @@ export const useWebSocket = () => {
     favoriteIds.unshift(userId)
   }
 
+  const refreshTemporaryConversationAfterEcho = (ownerUserId: string, targetUserId: string) => {
+    const owner = userStore.currentUser
+    if (!owner || !chatStore.isTemporaryConversation(ownerUserId, targetUserId)) return
+    void chatStore.loadHistoryUsers(ownerUserId, owner.name).then(() => {
+      if (chatStore.historyUserIds.includes(targetUserId)) {
+        chatStore.markConversationFormal(ownerUserId, targetUserId)
+      }
+    }).catch((e) => {
+      console.warn('临时会话回显后刷新历史失败:', e)
+    })
+  }
+
   const connect = () => {
     const token = localStorage.getItem('authToken')
     if (!token) {
@@ -439,12 +451,14 @@ export const useWebSocket = () => {
             : (isSelf ? toUserId : fromUserId)
 
           if (targetUserId) {
+            const messageKey = messageStore.conversationKey(currentUserId, targetUserId)
             // 先尝试将“自己发送的回显”合并到本地乐观消息，避免重复渲染
-            if (isSelf && messageStore.confirmOutgoingEcho(targetUserId, chatMessage)) {
+            if (isSelf && messageStore.confirmOutgoingEcho(messageKey, chatMessage)) {
               console.log('已将回显合并到本地消息:', chatMessage.tid)
+              refreshTemporaryConversationAfterEcho(currentUserId, targetUserId)
             } else {
               // WebSocket消息去重 - 基于tid
-              const existingMessages = messageStore.getMessages(targetUserId)
+              const existingMessages = messageStore.getMessages(messageKey)
               const isDuplicate = existingMessages.some(msg =>
                 msg.tid && chatMessage.tid && msg.tid === chatMessage.tid
               )
@@ -452,8 +466,11 @@ export const useWebSocket = () => {
               if (isDuplicate) {
                 console.log('WebSocket消息重复（tid已存在），跳过:', chatMessage.tid)
               } else {
-                messageStore.addMessage(targetUserId, chatMessage)
+                messageStore.addMessage(messageKey, chatMessage)
                 console.log('消息已添加到聊天历史')
+                if (isSelf) {
+                  refreshTemporaryConversationAfterEcho(currentUserId, targetUserId)
+                }
               }
             }
           }
@@ -569,7 +586,7 @@ export const useWebSocket = () => {
               videoUrl: ''
             }
 
-            messageStore.addMessage(peer.id, chatMessage)
+            messageStore.addMessage(currentUser.id, peer.id, chatMessage)
             peer.lastMsg = fallbackContent
             peer.lastTime = '刚刚'
 
@@ -617,7 +634,7 @@ export const useWebSocket = () => {
             videoUrl: ''
           }
 
-          messageStore.addMessage(peer.id, chatMessage)
+          messageStore.addMessage(currentUser.id, peer.id, chatMessage)
           peer.lastMsg = raw
           peer.lastTime = '刚刚'
           setTimeout(scrollToBottom, 100)

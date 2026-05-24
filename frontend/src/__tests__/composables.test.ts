@@ -1036,7 +1036,7 @@ describe('composables/useChat', () => {
     })
 
     // Seed one cached message so enterChat takes incremental path.
-    messageStore.addMessage('u2', { tid: 't1', content: 'x', isSelf: true } as any)
+    messageStore.addMessage('me', 'u2', { tid: 't1', content: 'x', isSelf: true } as any)
 
     const loadSpy = vi.spyOn(messageStore, 'loadHistory')
     loadSpy.mockResolvedValueOnce(2)
@@ -1052,6 +1052,86 @@ describe('composables/useChat', () => {
     expect(logSpy).toHaveBeenCalledWith('没有新消息')
 
     logSpy.mockRestore()
+  })
+
+  it('enterTemporaryChatFromCandidate creates a current-identity temporary chat', () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'B', name: 'Bee', nickname: 'Bee' } as any
+
+    const chatStore = useChatStore()
+    const messageStore = useMessageStore()
+    const loadSpy = vi.spyOn(messageStore, 'loadHistory').mockResolvedValue(0)
+
+    const user = useChat().enterTemporaryChatFromCandidate({
+      targetUserId: 'test',
+      targetUserName: 'Target',
+      nickname: 'Target',
+      sex: '女',
+      age: '18',
+      area: 'SH',
+      lastMsg: 'matched',
+      sources: ['archive', 'history'],
+      localArchived: true,
+      snapshot: { cookie: 'secret-cookie', address: 'Shanghai' }
+    }, 'A', true)
+
+    expect(user?.id).toBe('test')
+    expect(chatStore.currentChatUser?.id).toBe('test')
+    expect(chatStore.currentChatUser?.localTemporary).toBe(true)
+    expect(chatStore.currentChatUser?.temporarySourceIdentityId).toBe('A')
+    expect(chatStore.isTemporaryConversation('B', 'test')).toBe(true)
+    expect(loadSpy).toHaveBeenCalledWith('B', 'test', expect.objectContaining({ myUserName: 'Bee' }))
+    expect(chatStore.historyUserIds.includes('test')).toBe(false)
+  })
+
+  it('sendText refreshes current identity history and formalizes a temporary chat', async () => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'B', name: 'Bee', nickname: 'Bee' } as any
+
+    const chatStore = useChatStore()
+    const target = {
+      id: 'test',
+      name: 'Target',
+      nickname: 'Target',
+      sex: '未知',
+      ip: ''
+    } as any
+    chatStore.enterTemporaryChat('B', target, 'A')
+    const loadSpy = vi.spyOn(chatStore, 'loadHistoryUsers').mockImplementation(async () => {
+      chatStore.historyUserIds = ['test']
+    })
+
+    sendMock.mockReturnValue(true)
+    useMessage().sendText('hello', target, { clientId: 'cid-temp' })
+
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(loadSpy).toHaveBeenCalledWith('B', 'Bee')
+    expect(chatStore.isTemporaryConversation('B', 'test')).toBe(false)
+    expect(chatStore.currentChatUser?.localTemporary).toBe(false)
+  })
+
+  it('message store keeps same target isolated by current identity', () => {
+    const messageStore = useMessageStore()
+
+    messageStore.addMessage('A', 'test', { tid: 'a1', content: 'from A', isSelf: true } as any)
+    messageStore.addMessage('B', 'test', { tid: 'b1', content: 'from B', isSelf: true } as any)
+
+    expect(messageStore.getMessages('A', 'test').map((m: any) => m.content)).toEqual(['from A'])
+    expect(messageStore.getMessages('B', 'test').map((m: any) => m.content)).toEqual(['from B'])
+
+    expect(messageStore.confirmOutgoingEcho('B', 'test', {
+      tid: 'b2',
+      content: 'from B',
+      time: new Date().toISOString(),
+      isSelf: true,
+      fromuser: { id: 'B' },
+      touser: { id: 'test' }
+    } as any)).toBe(false)
+
+    expect(messageStore.getMessages('A', 'test')).toHaveLength(1)
+    expect(messageStore.getMessages('B', 'test')).toHaveLength(1)
   })
 
   it('toggleFavorite covers nickname fallback, list includes guard, and index=-1 remove branch', async () => {

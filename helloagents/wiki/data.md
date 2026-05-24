@@ -38,7 +38,7 @@
 | create_time | DATETIME/TIMESTAMP | 非空 | 收藏时间 |
 
 ### `chat_user_archive`
-**描述:** 聊天用户本地归档，用于上游删除后仍能恢复列表信息。
+**描述:** 聊天用户本地归档，用于上游删除后仍能恢复列表信息，也作为跨身份联系人候选的本地数据源。
 
 | 字段名 | 类型 | 约束 | 说明 |
 |--------|------|------|------|
@@ -54,6 +54,12 @@
 | last_seen_at | DATETIME/TIMESTAMP | 非空，索引 | 最近见到时间 |
 | created_at | DATETIME/TIMESTAMP | 非空 | 创建时间 |
 | updated_at | DATETIME/TIMESTAMP | 非空 | 更新时间 |
+
+**使用约束:**
+- `owner_user_id + target_user_id` 表示某个本地身份与目标用户的归档关系。
+- 历史/收藏列表代理和 WebSocket 匹配成功事件会写入该表。
+- `GET /api/chat/contactCandidates` 复用该表读取来源身份候选，不新增联系人池表。
+- 对外返回候选时，`snapshot_json` 会清理 cookie、token、JWT、Authorization、access code、password、secret 等敏感字段。
 
 ### `media_file`
 **描述:** 本地媒体库主表。
@@ -206,3 +212,8 @@
 - `ImageCacheService`: 缓存用户上传图片路径。
 - `ForceoutManager`: 记录 5 分钟内禁止重连的 userId。
 - 抖音下载缓存: 用随机 key 映射可下载资源，避免前端传任意 URL。
+
+### 前端消息缓存
+- Pinia `message` store 的 `chatHistory` 和 `firstTidMap` 使用 `conversationKey(ownerUserId, targetUserId)` 作为新路径 key，格式为 `{当前身份ID}:{目标用户ID}`。
+- 该 key 只存在于前端内存状态，用于隔离不同身份联系同一目标时的消息、乐观发送状态、超时和回显合并。
+- 旧单参数读取在唯一匹配时可兼容回读，但新增写入应使用当前身份 ID 或显式会话 key。

@@ -13,10 +13,12 @@ import (
 type archiveSpy struct {
 	persistCalls []archivePersistCall
 	mergeCalls   []archiveMergeCall
+	listCalls    []archiveListCandidatesCall
 	touchCalls   [][2]string
 	saveCalls    []archiveSaveCall
 	deleteCalls  [][2]string
 	mergeFn      func(ownerUserID string, upstream []map[string]any, source UserArchiveListSource) []map[string]any
+	listFn       func(ownerUserID string, limit int) ([]ContactCandidate, error)
 }
 
 type archivePersistCall struct {
@@ -36,6 +38,11 @@ type archiveSaveCall struct {
 	targetUserID string
 	content      string
 	messageTime  string
+}
+
+type archiveListCandidatesCall struct {
+	ownerUserID string
+	limit       int
 }
 
 func (s *archiveSpy) PersistUserList(_ context.Context, ownerUserID string, users []map[string]any, source UserArchiveListSource) {
@@ -84,6 +91,14 @@ func (s *archiveSpy) SaveLastMessage(_ context.Context, ownerUserID, targetUserI
 
 func (s *archiveSpy) DeleteConversation(_ context.Context, ownerUserID, targetUserID string) {
 	s.deleteCalls = append(s.deleteCalls, [2]string{ownerUserID, targetUserID})
+}
+
+func (s *archiveSpy) ListContactCandidates(_ context.Context, ownerUserID string, limit int) ([]ContactCandidate, error) {
+	s.listCalls = append(s.listCalls, archiveListCandidatesCall{ownerUserID: ownerUserID, limit: limit})
+	if s.listFn != nil {
+		return s.listFn(ownerUserID, limit)
+	}
+	return nil, nil
 }
 
 func TestHandleGetHistoryUserList_ArchiveFallbackAndMerge(t *testing.T) {
@@ -233,4 +248,159 @@ func TestHandleGetMessageHistory_SyncsArchiveLastMessage(t *testing.T) {
 	if spy.saveCalls[0].ownerUserID != "me" || spy.saveCalls[0].targetUserID != "u2" || spy.saveCalls[0].content != "hi" || spy.saveCalls[0].messageTime != "t1" {
 		t.Fatalf("save=%+v", spy.saveCalls[0])
 	}
+}
+
+func TestHandleGetContactCandidates(t *testing.T) {
+	t.Run("archive only returns local candidates", func(t *testing.T) {
+		spy := &archiveSpy{
+			listFn: func(ownerUserID string, limit int) ([]ContactCandidate, error) {
+				if ownerUserID != "source-a" {
+					t.Fatalf("ownerUserID=%q", ownerUserID)
+				}
+				if limit != 50 {
+					t.Fatalf("limit=%d", limit)
+				}
+				return []ContactCandidate{{
+					TargetUserID:  "target-1",
+					Nickname:      "Local Target",
+					Sources:       []string{"archive"},
+					LocalArchived: true,
+				}}, nil
+			},
+		}
+		app := &App{httpClient: http.DefaultClient, userArchive: spy}
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/api/chat/contactCandidates?sourceIdentityId=source-a&includeUpstream=0&limit=50", nil)
+		rr := httptest.NewRecorder()
+		app.handleGetContactCandidates(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%q", rr.Code, rr.Body.String())
+		}
+
+		var resp map[string]any
+		if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		data := resp["data"].(map[string]any)
+		items := data["items"].([]any)
+		if len(items) != 1 {
+			t.Fatalf("items=%v", items)
+		}
+		first := items[0].(map[string]any)
+		if first["targetUserId"] != "target-1" || first["localArchived"] != true {
+			t.Fatalf("first=%v", first)
+		}
+		if len(spy.persistCalls) != 0 {
+			t.Fatalf("persistCalls=%v", spy.persistCalls)
+		}
+	})
+
+	t.Run("merge upstream and archive dedup by target", func(t *testing.T) {
+		client := &http.Client{
+			Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				switch r.URL.String() {
+				case upstreamHistoryURL:
+					return newTextResponse(http.StatusOK, `[{"id":"target-1","nickname":"History One","cookieData":"secret"}]`), nil
+				case upstreamFavoriteURL:
+					return newTextResponse(http.StatusOK, `[{"id":"target-1","nickname":"Favorite One"},{"id":"target-2","nickname":"Favorite Two"}]`), nil
+				default:
+					return newTextResponse(http.StatusNotFound, "no"), nil
+				}
+			}),
+		}
+		spy := &archiveSpy{
+			listFn: func(string, int) ([]ContactCandidate, error) {
+				return []ContactCandidate{{
+					TargetUserID:  "target-3",
+					Nickname:      "Archived Three",
+					Sources:       []string{"archive"},
+					LocalArchived: true,
+				}}, nil
+			},
+		}
+		app := &App{httpClient: client, userArchive: spy}
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/api/chat/contactCandidates?sourceIdentityId=source-a&limit=10", nil)
+		rr := httptest.NewRecorder()
+		app.handleGetContactCandidates(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%q", rr.Code, rr.Body.String())
+		}
+
+		var resp struct {
+			Code int `json:"code"`
+			Data struct {
+				Items []ContactCandidate `json:"items"`
+			} `json:"data"`
+			Warnings []string `json:"warnings"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if resp.Code != 0 {
+			t.Fatalf("code=%d", resp.Code)
+		}
+		if len(resp.Warnings) != 0 {
+			t.Fatalf("warnings=%v", resp.Warnings)
+		}
+		if len(resp.Data.Items) != 3 {
+			t.Fatalf("items=%+v", resp.Data.Items)
+		}
+		if resp.Data.Items[0].TargetUserID != "target-1" {
+			t.Fatalf("first=%+v", resp.Data.Items[0])
+		}
+		if len(resp.Data.Items[0].Sources) != 2 {
+			t.Fatalf("sources=%v", resp.Data.Items[0].Sources)
+		}
+		if _, ok := resp.Data.Items[0].Snapshot["cookieData"]; ok {
+			t.Fatalf("sensitive snapshot leaked: %v", resp.Data.Items[0].Snapshot)
+		}
+		if len(spy.persistCalls) != 2 {
+			t.Fatalf("persistCalls=%v", spy.persistCalls)
+		}
+	})
+
+	t.Run("upstream failure degrades to archive with warnings", func(t *testing.T) {
+		client := &http.Client{
+			Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return nil, errors.New("boom")
+			}),
+		}
+		spy := &archiveSpy{
+			listFn: func(string, int) ([]ContactCandidate, error) {
+				return []ContactCandidate{{TargetUserID: "target-9", Nickname: "Archived", Sources: []string{"archive"}, LocalArchived: true}}, nil
+			},
+		}
+		app := &App{httpClient: client, userArchive: spy}
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/api/chat/contactCandidates?sourceIdentityId=source-a", nil)
+		rr := httptest.NewRecorder()
+		app.handleGetContactCandidates(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%q", rr.Code, rr.Body.String())
+		}
+
+		var resp struct {
+			Data struct {
+				Items []ContactCandidate `json:"items"`
+			} `json:"data"`
+			Warnings []string `json:"warnings"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if len(resp.Data.Items) != 1 || resp.Data.Items[0].TargetUserID != "target-9" {
+			t.Fatalf("items=%+v", resp.Data.Items)
+		}
+		if len(resp.Warnings) != 2 {
+			t.Fatalf("warnings=%v", resp.Warnings)
+		}
+	})
+
+	t.Run("invalid source identity", func(t *testing.T) {
+		app := &App{httpClient: http.DefaultClient}
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/api/chat/contactCandidates", nil)
+		rr := httptest.NewRecorder()
+		app.handleGetContactCandidates(rr, req)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("status=%d body=%q", rr.Code, rr.Body.String())
+		}
+	})
 }

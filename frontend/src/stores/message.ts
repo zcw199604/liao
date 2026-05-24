@@ -24,6 +24,13 @@ export const useMessageStore = defineStore('message', () => {
   const OPTIMISTIC_MATCH_WINDOW_MS = 30_000
   const pendingSendTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
+  const conversationKey = (ownerUserId: string | undefined, targetUserId?: string): string => {
+    const owner = String(ownerUserId || '').trim()
+    const target = String(targetUserId || '').trim()
+    if (!target) return ''
+    return owner ? `${owner}:${target}` : target
+  }
+
   const parseMessageTime = (timeStr: string): number | null => {
     if (!timeStr) return null
 
@@ -211,23 +218,127 @@ export const useMessageStore = defineStore('message', () => {
     return minTidRaw
   }
 
-  const getMessages = (userId: string): ChatMessage[] => {
-    return chatHistory.value.get(userId) || []
+  const resolveMessageKey = (userIdOrOwnerId: string, targetUserId?: string): string => {
+    return targetUserId == null ? String(userIdOrOwnerId || '') : conversationKey(userIdOrOwnerId, targetUserId)
   }
 
-  const setMessages = (userId: string, messages: ChatMessage[]) => {
-    const normalized = normalizeMessages(messages)
-    chatHistory.value.set(userId, normalized)
-
-    const minTid = getMinTid(normalized)
-    if (minTid) {
-      firstTidMap.value[userId] = minTid
+  const splitConversationKey = (key: string): { isConversationKey: boolean; targetUserId: string } => {
+    const normalized = String(key || '')
+    const idx = normalized.indexOf(':')
+    if (idx < 0) return { isConversationKey: false, targetUserId: normalized }
+    return {
+      isConversationKey: true,
+      targetUserId: normalized.slice(idx + 1)
     }
   }
 
-  const addMessage = (userId: string, message: ChatMessage) => {
-    const messages = chatHistory.value.get(userId) || []
-    setMessages(userId, [...messages, message])
+  const ownerKeysForTarget = (targetUserId: string): string[] => {
+    const suffix = `:${targetUserId}`
+    return Array.from(chatHistory.value.keys()).filter(storedKey => storedKey.endsWith(suffix))
+  }
+
+  const syncLegacyFirstTidAlias = (targetUserId: string) => {
+    const ownerKeys = ownerKeysForTarget(targetUserId)
+    const tids = ownerKeys
+      .map(key => firstTidMap.value[key])
+      .filter((tid): tid is string => !!tid)
+
+    const onlyTid = tids[0]
+    if (tids.length === 1 && onlyTid) {
+      firstTidMap.value[targetUserId] = onlyTid
+      return
+    }
+
+    delete firstTidMap.value[targetUserId]
+  }
+
+  const updateFirstTid = (key: string, messages: ChatMessage[]) => {
+    const minTid = getMinTid(messages)
+    const { isConversationKey, targetUserId } = splitConversationKey(key)
+
+    if (minTid) {
+      firstTidMap.value[key] = minTid
+      if (isConversationKey) {
+        firstTidMap.value[targetUserId] = minTid
+      }
+      return
+    }
+
+    delete firstTidMap.value[key]
+    if (isConversationKey) {
+      syncLegacyFirstTidAlias(targetUserId)
+    }
+  }
+
+  const commitMessages = (key: string, messages: ChatMessage[]) => {
+    const normalized = normalizeMessages(messages)
+    chatHistory.value.set(key, normalized)
+
+    const { isConversationKey, targetUserId } = splitConversationKey(key)
+    if (isConversationKey) {
+      chatHistory.value.delete(targetUserId)
+      delete firstTidMap.value[targetUserId]
+    }
+
+    updateFirstTid(key, normalized)
+    return normalized
+  }
+
+  const resolveSingleArgumentKey = (key: string): string => {
+    if (chatHistory.value.has(key)) return key
+
+    const { isConversationKey, targetUserId } = splitConversationKey(key)
+    if (isConversationKey) {
+      if (chatHistory.value.has(targetUserId)) return targetUserId
+      return key
+    }
+
+    const ownerKeys = ownerKeysForTarget(key)
+    const onlyKey = ownerKeys[0]
+    return ownerKeys.length === 1 && onlyKey ? onlyKey : key
+  }
+
+  const getMessages = (userIdOrOwnerId: string, targetUserId?: string): ChatMessage[] => {
+    const key = resolveMessageKey(userIdOrOwnerId, targetUserId)
+    const direct = chatHistory.value.get(key)
+    if (direct) return direct
+
+    const { isConversationKey, targetUserId: legacyTargetUserId } = splitConversationKey(key)
+    if (isConversationKey) {
+      return chatHistory.value.get(legacyTargetUserId) || []
+    }
+
+    if (targetUserId != null) return []
+
+    const suffix = `:${key}`
+    const matches: ChatMessage[][] = []
+    for (const [storedKey, messages] of chatHistory.value.entries()) {
+      if (storedKey.endsWith(suffix)) {
+        matches.push(messages)
+      }
+    }
+    if (matches.length === 1) return matches[0] || []
+    return []
+  }
+
+  const setMessages = (userIdOrOwnerId: string, messagesOrTargetUserId: ChatMessage[] | string, maybeMessages?: ChatMessage[]) => {
+    const rawKey = Array.isArray(messagesOrTargetUserId)
+      ? resolveMessageKey(userIdOrOwnerId)
+      : resolveMessageKey(userIdOrOwnerId, messagesOrTargetUserId)
+    const key = Array.isArray(messagesOrTargetUserId) ? resolveSingleArgumentKey(rawKey) : rawKey
+    const messages = Array.isArray(messagesOrTargetUserId) ? messagesOrTargetUserId : (maybeMessages || [])
+    commitMessages(key, messages)
+  }
+
+  const addMessage = (userIdOrOwnerId: string, messageOrTargetUserId: ChatMessage | string, maybeMessage?: ChatMessage) => {
+    const rawKey = typeof messageOrTargetUserId === 'string'
+      ? resolveMessageKey(userIdOrOwnerId, messageOrTargetUserId)
+      : resolveMessageKey(userIdOrOwnerId)
+    const key = typeof messageOrTargetUserId === 'string' ? rawKey : resolveSingleArgumentKey(rawKey)
+    const message = typeof messageOrTargetUserId === 'string' ? maybeMessage : messageOrTargetUserId
+    if (!message) return
+    const messages = getMessages(key)
+    setMessages(key, [...messages, message])
   }
 
   const clearPendingTimer = (clientId: string) => {
@@ -239,12 +350,21 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   const updateMessageByClientId = (
-    userId: string,
-    clientId: string,
-    updater: (msg: ChatMessage) => void,
-    options?: { normalize?: boolean }
+    userIdOrOwnerId: string,
+    clientIdOrTargetUserId: string,
+    updaterOrClientId: ((msg: ChatMessage) => void) | string,
+    maybeUpdater?: ((msg: ChatMessage) => void) | { normalize?: boolean },
+    maybeOptions?: { normalize?: boolean },
   ): boolean => {
-    const list = getMessages(userId)
+    const hasTarget = typeof updaterOrClientId === 'string' && typeof maybeUpdater === 'function'
+    const key = hasTarget
+      ? resolveMessageKey(userIdOrOwnerId, clientIdOrTargetUserId)
+      : resolveSingleArgumentKey(resolveMessageKey(userIdOrOwnerId))
+    const clientId = hasTarget ? updaterOrClientId : clientIdOrTargetUserId
+    const updater = hasTarget ? maybeUpdater : updaterOrClientId
+    const options = hasTarget ? maybeOptions : (maybeUpdater as { normalize?: boolean } | undefined)
+    if (typeof updater !== 'function') return false
+    const list = getMessages(key)
     if (!list.length) return false
 
     const idx = list.findIndex(m => String(m.clientId || '') === String(clientId))
@@ -256,19 +376,26 @@ export const useMessageStore = defineStore('message', () => {
     updater(msg)
 
     if (options?.normalize !== false) {
-      setMessages(userId, list.slice())
+      setMessages(key, list.slice())
     }
 
     return true
   }
 
-  const startOptimisticTimeout = (userId: string, clientId: string, timeoutMs?: number) => {
+  const startOptimisticTimeout = (userIdOrOwnerId: string, clientIdOrTargetUserId: string, timeoutMsOrClientId?: number | string, maybeTimeoutMs?: number) => {
+    const hasTarget = typeof timeoutMsOrClientId === 'string'
+    const key = hasTarget
+      ? resolveMessageKey(userIdOrOwnerId, clientIdOrTargetUserId)
+      : resolveMessageKey(userIdOrOwnerId)
+    const clientId = hasTarget ? timeoutMsOrClientId : clientIdOrTargetUserId
     clearPendingTimer(clientId)
-    const ms = typeof timeoutMs === 'number' ? timeoutMs : OPTIMISTIC_SEND_TIMEOUT_MS
+    const ms = typeof (hasTarget ? maybeTimeoutMs : timeoutMsOrClientId) === 'number'
+      ? Number(hasTarget ? maybeTimeoutMs : timeoutMsOrClientId)
+      : OPTIMISTIC_SEND_TIMEOUT_MS
 
     const t = setTimeout(() => {
       updateMessageByClientId(
-        userId,
+        key,
         clientId,
         msg => {
           if (msg.sendStatus !== 'sending') return
@@ -293,10 +420,14 @@ export const useMessageStore = defineStore('message', () => {
     return { kind: 'text', key: normalizeTextForMatch(msg.content) }
   }
 
-  const confirmOutgoingEcho = (userId: string, echoed: ChatMessage): boolean => {
+  const confirmOutgoingEcho = (userIdOrOwnerId: string, echoedOrTargetUserId: ChatMessage | string, maybeEchoed?: ChatMessage): boolean => {
+    const key = typeof echoedOrTargetUserId === 'string'
+      ? resolveMessageKey(userIdOrOwnerId, echoedOrTargetUserId)
+      : resolveMessageKey(userIdOrOwnerId)
+    const echoed = typeof echoedOrTargetUserId === 'string' ? maybeEchoed : echoedOrTargetUserId
     if (!echoed?.isSelf) return false
 
-    const list = getMessages(userId)
+    const list = getMessages(key)
     if (!list.length) return false
 
     const echoedKey = getOptimisticMatchKey(echoed)
@@ -355,7 +486,7 @@ export const useMessageStore = defineStore('message', () => {
       optimistic: false
     })
 
-    setMessages(userId, list.slice())
+    setMessages(key, list.slice())
     return true
   }
 
@@ -368,6 +499,7 @@ export const useMessageStore = defineStore('message', () => {
     isLoadingHistory.value = true
     try {
       const mediaStore = useMediaStore()
+      const key = conversationKey(myUserID, UserToID)
       const isFirst = options?.isFirst ?? true
       const firstTid = options?.firstTid ?? '0'
       const myUserName = options?.myUserName || 'User'
@@ -398,8 +530,8 @@ export const useMessageStore = defineStore('message', () => {
 
       if (data?.error) {
         console.warn('聊天历史加载失败:', data.error)
-        if (!chatHistory.value.get(UserToID)) {
-          chatHistory.value.set(UserToID, [])
+        if (!chatHistory.value.get(key) && !chatHistory.value.get(UserToID)) {
+          commitMessages(key, [])
         }
         return 0
       }
@@ -456,7 +588,7 @@ export const useMessageStore = defineStore('message', () => {
           } as ChatMessage
         }))
 
-        const existing = chatHistory.value.get(UserToID) || []
+        const existing = chatHistory.value.get(key) || chatHistory.value.get(UserToID) || []
 
         if (isFirst) {
           if (incremental && existing.length > 0) {
@@ -479,43 +611,25 @@ export const useMessageStore = defineStore('message', () => {
 
             // 将新数据 mapped 放在前面，deduplicateMessages 会保留首次出现的版本
             const combined = [...mapped, ...cleanExisting]
-            const normalized = normalizeMessages(combined)
-            chatHistory.value.set(UserToID, normalized)
-
-            const minTid = getMinTid(normalized)
-            if (minTid) {
-              firstTidMap.value[UserToID] = minTid
-            }
+            const normalized = commitMessages(key, combined)
 
             // 返回新增消息数量（近似值，通过长度变化计算）
             return Math.max(0, normalized.length - existing.length)
           } else {
             // 首次加载 或 无缓存：直接设置
-            const normalized = normalizeMessages(mapped)
-            chatHistory.value.set(UserToID, normalized)
-
-            const minTid = getMinTid(normalized)
-            if (minTid) {
-              firstTidMap.value[UserToID] = minTid
-            }
+            commitMessages(key, mapped)
           }
         } else {
           // 向前翻页
           const combined = [...mapped, ...existing]
-          const normalized = normalizeMessages(combined)
-          chatHistory.value.set(UserToID, normalized)
-
-          const minTid = getMinTid(normalized)
-          if (minTid) {
-            firstTidMap.value[UserToID] = minTid
-          }
+          commitMessages(key, combined)
         }
 
         return mapped.length
       }
 
-      if (!chatHistory.value.get(UserToID)) {
-        chatHistory.value.set(UserToID, [])
+      if (!chatHistory.value.get(key)) {
+        commitMessages(key, [])
       }
       return 0
     } catch (error) {
@@ -527,14 +641,21 @@ export const useMessageStore = defineStore('message', () => {
     }
   }
 
-  const clearHistory = (userId: string) => {
-    const existing = chatHistory.value.get(userId) || []
+  const clearHistory = (userIdOrOwnerId: string, targetUserId?: string) => {
+    const key = resolveMessageKey(userIdOrOwnerId, targetUserId)
+    const keys = targetUserId == null
+      ? [key, ...Array.from(chatHistory.value.keys()).filter(storedKey => storedKey.endsWith(`:${key}`))]
+      : [key]
+    const uniqueKeys = Array.from(new Set(keys))
+    const existing = uniqueKeys.flatMap(storedKey => chatHistory.value.get(storedKey) || [])
     for (const msg of existing) {
       const cid = String(msg?.clientId || '')
       if (cid) clearPendingTimer(cid)
     }
-    chatHistory.value.delete(userId)
-    delete firstTidMap.value[userId]
+    uniqueKeys.forEach(storedKey => {
+      chatHistory.value.delete(storedKey)
+      delete firstTidMap.value[storedKey]
+    })
   }
 
   const resetAll = () => {
@@ -553,6 +674,7 @@ export const useMessageStore = defineStore('message', () => {
     firstTidMap,
     loadingMore,
     isLoadingHistory,
+    conversationKey,
     getMessages,
     addMessage,
     setMessages,

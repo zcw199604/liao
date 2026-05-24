@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -261,6 +262,274 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeText(w, http.StatusOK, body)
+}
+
+func (a *App) handleGetContactCandidates(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	sourceIdentityID := strings.TrimSpace(query.Get("sourceIdentityId"))
+	if sourceIdentityID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": "sourceIdentityId 不能为空"})
+		return
+	}
+	if len(sourceIdentityID) > 128 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": "sourceIdentityId 过长"})
+		return
+	}
+
+	keyword := strings.TrimSpace(query.Get("q"))
+	if len(keyword) > 100 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": "q 过长"})
+		return
+	}
+
+	limit := parseContactCandidateLimit(query.Get("limit"))
+	includeUpstream := parseBoolDefault(query.Get("includeUpstream"), true)
+	vipcode := defaultString(query.Get("vipcode"), "")
+	serverPort := defaultString(query.Get("serverPort"), "1001")
+	cookieData := defaultString(query.Get("cookieData"), "")
+	referer := defaultString(query.Get("referer"), "http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko")
+	userAgent := defaultString(query.Get("userAgent"), "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
+	itemsByID := make(map[string]ContactCandidate)
+	orderedIDs := make([]string, 0, limit)
+	warnings := make([]string, 0)
+
+	if includeUpstream {
+		for _, source := range []struct {
+			name string
+			url  string
+		}{
+			{name: string(UserArchiveListSourceHistory), url: upstreamHistoryURL},
+			{name: string(UserArchiveListSourceFavorite), url: upstreamFavoriteURL},
+		} {
+			users, err := a.fetchUpstreamContactCandidateUsers(r.Context(), source.url, sourceIdentityID, vipcode, serverPort, cookieData, referer, userAgent)
+			if err != nil {
+				warnings = append(warnings, source.name+": "+err.Error())
+				continue
+			}
+			if a != nil && a.userArchive != nil && len(users) > 0 {
+				a.persistArchivedUserList(sourceIdentityID, users, UserArchiveListSource(source.name))
+			}
+			mergeContactCandidateUsers(itemsByID, &orderedIDs, users, source.name, false, sourceIdentityID, limit)
+		}
+	}
+
+	if lister, ok := a.userArchive.(UserArchiveCandidateLister); ok {
+		archived, err := lister.ListContactCandidates(r.Context(), sourceIdentityID, limit)
+		if err != nil {
+			warnings = append(warnings, "archive: "+err.Error())
+		} else {
+			mergeContactCandidates(itemsByID, &orderedIDs, archived, sourceIdentityID, limit)
+		}
+	}
+
+	items := contactCandidateSlice(itemsByID, orderedIDs, sourceIdentityID, keyword, limit)
+	resp := map[string]any{
+		"code": 0,
+		"msg":  "success",
+		"data": map[string]any{
+			"sourceIdentityId": sourceIdentityID,
+			"items":            items,
+		},
+	}
+	if len(warnings) > 0 {
+		resp["warnings"] = warnings
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func parseContactCandidateLimit(raw string) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 100
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return 100
+	}
+	if n > 300 {
+		return 300
+	}
+	return n
+}
+
+func parseBoolDefault(raw string, def bool) bool {
+	raw = strings.TrimSpace(strings.ToLower(raw))
+	if raw == "" {
+		return def
+	}
+	switch raw {
+	case "1", "true", "yes", "y", "on":
+		return true
+	case "0", "false", "no", "n", "off":
+		return false
+	default:
+		return def
+	}
+}
+
+func (a *App) fetchUpstreamContactCandidateUsers(ctx context.Context, endpoint, sourceIdentityID, vipcode, serverPort, cookieData, referer, userAgent string) ([]map[string]any, error) {
+	if a == nil || a.httpClient == nil {
+		return nil, fmt.Errorf("http client unavailable")
+	}
+
+	form := url.Values{}
+	form.Set("myUserID", sourceIdentityID)
+	form.Set("vipcode", vipcode)
+	form.Set("serverPort", serverPort)
+
+	headers := map[string]string{
+		"Host":       "v1.chat2019.cn",
+		"Origin":     "http://v1.chat2019.cn",
+		"Referer":    referer,
+		"User-Agent": userAgent,
+	}
+	if cookieData != "" {
+		headers["Cookie"] = cookieData
+	}
+
+	status, body, err := a.postForm(ctx, endpoint, form, headers)
+	if err != nil {
+		return nil, err
+	}
+	if status != http.StatusOK {
+		return nil, fmt.Errorf("upstream status %d", status)
+	}
+	if strings.TrimSpace(body) == "" {
+		return nil, nil
+	}
+
+	var list []map[string]any
+	if err := json.Unmarshal([]byte(body), &list); err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+func mergeContactCandidateUsers(
+	items map[string]ContactCandidate,
+	orderedIDs *[]string,
+	users []map[string]any,
+	source string,
+	localArchived bool,
+	sourceIdentityID string,
+	limit int,
+) {
+	for _, user := range users {
+		candidate, ok := contactCandidateFromUser(user, source, localArchived)
+		if !ok {
+			continue
+		}
+		addContactCandidate(items, orderedIDs, candidate, sourceIdentityID, limit)
+	}
+}
+
+func mergeContactCandidates(items map[string]ContactCandidate, orderedIDs *[]string, candidates []ContactCandidate, sourceIdentityID string, limit int) {
+	for _, candidate := range candidates {
+		addContactCandidate(items, orderedIDs, candidate, sourceIdentityID, limit)
+	}
+}
+
+func addContactCandidate(items map[string]ContactCandidate, orderedIDs *[]string, candidate ContactCandidate, sourceIdentityID string, limit int) {
+	candidate.TargetUserID = strings.TrimSpace(candidate.TargetUserID)
+	if candidate.TargetUserID == "" || candidate.TargetUserID == strings.TrimSpace(sourceIdentityID) {
+		return
+	}
+
+	if existing, ok := items[candidate.TargetUserID]; ok {
+		existing.Sources = appendUniqueStrings(existing.Sources, candidate.Sources...)
+		if candidate.LocalArchived {
+			existing.LocalArchived = true
+		}
+		if existing.TargetUserName == "" {
+			existing.TargetUserName = candidate.TargetUserName
+		}
+		if existing.Name == "" {
+			existing.Name = candidate.Name
+		}
+		if existing.Nickname == "" {
+			existing.Nickname = candidate.Nickname
+		}
+		if existing.Sex == "" {
+			existing.Sex = candidate.Sex
+		}
+		if existing.Age == "" {
+			existing.Age = candidate.Age
+		}
+		if existing.Area == "" {
+			existing.Area = candidate.Area
+		}
+		if existing.Address == "" {
+			existing.Address = candidate.Address
+		}
+		if existing.LastMsg == "" {
+			existing.LastMsg = candidate.LastMsg
+		}
+		if existing.LastTime == "" {
+			existing.LastTime = candidate.LastTime
+		}
+		if existing.Snapshot == nil && candidate.Snapshot != nil {
+			existing.Snapshot = candidate.Snapshot
+		}
+		items[candidate.TargetUserID] = existing
+		return
+	}
+
+	if len(*orderedIDs) >= limit {
+		return
+	}
+	candidate.Sources = appendUniqueStrings(nil, candidate.Sources...)
+	items[candidate.TargetUserID] = candidate
+	*orderedIDs = append(*orderedIDs, candidate.TargetUserID)
+}
+
+func appendUniqueStrings(values []string, next ...string) []string {
+	for _, value := range next {
+		values = appendUniqueString(values, value)
+	}
+	return values
+}
+
+func contactCandidateSlice(items map[string]ContactCandidate, orderedIDs []string, sourceIdentityID, keyword string, limit int) []ContactCandidate {
+	out := make([]ContactCandidate, 0, len(orderedIDs))
+	keyword = strings.ToLower(strings.TrimSpace(keyword))
+	for _, id := range orderedIDs {
+		candidate, ok := items[id]
+		if !ok {
+			continue
+		}
+		if keyword != "" && !contactCandidateMatches(candidate, keyword) {
+			continue
+		}
+		if candidate.TargetUserID == strings.TrimSpace(sourceIdentityID) {
+			continue
+		}
+		out = append(out, candidate)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out
+}
+
+func contactCandidateMatches(candidate ContactCandidate, keyword string) bool {
+	fields := []string{
+		candidate.TargetUserID,
+		candidate.TargetUserName,
+		candidate.Name,
+		candidate.Nickname,
+		candidate.Sex,
+		candidate.Age,
+		candidate.Area,
+		candidate.Address,
+		candidate.LastMsg,
+	}
+	for _, field := range fields {
+		if strings.Contains(strings.ToLower(field), keyword) {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) persistArchivedUserList(ownerUserID string, users []map[string]any, source UserArchiveListSource) int64 {

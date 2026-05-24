@@ -30,6 +30,7 @@ export const useChatStore = defineStore('chat', () => {
   const historyUserIds = ref<string[]>([])           // 历史列表的用户ID顺序
   const favoriteUserIds = ref<string[]>([])          // 收藏列表的用户ID顺序
   const listOwnerUserId = ref('')                    // 当前列表所属身份ID
+  const temporaryConversationByKey = ref<Record<string, true>>({})
 
   // === 其他状态 ===
   const currentChatUser = ref<User | null>(null)
@@ -69,6 +70,12 @@ export const useChatStore = defineStore('chat', () => {
   const displayList = computed(() => {
     return activeTab.value === 'history' ? historyUsers.value : favoriteUsers.value
   })
+
+  const conversationKey = (ownerUserId: string, targetUserId: string) => {
+    const owner = String(ownerUserId || '').trim()
+    const target = String(targetUserId || '').trim()
+    return owner && target ? `${owner}:${target}` : ''
+  }
 
   // === 工具方法：更新或插入用户 ===
   const upsertUser = (user: User) => {
@@ -112,6 +119,7 @@ export const useChatStore = defineStore('chat', () => {
     favoriteUserIds.value = []
     currentChatUser.value = null
     listOwnerUserId.value = ''
+    temporaryConversationByKey.value = {}
   }
 
   const ensureListOwner = (ownerUserId: string) => {
@@ -224,6 +232,44 @@ export const useChatStore = defineStore('chat', () => {
     currentChatUser.value = user
   }
 
+  const enterTemporaryChat = (ownerUserId: string, user: User, sourceIdentityId: string) => {
+    const key = conversationKey(ownerUserId, user.id)
+    const nextUser: User = {
+      ...user,
+      localTemporary: true,
+      temporarySourceIdentityId: sourceIdentityId
+    }
+    upsertUser(nextUser)
+    if (key) {
+      temporaryConversationByKey.value[key] = true
+    }
+    currentChatUser.value = nextUser
+  }
+
+  const isTemporaryConversation = (ownerUserId: string, targetUserId: string) => {
+    const key = conversationKey(ownerUserId, targetUserId)
+    if (!key) return false
+    return Boolean(temporaryConversationByKey.value[key])
+  }
+
+  const markConversationFormal = (ownerUserId: string, targetUserId: string) => {
+    const key = conversationKey(ownerUserId, targetUserId)
+    if (key && temporaryConversationByKey.value[key]) {
+      delete temporaryConversationByKey.value[key]
+      temporaryConversationByKey.value = { ...temporaryConversationByKey.value }
+    }
+    updateUser(targetUserId, {
+      localTemporary: false,
+      temporarySourceIdentityId: undefined
+    })
+    if (currentChatUser.value?.id === targetUserId) {
+      Object.assign(currentChatUser.value, {
+        localTemporary: false,
+        temporarySourceIdentityId: undefined
+      })
+    }
+  }
+
   const exitChat = () => {
     currentChatUser.value = null
     try {
@@ -296,11 +342,13 @@ export const useChatStore = defineStore('chat', () => {
     historyUserIds,
     favoriteUserIds,
     listOwnerUserId,
+    temporaryConversationByKey,
 
     // 方法
     loadHistoryUsers,
     loadFavoriteUsers,
     enterChat,
+    enterTemporaryChat,
     exitChat,
     startMatch,
     cancelMatch,
@@ -318,6 +366,9 @@ export const useChatStore = defineStore('chat', () => {
     updateUser,
     clearAllUsers,
     ensureListOwner,
-    removeUser
+    removeUser,
+    conversationKey,
+    isTemporaryConversation,
+    markConversationFormal
   }
 })

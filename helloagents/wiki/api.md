@@ -48,12 +48,52 @@
 |------|------|------|
 | POST | `/api/getHistoryUserList` | 代理上游历史用户列表并做本地增强 |
 | POST | `/api/getFavoriteUserList` | 代理上游收藏用户列表并做本地增强 |
+| GET | `/api/chat/contactCandidates` | 查询来源身份的跨身份接入联系人候选，合并上游历史、上游收藏和本地归档 |
 | POST | `/api/reportReferrer` | 上报 referrer 到上游 |
 | POST | `/api/getMessageHistory` | 获取消息历史，Redis 模式下可合并本地聊天记录缓存 |
 | POST | `/api/toggleFavorite` | 代理上游添加聊天收藏 |
 | POST | `/api/cancelFavorite` | 代理上游取消聊天收藏 |
 | POST | `/api/deleteUpstreamUser` | 删除上游会话用户并清理本地归档 |
 | POST | `/api/batchDeleteUpstreamUsers` | 批量删除上游会话用户并清理本地归档 |
+
+#### `GET /api/chat/contactCandidates`
+
+查询某个来源身份可供当前身份临时接入的联系人候选。
+
+**Query 参数:**
+- `sourceIdentityId` 必填，来源身份 ID，最长 128。
+- `includeUpstream` 可选，默认 `1`；为 `0` 时只读取本地归档。
+- `q` 可选，按用户 ID、昵称、地区和最近消息过滤，最长 100。
+- `limit` 可选，默认 `100`，最大 `300`。
+- `cookieData`、`referer`、`userAgent` 可选，用于请求来源身份上游历史/收藏。
+
+**响应:**
+```json
+{
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "sourceIdentityId": "A",
+    "items": [
+      {
+        "targetUserId": "test",
+        "targetUserName": "目标昵称",
+        "nickname": "目标昵称",
+        "sources": ["history", "archive"],
+        "localArchived": true,
+        "snapshot": {}
+      }
+    ]
+  },
+  "warnings": ["history: upstream status 500"]
+}
+```
+
+**行为约束:**
+- 后端按 `targetUserId` 去重，保留来源标记 `history`、`favorite`、`archive`。
+- 上游失败不阻断本地归档返回，失败原因写入顶层 `warnings`。
+- `sourceIdentityId` 仅用于候选读取；实际发送消息仍由当前身份的 WebSocket 连接完成。
+- `snapshot` 会清理 cookie、token、JWT、Authorization、access code、password、secret 等敏感字段。
 
 ### Media
 | 方法 | 路径 | 说明 |

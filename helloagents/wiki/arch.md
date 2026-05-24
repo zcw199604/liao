@@ -84,3 +84,6 @@ sequenceDiagram
 |--------|-------|------|--------|------------------|---------|
 | ADR-001 | 采用 Go 单进程后端替换历史服务 | 2026-01-07 | 已采纳 | Backend/API/WS | [链接](../history/2026-01/202601071248_go_backend_rewrite/how.md#adr-001-采用-go-单进程后端完全替换推荐) |
 | ADR-002 | 数据库通过 `DB_URL` scheme 选择 MySQL/PostgreSQL | 2026-05-07 | 已采纳 | Database | 当前代码事实：`internal/config.ParseJDBCURL` + `internal/database.DialectFromScheme` |
+| ADR-20260524-01 | 以临时会话接入替代跨身份复用连接 | 2026-05-24 | 已采纳 | Chat UI/WS | [链接](../history/2026-05/202605241257_cross_identity_contact_handoff/how.md#adr-20260524-01-以临时会话接入替代跨身份复用连接) |
+| ADR-20260524-02 | 复用 `chat_user_archive` 而非新增联系人池表 | 2026-05-24 | 已采纳 | User History/Database | [链接](../history/2026-05/202605241257_cross_identity_contact_handoff/how.md#adr-20260524-02-复用-chat_user_archive-而非新增联系人池表) |
+| ADR-20260524-03 | Message Store 使用身份隔离 key | 2026-05-24 | 已采纳 | Chat UI | [链接](../history/2026-05/202605241257_cross_identity_contact_handoff/how.md#adr-20260524-03-message-store-使用身份隔离-key) |

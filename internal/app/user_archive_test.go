@@ -158,6 +158,45 @@ func TestDBUserArchiveService_MergeArchivedUsers_AppendsLocalArchived(t *testing
 	}
 }
 
+func TestDBUserArchiveService_ListContactCandidates(t *testing.T) {
+	rawDB, mock, cleanup := newSQLMock(t)
+	defer cleanup()
+
+	snapshot, err := json.Marshal(map[string]any{
+		"id":         "u2",
+		"nickname":   "Bob",
+		"cookieData": "secret",
+	})
+	if err != nil {
+		t.Fatalf("marshal snapshot: %v", err)
+	}
+
+	mock.ExpectQuery(`SELECT target_user_id, snapshot_json, last_msg, last_time, seen_in_history, seen_in_favorite\s+FROM chat_user_archive\s+WHERE owner_user_id = \?\s+ORDER BY last_seen_at DESC, updated_at DESC, id DESC\s+LIMIT \?`).
+		WithArgs("me", 25).
+		WillReturnRows(
+			sqlmock.NewRows([]string{"target_user_id", "snapshot_json", "last_msg", "last_time", "seen_in_history", "seen_in_favorite"}).
+				AddRow("u2", sql.NullString{String: string(snapshot), Valid: true}, sql.NullString{String: "hi", Valid: true}, sql.NullString{String: "t1", Valid: true}, 1, 0),
+		)
+
+	svc := NewDBUserArchiveService(wrapMySQLDB(rawDB))
+	items, err := svc.ListContactCandidates(context.Background(), " me ", 25)
+	if err != nil {
+		t.Fatalf("ListContactCandidates: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("items=%+v", items)
+	}
+	if items[0].TargetUserID != "u2" || items[0].Nickname != "Bob" || !items[0].LocalArchived {
+		t.Fatalf("item=%+v", items[0])
+	}
+	if items[0].LastMsg != "hi" || items[0].LastTime != "t1" {
+		t.Fatalf("last fields=%+v", items[0])
+	}
+	if _, ok := items[0].Snapshot["cookieData"]; ok {
+		t.Fatalf("sensitive snapshot leaked: %v", items[0].Snapshot)
+	}
+}
+
 func TestDBUserArchiveService_DeleteConversation(t *testing.T) {
 	t.Run("delete by owner and target", func(t *testing.T) {
 		rawDB, mock, cleanup := newSQLMock(t)
