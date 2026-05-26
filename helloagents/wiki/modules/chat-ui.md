@@ -50,7 +50,8 @@
 
 #### 场景: 选择候选进入聊天
 - `CrossIdentityContactPicker.vue` 打开时加载身份列表，默认选中第一个非当前身份。
-- 选择器通过 `getContactCandidates` 请求候选，展示来源标记：历史、收藏、归档。
+- 选择器通过 `getContactCandidates` 请求候选，展示来源标记：历史、收藏、归档，并保持后端返回顺序，不做二次排序。
+- 候选顺序与来源身份实际列表顺序一致：历史原序优先、收藏原序追加、归档仅补充上游未返回联系人。
 - 选中候选后调用 `enterTemporaryChatFromCandidate`，在当前身份下创建临时会话并跳转 `/chat/:targetUserId`。
 - 选中目标不会立即写入当前身份正式历史列表。
 

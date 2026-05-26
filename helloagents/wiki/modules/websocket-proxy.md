@@ -34,6 +34,14 @@
 #### 场景: 禁止期间重新连接
 - 后端发送 `code=-4` 拒绝消息，并关闭下游连接。
 
+### 需求: 上游连接不主动 ping
+**模块:** WebSocket Proxy  
+后端上游 WebSocket 客户端不主动发送 ping frame，避免触发部分上游节点 reset。
+
+#### 场景: 上游空闲保持
+- 连接建立后仅依赖业务消息和读循环感知断开。
+- 保留 pong 处理用于对端主动心跳时刷新读超时。
+
 ## API接口
 - `GET /ws?token=<jwt>`
 - `GET /api/getConnectionStats`
@@ -49,3 +57,8 @@
 - `internal/app/websocket_manager.go`
 - `internal/app/forceout.go`
 - `frontend/src/composables/useWebSocket.ts`
+
+## 运维诊断
+- `scripts/probe_upstream_ws.go` 可手动探测上游 WebSocket 稳定性，默认通过 rand-server 发现上游并被动保持连接 5 分钟。
+- 默认用法：`go run scripts/probe_upstream_ws.go -timeout=5m`。
+- 如需验证上游是否接受客户端 ping：`go run scripts/probe_upstream_ws.go -timeout=5m -ping-interval=25s`。

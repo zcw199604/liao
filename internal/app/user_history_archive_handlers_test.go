@@ -250,6 +250,15 @@ func TestHandleGetMessageHistory_SyncsArchiveLastMessage(t *testing.T) {
 	}
 }
 
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestHandleGetContactCandidates(t *testing.T) {
 	t.Run("archive only returns local candidates", func(t *testing.T) {
 		spy := &archiveSpy{
@@ -344,11 +353,20 @@ func TestHandleGetContactCandidates(t *testing.T) {
 		if len(resp.Data.Items) != 3 {
 			t.Fatalf("items=%+v", resp.Data.Items)
 		}
-		if resp.Data.Items[0].TargetUserID != "target-1" {
-			t.Fatalf("first=%+v", resp.Data.Items[0])
+		wantOrder := []string{"target-1", "target-2", "target-3"}
+		for i, want := range wantOrder {
+			if resp.Data.Items[i].TargetUserID != want {
+				t.Fatalf("item[%d]=%+v, want target %s; all=%+v", i, resp.Data.Items[i], want, resp.Data.Items)
+			}
 		}
-		if len(resp.Data.Items[0].Sources) != 2 {
+		if !containsString(resp.Data.Items[0].Sources, "history") || !containsString(resp.Data.Items[0].Sources, "favorite") {
 			t.Fatalf("sources=%v", resp.Data.Items[0].Sources)
+		}
+		if resp.Data.Items[0].Nickname != "History One" {
+			t.Fatalf("nickname=%q, want history value to preserve first source", resp.Data.Items[0].Nickname)
+		}
+		if !resp.Data.Items[2].LocalArchived {
+			t.Fatalf("archive supplement should stay localArchived: %+v", resp.Data.Items[2])
 		}
 		if _, ok := resp.Data.Items[0].Snapshot["cookieData"]; ok {
 			t.Fatalf("sensitive snapshot leaked: %v", resp.Data.Items[0].Snapshot)

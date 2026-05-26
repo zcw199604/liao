@@ -35,13 +35,13 @@
 `GET /api/chat/contactCandidates` 根据 `sourceIdentityId` 聚合来源身份的上游历史、上游收藏和本地 `chat_user_archive` 归档，供当前身份在前端选择后创建临时会话。
 
 #### 场景: 来源身份有上游历史或收藏对象
-- 接口按历史、收藏、归档顺序合并候选。
-- 同一 `targetUserId` 只返回一条，`sources` 合并为 `history`、`favorite`、`archive` 等来源标记。
+- 接口按历史、收藏、归档顺序合并候选，并保留上游历史/收藏接口的原始返回顺序。
+- 同一 `targetUserId` 只返回一条，`sources` 合并为 `history`、`favorite`、`archive` 等来源标记；后续来源只补充标签和缺失字段，不移动已加入候选的位置。
 - 获取到上游列表时会继续 best-effort 写入 `chat_user_archive`，让后续上游不可用时仍有本地候选。
 
 #### 场景: 目标只存在于本地归档
 - 即使上游历史/收藏不可用或不再返回目标用户，接口仍返回 `chat_user_archive` 中的候选。
-- 本地归档候选设置 `localArchived=true`，并按 `last_seen_at`、`updated_at`、`id` 倒序查询。
+- 本地归档候选设置 `localArchived=true`，作为上游未返回候选的末尾补充；纯归档兜底按 `last_time`、`last_seen_at`、`updated_at`、`id` 倒序查询。
 
 #### 场景: 上游失败降级
 - 上游历史或收藏失败时，接口返回 `code=0` 和可用候选，并在顶层 `warnings` 中记录失败来源。

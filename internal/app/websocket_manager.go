@@ -35,7 +35,6 @@ var (
 	wsEvictionDelay = wsEvictionCloseDelay
 	wsForceoutDelay = wsForceoutDownstreamDelay
 
-	wsUpstreamPingInterval     = 600 * time.Second
 	wsWebServiceRandServerBase = "http://v1.chat2019.cn/Act/WebService.asmx/getRandServer?ServerInfo=serversdeskry&_="
 )
 
@@ -484,7 +483,6 @@ func (c *UpstreamWebSocketClient) connect() {
 		return conn.SetReadDeadline(time.Now().Add(wsUpstreamConnectionLost))
 	})
 
-	go c.heartbeat()
 	c.flushPending()
 
 	for {
@@ -504,28 +502,6 @@ func (c *UpstreamWebSocketClient) connect() {
 	}
 	if c.manager != nil {
 		c.manager.HandleUpstreamDisconnect(c.userID)
-	}
-}
-
-func (c *UpstreamWebSocketClient) heartbeat() {
-	ticker := time.NewTicker(wsUpstreamPingInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			c.mu.Lock()
-			conn := c.conn
-			c.mu.Unlock()
-			if conn == nil {
-				continue
-			}
-			c.writeMu.Lock()
-			_ = conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(wsUpstreamWriteDeadline))
-			c.writeMu.Unlock()
-		case <-c.done:
-			return
-		}
 	}
 }
 

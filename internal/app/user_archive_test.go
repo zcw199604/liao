@@ -171,7 +171,7 @@ func TestDBUserArchiveService_ListContactCandidates(t *testing.T) {
 		t.Fatalf("marshal snapshot: %v", err)
 	}
 
-	mock.ExpectQuery(`SELECT target_user_id, snapshot_json, last_msg, last_time, seen_in_history, seen_in_favorite\s+FROM chat_user_archive\s+WHERE owner_user_id = \?\s+ORDER BY last_seen_at DESC, updated_at DESC, id DESC\s+LIMIT \?`).
+	mock.ExpectQuery(`SELECT target_user_id, snapshot_json, last_msg, last_time, seen_in_history, seen_in_favorite\s+FROM chat_user_archive\s+WHERE owner_user_id = \?\s+ORDER BY last_time DESC, last_seen_at DESC, updated_at DESC, id DESC\s+LIMIT \?`).
 		WithArgs("me", 25).
 		WillReturnRows(
 			sqlmock.NewRows([]string{"target_user_id", "snapshot_json", "last_msg", "last_time", "seen_in_history", "seen_in_favorite"}).

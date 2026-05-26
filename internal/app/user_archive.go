@@ -272,12 +272,14 @@ func (s *DBUserArchiveService) ListContactCandidates(ctx context.Context, ownerU
 		limit = 300
 	}
 
+	// 归档候选仅用于补充上游历史/收藏未返回的用户；排序作为纯归档兜底，
+	// 不参与移动已经按上游原始顺序加入的候选。
 	rows, err := s.db.QueryContext(
 		ctx,
 		`SELECT target_user_id, snapshot_json, last_msg, last_time, seen_in_history, seen_in_favorite
 		FROM chat_user_archive
 		WHERE owner_user_id = ?
-		ORDER BY last_seen_at DESC, updated_at DESC, id DESC
+		ORDER BY last_time DESC, last_seen_at DESC, updated_at DESC, id DESC
 		LIMIT ?`,
 		ownerUserID,
 		limit,
