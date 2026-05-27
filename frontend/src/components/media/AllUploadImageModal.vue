@@ -119,16 +119,17 @@
           <template #default="{ item: media }">
             <div class="h-full cursor-pointer" @click="handleMediaClick(media)">
               <!-- 容器：处理缩放和圆角 -->
-	              <MediaTile
-	                :src="media.type === 'video' && media.posterUrl ? media.posterUrl : media.url"
-	                :type="media.type === 'video' && media.posterUrl ? 'image' : media.type"
-	                :poster="media.type === 'video' ? media.posterUrl : undefined"
+              <MediaTile
+                :src="media.type === 'video' && media.posterUrl ? media.posterUrl : media.url"
+                :type="media.type === 'video' && media.posterUrl ? 'image' : media.type"
+                :poster="media.type === 'video' ? media.posterUrl : undefined"
                   :fit="media.type === 'video' ? 'contain' : 'cover'"
-	                :reveal-top-right="true"
-	                :fill="layoutMode === 'grid' || (media.type === 'video' && !media.posterUrl)"
-	                :media-class="layoutMode === 'grid' ? '' : ((media.type === 'image' || (media.type === 'video' && media.posterUrl)) ? 'w-full h-auto' : '')"
-	                class="rounded-xl overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] bg-surface-3"
-	                :class="[
+                :reveal-top-right="true"
+                :fill="layoutMode === 'grid' || (media.type === 'video' && !media.posterUrl)"
+                :aspect-ratio="layoutMode === 'masonry' && media.width && media.height ? Number(media.width) / Number(media.height) : undefined"
+                :media-class="layoutMode === 'grid' ? '' : ((media.type === 'image' || (media.type === 'video' && media.posterUrl)) ? 'w-full h-auto' : '')"
+                class="rounded-xl overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] bg-surface-3"
+                :class="[
                   mediaStore.selectedImages.includes(media.url) ? 'transform scale-95 ring-2 ring-purple-500' : '',
                   deletingUrls.has(media.url) ? 'opacity-50' : 'hover:brightness-110',
                   layoutMode === 'grid' ? 'w-full h-full' : (media.type === 'video' && !media.posterUrl ? 'aspect-video' : 'w-full')
@@ -136,7 +137,7 @@
                 :show-skeleton="false"
                 :muted="true"
                 :indicator-size="'lg'"
-	              >
+              >
                   <template #center>
                     <div
                       v-if="media.type === 'video'"

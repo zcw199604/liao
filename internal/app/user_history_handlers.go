@@ -1005,6 +1005,7 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 				localFilename := filepath.Base(strings.TrimPrefix(localPath, "/"))
 
 				fileExtension := a.fileStorage.FileExtension(fileHeader.Filename)
+				mediaWidth, mediaHeight := a.mediaUpload.readImageDimensionsForRecord(localPath, contentType, fileExtension)
 				switch source {
 				case "douyin":
 					_, _ = a.mediaUpload.SaveDouyinUploadRecord(r.Context(), DouyinUploadRecord{
@@ -1022,6 +1023,8 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 						FileType:         contentType,
 						FileExtension:    fileExtension,
 						FileMD5:          md5Value,
+						MediaWidth:       mediaWidth,
+						MediaHeight:      mediaHeight,
 					})
 				default:
 					_, _ = a.mediaUpload.SaveUploadRecord(r.Context(), UploadRecord{
@@ -1035,6 +1038,8 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 						FileType:         contentType,
 						FileExtension:    fileExtension,
 						FileMD5:          md5Value,
+						MediaWidth:       mediaWidth,
+						MediaHeight:      mediaHeight,
 					})
 				}
 

@@ -36,6 +36,8 @@ type DouyinUploadRecord struct {
 	FileType         string
 	FileExtension    string
 	FileMD5          string
+	MediaWidth       int
+	MediaHeight      int
 }
 
 func (s *MediaUploadService) SaveDouyinUploadRecord(ctx context.Context, record DouyinUploadRecord) (*MediaUploadHistory, error) {
@@ -69,27 +71,55 @@ func (s *MediaUploadService) SaveDouyinUploadRecord(ctx context.Context, record 
 	}
 
 	now := time.Now()
-	id, err := database.InsertReturningID(ctx, s.db, `INSERT INTO douyin_media_file
-		(user_id, sec_user_id, detail_id, author_unique_id, author_name, original_filename, local_filename, remote_filename, remote_url, local_path, file_size, file_type, file_extension, file_md5, upload_time, update_time, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		record.UserID,
-		nullStringIfEmpty(record.SecUserID),
-		nullStringIfEmpty(record.DetailID),
-		nullStringIfEmpty(record.AuthorUniqueID),
-		nullStringIfEmpty(record.AuthorName),
-		record.OriginalFilename,
-		record.LocalFilename,
-		record.RemoteFilename,
-		record.RemoteURL,
-		record.LocalPath,
-		record.FileSize,
-		record.FileType,
-		record.FileExtension,
-		nullStringIfEmpty(record.FileMD5),
-		now,
-		now,
-		now,
-	)
+	var id int64
+	var err error
+	if record.MediaWidth > 0 && record.MediaHeight > 0 {
+		id, err = database.InsertReturningID(ctx, s.db, `INSERT INTO douyin_media_file
+			(user_id, sec_user_id, detail_id, author_unique_id, author_name, original_filename, local_filename, remote_filename, remote_url, local_path, file_size, file_type, file_extension, file_md5, media_width, media_height, upload_time, update_time, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			record.UserID,
+			nullStringIfEmpty(record.SecUserID),
+			nullStringIfEmpty(record.DetailID),
+			nullStringIfEmpty(record.AuthorUniqueID),
+			nullStringIfEmpty(record.AuthorName),
+			record.OriginalFilename,
+			record.LocalFilename,
+			record.RemoteFilename,
+			record.RemoteURL,
+			record.LocalPath,
+			record.FileSize,
+			record.FileType,
+			record.FileExtension,
+			nullStringIfEmpty(record.FileMD5),
+			record.MediaWidth,
+			record.MediaHeight,
+			now,
+			now,
+			now,
+		)
+	} else {
+		id, err = database.InsertReturningID(ctx, s.db, `INSERT INTO douyin_media_file
+			(user_id, sec_user_id, detail_id, author_unique_id, author_name, original_filename, local_filename, remote_filename, remote_url, local_path, file_size, file_type, file_extension, file_md5, upload_time, update_time, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			record.UserID,
+			nullStringIfEmpty(record.SecUserID),
+			nullStringIfEmpty(record.DetailID),
+			nullStringIfEmpty(record.AuthorUniqueID),
+			nullStringIfEmpty(record.AuthorName),
+			record.OriginalFilename,
+			record.LocalFilename,
+			record.RemoteFilename,
+			record.RemoteURL,
+			record.LocalPath,
+			record.FileSize,
+			record.FileType,
+			record.FileExtension,
+			nullStringIfEmpty(record.FileMD5),
+			now,
+			now,
+			now,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}

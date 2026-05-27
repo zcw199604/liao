@@ -4,9 +4,9 @@
 管理本地媒体上传、上游上传、媒体库、查重、发送日志和修复任务。
 
 ## 模块概述
-- **职责:** 图片/视频落盘、上游上传、媒体记录、全站媒体库、聊天媒体查询、MD5/pHash 查重、视频海报生成与修复。
+- **职责:** 图片/视频落盘、上游上传、媒体记录、全站媒体库、聊天媒体查询、MD5/pHash 查重、媒体尺寸回填、视频海报生成与修复。
 - **状态:** 稳定
-- **最后更新:** 2026-05-16
+- **最后更新:** 2026-05-27
 
 ## 规范
 
@@ -17,6 +17,7 @@
 #### 场景: 上传成功
 - 返回上游响应增强字段，如本地文件名、端口、视频海报路径。
 - 写入 `media_file` 和 `ImageCacheService`。
+- 图片保存到本地后会解析宽高并写入 `media_width`、`media_height`，供全站媒体库瀑布流使用。
 
 #### 场景: 上游失败
 - 本地文件保留，返回错误和 `localPath` 供重试。
@@ -31,6 +32,34 @@
 ### 需求: 媒体删除
 **模块:** Media
 删除应同步处理数据库记录和本地文件，批量删除走 `batchDeleteMedia`。
+
+### 需求: 全站媒体库瀑布流
+**模块:** Media
+`GET /api/getAllUploadImages` 返回 `media_file` 与 `douyin_media_file` 中的媒体记录，并透出 `width`、`height` 供前端 masonry 布局计算。
+
+#### 场景: 移动端展示混合比例图片
+- 前端 `InfiniteMediaGrid` 优先使用后端返回的 `width`、`height` 分列。
+- `AllUploadImageModal` 在 masonry 模式下向 `MediaTile` 传入 `aspectRatio`，减少图片加载后的高度跳变。
+- 少量缺尺寸记录按保守默认比例和移动端分散策略展示，不阻断分页。
+
+### 需求: 历史媒体尺寸回填
+**模块:** Media
+`POST /api/repairMediaDimensions` 按批次处理 `media_file` 或 `douyin_media_file` 中缺少尺寸的历史记录。
+
+#### 场景: 文件存在且可解析
+- `commit=false` 只统计待更新数量。
+- `commit=true` 写入 `media_width`、`media_height`。
+- 返回 `nextAfterId` 和 `hasMore`，调用方可按游标继续处理。
+
+#### 场景: 历史文件不存在
+- 记录计入 `fileMissing`，不写入宽高。
+- warnings 中最多返回 200 条样例。
+- 批处理继续执行后续记录，不因单条缺失中断。
+
+#### 场景: 路径非法或图片解析失败
+- 路径为空/越界计入 `invalidPath`。
+- 图片头不可解析计入 `decodeFailed`。
+- 非图片记录计入 `unsupported`。
 
 ### 需求: 媒体预览视频操作
 **模块:** Media
@@ -67,6 +96,7 @@
 - `POST /api/reuploadHistoryImage`
 - `POST /api/repairMediaHistory`
 - `POST /api/repairVideoPosters`
+- `POST /api/repairMediaDimensions`
 
 ## 数据模型
 - `media_file`
@@ -79,6 +109,7 @@
 - `internal/app/media_upload.go`
 - `internal/app/media_history_handlers.go`
 - `internal/app/media_repair.go`
+- `internal/app/media_dimensions_repair.go`
 - `internal/app/video_poster.go`
 - `internal/app/file_storage.go`
 - `frontend/src/api/media.ts`

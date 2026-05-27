@@ -109,6 +109,17 @@ const columnCount = computed(() => {
   return 2 // 移动端默认 2 列
 })
 
+const getEstimatedHeightRatio = (item: any) => {
+  const w = Number(item?.width)
+  const h = Number(item?.height)
+  if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+    return h / w
+  }
+
+  if (item?.type === 'video') return 9 / 16
+  return 1
+}
+
 // JS 计算的瀑布流列数据
 const masonryColumns = computed(() => {
   if (props.layoutMode !== 'masonry') return []
@@ -119,32 +130,32 @@ const masonryColumns = computed(() => {
   const heights = Array(count).fill(0)
   
   props.items.forEach((item, index) => {
+    const hasDimensions = Number(item?.width) > 0 && Number(item?.height) > 0
     // 找到当前最矮的列
-    let minHeightIndex = 0
-    let minHeight = heights[0]
-    
-    for (let i = 1; i < count; i++) {
-      if (heights[i] < minHeight) {
-        minHeight = heights[i]
-        minHeightIndex = i
+    let targetIndex = 0
+    if (!hasDimensions && count === 2) {
+      targetIndex = index % count
+    } else {
+      let minHeight = heights[0]
+
+      for (let i = 1; i < count; i++) {
+        if (heights[i] < minHeight) {
+          minHeight = heights[i]
+          targetIndex = i
+        }
       }
     }
     
     // 分配项目
-    const targetCol = result[minHeightIndex]
+    const targetCol = result[targetIndex]
     if (targetCol) {
       targetCol.push({ data: item, originalIndex: index })
     }
     
     // 累加高度：使用宽高比计算占位高度
-    // 如果没有宽高，默认给个 1 (正方形)
-    // 注意：item.width 和 item.height 可能是字符串或数字
-    const w = Number(item.width)
-    const h = Number(item.height)
-    const ratio = (w && h) ? h / w : 1
-    
+    const ratio = getEstimatedHeightRatio(item)
     // 累加高度 (加上间距因子，这里简化为高度比)
-    heights[minHeightIndex] += ratio
+    heights[targetIndex] += ratio
   })
   
   return result

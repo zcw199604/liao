@@ -8,6 +8,7 @@
 
 | 时间戳 | 功能名称 | 类型 | 状态 | 方案包路径 |
 |--------|----------|------|------|------------|
+| 202605270350 | fix_mobile_masonry_blank | 修复 | ✅已完成 | [history/2026-05/202605270350_fix_mobile_masonry_blank](2026-05/202605270350_fix_mobile_masonry_blank/) |
 | 202605241501 | cross_identity_candidate_order | 修复 | ✅已完成 | [history/2026-05/202605241501_cross_identity_candidate_order](2026-05/202605241501_cross_identity_candidate_order/) |
 | 202601062010 | fix_unread_badge_list | 修复 | 已完成 | [链接](2026-01/202601062010_fix_unread_badge_list/) |
 | 202601062034 | refine_unread_route_cleanup | 修复 | 已完成 | [链接](2026-01/202601062034_refine_unread_route_cleanup/) |
@@ -23,6 +24,7 @@
 ## 按月归档
 
 ### 2026-05
+- [202605270350_fix_mobile_masonry_blank](2026-05/202605270350_fix_mobile_masonry_blank/) - 为媒体库补齐持久化尺寸、历史回填接口和移动端瀑布流稳定布局。
 - [202605241501_cross_identity_candidate_order](2026-05/202605241501_cross_identity_candidate_order/) - 修复跨身份联系人候选顺序，保留来源身份历史/收藏原始顺序，归档仅补充。
 - [202605072331_matched_user_archive](2026-05/202605072331_matched_user_archive/) - 保存匹配未聊天用户并隔离不同身份列表。
 - [202605101413_media_preview_video_ops](2026-05/202605101413_media_preview_video_ops/) - 收敛聊天视频预览、媒体预览抓帧状态和视频抽帧前端门禁。

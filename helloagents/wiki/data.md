@@ -77,6 +77,8 @@
 | file_type | VARCHAR(50) | 非空 | MIME |
 | file_extension | VARCHAR(10) | 非空 | 扩展名 |
 | file_md5 | VARCHAR(32) | 可空，索引 | MD5 |
+| media_width | INT | 可空 | 图片/媒体宽度，用于前端瀑布流布局 |
+| media_height | INT | 可空 | 图片/媒体高度，用于前端瀑布流布局 |
 | upload_time | DATETIME/TIMESTAMP | 非空 | 上传时间 |
 | update_time | DATETIME/TIMESTAMP | 可空，索引 | 最近活跃时间 |
 | created_at | DATETIME/TIMESTAMP | 非空 | 创建时间 |
@@ -94,6 +96,7 @@
 | author_name | VARCHAR(128) | 可空 | 作者昵称快照 |
 | original_filename/local_filename/remote_filename/remote_url/local_path | 多类型 | 非空 | 同 `media_file` |
 | file_size/file_type/file_extension/file_md5 | 多类型 | 部分可空 | 文件元数据 |
+| media_width/media_height | INT | 可空 | 图片/媒体尺寸，用于前端瀑布流布局 |
 | upload_time/update_time/created_at | DATETIME/TIMESTAMP | 部分可空 | 时间字段 |
 
 ### `media_send_log`

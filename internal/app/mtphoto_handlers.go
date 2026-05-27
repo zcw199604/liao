@@ -538,6 +538,7 @@ func (a *App) handleImportMtPhotoMedia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	localFilename := filepath.Base(strings.TrimPrefix(localPath, "/"))
+	mediaWidth, mediaHeight := a.mediaUpload.readImageDimensionsForRecord(localPath, contentType, a.fileStorage.FileExtension(originalFilename))
 	_, _ = a.mediaUpload.SaveUploadRecord(r.Context(), UploadRecord{
 		UserID:           userID,
 		OriginalFilename: originalFilename,
@@ -549,6 +550,8 @@ func (a *App) handleImportMtPhotoMedia(w http.ResponseWriter, r *http.Request) {
 		FileType:         contentType,
 		FileExtension:    a.fileStorage.FileExtension(originalFilename),
 		FileMD5:          defaultString(strings.TrimSpace(computedMD5), md5Value),
+		MediaWidth:       mediaWidth,
+		MediaHeight:      mediaHeight,
 	})
 
 	writeJSON(w, http.StatusOK, map[string]any{

@@ -121,6 +121,8 @@ export const useMediaStore = defineStore('media', () => {
             fileExtension: item.fileExtension,
             uploadTime: item.uploadTime,
             updateTime: item.updateTime,
+            width: Number(item.width) > 0 ? Number(item.width) : undefined,
+            height: Number(item.height) > 0 ? Number(item.height) : undefined,
             context: work
               ? {
                   provider: 'douyin',

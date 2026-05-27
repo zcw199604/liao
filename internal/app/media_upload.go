@@ -8,7 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	_ "image/gif"
 	"image/jpeg"
+	_ "image/png"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -60,6 +62,8 @@ type MediaFileDTO struct {
 	DouyinDetailID       string `json:"douyinDetailId,omitempty"`
 	DouyinAuthorUniqueID string `json:"douyinAuthorUniqueId,omitempty"`
 	DouyinAuthorName     string `json:"douyinAuthorName,omitempty"`
+	Width                int    `json:"width,omitempty"`
+	Height               int    `json:"height,omitempty"`
 }
 
 type MediaUploadService struct {
@@ -91,6 +95,8 @@ type UploadRecord struct {
 	FileType         string
 	FileExtension    string
 	FileMD5          string
+	MediaWidth       int
+	MediaHeight      int
 }
 
 func (s *MediaUploadService) SaveUploadRecord(ctx context.Context, record UploadRecord) (*MediaUploadHistory, error) {
@@ -110,23 +116,47 @@ func (s *MediaUploadService) SaveUploadRecord(ctx context.Context, record Upload
 	}
 
 	now := time.Now()
-	id, err := database.InsertReturningID(ctx, s.db, `INSERT INTO media_file
-		(user_id, original_filename, local_filename, remote_filename, remote_url, local_path, file_size, file_type, file_extension, file_md5, upload_time, update_time, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		record.UserID,
-		record.OriginalFilename,
-		record.LocalFilename,
-		record.RemoteFilename,
-		record.RemoteURL,
-		record.LocalPath,
-		record.FileSize,
-		record.FileType,
-		record.FileExtension,
-		nullStringIfEmpty(record.FileMD5),
-		now,
-		now,
-		now,
-	)
+	var id int64
+	var err error
+	if record.MediaWidth > 0 && record.MediaHeight > 0 {
+		id, err = database.InsertReturningID(ctx, s.db, `INSERT INTO media_file
+			(user_id, original_filename, local_filename, remote_filename, remote_url, local_path, file_size, file_type, file_extension, file_md5, media_width, media_height, upload_time, update_time, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			record.UserID,
+			record.OriginalFilename,
+			record.LocalFilename,
+			record.RemoteFilename,
+			record.RemoteURL,
+			record.LocalPath,
+			record.FileSize,
+			record.FileType,
+			record.FileExtension,
+			nullStringIfEmpty(record.FileMD5),
+			record.MediaWidth,
+			record.MediaHeight,
+			now,
+			now,
+			now,
+		)
+	} else {
+		id, err = database.InsertReturningID(ctx, s.db, `INSERT INTO media_file
+			(user_id, original_filename, local_filename, remote_filename, remote_url, local_path, file_size, file_type, file_extension, file_md5, upload_time, update_time, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			record.UserID,
+			record.OriginalFilename,
+			record.LocalFilename,
+			record.RemoteFilename,
+			record.RemoteURL,
+			record.LocalPath,
+			record.FileSize,
+			record.FileType,
+			record.FileExtension,
+			nullStringIfEmpty(record.FileMD5),
+			now,
+			now,
+			now,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -573,10 +603,10 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 	switch source {
 	case "local":
 		rows, err = s.db.QueryContext(ctx, `SELECT
-			local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time,
-			NULL AS sec_user_id,
-			NULL AS detail_id,
-			NULL AS author_unique_id,
+				local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time, media_width, media_height,
+				NULL AS sec_user_id,
+				NULL AS detail_id,
+				NULL AS author_unique_id,
 			NULL AS author_name,
 			'local' AS source
 			FROM media_file
@@ -585,10 +615,10 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 	case "douyin":
 		args := make([]any, 0, 3)
 		query := `SELECT
-			local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time,
-			sec_user_id,
-			detail_id,
-			author_unique_id,
+				local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time, media_width, media_height,
+				sec_user_id,
+				detail_id,
+				author_unique_id,
 			author_name,
 			'douyin' AS source
 			FROM douyin_media_file`
@@ -602,20 +632,20 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 	default:
 		if s.db.Dialect().Name() == "postgres" {
 			rows, err = s.db.QueryContext(ctx, `(
-				SELECT
-					local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time,
-					NULL::varchar(128) AS sec_user_id,
-					NULL::varchar(64) AS detail_id,
-					NULL::varchar(64) AS author_unique_id,
+					SELECT
+						local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time, media_width, media_height,
+						NULL::varchar(128) AS sec_user_id,
+						NULL::varchar(64) AS detail_id,
+						NULL::varchar(64) AS author_unique_id,
 					NULL::varchar(128) AS author_name,
 					'local'::text AS source
 				FROM media_file
 			) UNION ALL (
-				SELECT
-					local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time,
-					sec_user_id,
-					detail_id,
-					author_unique_id,
+					SELECT
+						local_filename, original_filename, local_path, file_size, file_type, file_extension, upload_time, update_time, media_width, media_height,
+						sec_user_id,
+						detail_id,
+						author_unique_id,
 					author_name,
 					'douyin'::text AS source
 				FROM douyin_media_file
@@ -629,11 +659,11 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 					CONVERT(original_filename USING utf8mb4) COLLATE utf8mb4_unicode_ci AS original_filename,
 					CONVERT(local_path USING utf8mb4) COLLATE utf8mb4_unicode_ci AS local_path,
 					file_size,
-					CONVERT(file_type USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_type,
-					CONVERT(file_extension USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_extension,
-					upload_time, update_time,
-					CAST(NULL AS CHAR(128)) COLLATE utf8mb4_unicode_ci AS sec_user_id,
-					CAST(NULL AS CHAR(64)) COLLATE utf8mb4_unicode_ci AS detail_id,
+						CONVERT(file_type USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_type,
+						CONVERT(file_extension USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_extension,
+						upload_time, update_time, media_width, media_height,
+						CAST(NULL AS CHAR(128)) COLLATE utf8mb4_unicode_ci AS sec_user_id,
+						CAST(NULL AS CHAR(64)) COLLATE utf8mb4_unicode_ci AS detail_id,
 					CAST(NULL AS CHAR(64)) COLLATE utf8mb4_unicode_ci AS author_unique_id,
 					CAST(NULL AS CHAR(128)) COLLATE utf8mb4_unicode_ci AS author_name,
 					'local' COLLATE utf8mb4_unicode_ci AS source
@@ -644,11 +674,11 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 					CONVERT(original_filename USING utf8mb4) COLLATE utf8mb4_unicode_ci AS original_filename,
 					CONVERT(local_path USING utf8mb4) COLLATE utf8mb4_unicode_ci AS local_path,
 					file_size,
-					CONVERT(file_type USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_type,
-					CONVERT(file_extension USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_extension,
-					upload_time, update_time,
-					CONVERT(sec_user_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AS sec_user_id,
-					CONVERT(detail_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AS detail_id,
+						CONVERT(file_type USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_type,
+						CONVERT(file_extension USING utf8mb4) COLLATE utf8mb4_unicode_ci AS file_extension,
+						upload_time, update_time, media_width, media_height,
+						CONVERT(sec_user_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AS sec_user_id,
+						CONVERT(detail_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AS detail_id,
 					CONVERT(author_unique_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AS author_unique_id,
 					CONVERT(author_name USING utf8mb4) COLLATE utf8mb4_unicode_ci AS author_name,
 					'douyin' COLLATE utf8mb4_unicode_ci AS source
@@ -667,7 +697,7 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 	if err != nil {
 		return nil, err
 	}
-	useExtendedScan := len(columns) >= 13
+	columnCount := len(columns)
 
 	var out []MediaFileDTO
 	for rows.Next() {
@@ -675,9 +705,30 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 		var fileSize int64
 		var uploadTime time.Time
 		var updateTime sql.NullTime
+		var mediaWidth, mediaHeight sql.NullInt64
 
 		var secUserID, detailID, authorUniqueID, authorName, sourceValue sql.NullString
-		if useExtendedScan {
+		if columnCount >= 15 {
+			if err := rows.Scan(
+				&localFilename,
+				&originalFilename,
+				&localPath,
+				&fileSize,
+				&fileType,
+				&fileExtension,
+				&uploadTime,
+				&updateTime,
+				&mediaWidth,
+				&mediaHeight,
+				&secUserID,
+				&detailID,
+				&authorUniqueID,
+				&authorName,
+				&sourceValue,
+			); err != nil {
+				return nil, err
+			}
+		} else if columnCount >= 13 {
 			if err := rows.Scan(
 				&localFilename,
 				&originalFilename,
@@ -711,6 +762,12 @@ func (s *MediaUploadService) GetAllUploadImagesWithDetailsBySource(ctx context.C
 			FileExtension:    fileExtension,
 			UploadTime:       uploadTime.Format("2006-01-02T15:04:05"),
 			UpdateTime:       "",
+		}
+		if mediaWidth.Valid && mediaWidth.Int64 > 0 {
+			dto.Width = int(mediaWidth.Int64)
+		}
+		if mediaHeight.Valid && mediaHeight.Int64 > 0 {
+			dto.Height = int(mediaHeight.Int64)
 		}
 		if sourceValue.Valid {
 			dto.Source = strings.TrimSpace(sourceValue.String)
@@ -978,6 +1035,52 @@ func normalizeUploadLocalPathInput(localPath string) string {
 		localPath = "/" + localPath
 	}
 	return localPath
+}
+
+func (s *FileStorageService) ReadImageDimensions(localPath string) (int, int, error) {
+	if s == nil {
+		return 0, 0, fmt.Errorf("文件服务未初始化")
+	}
+	localPath = normalizeUploadLocalPathInput(localPath)
+	if localPath == "" {
+		return 0, 0, fmt.Errorf("localPath 为空")
+	}
+
+	absPath, err := s.resolveUploadAbsPath(localPath)
+	if err != nil {
+		return 0, 0, err
+	}
+	f, err := os.Open(absPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, 0, os.ErrNotExist
+		}
+		return 0, 0, err
+	}
+	defer f.Close()
+
+	cfg, _, err := image.DecodeConfig(f)
+	if err != nil {
+		return 0, 0, err
+	}
+	if cfg.Width <= 0 || cfg.Height <= 0 {
+		return 0, 0, fmt.Errorf("图片尺寸无效")
+	}
+	return cfg.Width, cfg.Height, nil
+}
+
+func (s *MediaUploadService) readImageDimensionsForRecord(localPath, fileType, fileExtension string) (int, int) {
+	if s == nil || s.fileStore == nil {
+		return 0, 0
+	}
+	if inferTypeFromMediaMeta(fileType, fileExtension, localPath) != "image" {
+		return 0, 0
+	}
+	width, height, err := s.fileStore.ReadImageDimensions(localPath)
+	if err != nil {
+		return 0, 0
+	}
+	return width, height
 }
 
 func scanMediaFileHistory(rows *sql.Rows) (MediaUploadHistory, error) {
@@ -1257,6 +1360,20 @@ func inferTypeFromExtension(extension string) string {
 	default:
 		return "file"
 	}
+}
+
+func inferTypeFromMediaMeta(fileType, extension, localPath string) string {
+	ft := strings.ToLower(strings.TrimSpace(fileType))
+	switch {
+	case strings.HasPrefix(ft, "image/"):
+		return "image"
+	case strings.HasPrefix(ft, "video/"):
+		return "video"
+	}
+	if got := inferTypeFromExtension(extension); got != "file" {
+		return got
+	}
+	return inferTypeFromExtension(filepath.Ext(normalizeUploadLocalPathInput(localPath)))
 }
 
 // parseJSONStateOK 用于 uploadMedia/reuploadHistoryImage 的返回解析。

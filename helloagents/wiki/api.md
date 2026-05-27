@@ -116,6 +116,50 @@
 | POST | `/api/batchDeleteMedia` | 批量删除媒体 |
 | POST | `/api/repairMediaHistory` | 修复媒体历史 |
 | POST | `/api/repairVideoPosters` | 修复视频海报 |
+| POST | `/api/repairMediaDimensions` | 回填历史媒体宽高 |
+
+#### `POST /api/repairMediaDimensions`
+
+按批次为 `media_file` 或 `douyin_media_file` 回填图片宽高。默认 dry-run，不写库。
+
+**请求:**
+```json
+{
+  "commit": false,
+  "source": "local",
+  "startAfterId": 0,
+  "limit": 200,
+  "force": false
+}
+```
+
+**行为约束:**
+- `source=local` 处理 `media_file`，`source=douyin` 处理 `douyin_media_file`。
+- `force=false` 只处理缺失或无效宽高的记录；`force=true` 会重新解析覆盖。
+- 历史文件不存在计入 `fileMissing`，路径非法计入 `invalidPath`，解析失败计入 `decodeFailed`，非图片计入 `unsupported`。
+- 单条异常不会中断整批任务；`warnings` 最多返回 200 条样例。
+
+**响应:**
+```json
+{
+  "commit": false,
+  "source": "local",
+  "force": false,
+  "startAfterId": 0,
+  "nextAfterId": 120,
+  "hasMore": true,
+  "limit": 200,
+  "scanned": 200,
+  "needUpdate": 180,
+  "updated": 0,
+  "fileMissing": 8,
+  "invalidPath": 1,
+  "decodeFailed": 3,
+  "unsupported": 8,
+  "skipped": 0,
+  "warnings": ["id=42 file missing: /images/2026/01/a.jpg"]
+}
+```
 
 ### Video Extract
 | 方法 | 路径 | 说明 |

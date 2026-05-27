@@ -128,6 +128,8 @@ CREATE TABLE IF NOT EXISTS media_file (
 			file_type varchar(50) NOT NULL,
 			file_extension varchar(10) NOT NULL,
 			file_md5 varchar(32) NULL,
+			media_width int NULL,
+			media_height int NULL,
 			upload_time timestamp NOT NULL,
 			update_time timestamp NULL,
 			created_at timestamp NOT NULL
@@ -155,6 +157,8 @@ CREATE TABLE IF NOT EXISTS douyin_media_file (
 			file_type varchar(50) NOT NULL,
 			file_extension varchar(10) NOT NULL,
 			file_md5 varchar(32) NULL,
+			media_width int NULL,
+			media_height int NULL,
 			upload_time timestamp NOT NULL,
 			update_time timestamp NULL,
 			created_at timestamp NOT NULL

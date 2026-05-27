@@ -2533,6 +2533,7 @@ importContinue:
 		}
 	}
 
+	mediaWidth, mediaHeight := a.mediaUpload.readImageDimensionsForRecord(localPath, contentType, fileExtension)
 	_, _ = a.mediaUpload.SaveDouyinUploadRecord(r.Context(), DouyinUploadRecord{
 		UserID:           userID,
 		SecUserID:        strings.TrimSpace(cached.SecUserID),
@@ -2548,6 +2549,8 @@ importContinue:
 		FileType:         contentType,
 		FileExtension:    fileExtension,
 		FileMD5:          md5Value,
+		MediaWidth:       mediaWidth,
+		MediaHeight:      mediaHeight,
 	})
 
 	writeJSON(w, http.StatusOK, map[string]any{
