@@ -14,7 +14,7 @@ import (
 func TestMtPhotoService_GetFolderRoot_OK(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "token",
 				"auth_code":    "ac",
@@ -43,7 +43,7 @@ func TestMtPhotoService_GetFolderRoot_OK(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+	svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 
@@ -68,7 +68,7 @@ func TestMtPhotoService_GetFolderRoot_OK(t *testing.T) {
 func TestMtPhotoService_GetFolderContentPage_Paginate(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "token",
 				"auth_code":    "ac",
@@ -138,7 +138,7 @@ func TestMtPhotoService_GetFolderContentPage_Paginate(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+	svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 
@@ -178,7 +178,7 @@ func TestMtPhotoService_GetFolderContentPage_SkipTimeline(t *testing.T) {
 	var timelineCalls int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "token",
 				"auth_code":    "ac",
@@ -214,7 +214,7 @@ func TestMtPhotoService_GetFolderContentPage_SkipTimeline(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+	svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 
@@ -239,7 +239,7 @@ func TestMtPhotoService_GetFolderContentPage_SkipTimeline(t *testing.T) {
 func TestMtPhotoService_GetFolderContentPage_StatusError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "token",
 				"auth_code":    "ac",
@@ -253,7 +253,7 @@ func TestMtPhotoService_GetFolderContentPage_StatusError(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+	svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 

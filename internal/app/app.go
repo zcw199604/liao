@@ -212,7 +212,7 @@ func New(cfg config.Config) (*App, error) {
 		}
 		application.douyinDownloader.SetCookieProvider(provider)
 	}
-	application.mtPhoto = NewMtPhotoService(cfg.MtPhotoBaseURL, cfg.MtPhotoLoginUsername, cfg.MtPhotoLoginPassword, cfg.MtPhotoLoginOTP, cfg.LspRoot, application.httpClient)
+	application.mtPhoto = NewMtPhotoService(cfg.MtPhotoBaseURL, cfg.MtPhotoAPIKey, cfg.LspRoot, application.httpClient)
 	application.mtPhotoFolderFavorite = NewMtPhotoFolderFavoriteService(db)
 	application.videoExtract = NewVideoExtractService(db, cfg, application.fileStorage, application.mtPhoto)
 

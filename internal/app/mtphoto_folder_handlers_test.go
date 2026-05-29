@@ -12,7 +12,7 @@ import (
 func TestMtPhotoFolderHandlers_RootAndContent(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -85,7 +85,7 @@ func TestMtPhotoFolderHandlers_RootAndContent(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	app := &App{mtPhoto: NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())}
+	app := &App{mtPhoto: NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())}
 
 	t.Run("root not init", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/getMtPhotoFolderRoot", nil)

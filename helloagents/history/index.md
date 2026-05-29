@@ -8,6 +8,7 @@
 
 | 时间戳 | 功能名称 | 类型 | 状态 | 方案包路径 |
 |--------|----------|------|------|------------|
+| 202605290916 | mtphoto_api_key_migration | 重构 | ✅已完成 | [history/2026-05/202605290916_mtphoto_api_key_migration](2026-05/202605290916_mtphoto_api_key_migration/) |
 | 202605270350 | fix_mobile_masonry_blank | 修复 | ✅已完成 | [history/2026-05/202605270350_fix_mobile_masonry_blank](2026-05/202605270350_fix_mobile_masonry_blank/) |
 | 202605241501 | cross_identity_candidate_order | 修复 | ✅已完成 | [history/2026-05/202605241501_cross_identity_candidate_order](2026-05/202605241501_cross_identity_candidate_order/) |
 | 202601062010 | fix_unread_badge_list | 修复 | 已完成 | [链接](2026-01/202601062010_fix_unread_badge_list/) |
@@ -24,6 +25,7 @@
 ## 按月归档
 
 ### 2026-05
+- [202605290916_mtphoto_api_key_migration](2026-05/202605290916_mtphoto_api_key_migration/) - 将 mtPhoto 上游接入迁移为 API Key、`x-api-key` 与媒体 `auth_code` query。
 - [202605270350_fix_mobile_masonry_blank](2026-05/202605270350_fix_mobile_masonry_blank/) - 为媒体库补齐持久化尺寸、历史回填接口和移动端瀑布流稳定布局。
 - [202605241501_cross_identity_candidate_order](2026-05/202605241501_cross_identity_candidate_order/) - 修复跨身份联系人候选顺序，保留来源身份历史/收藏原始顺序，归档仅补充。
 - [202605072331_matched_user_archive](2026-05/202605072331_matched_user_archive/) - 保存匹配未聊天用户并隔离不同身份列表。

@@ -320,3 +320,25 @@ func TestLoad_MtPhotoTimelineDeferThresholdBranches(t *testing.T) {
 		}
 	})
 }
+
+func TestLoad_MtPhotoAPIKey(t *testing.T) {
+	t.Setenv("MTPHOTO_BASE_URL", "https://mt.example.test")
+	t.Setenv("MTPHOTO_API_KEY", "  test-api-key  ")
+	t.Setenv("MTPHOTO_LOGIN_USERNAME", "legacy-user")
+	t.Setenv("MTPHOTO_LOGIN_PASSWORD", "legacy-pass")
+	t.Setenv("MTPHOTO_LOGIN_OTP", "legacy-otp")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.MtPhotoBaseURL != "https://mt.example.test" {
+		t.Fatalf("MtPhotoBaseURL=%q", cfg.MtPhotoBaseURL)
+	}
+	if cfg.MtPhotoAPIKey != "test-api-key" {
+		t.Fatalf("MtPhotoAPIKey=%q, want trimmed key", cfg.MtPhotoAPIKey)
+	}
+	if cfg.MtPhotoLoginUsername != "legacy-user" || cfg.MtPhotoLoginPassword != "legacy-pass" || cfg.MtPhotoLoginOTP != "legacy-otp" {
+		t.Fatalf("legacy mtPhoto login fields not preserved: %+v", cfg)
+	}
+}

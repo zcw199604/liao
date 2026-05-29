@@ -10,29 +10,23 @@ import (
 	"time"
 )
 
-func TestMtPhotoService_GetAlbums_ReloginOn401(t *testing.T) {
-	var loginCalls int32
+func TestMtPhotoService_GetAlbums_UsesAPIKeyHeader(t *testing.T) {
 	var albumCalls int32
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
-			n := atomic.AddInt32(&loginCalls, 1)
-			token := "token-1"
-			authCode := "ac-1"
-			if n >= 2 {
-				token = "token-2"
-				authCode = "ac-2"
-			}
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"access_token": token,
-				"auth_code":    authCode,
-				"expires_in":   time.Now().Add(1 * time.Hour).UnixMilli(),
-			})
-			return
 		case "/api-album":
 			atomic.AddInt32(&albumCalls, 1)
-			if r.Header.Get("jwt") == "token-1" {
+			if got := r.Header.Get("x-api-key"); got != "api-key-1" {
+				t.Fatalf("x-api-key=%q, want api-key-1", got)
+			}
+			if got := r.Header.Get("jwt"); got != "" {
+				t.Fatalf("jwt header should not be sent, got %q", got)
+			}
+			if got := r.Header.Get("Cookie"); got != "" {
+				t.Fatalf("Cookie header should not be sent, got %q", got)
+			}
+			if atomic.LoadInt32(&albumCalls) > 1 {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
@@ -47,7 +41,7 @@ func TestMtPhotoService_GetAlbums_ReloginOn401(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	svc := NewMtPhotoService(srv.URL, "u", "p", "", "/tmp", srv.Client())
+	svc := NewMtPhotoService(srv.URL, "api-key-1", "/tmp", srv.Client())
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 
@@ -59,11 +53,8 @@ func TestMtPhotoService_GetAlbums_ReloginOn401(t *testing.T) {
 		t.Fatalf("albums=%v, want single id=1", albums)
 	}
 
-	if atomic.LoadInt32(&loginCalls) != 2 {
-		t.Fatalf("loginCalls=%d, want 2", loginCalls)
-	}
-	if atomic.LoadInt32(&albumCalls) != 2 {
-		t.Fatalf("albumCalls=%d, want 2", albumCalls)
+	if atomic.LoadInt32(&albumCalls) != 1 {
+		t.Fatalf("albumCalls=%d, want 1", albumCalls)
 	}
 }
 
@@ -72,7 +63,7 @@ func TestMtPhotoService_GetAlbumFilesPage_CacheAndPaginate(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -107,7 +98,7 @@ func TestMtPhotoService_GetAlbumFilesPage_CacheAndPaginate(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	svc := NewMtPhotoService(srv.URL, "u", "p", "", "/tmp", srv.Client())
+	svc := NewMtPhotoService(srv.URL, "api-key-1", "/tmp", srv.Client())
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 
@@ -141,41 +132,44 @@ func TestMtPhotoService_GetAlbumFilesPage_CacheAndPaginate(t *testing.T) {
 	}
 }
 
-func TestMtPhotoService_RefreshOnExpire(t *testing.T) {
-	var loginCalls int32
-	var refreshCalls int32
-	var albumCalls int32
+func TestMtPhotoService_GatewayGet_RefreshesAuthCodeOn401(t *testing.T) {
+	var authCodeCalls int32
+	var gatewayCalls int32
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
-			atomic.AddInt32(&loginCalls, 1)
+		case "/auth/auth_code":
+			n := atomic.AddInt32(&authCodeCalls, 1)
+			authCode := "ac-1"
+			if n >= 2 {
+				authCode = "ac-2"
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"access_token":  "token-1",
-				"auth_code":     "ac-1",
-				"refresh_token": "rt-1",
-				"expires_in":    time.Now().Add(1 * time.Hour).UnixMilli(),
+				"auth_code":  authCode,
+				"expires_in": time.Now().Add(1 * time.Hour).UnixMilli(),
 			})
 			return
-		case "/auth/refresh":
-			atomic.AddInt32(&refreshCalls, 1)
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"access_token":  "token-2",
-				"auth_code":     "ac-2",
-				"refresh_token": "rt-2",
-				"expires_in":    time.Now().Add(1 * time.Hour).UnixMilli(),
-			})
-			return
-		case "/api-album":
-			atomic.AddInt32(&albumCalls, 1)
-			if r.Header.Get("jwt") != "token-2" {
+		case "/gateway/s260/m":
+			atomic.AddInt32(&gatewayCalls, 1)
+			if got := r.Header.Get("x-api-key"); got != "api-key-1" {
+				t.Fatalf("x-api-key=%q, want api-key-1", got)
+			}
+			if got := r.Header.Get("jwt"); got != "" {
+				t.Fatalf("jwt header should not be sent, got %q", got)
+			}
+			if got := r.Header.Get("Cookie"); got != "" {
+				t.Fatalf("Cookie header should not be sent, got %q", got)
+			}
+			switch r.URL.Query().Get("auth_code") {
+			case "ac-1":
 				w.WriteHeader(http.StatusUnauthorized)
 				return
+			case "ac-2":
+				_, _ = w.Write([]byte("ok"))
+				return
+			default:
+				t.Fatalf("auth_code query=%q", r.URL.Query().Get("auth_code"))
 			}
-			_ = json.NewEncoder(w).Encode([]map[string]any{
-				{"id": 1, "name": "a", "cover": "m", "count": 2},
-			})
-			return
 		default:
 			http.NotFound(w, r)
 			return
@@ -183,90 +177,22 @@ func TestMtPhotoService_RefreshOnExpire(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	svc := NewMtPhotoService(srv.URL, "u", "p", "", "/tmp", srv.Client())
+	svc := NewMtPhotoService(srv.URL, "api-key-1", "/tmp", srv.Client())
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 
-	if _, _, err := svc.ensureLogin(ctx, false); err != nil {
-		t.Fatalf("ensureLogin error: %v", err)
-	}
-
-	svc.tokenExp = time.Now().Add(-1 * time.Minute)
-
-	albums, err := svc.GetAlbums(ctx)
+	resp, err := svc.GatewayGet(ctx, "s260", "m")
 	if err != nil {
-		t.Fatalf("GetAlbums error: %v", err)
+		t.Fatalf("GatewayGet error: %v", err)
 	}
-	if len(albums) != 1 || albums[0].ID != 1 {
-		t.Fatalf("albums=%v, want single id=1", albums)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status=%d, want 200", resp.StatusCode)
 	}
-
-	if atomic.LoadInt32(&loginCalls) != 1 {
-		t.Fatalf("loginCalls=%d, want 1", loginCalls)
+	if atomic.LoadInt32(&authCodeCalls) != 2 {
+		t.Fatalf("authCodeCalls=%d, want 2", authCodeCalls)
 	}
-	if atomic.LoadInt32(&refreshCalls) != 1 {
-		t.Fatalf("refreshCalls=%d, want 1", refreshCalls)
-	}
-	if atomic.LoadInt32(&albumCalls) != 1 {
-		t.Fatalf("albumCalls=%d, want 1", albumCalls)
-	}
-}
-
-func TestMtPhotoService_RefreshFailFallbackToLogin(t *testing.T) {
-	var loginCalls int32
-	var refreshCalls int32
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/auth/login":
-			n := atomic.AddInt32(&loginCalls, 1)
-			token := "token-1"
-			authCode := "ac-1"
-			refreshToken := "rt-1"
-			if n >= 2 {
-				token = "token-2"
-				authCode = "ac-2"
-				refreshToken = "rt-2"
-			}
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"access_token":  token,
-				"auth_code":     authCode,
-				"refresh_token": refreshToken,
-				"expires_in":    time.Now().Add(1 * time.Hour).UnixMilli(),
-			})
-			return
-		case "/auth/refresh":
-			atomic.AddInt32(&refreshCalls, 1)
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		default:
-			http.NotFound(w, r)
-			return
-		}
-	}))
-	t.Cleanup(srv.Close)
-
-	svc := NewMtPhotoService(srv.URL, "u", "p", "", "/tmp", srv.Client())
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	t.Cleanup(cancel)
-
-	if _, _, err := svc.ensureLogin(ctx, false); err != nil {
-		t.Fatalf("ensureLogin(1) error: %v", err)
-	}
-	svc.tokenExp = time.Now().Add(-1 * time.Minute)
-
-	token, authCode, err := svc.ensureLogin(ctx, false)
-	if err != nil {
-		t.Fatalf("ensureLogin(2) error: %v", err)
-	}
-	if token != "token-2" || authCode != "ac-2" {
-		t.Fatalf("token/authCode=%q/%q, want token-2/ac-2", token, authCode)
-	}
-
-	if atomic.LoadInt32(&loginCalls) != 2 {
-		t.Fatalf("loginCalls=%d, want 2", loginCalls)
-	}
-	if atomic.LoadInt32(&refreshCalls) != 1 {
-		t.Fatalf("refreshCalls=%d, want 1", refreshCalls)
+	if atomic.LoadInt32(&gatewayCalls) != 2 {
+		t.Fatalf("gatewayCalls=%d, want 2", gatewayCalls)
 	}
 }

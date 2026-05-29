@@ -102,6 +102,9 @@ cookiecloud:
 # mtPhoto（可选）
 mtphoto:
   base-url: ${MTPHOTO_BASE_URL:}
+  # 当前 Go 服务 mtPhoto 对接主认证方式：MT Photos 网页端创建的 API Key。
+  api-key: ${MTPHOTO_API_KEY:}
+  # 以下登录配置仅保留历史对照；Go 服务当前不再读取它们作为 mtPhoto 主链路认证。
   login-username: ${MTPHOTO_LOGIN_USERNAME:}
   login-password: ${MTPHOTO_LOGIN_PASSWORD:}
   login-otp: ${MTPHOTO_LOGIN_OTP:}

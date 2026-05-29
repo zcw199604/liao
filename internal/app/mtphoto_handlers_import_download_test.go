@@ -16,10 +16,9 @@ import (
 
 func newConfiguredMtPhotoServiceForHandler(t *testing.T, baseURL string, client *http.Client) *MtPhotoService {
 	t.Helper()
-	mt := NewMtPhotoService(baseURL, "u", "p", "", "/lsp", client)
-	mt.token = "t"
+	mt := NewMtPhotoService(baseURL, "u", "/lsp", client)
 	mt.authCode = "ac"
-	mt.tokenExp = time.Now().Add(1 * time.Hour)
+	mt.authCodeExpire = time.Now().Add(1 * time.Hour)
 	return mt
 }
 
@@ -185,7 +184,7 @@ func TestHandleImportMtPhotoMedia_CoversBranches(t *testing.T) {
 
 	t.Run("parse form error", func(t *testing.T) {
 		a := &App{
-			mtPhoto:     NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil),
+			mtPhoto:     NewMtPhotoService("http://example.com", "u", "/lsp", nil),
 			fileStorage: &FileStorageService{baseUploadAbs: t.TempDir()},
 			mediaUpload: &MediaUploadService{},
 		}
@@ -200,7 +199,7 @@ func TestHandleImportMtPhotoMedia_CoversBranches(t *testing.T) {
 
 	t.Run("missing params", func(t *testing.T) {
 		a := &App{
-			mtPhoto:     NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil),
+			mtPhoto:     NewMtPhotoService("http://example.com", "u", "/lsp", nil),
 			fileStorage: &FileStorageService{baseUploadAbs: t.TempDir()},
 			mediaUpload: &MediaUploadService{},
 		}
@@ -232,7 +231,7 @@ func TestHandleImportMtPhotoMedia_CoversBranches(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
 		a := &App{
-			mtPhoto:     NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil),
+			mtPhoto:     NewMtPhotoService("http://example.com", "u", "/lsp", nil),
 			fileStorage: &FileStorageService{baseUploadAbs: t.TempDir()},
 			mediaUpload: &MediaUploadService{db: wrapMySQLDB(db)},
 		}
@@ -275,7 +274,7 @@ func TestHandleImportMtPhotoMedia_CoversBranches(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
 		a := &App{
-			mtPhoto:     NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil),
+			mtPhoto:     NewMtPhotoService("http://example.com", "u", "/lsp", nil),
 			fileStorage: &FileStorageService{baseUploadAbs: t.TempDir()},
 			mediaUpload: &MediaUploadService{db: wrapMySQLDB(db)},
 		}

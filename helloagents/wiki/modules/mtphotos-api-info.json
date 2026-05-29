@@ -1,0 +1,12 @@
+{
+  "version": "1.52.0",
+  "build": "85756",
+  "activated": true,
+  "arch": "x64",
+  "platform": "linux",
+  "tzOffset": -480,
+  "dbStatus": {
+    "pgEnable": true,
+    "redisEnable": true
+  }
+}

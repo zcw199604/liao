@@ -10,7 +10,7 @@ import (
 )
 
 func TestHandleGetMtPhotoSameMedia_ListErrorBranch(t *testing.T) {
-	app := &App{mtPhoto: NewMtPhotoService("", "", "", "", "/lsp", nil)}
+	app := &App{mtPhoto: NewMtPhotoService("", "", "/lsp", nil)}
 	req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoSameMedia?md5=0123456789abcdef0123456789abcdef", nil)
 	rr := httptest.NewRecorder()
 	app.handleGetMtPhotoSameMedia(rr, req)

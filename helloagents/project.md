@@ -31,6 +31,7 @@
 ## 安全与日志
 - **凭据:** 生产环境必须通过环境变量提供 `DB_URL`、`DB_USERNAME`、`DB_PASSWORD`、`AUTH_ACCESS_CODE`、`JWT_SECRET`；禁止提交真实凭据。
 - **鉴权:** HTTP API 以 Bearer JWT 为主；`/ws` 握手通过 query token 校验。
+- **mtPhoto:** 如启用 mtPhoto，需要配置 `MTPHOTO_BASE_URL` 与 `MTPHOTO_API_KEY`；旧 `MTPHOTO_LOGIN_*` 变量仅保留历史对照。
 - **媒体代理:** 公开预览类接口只能暴露必要资源；涉及随机 key 的下载接口依赖短期缓存和鉴权入口生成。
 - **日志:** 后端使用 `slog`，`LOG_LEVEL` 支持 `debug/info/warn/error`，`LOG_FORMAT` 支持 `json/text`。
 

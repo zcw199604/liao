@@ -31,6 +31,7 @@ Liao 是一个匿名匹配聊天代理应用：浏览器或 Android 客户端连
 | Media | 上传、媒体库、发送日志、查重、修复、海报 | 稳定 | [media.md](modules/media.md) |
 | Douyin Downloader | TikTokDownloader 对接、抖音媒体导入与收藏标签 | 稳定 | [douyin-downloader.md](modules/douyin-downloader.md) |
 | mtPhoto | mtPhoto 相册浏览、缩略图、原图下载、导入与文件夹收藏 | 稳定 | [mtphoto.md](modules/mtphoto.md) |
+| MT Photos 上游 API | MT Photos 官方 OpenAPI 快照、认证、全量端点和 schema 索引 | 文档快照 | [mtphotos-upstream-api.md](modules/mtphotos-upstream-api.md) |
 | Video Extract | ffmpeg/ffprobe 视频抽帧任务与帧索引 | 稳定 | [video-extract.md](modules/video-extract.md) |
 | System Config | 全局配置、图片端口解析、连接与 forceout 管理 | 稳定 | [system-config.md](modules/system-config.md) |
 | Android Client | Kotlin/Compose 移动端客户端 | 开发中 | [android-client.md](modules/android-client.md) |

@@ -19,7 +19,7 @@ func TestMtPhotoService_ListSameMediaByMD5_UncoveredSortAndFallbackBranches(t *t
 		hitPaths = append(hitPaths, r.URL.Path)
 
 		switch {
-		case r.URL.Path == "/auth/login":
+		case r.URL.Path == "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -41,7 +41,7 @@ func TestMtPhotoService_ListSameMediaByMD5_UncoveredSortAndFallbackBranches(t *t
 	}))
 	defer srv.Close()
 
-	svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+	svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 	items, err := svc.ListSameMediaByMD5(context.Background(), md5Input)
 	if err != nil {
 		t.Fatalf("ListSameMediaByMD5 err=%v", err)

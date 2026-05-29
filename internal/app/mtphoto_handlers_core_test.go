@@ -16,12 +16,12 @@ import (
 )
 
 func TestMtPhotoService_GatewayGet_ParamValidation(t *testing.T) {
-	svc := NewMtPhotoService("", "", "", "", "/lsp", nil)
+	svc := NewMtPhotoService("", "", "/lsp", nil)
 	if _, err := svc.GatewayGet(context.Background(), "s260", "m"); err == nil {
 		t.Fatalf("expected error for not configured")
 	}
 
-	svc = NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+	svc = NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 	if _, err := svc.GatewayGet(context.Background(), "", "m"); err == nil {
 		t.Fatalf("expected error for empty size")
 	}
@@ -33,7 +33,7 @@ func TestMtPhotoService_GatewayGet_ParamValidation(t *testing.T) {
 func TestMtPhotoHandlers_Core(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -96,7 +96,7 @@ func TestMtPhotoHandlers_Core(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	mt := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+	mt := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 	app := &App{mtPhoto: mt}
 
 	tmpUpload := t.TempDir()
@@ -136,7 +136,7 @@ func TestMtPhotoHandlers_Core(t *testing.T) {
 	})
 
 	t.Run("handleGetMtPhotoAlbums error", func(t *testing.T) {
-		bad := &App{mtPhoto: NewMtPhotoService("", "", "", "", "/lsp", nil)}
+		bad := &App{mtPhoto: NewMtPhotoService("", "", "/lsp", nil)}
 		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoAlbums", nil)
 		rr := httptest.NewRecorder()
 		bad.handleGetMtPhotoAlbums(rr, req)
@@ -164,7 +164,7 @@ func TestMtPhotoHandlers_Core(t *testing.T) {
 	})
 
 	t.Run("handleGetMtPhotoAlbumFiles error", func(t *testing.T) {
-		bad := &App{mtPhoto: NewMtPhotoService("", "", "", "", "/lsp", nil)}
+		bad := &App{mtPhoto: NewMtPhotoService("", "", "/lsp", nil)}
 		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoAlbumFiles?albumId=1", nil)
 		rr := httptest.NewRecorder()
 		bad.handleGetMtPhotoAlbumFiles(rr, req)
@@ -210,7 +210,7 @@ func TestMtPhotoHandlers_Core(t *testing.T) {
 	})
 
 	t.Run("handleGetMtPhotoThumb gateway error", func(t *testing.T) {
-		bad := &App{mtPhoto: NewMtPhotoService("", "", "", "", "/lsp", nil)}
+		bad := &App{mtPhoto: NewMtPhotoService("", "", "/lsp", nil)}
 		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoThumb?size=s260&md5=abc", nil)
 		rr := httptest.NewRecorder()
 		bad.handleGetMtPhotoThumb(rr, req)

@@ -37,7 +37,7 @@ func TestHandleImportMtPhotoMedia_Success(t *testing.T) {
 	// 2) mock mtPhoto：login + filesInMD5
 	mtSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -89,7 +89,7 @@ func TestHandleImportMtPhotoMedia_Success(t *testing.T) {
 		cfg:         config.Config{LspRoot: lspRoot},
 		fileStorage: fileStorage,
 		mediaUpload: NewMediaUploadService(wrapMySQLDB(db), 8080, fileStorage, nil, mtSrv.Client()),
-		mtPhoto:     NewMtPhotoService(mtSrv.URL, "u", "p", "", lspRoot, mtSrv.Client()),
+		mtPhoto:     NewMtPhotoService(mtSrv.URL, "u", lspRoot, mtSrv.Client()),
 	}
 
 	form := url.Values{}
@@ -128,7 +128,7 @@ func TestHandleImportMtPhotoMedia_PathTraversalRejected(t *testing.T) {
 
 	mtSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -164,7 +164,7 @@ func TestHandleImportMtPhotoMedia_PathTraversalRejected(t *testing.T) {
 		cfg:         config.Config{LspRoot: lspRoot},
 		fileStorage: fileStorage,
 		mediaUpload: NewMediaUploadService(wrapMySQLDB(db), 8080, fileStorage, nil, mtSrv.Client()),
-		mtPhoto:     NewMtPhotoService(mtSrv.URL, "u", "p", "", lspRoot, mtSrv.Client()),
+		mtPhoto:     NewMtPhotoService(mtSrv.URL, "u", lspRoot, mtSrv.Client()),
 	}
 
 	form := url.Values{}

@@ -18,7 +18,7 @@ func TestDownloadMtPhotoOriginal_RequiresJWT(t *testing.T) {
 		cfg:       config.Config{LspRoot: "/lsp"},
 		staticDir: ".",
 		jwt:       jwtSvc,
-		mtPhoto:   NewMtPhotoService("http://example.invalid", "u", "p", "", "/lsp", &http.Client{Timeout: 2 * time.Second}),
+		mtPhoto:   NewMtPhotoService("http://example.invalid", "u", "/lsp", &http.Client{Timeout: 2 * time.Second}),
 	}
 	a.handler = a.buildRouter()
 
@@ -37,30 +37,32 @@ func TestDownloadMtPhotoOriginal_StreamsFileWithDisposition(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"access_token": "t",
-				"auth_code":    "ac",
-				"expires_in":   time.Now().Add(1 * time.Hour).UnixMilli(),
+				"auth_code":  "ac",
+				"expires_in": time.Now().Add(1 * time.Hour).UnixMilli(),
 			})
 			return
 		case "/gateway/fileDownload/1/" + md5Value:
-			if r.Header.Get("jwt") != "t" {
-				t.Fatalf("jwt=%q, want t", r.Header.Get("jwt"))
+			if got := r.Header.Get("x-api-key"); got != "api-key-1" {
+				t.Fatalf("x-api-key=%q, want api-key-1", got)
 			}
-			if !strings.Contains(r.Header.Get("Cookie"), "auth_code=ac") {
-				t.Fatalf("cookie=%q, want contains auth_code=ac", r.Header.Get("Cookie"))
+			if got := r.Header.Get("jwt"); got != "" {
+				t.Fatalf("jwt header should be empty, got %q", got)
+			}
+			if got := r.Header.Get("Cookie"); got != "" {
+				t.Fatalf("Cookie header should be empty, got %q", got)
+			}
+			if got := r.URL.Query().Get("auth_code"); got != "ac" {
+				t.Fatalf("auth_code=%q, want ac", got)
 			}
 			w.Header().Set("Content-Type", "image/jpeg")
 			_, _ = io.WriteString(w, body)
 			return
 		case "/gateway/filesInMD5":
 			// 由 handler 用于补齐下载文件名
-			if r.Header.Get("jwt") != "t" {
-				t.Fatalf("jwt(filesInMD5)=%q, want t", r.Header.Get("jwt"))
-			}
-			if !strings.Contains(r.Header.Get("Cookie"), "auth_code=ac") {
-				t.Fatalf("cookie(filesInMD5)=%q, want contains auth_code=ac", r.Header.Get("Cookie"))
+			if got := r.Header.Get("x-api-key"); got != "api-key-1" {
+				t.Fatalf("x-api-key(filesInMD5)=%q, want api-key-1", got)
 			}
 			_ = json.NewEncoder(w).Encode([]map[string]any{
 				{"id": 1, "filePath": "/lsp/path/pic.jpg"},
@@ -83,7 +85,7 @@ func TestDownloadMtPhotoOriginal_StreamsFileWithDisposition(t *testing.T) {
 		cfg:       config.Config{LspRoot: "/lsp"},
 		staticDir: ".",
 		jwt:       jwtSvc,
-		mtPhoto:   NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client()),
+		mtPhoto:   NewMtPhotoService(srv.URL, "api-key-1", "/lsp", srv.Client()),
 	}
 	a.handler = a.buildRouter()
 

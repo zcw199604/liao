@@ -109,12 +109,12 @@ func TestMtPhotoParseHelperFunctions(t *testing.T) {
 
 func TestMtPhotoService_GetFileInfoAndListSameMedia_ErrorAndFallbackBranches(t *testing.T) {
 	t.Run("GetFileInfo validation and transport errors", func(t *testing.T) {
-		svc := NewMtPhotoService("", "u", "p", "", "/lsp", nil)
+		svc := NewMtPhotoService("", "u", "/lsp", nil)
 		if _, err := svc.GetFileInfo(context.Background(), 1, "m"); err == nil {
 			t.Fatalf("not configured should fail")
 		}
 
-		svc = NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+		svc = NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 		if _, err := svc.GetFileInfo(context.Background(), 0, "m"); err == nil {
 			t.Fatalf("invalid id should fail")
 		}
@@ -127,9 +127,10 @@ func TestMtPhotoService_GetFileInfoAndListSameMedia_ErrorAndFallbackBranches(t *
 			t.Fatalf("bad base url should fail")
 		}
 
-		svc = NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		svc = NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 			return nil, context.DeadlineExceeded
 		})})
+
 		if _, err := svc.GetFileInfo(context.Background(), 1, "m"); err == nil {
 			t.Fatalf("doRequest error should fail")
 		}
@@ -138,7 +139,7 @@ func TestMtPhotoService_GetFileInfoAndListSameMedia_ErrorAndFallbackBranches(t *
 	t.Run("GetFileInfo non-2xx, decode error and success fallback md5", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "t", "auth_code": "ac", "expires_in": time.Now().Add(time.Hour).UnixMilli()})
 			case "/gateway/fileInfo/1/m1":
 				w.WriteHeader(http.StatusInternalServerError)
@@ -158,7 +159,7 @@ func TestMtPhotoService_GetFileInfoAndListSameMedia_ErrorAndFallbackBranches(t *
 		}))
 		defer srv.Close()
 
-		svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+		svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 		if _, err := svc.GetFileInfo(context.Background(), 1, "m1"); err == nil {
 			t.Fatalf("non-2xx should fail")
 		}
@@ -175,12 +176,12 @@ func TestMtPhotoService_GetFileInfoAndListSameMedia_ErrorAndFallbackBranches(t *
 	})
 
 	t.Run("ListSameMediaByMD5 errors and enrich fallback", func(t *testing.T) {
-		svc := NewMtPhotoService("", "u", "p", "", "/lsp", nil)
+		svc := NewMtPhotoService("", "u", "/lsp", nil)
 		if _, err := svc.ListSameMediaByMD5(context.Background(), "m"); err == nil {
 			t.Fatalf("not configured should fail")
 		}
 
-		svc = NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+		svc = NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 		if _, err := svc.ListSameMediaByMD5(context.Background(), " "); err == nil {
 			t.Fatalf("blank md5 should fail")
 		}
@@ -189,16 +190,17 @@ func TestMtPhotoService_GetFileInfoAndListSameMedia_ErrorAndFallbackBranches(t *
 			t.Fatalf("bad base url should fail")
 		}
 
-		svc = NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		svc = NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 			return nil, context.DeadlineExceeded
 		})})
+
 		if _, err := svc.ListSameMediaByMD5(context.Background(), "m"); err == nil {
 			t.Fatalf("doRequest error should fail")
 		}
 
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "t", "auth_code": "ac", "expires_in": time.Now().Add(time.Hour).UnixMilli()})
 			case "/gateway/filesInMD5":
 				var reqBody map[string]any
@@ -235,7 +237,7 @@ func TestMtPhotoService_GetFileInfoAndListSameMedia_ErrorAndFallbackBranches(t *
 		}))
 		defer srv.Close()
 
-		svc = NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+		svc = NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 
 		if _, err := svc.ListSameMediaByMD5(context.Background(), "bad-status"); err == nil {
 			t.Fatalf("bad status should fail")

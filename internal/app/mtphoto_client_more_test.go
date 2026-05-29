@@ -77,14 +77,14 @@ func TestMapMtPhotoFolderFiles_MD5FallbackAndSkip(t *testing.T) {
 
 func TestGetFolderData_Branches(t *testing.T) {
 	t.Run("not configured", func(t *testing.T) {
-		svc := NewMtPhotoService("", "", "", "", "/lsp", nil)
+		svc := NewMtPhotoService("", "", "/lsp", nil)
 		if _, err := svc.getFolderData(context.Background(), "/gateway/folders/root", "x"); err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 
 	t.Run("buildURL error", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 		svc.baseURL = "http://[::1"
 		if _, err := svc.getFolderData(context.Background(), "/gateway/folders/root", "x"); err == nil {
 			t.Fatalf("expected error")
@@ -94,7 +94,7 @@ func TestGetFolderData_Branches(t *testing.T) {
 	t.Run("decode error", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"access_token": "t",
 					"auth_code":    "ac",
@@ -108,7 +108,7 @@ func TestGetFolderData_Branches(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+		svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 		if _, err := svc.getFolderData(context.Background(), "/gateway/folders/root", "x"); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -117,7 +117,7 @@ func TestGetFolderData_Branches(t *testing.T) {
 	t.Run("folderList nil and file mapping", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"access_token": "t",
 					"auth_code":    "ac",
@@ -146,7 +146,7 @@ func TestGetFolderData_Branches(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+		svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 		content, err := svc.getFolderData(context.Background(), "/gateway/folders/root", "x")
 		if err != nil {
 			t.Fatalf("getFolderData error: %v", err)
@@ -158,7 +158,7 @@ func TestGetFolderData_Branches(t *testing.T) {
 }
 
 func TestGetFolderBreadcrumbs_InvalidFolderID(t *testing.T) {
-	svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+	svc := NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 	if _, err := svc.GetFolderBreadcrumbs(context.Background(), 0); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -243,12 +243,12 @@ func TestMapMtPhotoTimelineFiles_AndMergeBranches(t *testing.T) {
 
 func TestGetFolderTimelineFiles_AndGetFolderContentPage_Branches(t *testing.T) {
 	t.Run("getFolderTimelineFiles basic errors", func(t *testing.T) {
-		svc := NewMtPhotoService("", "", "", "", "/lsp", nil)
+		svc := NewMtPhotoService("", "", "/lsp", nil)
 		if _, _, err := svc.getFolderTimelineFiles(context.Background(), 1); err == nil {
 			t.Fatalf("expected not configured error")
 		}
 
-		svc = NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+		svc = NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 		if _, _, err := svc.getFolderTimelineFiles(context.Background(), 0); err == nil {
 			t.Fatalf("expected folderId error")
 		}
@@ -262,7 +262,7 @@ func TestGetFolderTimelineFiles_AndGetFolderContentPage_Branches(t *testing.T) {
 	t.Run("getFolderTimelineFiles status/decode/total fallback", func(t *testing.T) {
 		badStatus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"access_token": "t",
 					"auth_code":    "ac",
@@ -275,14 +275,14 @@ func TestGetFolderTimelineFiles_AndGetFolderContentPage_Branches(t *testing.T) {
 			}
 		}))
 		t.Cleanup(badStatus.Close)
-		svc := NewMtPhotoService(badStatus.URL, "u", "p", "", "/lsp", badStatus.Client())
+		svc := NewMtPhotoService(badStatus.URL, "u", "/lsp", badStatus.Client())
 		if _, _, err := svc.getFolderTimelineFiles(context.Background(), 1); err == nil {
 			t.Fatalf("expected status error")
 		}
 
 		badJSON := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"access_token": "t",
 					"auth_code":    "ac",
@@ -295,14 +295,14 @@ func TestGetFolderTimelineFiles_AndGetFolderContentPage_Branches(t *testing.T) {
 			}
 		}))
 		t.Cleanup(badJSON.Close)
-		svc = NewMtPhotoService(badJSON.URL, "u", "p", "", "/lsp", badJSON.Client())
+		svc = NewMtPhotoService(badJSON.URL, "u", "/lsp", badJSON.Client())
 		if _, _, err := svc.getFolderTimelineFiles(context.Background(), 2); err == nil {
 			t.Fatalf("expected decode error")
 		}
 
 		ok := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"access_token": "t",
 					"auth_code":    "ac",
@@ -325,7 +325,7 @@ func TestGetFolderTimelineFiles_AndGetFolderContentPage_Branches(t *testing.T) {
 			}
 		}))
 		t.Cleanup(ok.Close)
-		svc = NewMtPhotoService(ok.URL, "u", "p", "", "/lsp", ok.Client())
+		svc = NewMtPhotoService(ok.URL, "u", "/lsp", ok.Client())
 		items, total, err := svc.getFolderTimelineFiles(context.Background(), 3)
 		if err != nil || len(items) != 1 || total != 1 {
 			t.Fatalf("items=%v total=%d err=%v", items, total, err)
@@ -335,7 +335,7 @@ func TestGetFolderTimelineFiles_AndGetFolderContentPage_Branches(t *testing.T) {
 	t.Run("GetFolderContentPage normalization and timeline merge", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"access_token": "t",
 					"auth_code":    "ac",
@@ -374,7 +374,7 @@ func TestGetFolderTimelineFiles_AndGetFolderContentPage_Branches(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+		svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 		content, total, pages, err := svc.GetFolderContentPage(context.Background(), 7, 0, 500, true)
 		if err != nil {
 			t.Fatalf("GetFolderContentPage error: %v", err)
@@ -388,10 +388,9 @@ func TestGetFolderTimelineFiles_AndGetFolderContentPage_Branches(t *testing.T) {
 	})
 
 	t.Run("GetFolderContentPage invalid folder", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 		if _, _, _, err := svc.GetFolderContentPage(context.Background(), 0, 1, 60, false); err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 }
-

@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -19,16 +18,16 @@ type errReadCloserMtPhoto struct{}
 func (errReadCloserMtPhoto) Read(p []byte) (int, error) { return 0, errors.New("read err") }
 func (errReadCloserMtPhoto) Close() error               { return nil }
 
-func TestMtPhotoService_ensureLogin_NotConfigured(t *testing.T) {
-	svc := NewMtPhotoService("", "", "", "", "/lsp", nil)
-	if _, _, err := svc.ensureLogin(context.Background(), false); err == nil {
+func TestMtPhotoService_ensureAuthCode_NotConfigured(t *testing.T) {
+	svc := NewMtPhotoService("", "", "/lsp", nil)
+	if _, err := svc.ensureAuthCode(context.Background(), false); err == nil {
 		t.Fatalf("expected error")
 	}
 }
 
-func TestMtPhotoService_ensureLogin_LoginLockedError(t *testing.T) {
+func TestMtPhotoService_ensureAuthCode_RefreshError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/auth/login" {
+		if r.URL.Path == "/auth/auth_code" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -36,41 +35,39 @@ func TestMtPhotoService_ensureLogin_LoginLockedError(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
-	if _, _, err := svc.ensureLogin(context.Background(), false); err == nil {
+	svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
+	if _, err := svc.ensureAuthCode(context.Background(), false); err == nil {
 		t.Fatalf("expected error")
 	}
 }
 
-func TestMtPhotoService_refreshLocked_Errors(t *testing.T) {
-	svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{Timeout: time.Second})
-	svc.refreshToken = ""
-	if err := svc.refreshLocked(context.Background()); err == nil {
+func TestMtPhotoService_refreshAuthCodeLocked_Errors(t *testing.T) {
+	svc := NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{Timeout: time.Second})
+	if err := svc.refreshAuthCodeLocked(context.Background()); err == nil {
 		t.Fatalf("expected error")
 	}
 
 	t.Run("bad baseURL", func(t *testing.T) {
-		svc := NewMtPhotoService("http://[::1", "u", "p", "", "/lsp", &http.Client{Timeout: time.Second})
-		svc.refreshToken = "rt"
-		if err := svc.refreshLocked(context.Background()); err == nil {
+		svc := NewMtPhotoService("http://[::1", "u", "/lsp", &http.Client{Timeout: time.Second})
+		if err := svc.refreshAuthCodeLocked(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 
 	t.Run("do error", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{
 			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 				return nil, errors.New("net err")
 			}),
 		})
-		svc.refreshToken = "rt"
-		if err := svc.refreshLocked(context.Background()); err == nil {
+
+		if err := svc.refreshAuthCodeLocked(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 
 	t.Run("read error", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{
 			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,
@@ -80,14 +77,14 @@ func TestMtPhotoService_refreshLocked_Errors(t *testing.T) {
 				}, nil
 			}),
 		})
-		svc.refreshToken = "rt"
-		if err := svc.refreshLocked(context.Background()); err == nil {
+
+		if err := svc.refreshAuthCodeLocked(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 
 	t.Run("bad json", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{
 			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,
@@ -97,14 +94,14 @@ func TestMtPhotoService_refreshLocked_Errors(t *testing.T) {
 				}, nil
 			}),
 		})
-		svc.refreshToken = "rt"
-		if err := svc.refreshLocked(context.Background()); err == nil {
+
+		if err := svc.refreshAuthCodeLocked(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 
 	t.Run("missing fields", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{
 			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,
@@ -114,34 +111,35 @@ func TestMtPhotoService_refreshLocked_Errors(t *testing.T) {
 				}, nil
 			}),
 		})
-		svc.refreshToken = "rt"
-		if err := svc.refreshLocked(context.Background()); err == nil {
+
+		if err := svc.refreshAuthCodeLocked(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 }
 
-func TestMtPhotoService_loginLocked_Errors(t *testing.T) {
+func TestMtPhotoService_refreshAuthCodeLocked_MoreErrors(t *testing.T) {
 	t.Run("bad baseURL", func(t *testing.T) {
-		svc := NewMtPhotoService("http://[::1", "u", "p", "", "/lsp", &http.Client{Timeout: time.Second})
-		if err := svc.loginLocked(context.Background()); err == nil {
+		svc := NewMtPhotoService("http://[::1", "u", "/lsp", &http.Client{Timeout: time.Second})
+		if err := svc.refreshAuthCodeLocked(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 
 	t.Run("do error", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{
 			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 				return nil, errors.New("net err")
 			}),
 		})
-		if err := svc.loginLocked(context.Background()); err == nil {
+
+		if err := svc.refreshAuthCodeLocked(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 
 	t.Run("read error", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{
 			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,
@@ -151,13 +149,14 @@ func TestMtPhotoService_loginLocked_Errors(t *testing.T) {
 				}, nil
 			}),
 		})
-		if err := svc.loginLocked(context.Background()); err == nil {
+
+		if err := svc.refreshAuthCodeLocked(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 
 	t.Run("non-2xx", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{
 			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusUnauthorized,
@@ -167,13 +166,14 @@ func TestMtPhotoService_loginLocked_Errors(t *testing.T) {
 				}, nil
 			}),
 		})
-		if err := svc.loginLocked(context.Background()); err == nil {
+
+		if err := svc.refreshAuthCodeLocked(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 
 	t.Run("bad json", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{
 			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,
@@ -183,13 +183,14 @@ func TestMtPhotoService_loginLocked_Errors(t *testing.T) {
 				}, nil
 			}),
 		})
-		if err := svc.loginLocked(context.Background()); err == nil {
+
+		if err := svc.refreshAuthCodeLocked(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 
 	t.Run("missing fields", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{
 			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,
@@ -199,35 +200,35 @@ func TestMtPhotoService_loginLocked_Errors(t *testing.T) {
 				}, nil
 			}),
 		})
-		if err := svc.loginLocked(context.Background()); err == nil {
+
+		if err := svc.refreshAuthCodeLocked(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 }
 
-func TestParseMtPhotoExpiresIn_CoversBranches(t *testing.T) {
-	if !parseMtPhotoExpiresIn(0).IsZero() {
-		t.Fatalf("expected zero time")
+func TestParseMtPhotoAuthCodeExpire_CoversBranches(t *testing.T) {
+	start := time.Now()
+	got := parseMtPhotoAuthCodeExpire(0)
+	if got.Before(start.Add(22 * time.Hour)) {
+		t.Fatalf("got=%v, want default auth_code ttl", got)
 	}
 
-	start := time.Now()
-	got := parseMtPhotoExpiresIn(2) // seconds TTL
+	got = parseMtPhotoAuthCodeExpire(2) // seconds TTL
 	if got.Before(start.Add(1 * time.Second)) {
 		t.Fatalf("got=%v, want after %v", got, start.Add(1*time.Second))
 	}
 
 	epoch := time.Now().Add(10 * time.Minute).UnixMilli()
-	got = parseMtPhotoExpiresIn(epoch)
+	got = parseMtPhotoAuthCodeExpire(epoch)
 	if got.UnixMilli() != epoch {
 		t.Fatalf("got=%v, want unixms=%d", got, epoch)
 	}
 }
 
 func TestMtPhotoService_doRequest_Errors(t *testing.T) {
-	svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{Timeout: time.Second})
-	svc.token = "t"
+	svc := NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{Timeout: time.Second})
 	svc.authCode = "ac"
-	svc.tokenExp = time.Now().Add(1 * time.Hour)
 
 	_, err := svc.doRequest(context.Background(), http.MethodGet, "http://[::1", nil, nil, true, false)
 	if err == nil {
@@ -256,36 +257,25 @@ func TestMtPhotoService_doRequest_Errors(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 
-	var loginCalls int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/auth/login":
-			atomic.AddInt32(&loginCalls, 1)
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"access_token": "t",
-				"auth_code":    "ac",
-				"expires_in":   time.Now().Add(1 * time.Hour).UnixMilli(),
-			})
-			return
-		default:
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
+		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	t.Cleanup(srv.Close)
 
-	svc = NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
-	if _, err := svc.doRequest(context.Background(), http.MethodGet, srv.URL+"/api-album", nil, nil, true, false); err == nil {
-		t.Fatalf("expected error")
+	svc = NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
+	resp, err = svc.doRequest(context.Background(), http.MethodGet, srv.URL+"/api-album", nil, nil, true, false)
+	if err != nil {
+		t.Fatalf("doRequest error: %v", err)
 	}
-	if atomic.LoadInt32(&loginCalls) == 0 {
-		t.Fatalf("expected login called")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status=%d, want 401", resp.StatusCode)
 	}
 }
 
-func TestMtPhotoService_doRequest_CoversBodyAndCookieAndEnsureLoginError(t *testing.T) {
-	t.Run("ensureLogin error", func(t *testing.T) {
-		svc := NewMtPhotoService("", "", "", "", "/lsp", &http.Client{Timeout: time.Second})
+func TestMtPhotoService_doRequest_CoversBodyAndAPIKey(t *testing.T) {
+	t.Run("not configured", func(t *testing.T) {
+		svc := NewMtPhotoService("", "", "/lsp", &http.Client{Timeout: time.Second})
 		if _, err := svc.doRequest(context.Background(), http.MethodGet, "http://example.com", nil, nil, true, true); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -296,11 +286,14 @@ func TestMtPhotoService_doRequest_CoversBodyAndCookieAndEnsureLoginError(t *test
 			http.NotFound(w, r)
 			return
 		}
-		if got := r.Header.Get("jwt"); got != "t" {
-			t.Fatalf("jwt=%q, want %q", got, "t")
+		if got := r.Header.Get("x-api-key"); got != "u" {
+			t.Fatalf("x-api-key=%q, want %q", got, "u")
 		}
-		if got := r.Header.Get("Cookie"); got != "auth_code=ac" {
-			t.Fatalf("cookie=%q, want %q", got, "auth_code=ac")
+		if got := r.Header.Get("jwt"); got != "" {
+			t.Fatalf("jwt header should be empty, got %q", got)
+		}
+		if got := r.Header.Get("Cookie"); got != "" {
+			t.Fatalf("Cookie header should be empty, got %q", got)
 		}
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -313,11 +306,7 @@ func TestMtPhotoService_doRequest_CoversBodyAndCookieAndEnsureLoginError(t *test
 	}))
 	t.Cleanup(srv.Close)
 
-	svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
-	svc.token = "t"
-	svc.authCode = "ac"
-	svc.tokenExp = time.Now().Add(1 * time.Hour)
-
+	svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 	resp, err := svc.doRequest(context.Background(), http.MethodPost, srv.URL+"/ok", map[string]string{
 		"X-Test": "1",
 	}, []byte("payload"), true, true)
@@ -328,7 +317,7 @@ func TestMtPhotoService_doRequest_CoversBodyAndCookieAndEnsureLoginError(t *test
 }
 
 func TestMtPhotoService_buildURL_Errors(t *testing.T) {
-	svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+	svc := NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 	if _, err := svc.buildURL("", nil); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -346,12 +335,12 @@ func TestMtPhotoService_buildURL_Errors(t *testing.T) {
 }
 
 func TestMtPhotoService_GetAlbums_CoversBranches(t *testing.T) {
-	svc := NewMtPhotoService("", "", "", "", "/lsp", nil)
+	svc := NewMtPhotoService("", "", "/lsp", nil)
 	if _, err := svc.GetAlbums(context.Background()); err == nil {
 		t.Fatalf("expected error")
 	}
 
-	svc = NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+	svc = NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 	svc.albumsCache = []MtPhotoAlbum{{ID: 1}}
 	svc.albumsCacheExpire = time.Now().Add(1 * time.Second)
 	albums, err := svc.GetAlbums(context.Background())
@@ -361,7 +350,7 @@ func TestMtPhotoService_GetAlbums_CoversBranches(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -378,14 +367,14 @@ func TestMtPhotoService_GetAlbums_CoversBranches(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	svc = NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+	svc = NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 	if _, err := svc.GetAlbums(context.Background()); err == nil {
 		t.Fatalf("expected error")
 	}
 
 	badJSON := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -401,13 +390,13 @@ func TestMtPhotoService_GetAlbums_CoversBranches(t *testing.T) {
 	}))
 	t.Cleanup(badJSON.Close)
 
-	svc = NewMtPhotoService(badJSON.URL, "u", "p", "", "/lsp", badJSON.Client())
+	svc = NewMtPhotoService(badJSON.URL, "u", "/lsp", badJSON.Client())
 	if _, err := svc.GetAlbums(context.Background()); err == nil {
 		t.Fatalf("expected error")
 	}
 
 	t.Run("build url error", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 		svc.baseURL = "http://[::1"
 		if _, err := svc.GetAlbums(context.Background()); err == nil {
 			t.Fatalf("expected error")
@@ -415,24 +404,12 @@ func TestMtPhotoService_GetAlbums_CoversBranches(t *testing.T) {
 	})
 
 	t.Run("doRequest error", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{
 			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-				if strings.Contains(req.URL.Path, "/auth/login") {
-					return &http.Response{
-						StatusCode: http.StatusUnauthorized,
-						Status:     "401 Unauthorized",
-						Body:       io.NopCloser(strings.NewReader("x")),
-						Header:     make(http.Header),
-					}, nil
-				}
-				return &http.Response{
-					StatusCode: http.StatusOK,
-					Status:     "200 OK",
-					Body:       io.NopCloser(strings.NewReader("[]")),
-					Header:     make(http.Header),
-				}, nil
+				return nil, errors.New("net err")
 			}),
 		})
+
 		if _, err := svc.GetAlbums(context.Background()); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -441,7 +418,7 @@ func TestMtPhotoService_GetAlbums_CoversBranches(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"access_token": "t",
 					"auth_code":    "ac",
@@ -459,7 +436,7 @@ func TestMtPhotoService_GetAlbums_CoversBranches(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+		svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 		albums, err := svc.GetAlbums(context.Background())
 		if err != nil || len(albums) != 1 || albums[0].ID != 1 {
 			t.Fatalf("albums=%v err=%v", albums, err)
@@ -468,12 +445,12 @@ func TestMtPhotoService_GetAlbums_CoversBranches(t *testing.T) {
 }
 
 func TestMtPhotoService_GetAlbumFilesPage_CoversBranches(t *testing.T) {
-	svc := NewMtPhotoService("", "", "", "", "/lsp", nil)
+	svc := NewMtPhotoService("", "", "/lsp", nil)
 	if _, _, _, err := svc.GetAlbumFilesPage(context.Background(), 1, 1, 1); err == nil {
 		t.Fatalf("expected error")
 	}
 
-	svc = NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+	svc = NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 	if _, _, _, err := svc.GetAlbumFilesPage(context.Background(), 0, 1, 1); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -490,7 +467,7 @@ func TestMtPhotoService_GetAlbumFilesPage_CoversBranches(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -515,7 +492,7 @@ func TestMtPhotoService_GetAlbumFilesPage_CoversBranches(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	svc = NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+	svc = NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 	items, total, pages, err := svc.GetAlbumFilesPage(context.Background(), 2, 1, 60)
 	if err != nil || total != 1 || pages != 1 || len(items) != 1 || items[0].MD5 != "m2" {
 		t.Fatalf("items=%v total/pages=%d/%d err=%v", items, total, pages, err)
@@ -524,7 +501,7 @@ func TestMtPhotoService_GetAlbumFilesPage_CoversBranches(t *testing.T) {
 	// non-2xx and bad json
 	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -540,14 +517,14 @@ func TestMtPhotoService_GetAlbumFilesPage_CoversBranches(t *testing.T) {
 	}))
 	t.Cleanup(bad.Close)
 
-	svc = NewMtPhotoService(bad.URL, "u", "p", "", "/lsp", bad.Client())
+	svc = NewMtPhotoService(bad.URL, "u", "/lsp", bad.Client())
 	if _, _, _, err := svc.GetAlbumFilesPage(context.Background(), 3, 1, 60); err == nil {
 		t.Fatalf("expected error")
 	}
 
 	bad = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -563,13 +540,13 @@ func TestMtPhotoService_GetAlbumFilesPage_CoversBranches(t *testing.T) {
 	}))
 	t.Cleanup(bad.Close)
 
-	svc = NewMtPhotoService(bad.URL, "u", "p", "", "/lsp", bad.Client())
+	svc = NewMtPhotoService(bad.URL, "u", "/lsp", bad.Client())
 	if _, _, _, err := svc.GetAlbumFilesPage(context.Background(), 4, 1, 60); err == nil {
 		t.Fatalf("expected error")
 	}
 
 	t.Run("build url error", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 		svc.baseURL = "http://[::1"
 		if _, _, _, err := svc.GetAlbumFilesPage(context.Background(), 1, 1, 60); err == nil {
 			t.Fatalf("expected error")
@@ -577,31 +554,19 @@ func TestMtPhotoService_GetAlbumFilesPage_CoversBranches(t *testing.T) {
 	})
 
 	t.Run("doRequest error", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{
 			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-				if strings.Contains(req.URL.Path, "/auth/login") {
-					return &http.Response{
-						StatusCode: http.StatusUnauthorized,
-						Status:     "401 Unauthorized",
-						Body:       io.NopCloser(strings.NewReader("x")),
-						Header:     make(http.Header),
-					}, nil
-				}
-				return &http.Response{
-					StatusCode: http.StatusOK,
-					Status:     "200 OK",
-					Body:       io.NopCloser(strings.NewReader("{}")),
-					Header:     make(http.Header),
-				}, nil
+				return nil, errors.New("net err")
 			}),
 		})
+
 		if _, _, _, err := svc.GetAlbumFilesPage(context.Background(), 1, 1, 60); err == nil {
 			t.Fatalf("expected error")
 		}
 	})
 
 	t.Run("pageSize default when <=0 (cache)", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 		items := make([]MtPhotoMediaItem, 0, 61)
 		for i := 0; i < 61; i++ {
 			items = append(items, MtPhotoMediaItem{ID: int64(i + 1), MD5: "m"})
@@ -624,7 +589,7 @@ func TestMtPhotoService_GetAlbumFilesPage_CoversBranches(t *testing.T) {
 	t.Run("totalCount > 0 branch", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"access_token": "t",
 					"auth_code":    "ac",
@@ -648,7 +613,7 @@ func TestMtPhotoService_GetAlbumFilesPage_CoversBranches(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+		svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 		pageItems, total, pages, err := svc.GetAlbumFilesPage(context.Background(), 10, 1, 60)
 		if err != nil {
 			t.Fatalf("err=%v", err)
@@ -676,12 +641,12 @@ func TestMtPhotoPaginationHelpers(t *testing.T) {
 }
 
 func TestMtPhotoService_ResolveFilePath_CoversBranches(t *testing.T) {
-	svc := NewMtPhotoService("", "", "", "", "/lsp", nil)
+	svc := NewMtPhotoService("", "", "/lsp", nil)
 	if _, err := svc.ResolveFilePath(context.Background(), "m"); err == nil {
 		t.Fatalf("expected error")
 	}
 
-	svc = NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+	svc = NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 	if _, err := svc.ResolveFilePath(context.Background(), " "); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -693,7 +658,7 @@ func TestMtPhotoService_ResolveFilePath_CoversBranches(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -709,7 +674,7 @@ func TestMtPhotoService_ResolveFilePath_CoversBranches(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	svc = NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+	svc = NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 	if _, err := svc.ResolveFilePath(context.Background(), "m"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -717,7 +682,7 @@ func TestMtPhotoService_ResolveFilePath_CoversBranches(t *testing.T) {
 	// bad json / empty result
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -733,14 +698,14 @@ func TestMtPhotoService_ResolveFilePath_CoversBranches(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	svc = NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+	svc = NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 	if _, err := svc.ResolveFilePath(context.Background(), "m"); err == nil {
 		t.Fatalf("expected error")
 	}
 
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -756,13 +721,13 @@ func TestMtPhotoService_ResolveFilePath_CoversBranches(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	svc = NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+	svc = NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 	if _, err := svc.ResolveFilePath(context.Background(), "m"); err == nil {
 		t.Fatalf("expected error")
 	}
 
 	t.Run("doRequest error", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{
 			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusUnauthorized,
@@ -772,6 +737,7 @@ func TestMtPhotoService_ResolveFilePath_CoversBranches(t *testing.T) {
 				}, nil
 			}),
 		})
+
 		if _, err := svc.ResolveFilePath(context.Background(), "m"); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -780,7 +746,7 @@ func TestMtPhotoService_ResolveFilePath_CoversBranches(t *testing.T) {
 	t.Run("empty filepath", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"access_token": "t",
 					"auth_code":    "ac",
@@ -798,7 +764,7 @@ func TestMtPhotoService_ResolveFilePath_CoversBranches(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+		svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 		if _, err := svc.ResolveFilePath(context.Background(), "m"); err == nil {
 			t.Fatalf("expected error")
 		}
@@ -807,7 +773,7 @@ func TestMtPhotoService_ResolveFilePath_CoversBranches(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"access_token": "t",
 					"auth_code":    "ac",
@@ -825,7 +791,7 @@ func TestMtPhotoService_ResolveFilePath_CoversBranches(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+		svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 		item, err := svc.ResolveFilePath(context.Background(), "m")
 		if err != nil || item == nil || item.ID != 9 || item.FilePath != "/lsp/a/b.jpg" {
 			t.Fatalf("item=%v err=%v", item, err)
@@ -837,7 +803,7 @@ func TestMtPhotoService_ListSameMediaByMD5(t *testing.T) {
 	t.Run("empty when upstream empty", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"access_token": "t",
 					"auth_code":    "ac",
@@ -853,7 +819,7 @@ func TestMtPhotoService_ListSameMediaByMD5(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+		svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 		items, err := svc.ListSameMediaByMD5(context.Background(), "m1")
 		if err != nil {
 			t.Fatalf("ListSameMediaByMD5 error: %v", err)
@@ -866,7 +832,7 @@ func TestMtPhotoService_ListSameMediaByMD5(t *testing.T) {
 	t.Run("maps and sorts items", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"access_token": "t",
 					"auth_code":    "ac",
@@ -906,7 +872,7 @@ func TestMtPhotoService_ListSameMediaByMD5(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+		svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 		items, err := svc.ListSameMediaByMD5(context.Background(), "m1")
 		if err != nil {
 			t.Fatalf("ListSameMediaByMD5 error: %v", err)
@@ -924,12 +890,12 @@ func TestMtPhotoService_ListSameMediaByMD5(t *testing.T) {
 }
 
 func TestMtPhotoService_GatewayFileDownload_ParamValidation(t *testing.T) {
-	svc := NewMtPhotoService("", "", "", "", "/lsp", nil)
+	svc := NewMtPhotoService("", "", "/lsp", nil)
 	if _, err := svc.GatewayFileDownload(context.Background(), 1, "m"); err == nil {
 		t.Fatalf("expected error")
 	}
 
-	svc = NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+	svc = NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 	if _, err := svc.GatewayFileDownload(context.Background(), 0, "m"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -944,13 +910,13 @@ func TestMtPhotoService_GatewayFileDownload_ParamValidation(t *testing.T) {
 }
 
 func TestMtPhotoService_GatewayGet_CoversBranches(t *testing.T) {
-	svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil)
+	svc := NewMtPhotoService("http://example.com", "u", "/lsp", nil)
 	svc.baseURL = "http://[::1"
 	if _, err := svc.GatewayGet(context.Background(), "s260", "m"); err == nil {
 		t.Fatalf("expected error")
 	}
 
-	svc = NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{
+	svc = NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{
 		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusUnauthorized,
@@ -960,20 +926,23 @@ func TestMtPhotoService_GatewayGet_CoversBranches(t *testing.T) {
 			}, nil
 		}),
 	})
+
 	if _, err := svc.GatewayGet(context.Background(), "s260", "m"); err == nil {
 		t.Fatalf("expected error")
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"access_token": "t",
-				"auth_code":    "ac",
-				"expires_in":   time.Now().Add(1 * time.Hour).UnixMilli(),
+				"auth_code":  "ac",
+				"expires_in": time.Now().Add(1 * time.Hour).UnixMilli(),
 			})
 			return
 		case "/gateway/s260/m":
+			if got := r.URL.Query().Get("auth_code"); got != "ac" {
+				t.Fatalf("auth_code=%q, want ac", got)
+			}
 			w.Header().Set("Content-Type", "image/jpeg")
 			_, _ = w.Write([]byte("ok"))
 			return
@@ -983,7 +952,7 @@ func TestMtPhotoService_GatewayGet_CoversBranches(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	svc = NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+	svc = NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 	resp, err := svc.GatewayGet(context.Background(), "s260", "m")
 	if err != nil {
 		t.Fatalf("err=%v", err)

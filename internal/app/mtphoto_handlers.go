@@ -68,7 +68,7 @@ func writeMtPhotoFolderError(w http.ResponseWriter, err error) {
 	if errors.As(err, &statusErr) {
 		switch statusErr.StatusCode {
 		case http.StatusUnauthorized, http.StatusForbidden:
-			writeJSON(w, http.StatusForbidden, map[string]any{"error": "无权限访问该目录，请检查 mtPhoto 登录状态"})
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "无权限访问该目录，请检查 mtPhoto API Key 或授权码状态"})
 			return
 		case http.StatusNotFound:
 			writeJSON(w, http.StatusNotFound, map[string]any{"error": "目录不存在或已删除"})

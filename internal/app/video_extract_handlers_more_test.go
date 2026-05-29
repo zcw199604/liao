@@ -124,7 +124,7 @@ func TestVideoExtractHandlers_HandleProbeVideo_MtPhoto(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -143,7 +143,7 @@ func TestVideoExtractHandlers_HandleProbeVideo_MtPhoto(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	mt := NewMtPhotoService(srv.URL, "u", "p", "", lspRoot, srv.Client())
+	mt := NewMtPhotoService(srv.URL, "u", lspRoot, srv.Client())
 	svc := &VideoExtractService{
 		db:        wrapMySQLDB(mustNewSQLMockDB(t)),
 		cfg:       config.Config{FFprobePath: ffprobeOK},
@@ -186,7 +186,7 @@ func TestVideoExtractHandlers_HandleProbeVideo_MtPhoto(t *testing.T) {
 	t.Run("resolveLspLocalPath error", func(t *testing.T) {
 		srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"access_token": "t",
 					"auth_code":    "ac",
@@ -205,7 +205,7 @@ func TestVideoExtractHandlers_HandleProbeVideo_MtPhoto(t *testing.T) {
 		}))
 		t.Cleanup(srv2.Close)
 
-		mt2 := NewMtPhotoService(srv2.URL, "u", "p", "", lspRoot, srv2.Client())
+		mt2 := NewMtPhotoService(srv2.URL, "u", lspRoot, srv2.Client())
 		app2 := &App{videoExtract: svc, mtPhoto: mt2, cfg: config.Config{LspRoot: lspRoot}}
 
 		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/probeVideo?sourceType=mtPhoto&md5=0123456789abcdef0123456789abcdef", nil)
@@ -456,7 +456,7 @@ func TestHandleProbeVideo_sourceTypeInvalid(t *testing.T) {
 func TestHandleProbeVideo_mtPhotoResolveError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "t",
 				"auth_code":    "ac",
@@ -474,7 +474,7 @@ func TestHandleProbeVideo_mtPhotoResolveError(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	mt := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+	mt := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 	svc := &VideoExtractService{db: wrapMySQLDB(mustNewSQLMockDB(t)), cfg: config.Config{FFprobePath: "ffprobe"}, fileStore: &FileStorageService{baseUploadAbs: t.TempDir()}, runtimes: make(map[string]*videoExtractRuntime)}
 	t.Cleanup(func() { _ = svc.db.Close() })
 

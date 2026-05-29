@@ -87,3 +87,4 @@ sequenceDiagram
 | ADR-20260524-01 | 以临时会话接入替代跨身份复用连接 | 2026-05-24 | 已采纳 | Chat UI/WS | [链接](../history/2026-05/202605241257_cross_identity_contact_handoff/how.md#adr-20260524-01-以临时会话接入替代跨身份复用连接) |
 | ADR-20260524-02 | 复用 `chat_user_archive` 而非新增联系人池表 | 2026-05-24 | 已采纳 | User History/Database | [链接](../history/2026-05/202605241257_cross_identity_contact_handoff/how.md#adr-20260524-02-复用-chat_user_archive-而非新增联系人池表) |
 | ADR-20260524-03 | Message Store 使用身份隔离 key | 2026-05-24 | 已采纳 | Chat UI | [链接](../history/2026-05/202605241257_cross_identity_contact_handoff/how.md#adr-20260524-03-message-store-使用身份隔离-key) |
+| ADR-20260529-01 | mtPhoto 上游认证改为 API Key 优先 | 2026-05-29 | 已采纳 | mtPhoto/Config | [链接](../history/2026-05/202605290916_mtphoto_api_key_migration/how.md#adr-20260529-01-mtphoto-上游认证改为-api-key-优先) |

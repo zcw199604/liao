@@ -7,6 +7,7 @@
 
 ### 新增
 - 初始化当前 `helloagents/` 知识库核心文档，覆盖项目概览、架构、API、数据模型、模块规范与历史索引。
+- 新增 MT Photos 上游 API 文档快照与原始 OpenAPI JSON，整理 `https://mtmt.tech/api/` 的 OpenAPI 入口、认证方式、全量端点和 schema。
 - WebSocket 匹配成功但未聊天的用户现在会写入本地 `chat_user_archive`，刷新历史列表时可从归档追加恢复。
 - 新增媒体预览视频操作逻辑分析文档，覆盖播放/暂停、快退/快进、倍速/慢放、保存当前帧、创建抽帧任务入口和后续 UI 调整建议。
 - 新增 `scripts/probe_upstream_ws.go` 手动诊断脚本，用于探测上游 WebSocket 在指定超时窗口内是否断开。
@@ -15,6 +16,7 @@
 
 ### 变更
 - 知识库以当前 Go 后端、Vue 前端、Android 客户端、SQL 迁移脚本和 Docker 构建为准；旧备份目录仅作为历史参考。
+- mtPhoto 上游接入从账号密码登录/`jwt`/Cookie 授权码迁移为 `MTPHOTO_API_KEY`、`x-api-key` 与媒体 URL `auth_code` query。
 - Web 前端聊天列表增加当前身份归属检查，切换身份后不复用旧身份的历史/收藏列表状态。
 - 后端上游 WebSocket 客户端取消主动 ping，避免部分上游节点在收到 ping 后 reset 连接。
 - 2026-05-10 执行 `~init` 知识库审计，刷新大型项目统计口径并补齐上游收藏代理 API 清单。

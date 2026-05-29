@@ -196,6 +196,10 @@
 | GET/POST | `/api/douyin/favoriteAweme/tag/*` | 作品收藏标签列表、新增、更新、删除、应用、排序 |
 
 ### mtPhoto
+上游 MT Photos API 文档快照见 [mtphotos-upstream-api.md](modules/mtphotos-upstream-api.md)，原始 JSON 见 [mtphotos-openapi.json](modules/mtphotos-openapi.json)。当前快照来源为 `https://mtmt.tech/api/`，OpenAPI 服务端版本 `1.52.0`、build `85756`。
+
+后端对前端暴露的本地 `/api/getMtPhoto*` 接口保持兼容；上游认证使用 `MTPHOTO_API_KEY`。普通 JSON API 请求发送 `x-api-key`，缩略图和原文件下载先通过 `POST /auth/auth_code` 换取 `auth_code` 并拼入媒体 URL query。
+
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/getMtPhotoAlbums` | 查询 mtPhoto 相册 |

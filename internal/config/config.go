@@ -62,10 +62,14 @@ type Config struct {
 	LspRoot string
 
 	// MtPhoto* 为 mtPhoto 相册系统对接配置（可选；未配置时相关 API 将返回错误）。
-	MtPhotoBaseURL       string
+	MtPhotoBaseURL string
+	MtPhotoAPIKey  string
+	// Deprecated: mtPhoto 当前接入主链路使用 MTPHOTO_API_KEY；旧登录字段仅保留配置兼容。
 	MtPhotoLoginUsername string
+	// Deprecated: mtPhoto 当前接入主链路使用 MTPHOTO_API_KEY；旧登录字段仅保留配置兼容。
 	MtPhotoLoginPassword string
-	MtPhotoLoginOTP      string
+	// Deprecated: mtPhoto 当前接入主链路使用 MTPHOTO_API_KEY；旧登录字段仅保留配置兼容。
+	MtPhotoLoginOTP string
 	// MtPhotoTimelineDeferSubfolderThreshold 控制 mtPhoto 目录“延迟加载时间线”的阈值（子目录数 > 阈值时延迟）。
 	// 默认 10；可通过环境变量 MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD 覆盖。
 	MtPhotoTimelineDeferSubfolderThreshold int
@@ -143,6 +147,7 @@ func Load() (Config, error) {
 		LspRoot: getEnv("LSP_ROOT", "/lsp"),
 
 		MtPhotoBaseURL:       getEnv("MTPHOTO_BASE_URL", ""),
+		MtPhotoAPIKey:        strings.TrimSpace(getEnv("MTPHOTO_API_KEY", "")),
 		MtPhotoLoginUsername: getEnv("MTPHOTO_LOGIN_USERNAME", ""),
 		MtPhotoLoginPassword: getEnv("MTPHOTO_LOGIN_PASSWORD", ""),
 		MtPhotoLoginOTP:      getEnv("MTPHOTO_LOGIN_OTP", ""),

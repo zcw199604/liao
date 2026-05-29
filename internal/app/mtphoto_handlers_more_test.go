@@ -134,7 +134,7 @@ func TestMtPhotoFolderHandlers_Branches(t *testing.T) {
 	})
 
 	t.Run("root error", func(t *testing.T) {
-		bad := &App{mtPhoto: NewMtPhotoService("", "", "", "", "/lsp", nil)}
+		bad := &App{mtPhoto: NewMtPhotoService("", "", "/lsp", nil)}
 		rr := httptest.NewRecorder()
 		bad.handleGetMtPhotoFolderRoot(rr, httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoFolderRoot", nil))
 		if rr.Code != http.StatusBadRequest {
@@ -167,7 +167,7 @@ func TestMtPhotoFolderHandlers_Branches(t *testing.T) {
 	})
 
 	t.Run("content error", func(t *testing.T) {
-		bad := &App{mtPhoto: NewMtPhotoService("", "", "", "", "/lsp", nil)}
+		bad := &App{mtPhoto: NewMtPhotoService("", "", "/lsp", nil)}
 		rr := httptest.NewRecorder()
 		bad.handleGetMtPhotoFolderContent(rr, httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoFolderContent?folderId=1", nil))
 		if rr.Code != http.StatusBadRequest {
@@ -229,7 +229,7 @@ func TestMtPhotoFolderHandlers_Branches(t *testing.T) {
 	})
 
 	t.Run("breadcrumbs error", func(t *testing.T) {
-		bad := &App{mtPhoto: NewMtPhotoService("", "", "", "", "/lsp", nil)}
+		bad := &App{mtPhoto: NewMtPhotoService("", "", "/lsp", nil)}
 		rr := httptest.NewRecorder()
 		bad.handleGetMtPhotoFolderBreadcrumbs(rr, httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoFolderBreadcrumbs?folderId=1", nil))
 		if rr.Code != http.StatusBadRequest {
@@ -268,7 +268,7 @@ func TestHandleImportMtPhotoMedia_DedupFallbackBranches(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
 		a := &App{
-			mtPhoto:     NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", nil),
+			mtPhoto:     NewMtPhotoService("http://example.com", "u", "/lsp", nil),
 			fileStorage: &FileStorageService{baseUploadAbs: t.TempDir()},
 			mediaUpload: &MediaUploadService{db: wrapMySQLDB(db)},
 		}

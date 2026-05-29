@@ -17,26 +17,23 @@ import (
 )
 
 // MtPhotoService 负责对接 mtPhoto 相册系统：
-// - 统一在后端完成登录/续期（优先 refresh_token；过期或 401/403 自动续期并重试一次）
+// - 统一在后端使用 x-api-key 访问普通 API
+// - 统一缓存 /auth/auth_code 授权码并用于 gateway 媒体 URL
 // - 提供相册/媒体查询与 gateway 代理能力
 // - 提供轻量缓存（避免频繁拉取大相册列表）
 type MtPhotoService struct {
 	baseURL string
 
-	username string
-	password string
-	otp      string
+	apiKey string
 
 	lspRoot string
 
 	httpClient *http.Client
 
-	mu           sync.Mutex
-	token        string
-	tokenExp     time.Time
-	authCode     string
-	refreshToken string
-	loginOnce    time.Time
+	mu             sync.Mutex
+	authCode       string
+	authCodeExpire time.Time
+	authCodeOnce   time.Time
 
 	albumsCache       []MtPhotoAlbum
 	albumsCacheExpire time.Time
@@ -76,7 +73,7 @@ func (e *mtPhotoStatusError) Error() string {
 	return fmt.Sprintf("%s: %s", action, status)
 }
 
-func NewMtPhotoService(baseURL, username, password, otp, lspRoot string, httpClient *http.Client) *MtPhotoService {
+func NewMtPhotoService(baseURL, apiKey, lspRoot string, httpClient *http.Client) *MtPhotoService {
 	baseURL = strings.TrimSpace(baseURL)
 	baseURL = strings.TrimRight(baseURL, "/")
 
@@ -91,9 +88,7 @@ func NewMtPhotoService(baseURL, username, password, otp, lspRoot string, httpCli
 
 	return &MtPhotoService{
 		baseURL:         baseURL,
-		username:        strings.TrimSpace(username),
-		password:        strings.TrimSpace(password),
-		otp:             strings.TrimSpace(otp),
+		apiKey:          strings.TrimSpace(apiKey),
 		lspRoot:         lspRoot,
 		httpClient:      httpClient,
 		albumFilesCache: make(map[int]mtPhotoAlbumFilesCacheEntry),
@@ -101,81 +96,53 @@ func NewMtPhotoService(baseURL, username, password, otp, lspRoot string, httpCli
 }
 
 func (s *MtPhotoService) configured() bool {
-	return s != nil && s.baseURL != "" && s.username != "" && s.password != ""
+	return s != nil && s.baseURL != "" && s.apiKey != ""
 }
 
-type mtPhotoLoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-	OTP      string `json:"otp"`
+type mtPhotoAuthCodeRequest struct {
+	APIKey string `json:"api_key"`
 }
 
-type mtPhotoLoginResponse struct {
-	AccessToken  string `json:"access_token"`
-	ExpiresIn    int64  `json:"expires_in"`
-	AuthCode     string `json:"auth_code"`
-	RefreshToken string `json:"refresh_token"`
+type mtPhotoAuthCodeResponse struct {
+	AuthCode  string `json:"auth_code"`
+	ExpiresIn int64  `json:"expires_in"`
 }
 
-func (s *MtPhotoService) ensureLogin(ctx context.Context, force bool) (token string, authCode string, err error) {
+func (s *MtPhotoService) ensureAuthCode(ctx context.Context, force bool) (string, error) {
 	if !s.configured() {
-		return "", "", fmt.Errorf("mtPhoto 未配置（请设置 MTPHOTO_BASE_URL/MTPHOTO_LOGIN_USERNAME/MTPHOTO_LOGIN_PASSWORD）")
+		return "", fmt.Errorf("mtPhoto 未配置（请设置 MTPHOTO_BASE_URL/MTPHOTO_API_KEY）")
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// force=true 时强制续期；否则只有在缺失/即将过期时才续期
-	needRenew := force || strings.TrimSpace(s.token) == "" || strings.TrimSpace(s.authCode) == ""
-	if !needRenew && !s.tokenExp.IsZero() {
-		// 提前 60 秒续期，避免边界 401
-		if time.Now().After(s.tokenExp.Add(-60 * time.Second)) {
-			needRenew = true
-		}
+	needRenew := force || strings.TrimSpace(s.authCode) == ""
+	if !needRenew && !s.authCodeExpire.IsZero() && time.Now().After(s.authCodeExpire.Add(-5*time.Minute)) {
+		needRenew = true
 	}
-
 	if !needRenew {
-		return s.token, s.authCode, nil
+		return s.authCode, nil
 	}
-
-	// 限流：短时间内多请求并发 401 时避免瞬间风暴
-	if !force && !s.loginOnce.IsZero() && time.Since(s.loginOnce) < 800*time.Millisecond {
-		// 轻微等待，降低短时间内重复 refresh/login 的冲击
+	if !force && !s.authCodeOnce.IsZero() && time.Since(s.authCodeOnce) < 800*time.Millisecond {
 		time.Sleep(120 * time.Millisecond)
 	}
-	s.loginOnce = time.Now()
+	s.authCodeOnce = time.Now()
 
-	// 续期策略：优先 refresh_token；失败则回退到账号登录
-	if strings.TrimSpace(s.refreshToken) != "" {
-		if err := s.refreshLocked(ctx); err == nil {
-			return s.token, s.authCode, nil
-		}
+	if err := s.refreshAuthCodeLocked(ctx); err != nil {
+		return "", err
 	}
-
-	if err := s.loginLocked(ctx); err != nil {
-		return "", "", err
-	}
-	return s.token, s.authCode, nil
+	return s.authCode, nil
 }
 
-type mtPhotoRefreshRequest struct {
-	Token string `json:"token"`
-}
-
-func (s *MtPhotoService) refreshLocked(ctx context.Context) error {
-	refreshToken := strings.TrimSpace(s.refreshToken)
-	if refreshToken == "" {
-		return fmt.Errorf("refresh_token 为空")
-	}
-
-	refreshURL := s.baseURL + "/auth/refresh"
-	body, _ := json.Marshal(mtPhotoRefreshRequest{Token: refreshToken})
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, refreshURL, bytes.NewReader(body))
+func (s *MtPhotoService) refreshAuthCodeLocked(ctx context.Context) error {
+	authURL := s.baseURL + "/auth/auth_code"
+	body, _ := json.Marshal(mtPhotoAuthCodeRequest{APIKey: s.apiKey})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, authURL, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
@@ -188,80 +155,25 @@ func (s *MtPhotoService) refreshLocked(ctx context.Context) error {
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("mtPhoto refresh 失败: %s", resp.Status)
+		return fmt.Errorf("mtPhoto 获取 auth_code 失败: %s", resp.Status)
 	}
 
-	var parsed mtPhotoLoginResponse
+	var parsed mtPhotoAuthCodeResponse
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return fmt.Errorf("mtPhoto refresh 响应解析失败: %w", err)
+		return fmt.Errorf("mtPhoto auth_code 响应解析失败: %w", err)
 	}
-	if strings.TrimSpace(parsed.AccessToken) == "" || strings.TrimSpace(parsed.AuthCode) == "" {
-		return fmt.Errorf("mtPhoto refresh 响应缺少 access_token/auth_code")
-	}
-
-	s.token = strings.TrimSpace(parsed.AccessToken)
 	s.authCode = strings.TrimSpace(parsed.AuthCode)
-	if rt := strings.TrimSpace(parsed.RefreshToken); rt != "" {
-		s.refreshToken = rt
+	if s.authCode == "" {
+		return fmt.Errorf("mtPhoto auth_code 响应缺少 auth_code")
 	}
-	s.tokenExp = parseMtPhotoExpiresIn(parsed.ExpiresIn)
-
-	s.resetCachesLocked()
+	s.authCodeExpire = parseMtPhotoAuthCodeExpire(parsed.ExpiresIn)
 	return nil
 }
 
-func (s *MtPhotoService) loginLocked(ctx context.Context) error {
-	loginURL := s.baseURL + "/auth/login"
-	body, _ := json.Marshal(mtPhotoLoginRequest{
-		Username: s.username,
-		Password: s.password,
-		OTP:      s.otp,
-	})
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, loginURL, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("mtPhoto 登录失败: %s", resp.Status)
-	}
-
-	var parsed mtPhotoLoginResponse
-	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return fmt.Errorf("mtPhoto 登录响应解析失败: %w", err)
-	}
-	if strings.TrimSpace(parsed.AccessToken) == "" || strings.TrimSpace(parsed.AuthCode) == "" {
-		return fmt.Errorf("mtPhoto 登录响应缺少 access_token/auth_code")
-	}
-
-	s.token = strings.TrimSpace(parsed.AccessToken)
-	s.authCode = strings.TrimSpace(parsed.AuthCode)
-	if rt := strings.TrimSpace(parsed.RefreshToken); rt != "" {
-		s.refreshToken = rt
-	}
-	s.tokenExp = parseMtPhotoExpiresIn(parsed.ExpiresIn)
-
-	s.resetCachesLocked()
-	return nil
-}
-
-func parseMtPhotoExpiresIn(expiresIn int64) time.Time {
+func parseMtPhotoAuthCodeExpire(expiresIn int64) time.Time {
 	if expiresIn <= 0 {
-		return time.Time{}
+		return time.Now().Add(23 * time.Hour)
 	}
-	// 文档示例为 epoch ms；但为兼容部分实现，支持 seconds TTL。
 	if expiresIn < 1_000_000_000_000 {
 		return time.Now().Add(time.Duration(expiresIn) * time.Second)
 	}
@@ -269,69 +181,51 @@ func parseMtPhotoExpiresIn(expiresIn int64) time.Time {
 }
 
 func (s *MtPhotoService) resetCachesLocked() {
-	// 登录态/续期后清空缓存，避免用户侧看到旧数据
+	// auth_code 续期后清空缓存，避免用户侧看到旧数据
 	s.albumsCache = nil
 	s.albumsCacheExpire = time.Time{}
 	s.albumFilesCache = make(map[int]mtPhotoAlbumFilesCacheEntry)
 }
 
-func (s *MtPhotoService) doRequest(ctx context.Context, method, urlStr string, headers map[string]string, body []byte, useJWT, useCookie bool) (*http.Response, error) {
-	// 尝试两次：首次使用现有 token；401/403 后强制续期再试一次
-	lastAuthStatusCode := 0
-	lastAuthStatus := ""
-	for attempt := 0; attempt < 2; attempt++ {
-		force := attempt == 1
-		token, authCode, err := s.ensureLogin(ctx, force)
-		if err != nil {
-			return nil, err
-		}
+func (s *MtPhotoService) doRequest(ctx context.Context, method, urlStr string, headers map[string]string, body []byte, _ ...bool) (*http.Response, error) {
+	if !s.configured() {
+		return nil, fmt.Errorf("mtPhoto 未配置（请设置 MTPHOTO_BASE_URL/MTPHOTO_API_KEY）")
+	}
+	return s.doRawRequest(ctx, method, urlStr, headers, body)
+}
 
-		var reader io.Reader
-		if body != nil {
-			reader = bytes.NewReader(body)
-		}
+func (s *MtPhotoService) doRawRequest(ctx context.Context, method, urlStr string, headers map[string]string, body []byte, _ ...bool) (*http.Response, error) {
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
 
-		req, err := http.NewRequestWithContext(ctx, method, urlStr, reader)
-		if err != nil {
-			return nil, err
-		}
+	req, err := http.NewRequestWithContext(ctx, method, urlStr, reader)
+	if err != nil {
+		return nil, err
+	}
 
-		for k, v := range headers {
-			if strings.TrimSpace(k) == "" {
-				continue
-			}
-			req.Header.Set(k, v)
-		}
-		if useJWT {
-			req.Header.Set("jwt", token)
-		}
-		if useCookie {
-			// mtPhoto 的 gateway 资源需要 auth_code cookie
-			req.Header.Set("Cookie", "auth_code="+authCode)
-		}
-
-		resp, err := s.httpClient.Do(req)
-		if err != nil {
-			return nil, err
-		}
-
-		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-			lastAuthStatusCode = resp.StatusCode
-			lastAuthStatus = resp.Status
-			_ = resp.Body.Close()
+	for k, v := range headers {
+		if strings.TrimSpace(k) == "" {
 			continue
 		}
-		return resp, nil
+		req.Header.Set(k, v)
 	}
+	req.Header.Set("x-api-key", s.apiKey)
 
-	if lastAuthStatusCode > 0 {
-		return nil, &mtPhotoStatusError{
-			StatusCode: lastAuthStatusCode,
-			Status:     lastAuthStatus,
-			Action:     "mtPhoto 请求鉴权失败",
-		}
+	return s.httpClient.Do(req)
+}
+
+func (s *MtPhotoService) buildGatewayURL(ctx context.Context, pathname string, query url.Values, force bool) (string, error) {
+	authCode, err := s.ensureAuthCode(ctx, force)
+	if err != nil {
+		return "", err
 	}
-	return nil, fmt.Errorf("mtPhoto 请求鉴权失败")
+	if query == nil {
+		query = url.Values{}
+	}
+	query.Set("auth_code", authCode)
+	return s.buildURL(pathname, query)
 }
 
 func (s *MtPhotoService) buildURL(pathname string, query url.Values) (string, error) {
@@ -346,6 +240,36 @@ func (s *MtPhotoService) buildURL(pathname string, query url.Values) (string, er
 		u.RawQuery = query.Encode()
 	}
 	return u.String(), nil
+}
+
+func (s *MtPhotoService) doGatewayGet(ctx context.Context, pathname string, headers map[string]string) (*http.Response, error) {
+	var lastStatus *mtPhotoStatusError
+	for attempt := 0; attempt < 2; attempt++ {
+		urlStr, err := s.buildGatewayURL(ctx, pathname, nil, attempt > 0)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := s.doRawRequest(ctx, http.MethodGet, urlStr, headers, nil)
+		if err != nil {
+			return nil, err
+		}
+		if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
+			return resp, nil
+		}
+
+		lastStatus = &mtPhotoStatusError{
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
+			Action:     "mtPhoto 媒体请求鉴权失败",
+		}
+		_ = resp.Body.Close()
+	}
+
+	if lastStatus != nil {
+		return nil, lastStatus
+	}
+	return nil, fmt.Errorf("mtPhoto 媒体请求鉴权失败")
 }
 
 type MtPhotoAlbum struct {
@@ -379,7 +303,7 @@ func (s *MtPhotoService) GetAlbums(ctx context.Context) ([]MtPhotoAlbum, error) 
 
 	resp, err := s.doRequest(ctx, http.MethodGet, urlStr, map[string]string{
 		"Accept": "application/json",
-	}, nil, true, false)
+	}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -539,7 +463,7 @@ func (s *MtPhotoService) getFolderData(ctx context.Context, pathname string, act
 
 	resp, err := s.doRequest(ctx, http.MethodGet, urlStr, map[string]string{
 		"Accept": "application/json",
-	}, nil, true, false)
+	}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -757,7 +681,7 @@ func (s *MtPhotoService) getFolderTimelineFiles(ctx context.Context, folderID in
 
 	resp, err := s.doRequest(ctx, http.MethodGet, urlStr, map[string]string{
 		"Accept": "application/json",
-	}, nil, true, false)
+	}, nil)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -913,7 +837,7 @@ func (s *MtPhotoService) GetAlbumFilesPage(ctx context.Context, albumID, page, p
 
 	resp, err := s.doRequest(ctx, http.MethodGet, urlStr, map[string]string{
 		"Accept": "application/json",
-	}, nil, true, false)
+	}, nil)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -1136,7 +1060,7 @@ func (s *MtPhotoService) GetFileInfo(ctx context.Context, fileID int64, md5Value
 
 	resp, err := s.doRequest(ctx, http.MethodGet, urlStr, map[string]string{
 		"Accept": "application/json",
-	}, nil, true, true)
+	}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1226,7 +1150,7 @@ func (s *MtPhotoService) ListSameMediaByMD5(ctx context.Context, md5Value string
 	resp, err := s.doRequest(ctx, http.MethodPost, urlStr, map[string]string{
 		"Content-Type": "application/json",
 		"Accept":       "application/json",
-	}, body, true, true)
+	}, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1399,14 +1323,9 @@ func (s *MtPhotoService) GatewayGet(ctx context.Context, size, md5Value string) 
 		return nil, fmt.Errorf("参数为空")
 	}
 
-	urlStr, err := s.buildURL(fmt.Sprintf("/gateway/%s/%s", size, md5Value), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.doRequest(ctx, http.MethodGet, urlStr, map[string]string{
+	return s.doGatewayGet(ctx, fmt.Sprintf("/gateway/%s/%s", size, md5Value), map[string]string{
 		"Accept": "*/*",
-	}, nil, true, true)
+	})
 }
 
 // GatewayFileDownload 用于代理 mtPhoto /gateway/fileDownload/{id}/{md5}（下载原图/原文件）。
@@ -1425,12 +1344,7 @@ func (s *MtPhotoService) GatewayFileDownload(ctx context.Context, fileID int64, 
 		return nil, fmt.Errorf("md5 为空")
 	}
 
-	urlStr, err := s.buildURL(fmt.Sprintf("/gateway/fileDownload/%d/%s", fileID, md5Value), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.doRequest(ctx, http.MethodGet, urlStr, map[string]string{
+	return s.doGatewayGet(ctx, fmt.Sprintf("/gateway/fileDownload/%d/%s", fileID, md5Value), map[string]string{
 		"Accept": "*/*",
-	}, nil, true, true)
+	})
 }

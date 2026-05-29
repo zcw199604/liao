@@ -31,12 +31,12 @@ func TestMtPhotoMappingHelpers_UncoveredBranches(t *testing.T) {
 
 func TestMtPhotoService_getFolderTimelineFiles_AndContentPageBranches(t *testing.T) {
 	t.Run("timeline doRequest error", func(t *testing.T) {
-		svc := NewMtPhotoService("http://example.com", "u", "p", "", "/lsp", &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		svc := NewMtPhotoService("http://example.com", "u", "/lsp", &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 			return nil, errors.New("network fail")
 		})})
-		svc.token = "t"
+
 		svc.authCode = "ac"
-		svc.tokenExp = time.Now().Add(time.Hour)
+		svc.authCodeExpire = time.Now().Add(time.Hour)
 		if _, _, err := svc.getFolderTimelineFiles(context.Background(), 1); err == nil {
 			t.Fatalf("expected timeline error")
 		}
@@ -45,7 +45,7 @@ func TestMtPhotoService_getFolderTimelineFiles_AndContentPageBranches(t *testing
 	t.Run("content page pageSize<=0 fallback", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/auth/login":
+			case "/auth/auth_code":
 				_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "t", "auth_code": "ac", "expires_in": time.Now().Add(time.Hour).UnixMilli()})
 			case "/gateway/foldersV2/1":
 				_ = json.NewEncoder(w).Encode(map[string]any{
@@ -59,7 +59,7 @@ func TestMtPhotoService_getFolderTimelineFiles_AndContentPageBranches(t *testing
 		}))
 		defer srv.Close()
 
-		svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+		svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 		content, total, totalPages, err := svc.GetFolderContentPage(context.Background(), 1, 1, 0, false)
 		if err != nil {
 			t.Fatalf("GetFolderContentPage err=%v", err)
@@ -73,7 +73,7 @@ func TestMtPhotoService_getFolderTimelineFiles_AndContentPageBranches(t *testing
 func TestMtPhotoService_ListSameMediaByMD5_AdditionalSortAndEnrichBranches(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/auth/login":
+		case "/auth/auth_code":
 			_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "t", "auth_code": "ac", "expires_in": time.Now().Add(time.Hour).UnixMilli()})
 		case "/gateway/filesInMD5":
 			_ = json.NewEncoder(w).Encode([]map[string]any{
@@ -89,7 +89,7 @@ func TestMtPhotoService_ListSameMediaByMD5_AdditionalSortAndEnrichBranches(t *te
 	}))
 	defer srv.Close()
 
-	svc := NewMtPhotoService(srv.URL, "u", "p", "", "/lsp", srv.Client())
+	svc := NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
 	items, err := svc.ListSameMediaByMD5(context.Background(), "m1")
 	if err != nil {
 		t.Fatalf("ListSameMediaByMD5 err=%v", err)
