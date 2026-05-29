@@ -10,7 +10,11 @@ let identityStore: any
 
 const selectMock = vi.fn()
 const enterChatMock = vi.fn()
+const enterGlobalFavoriteChatMock = vi.fn()
 const disconnectMock = vi.fn()
+const resetAllMock = vi.fn()
+const clearAllUsersMock = vi.fn()
+const cancelContinuousMatchMock = vi.fn()
 const toastShow = vi.fn()
 
 vi.mock('@/stores/favorite', () => ({
@@ -26,11 +30,29 @@ vi.mock('@/composables/useIdentity', () => ({
 }))
 
 vi.mock('@/composables/useChat', () => ({
-  useChat: () => ({ enterChat: enterChatMock })
+  useChat: () => ({
+    enterChat: enterChatMock,
+    enterGlobalFavoriteChat: enterGlobalFavoriteChatMock
+  })
 }))
 
 vi.mock('@/composables/useWebSocket', () => ({
   useWebSocket: () => ({ disconnect: disconnectMock })
+}))
+
+vi.mock('@/stores/chat', () => ({
+  useChatStore: () => ({
+    clearAllUsers: clearAllUsersMock,
+    cancelContinuousMatch: cancelContinuousMatchMock,
+    isMatching: true,
+    activeTab: 'favorite'
+  })
+}))
+
+vi.mock('@/stores/message', () => ({
+  useMessageStore: () => ({
+    resetAll: resetAllMock
+  })
 }))
 
 vi.mock('@/composables/useToast', () => ({
@@ -68,6 +90,15 @@ describe('components/settings/GlobalFavorites.vue', () => {
     identityStore = reactive({
       identityList: [] as any[],
       loadList: vi.fn().mockResolvedValue(undefined)
+    })
+    selectMock.mockResolvedValue(undefined)
+    enterGlobalFavoriteChatMock.mockResolvedValue({
+      id: 'u1',
+      name: 'U1',
+      nickname: 'U1',
+      sex: '未知',
+      ip: '',
+      isFavorite: true
     })
   })
 
@@ -107,77 +138,109 @@ describe('components/settings/GlobalFavorites.vue', () => {
     expect(vm.getIdentityName('nope')).toBe('未知身份')
   })
 
-  it('openPreview + handlePreviewSwitch switches identity and navigates to chat, otherwise shows toast', async () => {
-    vi.useFakeTimers()
-    try {
-      const router = await createTestRouter()
-      const pushSpy = vi.spyOn(router, 'push')
+  it('openPreview + handlePreviewSwitch switches identity and navigates to chat without timer, otherwise shows toast', async () => {
+    const router = await createTestRouter()
+    const pushSpy = vi.spyOn(router, 'push')
 
-      identityStore.identityList = [{ id: 'id1', name: 'I1' }]
-      selectMock.mockResolvedValueOnce(undefined)
+    identityStore.identityList = [{ id: 'id1', name: 'I1' }]
 
-      const wrapper = mount(GlobalFavorites, {
-        global: {
-          plugins: [router],
-          stubs: { PullToRefresh: { template: '<div><slot /></div>' }, Skeleton: true, ChatHistoryPreview: true }
-        }
-      })
-      await flushAsync()
+    const wrapper = mount(GlobalFavorites, {
+      global: {
+        plugins: [router],
+        stubs: { PullToRefresh: { template: '<div><slot /></div>' }, Skeleton: true, ChatHistoryPreview: true }
+      }
+    })
+    await flushAsync()
 
-      const vm = wrapper.vm as any
-      vm.openPreview({ identityId: 'id1', targetUserId: 'u1', targetUserName: 'U1' })
-      await flushAsync()
-      expect(vm.showPreview).toBe(true)
+    const vm = wrapper.vm as any
+    vm.openPreview({ identityId: 'id1', targetUserId: 'u1', targetUserName: 'U1' })
+    await flushAsync()
+    expect(vm.showPreview).toBe(true)
 
-      await vm.handlePreviewSwitch()
-      expect(disconnectMock).toHaveBeenCalledWith(true)
-      expect(selectMock).toHaveBeenCalled()
+    await vm.handlePreviewSwitch()
+    await flushAsync()
 
-      vi.advanceTimersByTime(500)
-      await flushAsync()
-      expect(enterChatMock).toHaveBeenCalled()
-      expect(pushSpy).toHaveBeenCalledWith('/chat/u1')
-      expect(vm.showPreview).toBe(false)
+    expect(disconnectMock).toHaveBeenCalledWith(true)
+    expect(resetAllMock).toHaveBeenCalled()
+    expect(clearAllUsersMock).toHaveBeenCalled()
+    expect(cancelContinuousMatchMock).toHaveBeenCalled()
+    expect(selectMock).toHaveBeenCalledWith({ id: 'id1', name: 'I1' }, { redirectTo: false })
+    expect(enterGlobalFavoriteChatMock).toHaveBeenCalledWith({
+      targetUserId: 'u1',
+      targetUserName: 'U1',
+      loadHistory: true
+    })
+    expect(enterChatMock).not.toHaveBeenCalled()
+    expect(pushSpy).toHaveBeenCalledWith('/chat/u1')
+    expect(vm.showPreview).toBe(false)
 
-      // identity missing branch
-      vm.previewIdentityId = 'missing'
-      vm.previewTargetId = 'u2'
-      vm.previewTargetName = 'U2'
-      await vm.handlePreviewSwitch()
-      expect(toastShow).toHaveBeenCalledWith('身份不存在，无法切换')
-    } finally {
-      vi.useRealTimers()
-    }
+    // identity missing branch
+    vm.previewIdentityId = 'missing'
+    vm.previewTargetId = 'u2'
+    vm.previewTargetName = 'U2'
+    await vm.handlePreviewSwitch()
+    expect(toastShow).toHaveBeenCalledWith('身份不存在，无法切换')
   })
 
   it('directSwitch handles identity present/missing branches', async () => {
-    vi.useFakeTimers()
-    try {
-      const router = await createTestRouter()
-      const pushSpy = vi.spyOn(router, 'push')
+    const router = await createTestRouter()
+    const pushSpy = vi.spyOn(router, 'push')
 
-      identityStore.identityList = [{ id: 'id1', name: 'I1' }]
-      selectMock.mockResolvedValueOnce(undefined)
+    identityStore.identityList = [{ id: 'id1', name: 'I1' }]
 
-      const wrapper = mount(GlobalFavorites, {
-        global: {
-          plugins: [router],
-          stubs: { PullToRefresh: { template: '<div><slot /></div>' }, Skeleton: true, ChatHistoryPreview: true }
-        }
-      })
-      await flushAsync()
+    const wrapper = mount(GlobalFavorites, {
+      global: {
+        plugins: [router],
+        stubs: { PullToRefresh: { template: '<div><slot /></div>' }, Skeleton: true, ChatHistoryPreview: true }
+      }
+    })
+    await flushAsync()
 
-      const vm = wrapper.vm as any
-      await vm.directSwitch({ identityId: 'id1', targetUserId: 'u1', targetUserName: '' })
-      vi.advanceTimersByTime(500)
-      await flushAsync()
-      expect(pushSpy).toHaveBeenCalledWith('/chat/u1')
+    const vm = wrapper.vm as any
+    await vm.directSwitch({ identityId: 'id1', targetUserId: 'u1', targetUserName: '' })
+    await flushAsync()
+    expect(pushSpy).toHaveBeenCalledWith('/chat/u1')
+    expect(enterGlobalFavoriteChatMock).toHaveBeenCalledWith({
+      targetUserId: 'u1',
+      targetUserName: '',
+      loadHistory: true
+    })
 
-      await vm.directSwitch({ identityId: 'missing', targetUserId: 'u2', targetUserName: 'U2' })
-      expect(toastShow).toHaveBeenCalledWith('身份不存在，无法切换')
-    } finally {
-      vi.useRealTimers()
-    }
+    await vm.directSwitch({ identityId: 'missing', targetUserId: 'u2', targetUserName: 'U2' })
+    expect(toastShow).toHaveBeenCalledWith('身份不存在，无法切换')
+  })
+
+  it('keeps target chat when history loading fails during direct switch', async () => {
+    const router = await createTestRouter()
+    const pushSpy = vi.spyOn(router, 'push')
+
+    identityStore.identityList = [{ id: 'id1', name: 'I1' }]
+    enterGlobalFavoriteChatMock.mockResolvedValueOnce({
+      id: 'u3',
+      name: 'U3',
+      nickname: 'U3',
+      sex: '未知',
+      ip: '',
+      isFavorite: true
+    })
+
+    const wrapper = mount(GlobalFavorites, {
+      global: {
+        plugins: [router],
+        stubs: { PullToRefresh: { template: '<div><slot /></div>' }, Skeleton: true, ChatHistoryPreview: true }
+      }
+    })
+    await flushAsync()
+
+    await (wrapper.vm as any).directSwitch({ identityId: 'id1', targetUserId: 'u3', targetUserName: 'U3' })
+    await flushAsync()
+
+    expect(enterGlobalFavoriteChatMock).toHaveBeenCalledWith({
+      targetUserId: 'u3',
+      targetUserName: 'U3',
+      loadHistory: true
+    })
+    expect(pushSpy).toHaveBeenCalledWith('/chat/u3')
   })
 
   it('confirmDelete/executeDelete covers early return and success/failure branches', async () => {

@@ -555,4 +555,25 @@ describe('composables/useSettings', () => {
       expect(selectSpy).toHaveBeenCalledWith('i3')
       expect(routerPush).toHaveBeenCalledWith('/list')
     })
+
+    it('select can update currentUser without navigating when redirectTo is false', async () => {
+      const identityStore = useIdentityStore()
+      const selectSpy = vi.spyOn(identityStore, 'selectIdentity').mockResolvedValue(undefined as any)
+
+      const userStore = useUserStore()
+      await useIdentity().select({ id: 'i4', name: 'D', sex: '女', created_at: 't4' }, { redirectTo: false })
+
+      expect(userStore.currentUser?.id).toBe('i4')
+      expect(selectSpy).toHaveBeenCalledWith('i4')
+      expect(routerPush).not.toHaveBeenCalled()
+    })
+
+    it('select can navigate to a custom route', async () => {
+      const identityStore = useIdentityStore()
+      vi.spyOn(identityStore, 'selectIdentity').mockResolvedValue(undefined as any)
+
+      await useIdentity().select({ id: 'i5', name: 'E', sex: '男' }, { redirectTo: '/chat/u1' })
+
+      expect(routerPush).toHaveBeenCalledWith('/chat/u1')
+    })
   })

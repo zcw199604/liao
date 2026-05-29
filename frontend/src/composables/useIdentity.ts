@@ -5,6 +5,10 @@ import { generateRandomIP } from '@/utils/id'
 import { generateCookie } from '@/utils/cookie'
 import { getColorClass } from '@/constants/colors'
 
+interface SelectIdentityOptions {
+  redirectTo?: string | false
+}
+
 export const useIdentity = () => {
   const identityStore = useIdentityStore()
   const userStore = useUserStore()
@@ -30,7 +34,7 @@ export const useIdentity = () => {
     return await identityStore.deleteIdentity(id)
   }
 
-  const select = async (identity: any) => {
+  const select = async (identity: any, options: SelectIdentityOptions = {}) => {
     console.log('选择身份:', identity)
 
     const name = identity.name || 'User'
@@ -53,7 +57,10 @@ export const useIdentity = () => {
 
     await identityStore.selectIdentity(identity.id)
 
-    router.push('/list')
+    const redirectTo = options.redirectTo === undefined ? '/list' : options.redirectTo
+    if (redirectTo) {
+      router.push(redirectTo)
+    }
   }
 
   return {

@@ -213,6 +213,54 @@ export const useChat = () => {
     return user
   }
 
+  const userFromGlobalFavorite = (favorite: { targetUserId: string; targetUserName?: string }): User => {
+    const targetUserId = String(favorite.targetUserId || '').trim()
+    const fallbackName = targetUserId ? `用户${targetUserId.slice(0, 4)}` : '未知用户'
+    const name = String(favorite.targetUserName || '').trim() || fallbackName
+
+    return {
+      id: targetUserId,
+      name,
+      nickname: name,
+      sex: '未知',
+      age: '0',
+      area: '未知',
+      address: '未知',
+      ip: '',
+      isFavorite: true,
+      lastMsg: '暂无消息',
+      lastTime: '刚刚',
+      unreadCount: 0
+    }
+  }
+
+  const enterGlobalFavoriteChat = async (
+    favorite: { targetUserId: string; targetUserName?: string; loadHistory?: boolean }
+  ): Promise<User | null> => {
+    if (!userStore.currentUser) return null
+
+    const user = userFromGlobalFavorite(favorite)
+    if (!user.id) return null
+
+    chatStore.ensureListOwner(userStore.currentUser.id)
+    chatStore.upsertUser(user)
+    chatStore.enterChat(user)
+
+    if (favorite.loadHistory !== false) {
+      try {
+        await messageStore.loadHistory(userStore.currentUser.id, user.id, {
+          isFirst: true,
+          firstTid: '0',
+          myUserName: userStore.currentUser.name
+        })
+      } catch (error) {
+        console.warn('全局收藏进入聊天时加载历史失败:', error)
+      }
+    }
+
+    return user
+  }
+
   const exitChat = () => {
     chatStore.exitChat()
   }
@@ -280,6 +328,7 @@ export const useChat = () => {
     enterChatAndStopMatch,
     enterChat,
     enterTemporaryChatFromCandidate,
+    enterGlobalFavoriteChat,
     exitChat,
     toggleFavorite
   }

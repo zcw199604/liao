@@ -219,7 +219,7 @@
         </div>
 
         <!-- 全局收藏 -->
-        <GlobalFavorites v-else-if="mode === 'favorites'" />
+        <GlobalFavorites v-else-if="mode === 'favorites'" @open-chat="close" />
 
         <Dialog
           v-model:visible="showDisconnectAllDialog"

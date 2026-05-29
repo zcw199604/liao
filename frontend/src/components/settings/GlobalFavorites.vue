@@ -97,6 +97,8 @@
 import { ref, onMounted } from 'vue'
 import { useFavoriteStore } from '@/stores/favorite'
 import { useIdentityStore } from '@/stores/identity'
+import { useChatStore } from '@/stores/chat'
+import { useMessageStore } from '@/stores/message'
 import { useIdentity } from '@/composables/useIdentity'
 import { useChat } from '@/composables/useChat'
 import { useWebSocket } from '@/composables/useWebSocket'
@@ -109,11 +111,17 @@ import { useRouter } from 'vue-router'
 
 const favoriteStore = useFavoriteStore()
 const identityStore = useIdentityStore()
+const chatStore = useChatStore()
+const messageStore = useMessageStore()
 const { select } = useIdentity()
-const { enterChat } = useChat()
+const { enterGlobalFavoriteChat } = useChat()
 const { disconnect } = useWebSocket()
 const { show } = useToast()
 const router = useRouter()
+
+const emit = defineEmits<{
+   (e: 'open-chat'): void
+}>()
 
 const showPreview = ref(false)
 const previewIdentityId = ref('')
@@ -157,29 +165,28 @@ const directSwitch = (fav: Favorite) => {
 
 const switchToIdentityAndChat = async (identity: any, targetUserId: string, targetUserName?: string) => {
    try {
-      // Disconnect current socket to force reconnection with new identity
       disconnect(true)
-      
-      await select(identity)
-      // Wait a bit for router push and store updates
-      setTimeout(() => {
-         // Create a temporary user object for the target
-         const name = targetUserName || '用户' + targetUserId.slice(0, 4)
-         const targetUser = {
-            id: targetUserId,
-            name: name,
-            nickname: name,
-            sex: '未知',
-            ip: '',
-            isFavorite: true 
-         }
-         
-         // Set the current chat user in the store
-         enterChat(targetUser, true)
-         
-         // Navigate directly to the chat room
-         router.push(`/chat/${targetUserId}`)
-      }, 500)
+      messageStore.resetAll()
+      chatStore.clearAllUsers()
+      chatStore.cancelContinuousMatch()
+      chatStore.activeTab = 'history'
+      chatStore.isMatching = false
+
+      await select(identity, { redirectTo: false })
+      const user = await enterGlobalFavoriteChat({
+         targetUserId,
+         targetUserName,
+         loadHistory: true
+      })
+
+      if (!user) {
+         show('聊天对象无效，无法进入')
+         return
+      }
+
+      showPreview.value = false
+      emit('open-chat')
+      await router.push(`/chat/${user.id}`)
    } catch (e) {
       console.error(e)
       show('切换失败')
