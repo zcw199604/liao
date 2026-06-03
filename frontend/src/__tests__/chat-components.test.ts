@@ -366,8 +366,6 @@ describe('components/chat/MessageList.vue', () => {
 
 describe('components/chat/MatchButton.vue', () => {
   it('short press triggers startMatch and toast', async () => {
-    vi.useFakeTimers()
-
     const pinia = createPinia()
     setActivePinia(pinia)
     const chatStore = useChatStore()
@@ -380,8 +378,7 @@ describe('components/chat/MatchButton.vue', () => {
     })
 
     const button = wrapper.get('button')
-    await button.trigger('mousedown')
-    await button.trigger('mouseup')
+    await button.trigger('click')
 
     expect(startContinuousMatchMock).toHaveBeenCalledWith(1)
     expect(toastShow).toHaveBeenCalledWith('正在匹配...')
@@ -389,9 +386,7 @@ describe('components/chat/MatchButton.vue', () => {
     wrapper.unmount()
   })
 
-  it('long press opens menu and triggers startContinuousMatch', async () => {
-    vi.useFakeTimers()
-
+  it('opens continuous match menu from desktop dropdown and triggers startContinuousMatch', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const chatStore = useChatStore()
@@ -403,9 +398,7 @@ describe('components/chat/MatchButton.vue', () => {
       global: { plugins: [pinia] }
     })
 
-    const button = wrapper.get('button')
-    await button.trigger('mousedown')
-    vi.advanceTimersByTime(300)
+    await wrapper.get('button[aria-label="连续匹配选项"]').trigger('click')
     await nextTick()
 
     expect(wrapper.text()).toContain('连续匹配 3 次')
@@ -457,8 +450,6 @@ describe('components/chat/MatchButton.vue', () => {
   })
 
   it('short press does not show toast when startContinuousMatch returns false', async () => {
-    vi.useFakeTimers()
-
     const pinia = createPinia()
     setActivePinia(pinia)
     const chatStore = useChatStore()
@@ -468,8 +459,7 @@ describe('components/chat/MatchButton.vue', () => {
 
     const wrapper = mount(MatchButton, { global: { plugins: [pinia] } })
     const button = wrapper.get('button')
-    await button.trigger('mousedown')
-    await button.trigger('mouseup')
+    await button.trigger('click')
 
     expect(startContinuousMatchMock).toHaveBeenCalledWith(1)
     expect(toastShow).not.toHaveBeenCalledWith('正在匹配...')
@@ -477,7 +467,7 @@ describe('components/chat/MatchButton.vue', () => {
     wrapper.unmount()
   })
 
-  it('mouseleave cancels long press timer and does not open menu', async () => {
+  it('touchcancel cancels long press timer and does not open menu', async () => {
     vi.useFakeTimers()
 
     const pinia = createPinia()
@@ -488,8 +478,8 @@ describe('components/chat/MatchButton.vue', () => {
     const wrapper = mount(MatchButton, { global: { plugins: [pinia] } })
     const button = wrapper.get('button')
 
-    await button.trigger('mousedown')
-    await button.trigger('mouseleave')
+    await button.trigger('touchstart')
+    await button.trigger('touchcancel')
     vi.advanceTimersByTime(300)
     await nextTick()
 
@@ -499,7 +489,7 @@ describe('components/chat/MatchButton.vue', () => {
     wrapper.unmount()
   })
 
-  it('touch events support short press and cancel long press', async () => {
+  it('touch events support short press and long press continuous menu', async () => {
     vi.useFakeTimers()
 
     const pinia = createPinia()
@@ -518,16 +508,17 @@ describe('components/chat/MatchButton.vue', () => {
     expect(startContinuousMatchMock).toHaveBeenCalledWith(1)
     expect(toastShow).toHaveBeenCalledWith('正在匹配...')
 
-    // long press opened then cancelled via touchcancel
     startContinuousMatchMock.mockClear()
     toastShow.mockClear()
 
     await button.trigger('touchstart')
-    await button.trigger('touchcancel')
     vi.advanceTimersByTime(300)
     await nextTick()
 
-    expect(wrapper.text()).not.toContain('连续匹配 3 次')
+    expect(wrapper.text()).toContain('连续匹配 3 次')
+
+    await button.trigger('touchend')
+    await nextTick()
     expect(startContinuousMatchMock).not.toHaveBeenCalled()
 
     wrapper.unmount()
@@ -553,9 +544,7 @@ describe('components/chat/MatchButton.vue', () => {
     wrapper.unmount()
   })
 
-  it('long press menu hides and does not toast when startContinuousMatch fails', async () => {
-    vi.useFakeTimers()
-
+  it('continuous menu hides and does not toast when startContinuousMatch fails', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const chatStore = useChatStore()
@@ -565,9 +554,7 @@ describe('components/chat/MatchButton.vue', () => {
 
     const wrapper = mount(MatchButton, { global: { plugins: [pinia] } })
 
-    const button = wrapper.get('button')
-    await button.trigger('mousedown')
-    vi.advanceTimersByTime(300)
+    await wrapper.get('button[aria-label="连续匹配选项"]').trigger('click')
     await nextTick()
 
     const option = wrapper

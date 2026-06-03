@@ -1,19 +1,31 @@
 <template>
   <div class="absolute bottom-6 left-0 right-0 flex justify-center z-20 pointer-events-none">
-    <div class="pointer-events-auto">
+    <div ref="rootRef" class="pointer-events-auto">
     <!-- 匹配按钮 -->
-    <button
+    <div
       v-if="!chatStore.isMatching"
-      @mousedown="handleMouseDown"
-      @mouseup="handleMouseUp"
-      @mouseleave="handleMouseLeave"
-      @touchstart.prevent="handleTouchStart"
-      @touchend.prevent="handleTouchEnd"
-      @touchcancel="handleTouchCancel"
-      class="flex items-center px-8 py-4 bg-blue-600 hover:bg-blue-500 rounded-full text-white font-bold text-lg shadow-xl transition active:scale-95"
+      class="flex items-stretch rounded-full shadow-xl overflow-hidden"
     >
-      <i class="fas fa-random mr-2"></i> 匹配新用户
-    </button>
+      <button
+        type="button"
+        @click="handleStartMatch"
+        @touchstart.prevent="handleTouchStart"
+        @touchend.prevent="handleTouchEnd"
+        @touchcancel="handleTouchCancel"
+        class="flex items-center px-7 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold text-lg transition active:scale-95"
+      >
+        <i class="fas fa-random mr-2"></i> 匹配新用户
+      </button>
+      <button
+        type="button"
+        aria-label="连续匹配选项"
+        title="连续匹配选项"
+        @click.stop="toggleMenu"
+        class="w-14 flex items-center justify-center bg-blue-700 hover:bg-blue-600 text-white border-l border-white/20 transition active:scale-95"
+      >
+        <i class="fas fa-chevron-up text-sm"></i>
+      </button>
+    </div>
 
     <!-- 取消按钮（带进度显示） -->
     <button
@@ -63,6 +75,7 @@ const { show } = useToast()
 const showMenu = ref(false)
 const longPressTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const isLongPress = ref(false)
+const rootRef = ref<HTMLElement | null>(null)
 
 const menuOptions = [
   { count: 3, icon: 'fas fa-dice-three' },
@@ -70,47 +83,45 @@ const menuOptions = [
   { count: 10, icon: 'fas fa-fire' }
 ]
 
-// 长按检测 - 鼠标事件
-const handleMouseDown = () => {
+const openMenu = () => {
+  showMenu.value = true
+}
+
+const toggleMenu = () => {
+  showMenu.value = !showMenu.value
+}
+
+const startLongPressTimer = () => {
   isLongPress.value = false
   longPressTimer.value = setTimeout(() => {
     isLongPress.value = true
-    showMenu.value = true
+    openMenu()
   }, 300)
 }
 
-const handleMouseUp = () => {
-  if (longPressTimer.value) {
-    clearTimeout(longPressTimer.value)
-    longPressTimer.value = null
-  }
-
-  if (!isLongPress.value) {
-    // 短按 - 单次匹配
-    handleStartMatch()
-  }
-}
-
-const handleMouseLeave = () => {
+const clearLongPressTimer = () => {
   if (longPressTimer.value) {
     clearTimeout(longPressTimer.value)
     longPressTimer.value = null
   }
 }
 
-// 长按检测 - 触摸事件
+// 触摸长按仍保留为移动端连续匹配入口。
 const handleTouchStart = (e: TouchEvent) => {
   e.preventDefault()
-  handleMouseDown()
+  startLongPressTimer()
 }
 
 const handleTouchEnd = (e: TouchEvent) => {
   e.preventDefault()
-  handleMouseUp()
+  clearLongPressTimer()
+  if (!isLongPress.value) {
+    handleStartMatch()
+  }
 }
 
 const handleTouchCancel = () => {
-  handleMouseLeave()
+  clearLongPressTimer()
 }
 
 // 单次匹配
@@ -143,9 +154,10 @@ const handleMatchAutoCheck = () => {
 
 // 点击外部关闭菜单
 const handleClickOutside = (e: MouseEvent) => {
-  if (showMenu.value) {
-    showMenu.value = false
-  }
+  if (!showMenu.value) return
+  const target = e.target as Node | null
+  if (target && rootRef.value?.contains(target)) return
+  showMenu.value = false
 }
 
 onMounted(() => {
