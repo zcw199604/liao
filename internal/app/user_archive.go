@@ -34,6 +34,11 @@ type UserArchiveCandidateLister interface {
 	ListContactCandidates(ctx context.Context, ownerUserID string, limit int) ([]ContactCandidate, error)
 }
 
+// UserArchiveSearcher 是可选的全局归档搜索能力。
+type UserArchiveSearcher interface {
+	SearchArchive(ctx context.Context, keyword string, limit int) ([]ChatArchiveSearchResult, error)
+}
+
 // ContactCandidate 表示可被当前身份临时接入的联系人候选。
 type ContactCandidate struct {
 	TargetUserID   string         `json:"targetUserId"`
@@ -48,6 +53,24 @@ type ContactCandidate struct {
 	LastTime       string         `json:"lastTime,omitempty"`
 	Sources        []string       `json:"sources"`
 	LocalArchived  bool           `json:"localArchived,omitempty"`
+	Snapshot       map[string]any `json:"snapshot,omitempty"`
+}
+
+// ChatArchiveSearchResult 表示跨身份归档搜索命中的聊天对象。
+type ChatArchiveSearchResult struct {
+	OwnerUserID    string         `json:"ownerUserId"`
+	TargetUserID   string         `json:"targetUserId"`
+	TargetUserName string         `json:"targetUserName,omitempty"`
+	Name           string         `json:"name,omitempty"`
+	Nickname       string         `json:"nickname,omitempty"`
+	Sex            string         `json:"sex,omitempty"`
+	Age            string         `json:"age,omitempty"`
+	Area           string         `json:"area,omitempty"`
+	Address        string         `json:"address,omitempty"`
+	LastMsg        string         `json:"lastMsg,omitempty"`
+	LastTime       string         `json:"lastTime,omitempty"`
+	Sources        []string       `json:"sources"`
+	LocalArchived  bool           `json:"localArchived"`
 	Snapshot       map[string]any `json:"snapshot,omitempty"`
 }
 
@@ -336,6 +359,75 @@ func (s *DBUserArchiveService) ListContactCandidates(ctx context.Context, ownerU
 	return result, nil
 }
 
+func (s *DBUserArchiveService) SearchArchive(ctx context.Context, keyword string, limit int) ([]ChatArchiveSearchResult, error) {
+	keyword = strings.TrimSpace(keyword)
+	if s == nil || s.db == nil || keyword == "" {
+		return nil, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 300 {
+		limit = 300
+	}
+
+	normalizedKeyword := strings.ToLower(keyword)
+	like := "%" + normalizedKeyword + "%"
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT owner_user_id, target_user_id, snapshot_json, last_msg, last_time, seen_in_history, seen_in_favorite
+		FROM chat_user_archive
+		WHERE LOWER(target_user_id) LIKE ? OR LOWER(COALESCE(snapshot_json, '')) LIKE ? OR LOWER(COALESCE(last_msg, '')) LIKE ?
+		ORDER BY last_seen_at DESC, updated_at DESC, id DESC
+		LIMIT ?`,
+		like,
+		like,
+		like,
+		limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]ChatArchiveSearchResult, 0)
+	for rows.Next() {
+		var (
+			ownerUserID    string
+			targetUserID   string
+			snapshotRaw    sql.NullString
+			lastMsg        sql.NullString
+			lastTime       sql.NullString
+			seenInHistory  int
+			seenInFavorite int
+		)
+		if err := rows.Scan(&ownerUserID, &targetUserID, &snapshotRaw, &lastMsg, &lastTime, &seenInHistory, &seenInFavorite); err != nil {
+			return nil, err
+		}
+
+		item, ok := chatArchiveSearchResultFromRow(
+			strings.TrimSpace(ownerUserID),
+			strings.TrimSpace(targetUserID),
+			strings.TrimSpace(snapshotRaw.String),
+			strings.TrimSpace(lastMsg.String),
+			strings.TrimSpace(lastTime.String),
+			seenInHistory,
+			seenInFavorite,
+			normalizedKeyword,
+		)
+		if ok {
+			result = append(result, item)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 type archiveUpsertInput struct {
 	OwnerUserID    string
 	TargetUserID   string
@@ -467,6 +559,62 @@ func contactCandidateFromUser(user map[string]any, source string, localArchived 
 		LocalArchived:  localArchived,
 		Snapshot:       snapshot,
 	}, true
+}
+
+func chatArchiveSearchResultFromRow(ownerUserID, targetUserID, snapshotRaw, lastMsg, lastTime string, seenInHistory, seenInFavorite int, keyword string) (ChatArchiveSearchResult, bool) {
+	if ownerUserID == "" || targetUserID == "" {
+		return ChatArchiveSearchResult{}, false
+	}
+
+	snapshot := map[string]any{}
+	if strings.TrimSpace(snapshotRaw) != "" {
+		if err := json.Unmarshal([]byte(snapshotRaw), &snapshot); err != nil {
+			slog.Warn("反序列化归档搜索快照失败", "ownerUserID", ownerUserID, "targetUserID", targetUserID, "error", err)
+			snapshot = map[string]any{}
+		}
+	}
+	ensureArchivedUserID(snapshot, targetUserID)
+	if strings.TrimSpace(toString(snapshot["lastMsg"])) == "" && lastMsg != "" {
+		snapshot["lastMsg"] = lastMsg
+	}
+	if strings.TrimSpace(toString(snapshot["lastTime"])) == "" && lastTime != "" {
+		snapshot["lastTime"] = lastTime
+	}
+
+	candidate, ok := contactCandidateFromUser(snapshot, "archive", true)
+	if !ok {
+		return ChatArchiveSearchResult{}, false
+	}
+	if keyword != "" && !archiveSearchCandidateMatches(candidate, keyword) {
+		return ChatArchiveSearchResult{}, false
+	}
+	if seenInHistory == 1 {
+		candidate.Sources = appendUniqueString(candidate.Sources, string(UserArchiveListSourceHistory))
+	}
+	if seenInFavorite == 1 {
+		candidate.Sources = appendUniqueString(candidate.Sources, string(UserArchiveListSourceFavorite))
+	}
+
+	return ChatArchiveSearchResult{
+		OwnerUserID:    ownerUserID,
+		TargetUserID:   candidate.TargetUserID,
+		TargetUserName: candidate.TargetUserName,
+		Name:           candidate.Name,
+		Nickname:       candidate.Nickname,
+		Sex:            candidate.Sex,
+		Age:            candidate.Age,
+		Area:           candidate.Area,
+		Address:        candidate.Address,
+		LastMsg:        candidate.LastMsg,
+		LastTime:       candidate.LastTime,
+		Sources:        candidate.Sources,
+		LocalArchived:  true,
+		Snapshot:       candidate.Snapshot,
+	}, true
+}
+
+func archiveSearchCandidateMatches(candidate ContactCandidate, keyword string) bool {
+	return contactCandidateMatches(candidate, strings.ToLower(strings.TrimSpace(keyword)))
 }
 
 func appendUniqueString(values []string, next string) []string {

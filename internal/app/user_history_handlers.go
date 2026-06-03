@@ -338,6 +338,36 @@ func (a *App) handleGetContactCandidates(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, resp)
 }
 
+func (a *App) handleSearchChatArchive(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	keyword := strings.TrimSpace(query.Get("q"))
+	if len(keyword) > 100 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"code": 400, "msg": "q 过长"})
+		return
+	}
+
+	limit := parseContactCandidateLimit(query.Get("limit"))
+	items := []ChatArchiveSearchResult{}
+	if searcher, ok := a.userArchive.(UserArchiveSearcher); ok {
+		found, err := searcher.SearchArchive(r.Context(), keyword, limit)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"code": 500, "msg": "查询归档失败"})
+			return
+		}
+		if found != nil {
+			items = found
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"code": 0,
+		"msg":  "success",
+		"data": map[string]any{
+			"items": items,
+		},
+	})
+}
+
 func parseContactCandidateLimit(raw string) int {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -14,11 +15,13 @@ type archiveSpy struct {
 	persistCalls []archivePersistCall
 	mergeCalls   []archiveMergeCall
 	listCalls    []archiveListCandidatesCall
+	searchCalls  []archiveSearchCall
 	touchCalls   [][2]string
 	saveCalls    []archiveSaveCall
 	deleteCalls  [][2]string
 	mergeFn      func(ownerUserID string, upstream []map[string]any, source UserArchiveListSource) []map[string]any
 	listFn       func(ownerUserID string, limit int) ([]ContactCandidate, error)
+	searchFn     func(keyword string, limit int) ([]ChatArchiveSearchResult, error)
 }
 
 type archivePersistCall struct {
@@ -43,6 +46,11 @@ type archiveSaveCall struct {
 type archiveListCandidatesCall struct {
 	ownerUserID string
 	limit       int
+}
+
+type archiveSearchCall struct {
+	keyword string
+	limit   int
 }
 
 func (s *archiveSpy) PersistUserList(_ context.Context, ownerUserID string, users []map[string]any, source UserArchiveListSource) {
@@ -97,6 +105,14 @@ func (s *archiveSpy) ListContactCandidates(_ context.Context, ownerUserID string
 	s.listCalls = append(s.listCalls, archiveListCandidatesCall{ownerUserID: ownerUserID, limit: limit})
 	if s.listFn != nil {
 		return s.listFn(ownerUserID, limit)
+	}
+	return nil, nil
+}
+
+func (s *archiveSpy) SearchArchive(_ context.Context, keyword string, limit int) ([]ChatArchiveSearchResult, error) {
+	s.searchCalls = append(s.searchCalls, archiveSearchCall{keyword: keyword, limit: limit})
+	if s.searchFn != nil {
+		return s.searchFn(keyword, limit)
 	}
 	return nil, nil
 }
@@ -418,6 +434,79 @@ func TestHandleGetContactCandidates(t *testing.T) {
 		rr := httptest.NewRecorder()
 		app.handleGetContactCandidates(rr, req)
 		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("status=%d body=%q", rr.Code, rr.Body.String())
+		}
+	})
+}
+
+func TestHandleSearchChatArchive(t *testing.T) {
+	t.Run("returns global archive search items", func(t *testing.T) {
+		spy := &archiveSpy{
+			searchFn: func(keyword string, limit int) ([]ChatArchiveSearchResult, error) {
+				if keyword != "target" {
+					t.Fatalf("keyword=%q", keyword)
+				}
+				if limit != 25 {
+					t.Fatalf("limit=%d", limit)
+				}
+				return []ChatArchiveSearchResult{{
+					OwnerUserID:   "owner-a",
+					TargetUserID:  "target-1",
+					Nickname:      "Target One",
+					Sources:       []string{"archive", "history"},
+					LocalArchived: true,
+				}}, nil
+			},
+		}
+		app := &App{userArchive: spy}
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/api/chat/archiveSearch?q=target&limit=25", nil)
+		rr := httptest.NewRecorder()
+		app.handleSearchChatArchive(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%q", rr.Code, rr.Body.String())
+		}
+
+		var resp struct {
+			Code int `json:"code"`
+			Data struct {
+				Items []ChatArchiveSearchResult `json:"items"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if resp.Code != 0 || len(resp.Data.Items) != 1 {
+			t.Fatalf("resp=%+v", resp)
+		}
+		if resp.Data.Items[0].OwnerUserID != "owner-a" || resp.Data.Items[0].TargetUserID != "target-1" {
+			t.Fatalf("item=%+v", resp.Data.Items[0])
+		}
+		if len(spy.searchCalls) != 1 {
+			t.Fatalf("searchCalls=%v", spy.searchCalls)
+		}
+	})
+
+	t.Run("rejects overlong query", func(t *testing.T) {
+		app := &App{userArchive: &archiveSpy{}}
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/api/chat/archiveSearch?q="+strings.Repeat("x", 101), nil)
+		rr := httptest.NewRecorder()
+		app.handleSearchChatArchive(rr, req)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("status=%d body=%q", rr.Code, rr.Body.String())
+		}
+	})
+
+	t.Run("returns server error when archive search fails", func(t *testing.T) {
+		spy := &archiveSpy{
+			searchFn: func(string, int) ([]ChatArchiveSearchResult, error) {
+				return nil, errors.New("boom")
+			},
+		}
+		app := &App{userArchive: spy}
+		req := httptest.NewRequest(http.MethodGet, "http://example.com/api/chat/archiveSearch?q=target", nil)
+		rr := httptest.NewRecorder()
+		app.handleSearchChatArchive(rr, req)
+		if rr.Code != http.StatusInternalServerError {
 			t.Fatalf("status=%d body=%q", rr.Code, rr.Body.String())
 		}
 	})

@@ -49,6 +49,7 @@ func (a *App) buildRouter() http.Handler {
 
 		// Upstream HTTP proxy + upload
 		api.Get("/chat/contactCandidates", a.handleGetContactCandidates)
+		api.Get("/chat/archiveSearch", a.handleSearchChatArchive)
 		api.Post("/getHistoryUserList", a.handleGetHistoryUserList)
 		api.Post("/getFavoriteUserList", a.handleGetFavoriteUserList)
 		api.Post("/reportReferrer", a.handleReportReferrer)

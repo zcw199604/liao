@@ -1,12 +1,12 @@
 # User History
 
 ## 目的
-代理上游历史/收藏/消息接口，并使用本地缓存和归档增强列表可用性，同时为跨身份联系人接入提供候选聚合。
+代理上游历史/收藏/消息接口，并使用本地缓存和归档增强列表可用性，同时为跨身份联系人接入和全局归档搜索提供本地数据能力。
 
 ## 模块概述
-- **职责:** 历史用户列表、收藏用户列表、消息历史、跨身份候选、上游删除、最后消息缓存、用户信息缓存、本地归档。
+- **职责:** 历史用户列表、收藏用户列表、消息历史、跨身份候选、全局归档搜索、上游删除、最后消息缓存、用户信息缓存、本地归档。
 - **状态:** 稳定
-- **最后更新:** 2026-05-10
+- **最后更新:** 2026-06-03
 
 ## 规范
 
@@ -47,6 +47,23 @@
 - 上游历史或收藏失败时，接口返回 `code=0` 和可用候选，并在顶层 `warnings` 中记录失败来源。
 - `snapshot` 对候选展示可用，但必须过滤 cookie、token、JWT、Authorization、access code、password、secret 等敏感字段。
 
+### 需求: 全局归档搜索
+**模块:** User History
+`GET /api/chat/archiveSearch` 从本地 `chat_user_archive` 全局搜索归档用户，不要求按 `owner_user_id` 过滤。
+
+#### 场景: 按目标用户 ID 模糊搜索
+- 接口支持 `target_user_id LIKE` 语义，大小写归一后匹配。
+- 查询结果必须返回 `ownerUserId`，用于区分同一目标用户在不同身份下的归档来源。
+
+#### 场景: 按归档快照字段搜索
+- SQL 先对 `target_user_id` 和 `snapshot_json` 做粗筛，Go 层再解析 `snapshot_json`。
+- 可匹配字段包括昵称、名称、`targetUserName`、地区/地址和最近消息。
+- `snapshot_json` 为空或格式异常时不能中断整批搜索；可通过 `target_user_id` 命中的记录仍可返回。
+
+#### 场景: 敏感字段保护
+- 返回的 `snapshot` 必须清理 cookie、token、JWT、Authorization、access code、password、secret 等敏感字段。
+- 仅因敏感字段名或敏感值命中的粗筛记录，不应通过 Go 层安全字段精筛。
+
 ### 需求: Redis 聊天记录缓存
 **模块:** User History
 `getMessageHistory` 在 Redis 模式下可缓存并合并 `contents_list`。
@@ -61,6 +78,7 @@
 - `POST /api/getHistoryUserList`
 - `POST /api/getFavoriteUserList`
 - `GET /api/chat/contactCandidates`
+- `GET /api/chat/archiveSearch`
 - `POST /api/reportReferrer`
 - `POST /api/getMessageHistory`
 - `POST /api/toggleFavorite`

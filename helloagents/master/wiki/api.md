@@ -49,6 +49,7 @@
 | POST | `/api/getHistoryUserList` | 代理上游历史用户列表并做本地增强 |
 | POST | `/api/getFavoriteUserList` | 代理上游收藏用户列表并做本地增强 |
 | GET | `/api/chat/contactCandidates` | 查询来源身份的跨身份接入联系人候选，合并上游历史、上游收藏和本地归档 |
+| GET | `/api/chat/archiveSearch` | 全局搜索本地聊天用户归档，不要求按来源身份过滤 |
 | POST | `/api/reportReferrer` | 上报 referrer 到上游 |
 | POST | `/api/getMessageHistory` | 获取消息历史，Redis 模式下可合并本地聊天记录缓存 |
 | POST | `/api/toggleFavorite` | 代理上游添加聊天收藏 |
@@ -94,6 +95,40 @@
 - 上游失败不阻断本地归档返回，失败原因写入顶层 `warnings`。
 - `sourceIdentityId` 仅用于候选读取；实际发送消息仍由当前身份的 WebSocket 连接完成。
 - `snapshot` 会清理 cookie、token、JWT、Authorization、access code、password、secret 等敏感字段。
+
+#### `GET /api/chat/archiveSearch`
+
+全局搜索本地 `chat_user_archive` 归档记录，不要求提供 `owner_user_id`。
+
+**Query 参数:**
+- `q` 可选，最长 100；按 `target_user_id` 模糊匹配，并从 `snapshot_json` 解析后的昵称、名称、地址和最近消息等展示字段中匹配。
+- `limit` 可选，默认 `100`，最大 `300`。
+
+**响应:**
+```json
+{
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "items": [
+      {
+        "ownerUserId": "A",
+        "targetUserId": "test",
+        "targetUserName": "目标昵称",
+        "nickname": "目标昵称",
+        "sources": ["archive", "history"],
+        "localArchived": true,
+        "snapshot": {}
+      }
+    ]
+  }
+}
+```
+
+**行为约束:**
+- 接口不使用 `owner_user_id` 作为过滤条件；命中项必须返回 `ownerUserId`，用于前端区分归档来源身份。
+- SQL 先对 `target_user_id` 与 `snapshot_json` 做粗筛，Go 层再解析 `snapshot_json` 并按安全展示字段精筛。
+- `snapshot` 会清理 cookie、token、JWT、Authorization、access code、password、secret 等敏感字段；仅命中敏感字段或敏感值的记录不会作为有效搜索结果返回。
 
 ### Media
 | 方法 | 路径 | 说明 |

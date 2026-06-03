@@ -118,6 +118,14 @@
 	          <div class="mt-2 flex items-center justify-end">
 	            <button
 	              type="button"
+	              class="chat-archive-search-btn mr-2"
+	              @click="openArchiveSearchPicker"
+	            >
+	              <i class="fas fa-search text-[10px]"></i>
+	              <span>归档搜索</span>
+	            </button>
+	            <button
+	              type="button"
 	              class="chat-cross-identity-btn mr-2"
 	              @click="openCrossIdentityPicker"
 	            >
@@ -400,6 +408,11 @@
       @select="handleCrossIdentitySelect"
     />
 
+    <ChatArchiveSearchPicker
+      v-model:visible="showArchiveSearchPicker"
+      @select="handleArchiveSearchSelect"
+    />
+
     <!-- 在线状态弹窗 -->
     <Dialog
       v-model:visible="showOnlineStatusDialog"
@@ -442,12 +455,13 @@ import SettingsDrawer from '@/components/settings/SettingsDrawer.vue'
 import Dialog from '@/components/common/Dialog.vue'
 import ChatDayBulkDeleteModal from '@/components/chat/ChatDayBulkDeleteModal.vue'
 import CrossIdentityContactPicker from '@/components/chat/CrossIdentityContactPicker.vue'
+import ChatArchiveSearchPicker from '@/components/chat/ChatArchiveSearchPicker.vue'
 import PullToRefresh from '@/components/common/PullToRefresh.vue'
 import Skeleton from '@/components/common/Skeleton.vue'
 import MatchButton from '@/components/chat/MatchButton.vue'
 import MatchOverlay from '@/components/chat/MatchOverlay.vue'
 import DraggableBadge from '@/components/common/DraggableBadge.vue'
-import type { ContactCandidate, User } from '@/types'
+import type { ChatArchiveSearchItem, ContactCandidate, User } from '@/types'
 import { deleteUser, batchDeleteUsers } from '@/api/chat'
 
 const props = defineProps<{
@@ -478,6 +492,7 @@ const listAreaRef = ref<HTMLElement | null>(null)
 const isRefreshing = ref(false)
 const isInitialLoadingUsers = ref(false)
 const showCrossIdentityPicker = ref(false)
+const showArchiveSearchPicker = ref(false)
 
 // 列表搜索：仅在当前 tab 的本地用户列表中过滤
 const searchKeyword = ref('')
@@ -1106,8 +1121,21 @@ const openCrossIdentityPicker = () => {
   showCrossIdentityPicker.value = true
 }
 
+const openArchiveSearchPicker = () => {
+  closeContextMenu()
+  showTopMenu.value = false
+  showArchiveSearchPicker.value = true
+}
+
 const handleCrossIdentitySelect = (candidate: ContactCandidate, sourceIdentityId: string) => {
   const user = enterTemporaryChatFromCandidate(candidate, sourceIdentityId, false)
+  if (!user) return
+  chatStore.listScrollTop = listAreaRef.value?.scrollTop || 0
+  router.push(`/chat/${user.id}`)
+}
+
+const handleArchiveSearchSelect = (item: ChatArchiveSearchItem) => {
+  const user = enterTemporaryChatFromCandidate(item, item.ownerUserId, false)
   if (!user) return
   chatStore.listScrollTop = listAreaRef.value?.scrollTop || 0
   router.push(`/chat/${user.id}`)

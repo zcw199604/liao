@@ -33,9 +33,18 @@ export interface ContactCandidate {
   snapshot?: Record<string, any>
 }
 
+export interface ChatArchiveSearchItem extends ContactCandidate {
+  ownerUserId: string
+  localArchived: boolean
+}
+
 export interface ContactCandidatesResponse {
   sourceIdentityId: string
   items: ContactCandidate[]
+}
+
+export interface ChatArchiveSearchResponse {
+  items: ChatArchiveSearchItem[]
 }
 
 export interface Identity {

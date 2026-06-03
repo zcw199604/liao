@@ -1,5 +1,5 @@
 import request, { createFormData } from './request'
-import type { ApiResponse, ContactCandidatesResponse, User } from '@/types'
+import type { ApiResponse, ChatArchiveSearchResponse, ContactCandidatesResponse } from '@/types'
 
 // 获取历史用户列表（POST请求，urlencoded）
 export const getHistoryUserList = (myUserID: string, cookieData: string, referer: string, userAgent: string) => {
@@ -49,6 +49,18 @@ export const getContactCandidates = (params: {
       cookieData: params.cookieData || undefined,
       referer: params.referer || undefined,
       userAgent: params.userAgent || undefined
+    }
+  })
+}
+
+export const searchChatArchive = (params: {
+  q: string
+  limit?: number
+}) => {
+  return request.get<any, ApiResponse<ChatArchiveSearchResponse>>('/chat/archiveSearch', {
+    params: {
+      q: params.q,
+      limit: params.limit
     }
   })
 }

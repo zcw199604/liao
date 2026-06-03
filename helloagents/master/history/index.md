@@ -8,6 +8,7 @@
 
 | 时间戳 | 功能名称 | 类型 | 状态 | 方案包路径 |
 |--------|----------|------|------|------------|
+| 202606030554 | chat-archive-global-search | 功能 | ✅已完成 | [history/2026-06/202606030554_chat-archive-global-search](2026-06/202606030554_chat-archive-global-search/) |
 | 202605291304 | fix_global_favorite_identity_chat | 修复 | ✅已完成 | [history/2026-05/202605291304_fix_global_favorite_identity_chat](2026-05/202605291304_fix_global_favorite_identity_chat/) |
 | 202605290916 | mtphoto_api_key_migration | 重构 | ✅已完成 | [history/2026-05/202605290916_mtphoto_api_key_migration](2026-05/202605290916_mtphoto_api_key_migration/) |
 | 202605270350 | fix_mobile_masonry_blank | 修复 | ✅已完成 | [history/2026-05/202605270350_fix_mobile_masonry_blank](2026-05/202605270350_fix_mobile_masonry_blank/) |
@@ -24,6 +25,9 @@
 ---
 
 ## 按月归档
+
+### 2026-06
+- [202606030554_chat-archive-global-search](2026-06/202606030554_chat-archive-global-search/) - 新增全局聊天归档搜索接口和侧边栏归档搜索入口。
 
 ### 2026-05
 - [202605291304_fix_global_favorite_identity_chat](2026-05/202605291304_fix_global_favorite_identity_chat/) - 修复全局收藏跨身份切换进入聊天时聊天对象和历史记录丢失。

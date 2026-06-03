@@ -38,7 +38,7 @@
 | create_time | DATETIME/TIMESTAMP | 非空 | 收藏时间 |
 
 ### `chat_user_archive`
-**描述:** 聊天用户本地归档，用于上游删除后仍能恢复列表信息，也作为跨身份联系人候选的本地数据源。
+**描述:** 聊天用户本地归档，用于上游删除后仍能恢复列表信息，也作为跨身份联系人候选与全局归档搜索的本地数据源。
 
 | 字段名 | 类型 | 约束 | 说明 |
 |--------|------|------|------|
@@ -59,6 +59,8 @@
 - `owner_user_id + target_user_id` 表示某个本地身份与目标用户的归档关系。
 - 历史/收藏列表代理和 WebSocket 匹配成功事件会写入该表。
 - `GET /api/chat/contactCandidates` 复用该表读取来源身份候选，不新增联系人池表。
+- `GET /api/chat/archiveSearch` 复用该表做全局归档搜索，不要求按 `owner_user_id` 过滤；结果必须返回 `ownerUserId`。
+- 全局归档搜索支持 `target_user_id` 模糊匹配，并从 `snapshot_json` 解析后的昵称、名称、地址和最近消息等展示字段中匹配。
 - 对外返回候选时，`snapshot_json` 会清理 cookie、token、JWT、Authorization、access code、password、secret 等敏感字段。
 
 ### `media_file`

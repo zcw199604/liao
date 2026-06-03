@@ -77,6 +77,14 @@ describe('api/chat', () => {
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     )
 
+    chatApi.searchChatArchive({ q: 'target', limit: 25 })
+    expect(spies.requestGet).toHaveBeenCalledWith('/chat/archiveSearch', {
+      params: {
+        q: 'target',
+        limit: 25
+      }
+    })
+
     chatApi.toggleFavorite('me', 'u2', 'cookie', 'ref', 'ua')
     expect(spies.requestPost).toHaveBeenCalledWith(
       '/toggleFavorite',
