@@ -106,8 +106,12 @@
                       <span :class="part.match ? 'search-highlight rounded px-0.5' : ''">{{ part.text }}</span>
                     </template>
                   </span>
-                  <span class="truncate">| {{ item.ownerUserId }}</span>
                   <span v-if="item.address || item.area" class="truncate">| {{ item.address || item.area }}</span>
+                </div>
+                <div class="mt-1 flex items-center gap-1.5 min-w-0 text-xs text-fg-subtle">
+                  <i class="fas fa-id-badge text-[10px] text-fg-muted shrink-0"></i>
+                  <span class="shrink-0">所属身份</span>
+                  <span class="truncate">{{ ownerIdentityLabel(item.ownerUserId) }}</span>
                 </div>
                 <p class="mt-1 text-xs text-fg-muted truncate">{{ item.lastMsg || '暂无消息' }}</p>
               </div>
@@ -124,6 +128,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import * as chatApi from '@/api/chat'
+import { useIdentityStore } from '@/stores/identity'
 import { getColorClass } from '@/constants/colors'
 import type { ChatArchiveSearchItem } from '@/types'
 
@@ -140,11 +145,19 @@ const keyword = ref('')
 const items = ref<ChatArchiveSearchItem[]>([])
 const loading = ref(false)
 const searched = ref(false)
+const identityStore = useIdentityStore()
 
 const normalizedKeyword = computed(() => keyword.value.trim())
 
 const displayName = (item: ChatArchiveSearchItem) => {
   return item.nickname || item.name || item.targetUserName || item.targetUserId
+}
+
+const ownerIdentityLabel = (ownerUserId: string) => {
+  const ownerId = String(ownerUserId || '').trim()
+  const identity = identityStore.identityList.find(item => String(item.id) === ownerId)
+  if (!ownerId) return '未知身份'
+  return identity?.name ? `${identity.name} (${ownerId})` : `未知身份 (${ownerId})`
 }
 
 interface HighlightPart {
@@ -201,6 +214,9 @@ const search = async () => {
   loading.value = true
   searched.value = true
   try {
+    if (identityStore.identityList.length === 0) {
+      await identityStore.loadList()
+    }
     const res = await chatApi.searchChatArchive({ q, limit: 100 })
     items.value = Array.isArray(res.data?.items) ? res.data.items : []
   } catch (error) {
@@ -218,8 +234,13 @@ const selectItem = (item: ChatArchiveSearchItem) => {
 
 watch(
   () => props.visible,
-  (visible) => {
-    if (visible) return
+  async (visible) => {
+    if (visible) {
+      if (identityStore.identityList.length === 0) {
+        await identityStore.loadList()
+      }
+      return
+    }
     clearSearch()
   }
 )

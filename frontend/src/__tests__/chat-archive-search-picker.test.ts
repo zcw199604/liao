@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
+import { useIdentityStore } from '@/stores/identity'
 
 vi.mock('@/api/chat', () => ({
   searchChatArchive: vi.fn()
@@ -16,6 +18,7 @@ const flushAsync = async () => {
 
 describe('components/chat/ChatArchiveSearchPicker.vue', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     vi.clearAllMocks()
   })
 
@@ -36,6 +39,8 @@ describe('components/chat/ChatArchiveSearchPicker.vue', () => {
         ]
       }
     } as any)
+    const identityStore = useIdentityStore()
+    identityStore.identityList = [{ id: 'owner-a', name: 'Owner Alpha', sex: '女' }]
 
     const wrapper = mount(ChatArchiveSearchPicker, {
       props: { visible: true },
@@ -50,7 +55,8 @@ describe('components/chat/ChatArchiveSearchPicker.vue', () => {
 
     expect(chatApi.searchChatArchive).toHaveBeenCalledWith({ q: 'target', limit: 100 })
     expect(wrapper.text()).toContain('Target One')
-    expect(wrapper.text()).toContain('owner-a')
+    expect(wrapper.text()).toContain('所属身份')
+    expect(wrapper.text()).toContain('Owner Alpha (owner-a)')
     expect(wrapper.text()).toContain('归档')
     expect(wrapper.text()).toContain('历史')
 
@@ -66,6 +72,8 @@ describe('components/chat/ChatArchiveSearchPicker.vue', () => {
       msg: 'success',
       data: { items: [] }
     } as any)
+    const identityStore = useIdentityStore()
+    identityStore.identityList = [{ id: 'owner-a', name: 'Owner Alpha', sex: '女' }]
 
     const wrapper = mount(ChatArchiveSearchPicker, {
       props: { visible: true },

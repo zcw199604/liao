@@ -89,7 +89,8 @@
 
 #### 场景: 搜索归档用户
 - `ChatArchiveSearchPicker.vue` 调用 `searchChatArchive` 请求 `/api/chat/archiveSearch`。
-- 搜索结果展示目标用户名称、目标用户 ID、归档来源身份 `ownerUserId`、历史/收藏来源标签和最近消息。
+- 搜索结果展示目标用户名称、目标用户 ID、归档来源所属身份名称和身份编码、历史/收藏来源标签和最近消息。
+- 若本地身份列表无法匹配 `ownerUserId`，仍展示 `未知身份 (ownerUserId)`，避免丢失来源编码。
 - 搜索结果按后端返回顺序展示，不在前端二次排序。
 
 #### 场景: 选择归档结果进入聊天
