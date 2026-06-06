@@ -116,6 +116,11 @@ data class ConnectionStatsDto(
 )
 
 @Serializable
+data class RuntimeConfigDto(
+    val randomVipCode: String = "",
+)
+
+@Serializable
 data class SystemConfigDto(
     val imagePortMode: String = "fixed",
     val imagePortFixed: String = "9006",

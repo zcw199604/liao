@@ -1,5 +1,5 @@
 import request from './request'
-import type { ApiResponse, ConnectionStats, SystemConfig } from '@/types'
+import type { ApiResponse, ConnectionStats, RuntimeConfig, SystemConfig } from '@/types'
 
 // 获取连接统计
 export const getConnectionStats = () => {
@@ -34,4 +34,9 @@ export const updateSystemConfig = (data: Partial<SystemConfig>) => {
 // 解析图片端口（按后端配置策略）
 export const resolveImagePort = (path: string) => {
   return request.post<any, ApiResponse<{ port: string }>>('/resolveImagePort', { path })
+}
+
+// 获取运行时公开配置（由后端环境变量注入）
+export const getRuntimeConfig = () => {
+  return request.get<any, ApiResponse<RuntimeConfig>>('/runtimeConfig')
 }

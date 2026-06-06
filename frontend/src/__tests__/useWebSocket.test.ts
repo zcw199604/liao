@@ -12,7 +12,8 @@ vi.mock('@/composables/useToast', () => ({
 vi.mock('@/api/system', () => ({
   getSystemConfig: vi.fn(),
   updateSystemConfig: vi.fn(),
-  resolveImagePort: vi.fn()
+  resolveImagePort: vi.fn(),
+  getRuntimeConfig: vi.fn()
 }))
 
 vi.mock('@/api/chat', () => ({
@@ -101,6 +102,7 @@ beforeEach(() => {
     data: { imagePortMode: 'fixed', imagePortFixed: '9006', imagePortRealMinBytes: 2048 }
   } as any)
   vi.mocked(systemApi.resolveImagePort).mockResolvedValue({ code: 0, data: { port: '9006' } } as any)
+  vi.mocked(systemApi.getRuntimeConfig).mockResolvedValue({ code: 0, data: { randomVipCode: 'vip-from-runtime' } } as any)
 })
 
 afterEach(() => {
@@ -1390,10 +1392,11 @@ describe('composables/useWebSocket', () => {
     socket.connect()
     await FakeWebSocket.instances[0]!.triggerOpen()
 
-    socket.checkUserOnlineStatus('u2')
+    await socket.checkUserOnlineStatus('u2')
     const sent = FakeWebSocket.instances[0]!.sent.join('\n')
     expect(sent).toContain('ShowUserLoginInfo')
     expect(sent).toContain('"msg":"u2"')
+    expect(sent).toContain('"randomvipcode":"vip-from-runtime"')
   })
 
   it('socket.onerror updates wsConnected only for active connection', async () => {

@@ -7,6 +7,7 @@ import { generateCookie } from '@/utils/cookie'
 import { WS_URL } from '@/constants/config'
 import type { WebSocketMessage, ChatMessage, User } from '@/types'
 import * as chatApi from '@/api/chat'
+import * as systemApi from '@/api/system'
 import { useMediaStore } from '@/stores/media'
 import { useSystemConfigStore } from '@/stores/systemConfig'
 import { useToast } from '@/composables/useToast'
@@ -39,6 +40,19 @@ const forceoutFlag = ref(false)
 
 // 滚动到底部的方法引用（全局单例）
 let scrollToBottomCallback: (() => void) | null = null
+let randomVipCodeCache: string | null = null
+
+const getRandomVipCode = async (): Promise<string> => {
+  if (randomVipCodeCache !== null) return randomVipCodeCache
+  try {
+    const res = await systemApi.getRuntimeConfig()
+    randomVipCodeCache = String(res?.data?.randomVipCode || '')
+  } catch (error) {
+    console.warn('获取运行时配置失败，randomvipcode 将使用空值:', error)
+    randomVipCodeCache = ''
+  }
+  return randomVipCodeCache
+}
 
 export const useWebSocket = () => {
   const chatStore = useChatStore()
@@ -714,7 +728,7 @@ export const useWebSocket = () => {
     }
   }
 
-  const checkUserOnlineStatus = (targetUserId: string) => {
+  const checkUserOnlineStatus = async (targetUserId: string) => {
     const currentUser = userStore.currentUser
     if (!currentUser) return
 
@@ -722,7 +736,7 @@ export const useWebSocket = () => {
       "act": "ShowUserLoginInfo",
       "id": currentUser.id,
       "msg": targetUserId,
-      "randomvipcode": "vipali67fbff86676e361016812533"
+      "randomvipcode": await getRandomVipCode()
     }
     send(msg)
   }

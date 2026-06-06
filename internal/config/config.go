@@ -39,6 +39,7 @@ type Config struct {
 	RedisTimeoutSeconds int
 
 	AuthAccessCode    string
+	RandomVIPCode     string
 	JWTSecret         string
 	TokenExpireHours  int
 	WebSocketFallback string
@@ -125,6 +126,7 @@ func Load() (Config, error) {
 		RedisTimeoutSeconds: getEnvInt("REDIS_TIMEOUT_SECONDS", 15),
 
 		AuthAccessCode:   getEnv("AUTH_ACCESS_CODE", "Aa305512775."),
+		RandomVIPCode:    getEnv("RANDOM_VIP_CODE", ""),
 		JWTSecret:        getEnv("JWT_SECRET", "your-jwt-secret-key-at-least-256-bits-long-please-change-this-to-random-string"),
 		TokenExpireHours: getEnvInt("TOKEN_EXPIRE_HOURS", 24),
 

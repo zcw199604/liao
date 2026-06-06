@@ -212,6 +212,20 @@ func TestLoad_SetsDefaultsAndValidates(t *testing.T) {
 	if cfg.VideoExtractWorkers != 1 || cfg.VideoExtractQueueSize != 32 || cfg.VideoExtractFramePageSz != 120 {
 		t.Fatalf("videoExtract defaults=%+v", cfg)
 	}
+	if cfg.RandomVIPCode != "" {
+		t.Fatalf("RandomVIPCode default=%q, want empty", cfg.RandomVIPCode)
+	}
+}
+
+func TestLoad_ReadsRandomVIPCodeFromEnv(t *testing.T) {
+	t.Setenv("RANDOM_VIP_CODE", " vip-from-env ")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.RandomVIPCode != " vip-from-env " {
+		t.Fatalf("RandomVIPCode=%q", cfg.RandomVIPCode)
+	}
 }
 
 func TestLoad_ValidationErrors(t *testing.T) {

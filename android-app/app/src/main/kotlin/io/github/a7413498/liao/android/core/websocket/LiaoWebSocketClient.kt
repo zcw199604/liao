@@ -13,8 +13,10 @@ import io.github.a7413498.liao.android.core.common.inferFileName
 import io.github.a7413498.liao.android.core.common.inferMessageType
 import io.github.a7413498.liao.android.core.common.inferPrivateMessageIsSelf
 import io.github.a7413498.liao.android.core.network.BaseUrlProvider
+import io.github.a7413498.liao.android.core.network.SystemApiService
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -27,6 +29,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -310,10 +313,29 @@ sealed interface LiaoWsEvent {
     ) : LiaoWsEvent
 }
 
+
+@Singleton
+class RuntimeConfigProvider @Inject constructor(
+    private val systemApiService: SystemApiService,
+) {
+    @Volatile
+    private var randomVipCodeCache: String? = null
+
+    fun randomVipCode(): String {
+        randomVipCodeCache?.let { return it }
+        val loaded = runCatching {
+            runBlocking { systemApiService.getRuntimeConfig().data?.randomVipCode.orEmpty() }
+        }.getOrDefault("")
+        randomVipCodeCache = loaded
+        return loaded
+    }
+}
+
 class LiaoWebSocketClient @Inject constructor(
     private val okHttpClient: OkHttpClient,
     private val baseUrlProvider: BaseUrlProvider,
     private val json: Json,
+    private val runtimeConfigProvider: RuntimeConfigProvider,
 ) {
     private val clientScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -391,7 +413,7 @@ class LiaoWebSocketClient @Inject constructor(
             put("act", JsonPrimitive(LiaoWsProtocolCatalog.Acts.SHOW_USER_LOGIN_INFO))
             put("id", JsonPrimitive(senderId))
             put("msg", JsonPrimitive(targetUserId))
-            put("randomvipcode", JsonPrimitive("vipali67fbff86676e361016812533"))
+            put("randomvipcode", JsonPrimitive(runtimeConfigProvider.randomVipCode()))
         }
     )
 

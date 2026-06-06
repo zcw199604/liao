@@ -465,6 +465,9 @@ interface SystemApiService {
 
     @POST("/api/resolveImagePort")
     suspend fun resolveImagePort(@Body payload: JsonElement): ApiEnvelope<JsonElement>
+
+    @GET("/api/runtimeConfig")
+    suspend fun getRuntimeConfig(): ApiEnvelope<RuntimeConfigDto>
 }
 
 interface VideoExtractApiService {

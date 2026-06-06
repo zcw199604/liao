@@ -2,9 +2,13 @@ package io.github.a7413498.liao.android.core.websocket
 
 import io.github.a7413498.liao.android.core.common.CurrentIdentitySession
 import io.github.a7413498.liao.android.core.common.LiaoLogger
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
+import io.github.a7413498.liao.android.core.network.RuntimeConfigDto
+import io.github.a7413498.liao.android.core.network.SystemApiService
+import io.github.a7413498.liao.android.core.network.ApiEnvelope
 import io.mockk.unmockkObject
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -36,6 +40,12 @@ class LiaoWebSocketClientTest {
         ignoreUnknownKeys = true
         explicitNulls = false
         isLenient = true
+    }
+
+    private fun runtimeConfigProvider(code: String = "vip-from-runtime"): RuntimeConfigProvider {
+        val systemApiService = mockk<SystemApiService>()
+        coEvery { systemApiService.getRuntimeConfig() } returns ApiEnvelope(code = 0, data = RuntimeConfigDto(randomVipCode = code))
+        return RuntimeConfigProvider(systemApiService)
     }
 
     @Before
@@ -71,7 +81,7 @@ class LiaoWebSocketClientTest {
         }
         every { webSocket.close(any<Int>(), any<String>()) } returns true
 
-        val client = LiaoWebSocketClient(okHttpClient, baseUrlProvider, json)
+        val client = LiaoWebSocketClient(okHttpClient, baseUrlProvider, json, runtimeConfigProvider())
         val session = sampleSession(id = "self-1", name = "Alice", sex = "女")
 
         client.connect("token-1", session)
@@ -101,7 +111,7 @@ class LiaoWebSocketClientTest {
         assertEquals("hello", privatePayload["msg"]?.jsonPrimitive?.content)
         val loginInfoPayload = parse(sentPayloads[2])
         assertEquals("ShowUserLoginInfo", loginInfoPayload["act"]?.jsonPrimitive?.content)
-        assertEquals("vipali67fbff86676e361016812533", loginInfoPayload["randomvipcode"]?.jsonPrimitive?.content)
+        assertEquals("vip-from-runtime", loginInfoPayload["randomvipcode"]?.jsonPrimitive?.content)
         val warningPayload = parse(sentPayloads[3])
         assertEquals("warningreport", warningPayload["act"]?.jsonPrimitive?.content)
         assertEquals("warn-1", warningPayload["msg"]?.jsonPrimitive?.content)
@@ -138,7 +148,7 @@ class LiaoWebSocketClientTest {
         every { webSocket1.close(1000, "replace_connection") } returns false
         every { webSocket2.close(1000, "client_close") } returns false
 
-        val client = LiaoWebSocketClient(okHttpClient, baseUrlProvider, json)
+        val client = LiaoWebSocketClient(okHttpClient, baseUrlProvider, json, runtimeConfigProvider())
         client.connect("token-1", sampleSession(id = "self-1"))
         listeners[0].onOpen(webSocket1, mockk<Response>())
 
@@ -161,6 +171,7 @@ class LiaoWebSocketClientTest {
             okHttpClient = mockk(relaxed = true),
             baseUrlProvider = mockk(relaxed = true),
             json = json,
+            runtimeConfigProvider = runtimeConfigProvider(),
         )
 
         assertFalse(client.sendPrivateMessage("peer-1", "Bob", "self-1", "hello"))
@@ -185,7 +196,7 @@ class LiaoWebSocketClientTest {
         every { webSocket.send(any<String>()) } returns true
         every { webSocket.close(any<Int>(), any<String>()) } returns true
 
-        val client = LiaoWebSocketClient(okHttpClient, baseUrlProvider, json)
+        val client = LiaoWebSocketClient(okHttpClient, baseUrlProvider, json, runtimeConfigProvider())
         val events = mutableListOf<LiaoWsEvent>()
         val raws = mutableListOf<String>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { client.events.collect { events += it } }
@@ -248,7 +259,7 @@ class LiaoWebSocketClientTest {
         }
         every { webSocket.send(any<String>()) } returns true
         every { webSocket.close(any<Int>(), any<String>()) } returns true
-        val client = LiaoWebSocketClient(okHttpClient, baseUrlProvider, json)
+        val client = LiaoWebSocketClient(okHttpClient, baseUrlProvider, json, runtimeConfigProvider())
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { client.events.collect { events += it } }
         client.connect("token-1", sampleSession(id = "self-1"))
         listeners.single().onOpen(webSocket, mockk<Response>())
@@ -296,7 +307,7 @@ class LiaoWebSocketClientTest {
         every { webSocket2.close(1001, "bye") } returns false
         every { webSocket3.close(any<Int>(), any<String>()) } returns true
 
-        val client = LiaoWebSocketClient(okHttpClient, baseUrlProvider, json)
+        val client = LiaoWebSocketClient(okHttpClient, baseUrlProvider, json, runtimeConfigProvider())
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { client.events.collect { events += it } }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { client.messages.collect { raws += it } }
 

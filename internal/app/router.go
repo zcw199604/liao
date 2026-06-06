@@ -29,6 +29,9 @@ func (a *App) buildRouter() http.Handler {
 			ar.Get("/verify", a.handleAuthVerify)
 		})
 
+		// Runtime public config（登录后客户端运行时读取，支持 Docker -e 注入）
+		api.Get("/runtimeConfig", a.handleRuntimeConfig)
+
 		// Identity
 		api.Get("/getIdentityList", a.handleGetIdentityList)
 		api.Post("/createIdentity", a.handleCreateIdentity)

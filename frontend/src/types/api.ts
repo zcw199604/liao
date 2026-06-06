@@ -14,6 +14,10 @@ export interface ConnectionStats {
 
 export type ImagePortMode = 'fixed' | 'probe' | 'real'
 
+export interface RuntimeConfig {
+  randomVipCode: string
+}
+
 export interface SystemConfig {
   imagePortMode: ImagePortMode
   imagePortFixed: string
