@@ -3098,6 +3098,7 @@ const reparseFavoriteUser = async (u: DouyinFavoriteUser) => {
   activeMode.value = 'account'
   accountInput.value = secUserId
   await handleFetchAccount()
+  await syncFavoriteUserWorksFromAccount(secUserId)
 }
 
 const reparseFavoriteAweme = async (it: DouyinFavoriteAweme) => {

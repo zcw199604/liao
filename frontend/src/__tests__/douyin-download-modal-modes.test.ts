@@ -810,20 +810,40 @@ describe('components/media/DouyinDownloadModal.vue (modes)', () => {
     await vm.removeFavoriteUser('SU1')
     expect(vm.favoriteUserDetailOpen).toBe(false)
 
-    // reparseFavoriteUser closes drawer too
+    // reparseFavoriteUser closes drawer and merges parsed media into backend.
     ;(douyinApi.getDouyinAccount as any).mockResolvedValueOnce({
       secUserId: 'SU1',
       tab: 'post',
       cursor: 0,
       hasMore: false,
-      items: []
+      items: [
+        {
+          detailId: 'aw3',
+          type: 'video',
+          desc: 'new media path',
+          coverUrl: 'cover-new',
+          items: [{ url: 'media-new' }]
+        }
+      ]
     })
+    ;(douyinApi.upsertDouyinFavoriteUserAwemes as any).mockClear()
     vm.favoriteUserDetailOpen = true
     vm.favoriteUserDetailId = 'SU1'
     await vm.reparseFavoriteUser({ secUserId: 'SU1' })
     expect(vm.activeMode).toBe('account')
     expect(vm.accountInput).toBe('SU1')
     expect(vm.favoriteUserDetailOpen).toBe(false)
+    expect(douyinApi.upsertDouyinFavoriteUserAwemes).toHaveBeenCalledWith({
+      secUserId: 'SU1',
+      items: [
+        expect.objectContaining({
+          awemeId: 'aw3',
+          desc: 'new media path',
+          coverUrl: 'cover-new',
+          downloads: ['media-new']
+        })
+      ]
+    })
   })
 
   it('applies chat entry favorites/users context and keeps default entry unchanged after close', async () => {
