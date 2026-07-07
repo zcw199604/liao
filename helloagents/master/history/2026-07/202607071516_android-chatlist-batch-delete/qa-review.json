@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "qa_mode": "standard",
+  "scope": "Android 会话列表批量删除切片：批量删除 API/DTO、Room 缓存清理、选择模式 UI、批量删除确认、部分失败保留选中、知识库同步。",
+  "outcome": "findings",
+  "conclusion": "实现与文档已完成，文本级检查通过；Android Gradle 测试在当前 Java 8 环境被 AGP 8.7.3 的 Java 11+ 要求阻断，未进入 Kotlin 编译或测试执行阶段。",
+  "findings": [
+    {
+      "severity": "warning",
+      "title": "Android 自动化测试环境 JVM 版本不足",
+      "detail": "当前 openjdk version \"1.8.0_492\"，Gradle 配置阶段解析 com.android.tools.build:gradle:8.7.3 时失败，提示至少需要 JVM runtime version 11。",
+      "recommendation": "在 JDK 17 或至少 JDK 11 环境重新执行 Android 单元测试和 androidTest 编译命令。"
+    }
+  ],
+  "file_references": [
+    "android-app/app/src/main/kotlin/io/github/a7413498/liao/android/core/network/NetworkModels.kt",
+    "android-app/app/src/main/kotlin/io/github/a7413498/liao/android/core/network/NetworkStack.kt",
+    "android-app/app/src/main/kotlin/io/github/a7413498/liao/android/core/database/LocalDatabase.kt",
+    "android-app/app/src/main/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListFeature.kt",
+    "android-app/app/src/main/kotlin/io/github/a7413498/liao/android/app/testing/AndroidUiTestTags.kt",
+    "android-app/app/src/test/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListRepositoryTest.kt",
+    "android-app/app/src/test/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListViewModelTest.kt",
+    "android-app/app/src/androidTest/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListScreenTest.kt",
+    "helloagents/master/wiki/modules/android-client.md",
+    "helloagents/master/CHANGELOG.md"
+  ],
+  "commands": [
+    {
+      "command": "git diff --check",
+      "result": "passed",
+      "note": "无空白错误。"
+    },
+    {
+      "command": "git diff -U0 -- \"android-app/app/src/main/kotlin\" | rg -n \"password|secret|token|rm -rf|DROP TABLE\"",
+      "result": "passed",
+      "note": "无匹配；本轮 Android 主代码 diff 未新增敏感字面量或危险语句。"
+    },
+    {
+      "command": "java -version",
+      "result": "warning",
+      "note": "当前为 OpenJDK 1.8.0_492。"
+    },
+    {
+      "command": "cd android-app && GRADLE_USER_HOME=.gradle-user-home ./gradlew testDebugUnitTest --no-daemon --tests \"io.github.a7413498.liao.android.feature.chatlist.ChatListRepositoryTest\"",
+      "result": "blocked",
+      "note": "配置阶段失败：AGP 8.7.3 requires at least JVM runtime version 11，当前 Java 8。"
+    },
+    {
+      "command": "cd android-app && GRADLE_USER_HOME=.gradle-user-home ./gradlew testDebugUnitTest --no-daemon --tests \"io.github.a7413498.liao.android.feature.chatlist.ChatListViewModelTest\"",
+      "result": "blocked",
+      "note": "配置阶段失败：AGP 8.7.3 requires at least JVM runtime version 11，当前 Java 8。"
+    },
+    {
+      "command": "cd android-app && GRADLE_USER_HOME=.gradle-user-home ./gradlew :app:compileDebugAndroidTestKotlin --no-daemon",
+      "result": "blocked",
+      "note": "配置阶段失败：AGP 8.7.3 requires at least JVM runtime version 11，当前 Java 8。"
+    }
+  ],
+  "task_verification": [
+    {
+      "task": "0.1-0.3",
+      "status": "passed",
+      "evidence": "方案包边界限定为 Android 会话列表批量删除切片，未包含服务端、Vue 或日期批量删除变更。"
+    },
+    {
+      "task": "1.1-1.2",
+      "status": "passed_with_warning",
+      "evidence": "已补 ChatListRepositoryTest；生产代码新增批量删除 DTO/API、DAO deleteByIds 与成功项缓存清理；自动化执行被 Java 8 阻断。"
+    },
+    {
+      "task": "2.1-2.2",
+      "status": "passed_with_warning",
+      "evidence": "已补 ViewModel/Compose 测试；生产代码实现选择模式、全选、批量删除确认和部分失败保留选中；自动化执行被 Java 8 阻断。"
+    },
+    {
+      "task": "3.1",
+      "status": "passed",
+      "evidence": "安全关键词扫描未发现本轮新增敏感信息或危险语句；批量删除有二次确认。"
+    },
+    {
+      "task": "4.1",
+      "status": "passed",
+      "evidence": "Android Client 模块文档和 CHANGELOG 已记录批量删除能力。"
+    },
+    {
+      "task": "5A.1-5A.2",
+      "status": "passed_with_warning",
+      "evidence": "验证命令已运行并记录；Android Gradle 测试因 JVM 环境阻断。"
+    }
+  ]
+}

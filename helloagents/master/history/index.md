@@ -8,6 +8,7 @@
 
 | 时间戳 | 功能名称 | 类型 | 状态 | 方案包路径 |
 |--------|----------|------|------|------------|
+| 202607071516 | android-chatlist-batch-delete | 功能 | ⚠️测试环境受限 | [history/2026-07/202607071516_android-chatlist-batch-delete](2026-07/202607071516_android-chatlist-batch-delete/) |
 | 202607071407 | android-chatlist-online-status | 功能 | ⚠️测试环境受限 | [history/2026-07/202607071407_android-chatlist-online-status](2026-07/202607071407_android-chatlist-online-status/) |
 | 202607071351 | android-chatlist-global-favorite | 功能 | ⚠️测试环境受限 | [history/2026-07/202607071351_android-chatlist-global-favorite](2026-07/202607071351_android-chatlist-global-favorite/) |
 | 202607071322 | android-chatlist-actions | 功能 | ⚠️测试环境受限 | [history/2026-07/202607071322_android-chatlist-actions](2026-07/202607071322_android-chatlist-actions/) |
@@ -30,6 +31,7 @@
 ## 按月归档
 
 ### 2026-07
+- [202607071516_android-chatlist-batch-delete](2026-07/202607071516_android-chatlist-batch-delete/) - Android 会话列表补齐批量管理和批量删除动作，对齐 `/api/batchDeleteUpstreamUsers` 并支持部分失败保留失败项。
 - [202607071407_android-chatlist-online-status](2026-07/202607071407_android-chatlist-online-status/) - Android 会话列表补齐会话项查在线动作，对齐 `ShowUserLoginInfo` WebSocket 协议并展示在线状态。
 - [202607071351_android-chatlist-global-favorite](2026-07/202607071351_android-chatlist-global-favorite/) - Android 会话列表补齐会话项全局收藏切换，对齐 `/api/favorite/add` 与 `/api/favorite/remove`。
 - [202607071322_android-chatlist-actions](2026-07/202607071322_android-chatlist-actions/) - Android 会话列表补齐清未读和删除会话动作；删除对齐 `/api/deleteUpstreamUser`，本地清理会话与消息缓存。

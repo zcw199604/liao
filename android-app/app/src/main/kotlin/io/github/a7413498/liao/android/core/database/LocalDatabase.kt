@@ -108,6 +108,9 @@ interface ConversationDao {
     @Query("DELETE FROM conversation_cache WHERE id = :id")
     suspend fun deleteById(id: String)
 
+    @Query("DELETE FROM conversation_cache WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
+
     @Query("DELETE FROM conversation_cache")
     suspend fun clearAll()
 }

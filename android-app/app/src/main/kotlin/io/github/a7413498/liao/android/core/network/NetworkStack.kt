@@ -215,6 +215,11 @@ interface ChatApiService {
         @Field("userToId") userToId: String,
     ): ApiEnvelope<JsonElement>
 
+    @POST("/api/batchDeleteUpstreamUsers")
+    suspend fun batchDeleteUpstreamUsers(
+        @Body payload: JsonElement,
+    ): ApiEnvelope<BatchDeleteUsersResponseDto>
+
     @GET("/api/chat/archiveSearch")
     suspend fun searchChatArchive(
         @Query("q") query: String,

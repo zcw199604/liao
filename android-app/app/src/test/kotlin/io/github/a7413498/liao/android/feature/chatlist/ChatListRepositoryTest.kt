@@ -12,6 +12,8 @@ import io.github.a7413498.liao.android.core.datastore.AppPreferencesStore
 import io.github.a7413498.liao.android.core.network.ChatApiService
 import io.github.a7413498.liao.android.core.network.ChatArchiveSearchItemDto
 import io.github.a7413498.liao.android.core.network.ChatArchiveSearchResponseDto
+import io.github.a7413498.liao.android.core.network.BatchDeleteFailedItemDto
+import io.github.a7413498.liao.android.core.network.BatchDeleteUsersResponseDto
 import io.github.a7413498.liao.android.core.network.ChatUserDto
 import io.github.a7413498.liao.android.core.network.ApiEnvelope
 import io.github.a7413498.liao.android.core.network.ContactCandidateDto
@@ -387,6 +389,52 @@ class ChatListRepositoryTest {
 
         assertTrue(disconnected is AppResult.Error)
         assertEquals("WebSocket 未连接，暂时无法查询在线状态", (disconnected as AppResult.Error).message)
+    }
+
+    @Test
+    fun `batch delete peers should call remote and clear successful local caches`() = runTest {
+        coEvery { preferencesStore.readCurrentSession() } returns session
+        coEvery { chatApiService.batchDeleteUpstreamUsers(any()) } returns ApiEnvelope(
+            code = 0,
+            data = BatchDeleteUsersResponseDto(
+                successCount = 2,
+                failCount = 1,
+                failedItems = listOf(BatchDeleteFailedItemDto(userToId = "peer-fail", reason = "上游失败")),
+            ),
+        )
+        coEvery { conversationDao.deleteByIds(listOf("peer-ok-1", "peer-ok-2")) } just runs
+        coEvery { messageDao.clearByPeer("peer-ok-1") } just runs
+        coEvery { messageDao.clearByPeer("peer-ok-2") } just runs
+
+        val result = repository.batchDeletePeers(listOf(" peer-ok-1 ", "peer-fail", "peer-ok-2", "peer-ok-1", " "))
+
+        assertTrue(result is AppResult.Success)
+        val data = (result as AppResult.Success).data
+        assertEquals(listOf("peer-ok-1", "peer-fail", "peer-ok-2"), data.requestedIds)
+        assertEquals(listOf("peer-ok-1", "peer-ok-2"), data.successIds)
+        assertEquals(setOf("peer-fail"), data.failedIds)
+        assertEquals("上游失败", data.failedReasons["peer-fail"])
+        coVerify { chatApiService.batchDeleteUpstreamUsers(any()) }
+        coVerify { conversationDao.deleteByIds(listOf("peer-ok-1", "peer-ok-2")) }
+        coVerify { messageDao.clearByPeer("peer-ok-1") }
+        coVerify { messageDao.clearByPeer("peer-ok-2") }
+        coVerify(exactly = 0) { messageDao.clearByPeer("peer-fail") }
+    }
+
+    @Test
+    fun `batch delete peers should surface missing session and empty selection`() = runTest {
+        val empty = repository.batchDeletePeers(listOf(" ", ""))
+
+        assertTrue(empty is AppResult.Error)
+        assertEquals("请选择要删除的会话", (empty as AppResult.Error).message)
+
+        coEvery { preferencesStore.readCurrentSession() } returns null
+
+        val missingSession = repository.batchDeletePeers(listOf("peer-1"))
+
+        assertTrue(missingSession is AppResult.Error)
+        assertEquals("请先选择身份", (missingSession as AppResult.Error).message)
+        coVerify(exactly = 0) { chatApiService.batchDeleteUpstreamUsers(any()) }
     }
 
     @Test

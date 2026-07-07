@@ -344,6 +344,78 @@ class ChatListViewModelTest {
     }
 
     @Test
+    fun `batch selection should keep failed peers selected after partial delete`() = runTest(mainDispatcherRule.dispatcher) {
+        val peer1 = samplePeer("peer-1", "Alice")
+        val peer2 = samplePeer("peer-2", "Bob")
+        historyFlow.value = listOf(peer1, peer2)
+        every { repository.observeConversations(ConversationTab.HISTORY) } returns historyFlow
+        every { repository.observeConversations(ConversationTab.FAVORITE) } returns favoriteFlow
+        every { webSocketClient.events } returns events
+        coEvery { repository.loadHistory() } returns AppResult.Success(Unit)
+        coEvery { repository.loadFavorite() } returns AppResult.Success(Unit)
+        coEvery { repository.batchDeletePeers(listOf("peer-1", "peer-2")) } returns AppResult.Success(
+            BatchDeletePeersResult(
+                requestedIds = listOf("peer-1", "peer-2"),
+                successIds = listOf("peer-1"),
+                failedIds = setOf("peer-2"),
+                failedReasons = mapOf("peer-2" to "上游失败"),
+            )
+        )
+
+        val viewModel = ChatListViewModel(repository, webSocketClient)
+        advanceUntilIdle()
+
+        viewModel.enterSelectionMode(peer1)
+        viewModel.togglePeerSelection(peer2.id)
+        viewModel.requestBatchDelete()
+        assertEquals(true, viewModel.uiState.selectionMode)
+        assertEquals(setOf("peer-1", "peer-2"), viewModel.uiState.selectedPeerIds)
+        assertEquals(true, viewModel.uiState.batchDeleteConfirmVisible)
+
+        viewModel.deleteSelectedPeers()
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.selectionMode)
+        assertEquals(setOf("peer-2"), viewModel.uiState.selectedPeerIds)
+        assertEquals(false, viewModel.uiState.batchDeleteConfirmVisible)
+        assertEquals(false, viewModel.uiState.batchDeleting)
+        assertEquals("已删除 1 个，失败 1 个", viewModel.uiState.infoMessage)
+    }
+
+    @Test
+    fun `batch delete should exit selection mode when all selected peers are deleted`() = runTest(mainDispatcherRule.dispatcher) {
+        val peer1 = samplePeer("peer-1", "Alice")
+        val peer2 = samplePeer("peer-2", "Bob")
+        historyFlow.value = listOf(peer1, peer2)
+        every { repository.observeConversations(ConversationTab.HISTORY) } returns historyFlow
+        every { repository.observeConversations(ConversationTab.FAVORITE) } returns favoriteFlow
+        every { webSocketClient.events } returns events
+        coEvery { repository.loadHistory() } returns AppResult.Success(Unit)
+        coEvery { repository.loadFavorite() } returns AppResult.Success(Unit)
+        coEvery { repository.batchDeletePeers(listOf("peer-1", "peer-2")) } returns AppResult.Success(
+            BatchDeletePeersResult(
+                requestedIds = listOf("peer-1", "peer-2"),
+                successIds = listOf("peer-1", "peer-2"),
+                failedIds = emptySet(),
+                failedReasons = emptyMap(),
+            )
+        )
+
+        val viewModel = ChatListViewModel(repository, webSocketClient)
+        advanceUntilIdle()
+
+        viewModel.enterSelectionMode()
+        viewModel.selectAllVisiblePeers()
+        viewModel.requestBatchDelete()
+        viewModel.deleteSelectedPeers()
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.uiState.selectionMode)
+        assertEquals(emptySet<String>(), viewModel.uiState.selectedPeerIds)
+        assertEquals("已删除 2 个会话", viewModel.uiState.infoMessage)
+    }
+
+    @Test
     fun `archive search should load results and open selected archived chat`() = runTest(mainDispatcherRule.dispatcher) {
         val archived = ChatArchiveSearchItemDto(
             ownerUserId = "owner-1",

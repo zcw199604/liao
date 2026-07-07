@@ -78,6 +78,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 
 class ChatListRepository @Inject constructor(
     private val chatApiService: ChatApiService,
@@ -125,6 +128,39 @@ class ChatListRepository @Inject constructor(
     }.fold(
         onSuccess = { AppResult.Success(Unit) },
         onFailure = { AppResult.Error(it.message ?: "查询在线状态失败", it) },
+    )
+
+    suspend fun batchDeletePeers(peerIds: List<String>): AppResult<BatchDeletePeersResult> = runCatching {
+        val targetIds = peerIds.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        if (targetIds.isEmpty()) error("请选择要删除的会话")
+        val session = preferencesStore.readCurrentSession() ?: error("请先选择身份")
+        val payload = buildJsonObject {
+            put("myUserId", JsonPrimitive(session.id))
+            put("userToIds", JsonArray(targetIds.map { JsonPrimitive(it) }))
+        }
+        val response = chatApiService.batchDeleteUpstreamUsers(payload)
+        if (response.code != 0) error(response.msg ?: response.message ?: "批量删除失败")
+        val failedReasons = response.data?.failedItems.orEmpty()
+            .mapNotNull { item ->
+                val id = item.userToId.trim()
+                if (id.isBlank()) null else id to item.reason
+            }
+            .toMap()
+        val failedIds = failedReasons.keys
+        val successIds = targetIds.filterNot { failedIds.contains(it) }
+        if (successIds.isNotEmpty()) {
+            conversationDao.deleteByIds(successIds)
+            successIds.forEach { messageDao.clearByPeer(it) }
+        }
+        BatchDeletePeersResult(
+            requestedIds = targetIds,
+            successIds = successIds,
+            failedIds = failedIds,
+            failedReasons = failedReasons,
+        )
+    }.fold(
+        onSuccess = { AppResult.Success(it) },
+        onFailure = { AppResult.Error(it.message ?: "批量删除失败", it) },
     )
 
     suspend fun loadGlobalFavoriteTargetIds(): AppResult<Set<String>> = runCatching {
@@ -341,6 +377,16 @@ enum class ConversationTab {
     FAVORITE,
 }
 
+data class BatchDeletePeersResult(
+    val requestedIds: List<String>,
+    val successIds: List<String>,
+    val failedIds: Set<String>,
+    val failedReasons: Map<String, String>,
+) {
+    val successCount: Int get() = successIds.size
+    val failCount: Int get() = failedIds.size
+}
+
 data class ChatListUiState(
     val tab: ConversationTab = ConversationTab.HISTORY,
     val loading: Boolean = true,
@@ -367,6 +413,10 @@ data class ChatListUiState(
     val onlineStatusPeerName: String = "",
     val onlineStatusOnline: Boolean? = null,
     val onlineStatusLastTime: String = "",
+    val selectionMode: Boolean = false,
+    val selectedPeerIds: Set<String> = emptySet(),
+    val batchDeleteConfirmVisible: Boolean = false,
+    val batchDeleting: Boolean = false,
     val infoMessage: String? = null,
     val errorMessage: String? = null,
 )
@@ -399,6 +449,95 @@ class ChatListViewModel @Inject constructor(
     fun consumeInfoMessage() {
         if (uiState.infoMessage != null) {
             uiState = uiState.copy(infoMessage = null)
+        }
+    }
+
+    fun enterSelectionMode(preselect: ChatPeer? = null) {
+        val selectedIds = if (preselect == null || preselect.id.isBlank()) {
+            uiState.selectedPeerIds
+        } else {
+            uiState.selectedPeerIds + preselect.id
+        }
+        uiState = uiState.copy(
+            selectionMode = true,
+            selectedPeerIds = selectedIds,
+            errorMessage = null,
+        )
+    }
+
+    fun exitSelectionMode() {
+        if (uiState.batchDeleting) return
+        uiState = uiState.copy(
+            selectionMode = false,
+            selectedPeerIds = emptySet(),
+            batchDeleteConfirmVisible = false,
+        )
+    }
+
+    fun togglePeerSelection(peerId: String) {
+        val targetId = peerId.trim()
+        if (targetId.isBlank()) return
+        val updated = if (uiState.selectedPeerIds.contains(targetId)) {
+            uiState.selectedPeerIds - targetId
+        } else {
+            uiState.selectedPeerIds + targetId
+        }
+        uiState = uiState.copy(selectionMode = true, selectedPeerIds = updated)
+    }
+
+    fun selectAllVisiblePeers() {
+        val visibleIds = uiState.items.map { it.id }.filter { it.isNotBlank() }.toSet()
+        uiState = uiState.copy(selectionMode = true, selectedPeerIds = visibleIds)
+    }
+
+    fun requestBatchDelete() {
+        if (uiState.selectedPeerIds.isEmpty()) {
+            uiState = uiState.copy(errorMessage = "请选择要删除的会话")
+            return
+        }
+        uiState = uiState.copy(batchDeleteConfirmVisible = true, errorMessage = null)
+    }
+
+    fun cancelBatchDelete() {
+        if (uiState.batchDeleting) return
+        uiState = uiState.copy(batchDeleteConfirmVisible = false)
+    }
+
+    fun deleteSelectedPeers() {
+        val ids = uiState.selectedPeerIds.toList()
+        if (ids.isEmpty()) {
+            uiState = uiState.copy(batchDeleteConfirmVisible = false, errorMessage = "请选择要删除的会话")
+            return
+        }
+        viewModelScope.launch {
+            uiState = uiState.copy(batchDeleting = true, errorMessage = null)
+            when (val result = repository.batchDeletePeers(ids)) {
+                is AppResult.Success -> {
+                    val data = result.data
+                    uiState = if (data.failCount == 0) {
+                        uiState.copy(
+                            selectionMode = false,
+                            selectedPeerIds = emptySet(),
+                            batchDeleteConfirmVisible = false,
+                            batchDeleting = false,
+                            infoMessage = "已删除 ${data.successCount} 个会话",
+                        )
+                    } else {
+                        uiState.copy(
+                            selectionMode = true,
+                            selectedPeerIds = data.failedIds,
+                            batchDeleteConfirmVisible = false,
+                            batchDeleting = false,
+                            infoMessage = "已删除 ${data.successCount} 个，失败 ${data.failCount} 个",
+                        )
+                    }
+                }
+                is AppResult.Error -> uiState = uiState.copy(
+                    batchDeleteConfirmVisible = false,
+                    batchDeleting = false,
+                    errorMessage = result.message,
+                )
+            }
         }
     }
 
@@ -664,7 +803,9 @@ class ChatListViewModel @Inject constructor(
         observeJob?.cancel()
         observeJob = viewModelScope.launch {
             repository.observeConversations(uiState.tab).collect { items ->
-                uiState = uiState.copy(items = items, loading = false)
+                val visibleIds = items.map { it.id }.toSet()
+                val selectedIds = if (uiState.selectionMode) uiState.selectedPeerIds.intersect(visibleIds) else uiState.selectedPeerIds
+                uiState = uiState.copy(items = items, loading = false, selectedPeerIds = selectedIds)
             }
         }
     }
@@ -779,6 +920,13 @@ fun ChatListScreen(
             onRequestDeletePeer = viewModel::requestDeletePeer,
             onCheckOnlineStatus = viewModel::checkPeerOnlineStatus,
             onDismissOnlineStatus = viewModel::dismissOnlineStatus,
+            onEnterSelectionMode = { viewModel.enterSelectionMode() },
+            onExitSelectionMode = viewModel::exitSelectionMode,
+            onTogglePeerSelection = viewModel::togglePeerSelection,
+            onSelectAllVisible = viewModel::selectAllVisiblePeers,
+            onRequestBatchDelete = viewModel::requestBatchDelete,
+            onCancelBatchDelete = viewModel::cancelBatchDelete,
+            onConfirmBatchDelete = viewModel::deleteSelectedPeers,
             modifier = Modifier.padding(padding),
         )
         if (state.archiveSearchVisible) {
@@ -1062,6 +1210,13 @@ fun ChatListScreenContent(
     onRequestDeletePeer: (ChatPeer) -> Unit,
     onCheckOnlineStatus: (ChatPeer) -> Unit = {},
     onDismissOnlineStatus: () -> Unit = {},
+    onEnterSelectionMode: () -> Unit = {},
+    onExitSelectionMode: () -> Unit = {},
+    onTogglePeerSelection: (String) -> Unit = {},
+    onSelectAllVisible: () -> Unit = {},
+    onRequestBatchDelete: () -> Unit = {},
+    onCancelBatchDelete: () -> Unit = {},
+    onConfirmBatchDelete: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -1137,6 +1292,14 @@ fun ChatListScreenContent(
                 ) {
                     Text("全局收藏")
                 }
+                OutlinedButton(
+                    onClick = onEnterSelectionMode,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag(ChatListTestTags.BATCH_MANAGE_BUTTON),
+                ) {
+                    Text("批量管理")
+                }
                 Button(
                     onClick = onRefresh,
                     enabled = !state.loading,
@@ -1145,6 +1308,40 @@ fun ChatListScreenContent(
                         .testTag(ChatListTestTags.REFRESH_BUTTON),
                 ) {
                     Text("刷新")
+                }
+            }
+            if (state.selectionMode) {
+                Text("已选择 ${state.selectedPeerIds.size} 个会话", style = MaterialTheme.typography.bodySmall)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = onSelectAllVisible,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(ChatListTestTags.BATCH_SELECT_ALL_BUTTON),
+                    ) {
+                        Text("全选")
+                    }
+                    Button(
+                        onClick = onRequestBatchDelete,
+                        enabled = state.selectedPeerIds.isNotEmpty() && !state.batchDeleting,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(ChatListTestTags.BATCH_DELETE_BUTTON),
+                    ) {
+                        Text(if (state.batchDeleting) "删除中..." else "删除所选")
+                    }
+                    OutlinedButton(
+                        onClick = onExitSelectionMode,
+                        enabled = !state.batchDeleting,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(ChatListTestTags.BATCH_EXIT_BUTTON),
+                    ) {
+                        Text("退出")
+                    }
                 }
             }
         }
@@ -1213,13 +1410,18 @@ fun ChatListScreenContent(
                         val isGlobalFavorite = state.globalFavoriteTargetIds.contains(peer.id)
                         val isTogglingGlobalFavorite = state.togglingGlobalFavoritePeerId == peer.id
                         val isCheckingOnline = state.checkingOnlinePeerId == peer.id
+                        val isSelected = state.selectedPeerIds.contains(peer.id)
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag(ChatListTestTags.item(peer.id))
                                 .clickable {
-                                    onMarkPeerRead(peer.id)
-                                    onOpenChat(peer.id, peer.name)
+                                    if (state.selectionMode) {
+                                        onTogglePeerSelection(peer.id)
+                                    } else {
+                                        onMarkPeerRead(peer.id)
+                                        onOpenChat(peer.id, peer.name)
+                                    }
                                 }
                         ) {
                             Column(
@@ -1240,55 +1442,66 @@ fun ChatListScreenContent(
                                         color = MaterialTheme.colorScheme.primary,
                                     )
                                 }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
+                                if (state.selectionMode) {
                                     OutlinedButton(
-                                        onClick = { onClearPeerUnread(peer) },
-                                        enabled = peer.unreadCount > 0,
+                                        onClick = { onTogglePeerSelection(peer.id) },
                                         modifier = Modifier
-                                            .weight(1f)
-                                            .testTag(ChatListTestTags.clearUnreadButton(peer.id)),
+                                            .fillMaxWidth()
+                                            .testTag(ChatListTestTags.selectButton(peer.id)),
                                     ) {
-                                        Text("清未读")
+                                        Text(if (isSelected) "已选择" else "选择")
                                     }
-                                    OutlinedButton(
-                                        onClick = { onToggleGlobalFavorite(peer, isGlobalFavorite) },
-                                        enabled = !isTogglingGlobalFavorite,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .testTag(ChatListTestTags.globalFavoriteButton(peer.id)),
+                                } else {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     ) {
-                                        Text(
-                                            when {
-                                                isTogglingGlobalFavorite -> "处理中..."
-                                                isGlobalFavorite -> "取消全局收藏"
-                                                else -> "全局收藏"
-                                            }
-                                        )
+                                        OutlinedButton(
+                                            onClick = { onClearPeerUnread(peer) },
+                                            enabled = peer.unreadCount > 0,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .testTag(ChatListTestTags.clearUnreadButton(peer.id)),
+                                        ) {
+                                            Text("清未读")
+                                        }
+                                        OutlinedButton(
+                                            onClick = { onToggleGlobalFavorite(peer, isGlobalFavorite) },
+                                            enabled = !isTogglingGlobalFavorite,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .testTag(ChatListTestTags.globalFavoriteButton(peer.id)),
+                                        ) {
+                                            Text(
+                                                when {
+                                                    isTogglingGlobalFavorite -> "处理中..."
+                                                    isGlobalFavorite -> "取消全局收藏"
+                                                    else -> "全局收藏"
+                                                }
+                                            )
+                                        }
                                     }
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    OutlinedButton(
-                                        onClick = { onCheckOnlineStatus(peer) },
-                                        enabled = !isCheckingOnline,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .testTag(ChatListTestTags.checkOnlineButton(peer.id)),
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     ) {
-                                        Text(if (isCheckingOnline) "查询中..." else "查在线")
-                                    }
-                                    OutlinedButton(
-                                        onClick = { onRequestDeletePeer(peer) },
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .testTag(ChatListTestTags.deleteButton(peer.id)),
-                                    ) {
-                                        Text("删除")
+                                        OutlinedButton(
+                                            onClick = { onCheckOnlineStatus(peer) },
+                                            enabled = !isCheckingOnline,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .testTag(ChatListTestTags.checkOnlineButton(peer.id)),
+                                        ) {
+                                            Text(if (isCheckingOnline) "查询中..." else "查在线")
+                                        }
+                                        OutlinedButton(
+                                            onClick = { onRequestDeletePeer(peer) },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .testTag(ChatListTestTags.deleteButton(peer.id)),
+                                        ) {
+                                            Text("删除")
+                                        }
                                     }
                                 }
                             }
@@ -1312,6 +1525,31 @@ fun ChatListScreenContent(
             confirmButton = {
                 TextButton(onClick = onDismissOnlineStatus) {
                     Text("知道了")
+                }
+            },
+        )
+    }
+    if (state.batchDeleteConfirmVisible) {
+        AlertDialog(
+            onDismissRequest = onCancelBatchDelete,
+            title = { Text("批量删除") },
+            text = { Text("确定删除选中的 ${state.selectedPeerIds.size} 个会话吗？本地消息缓存也会清理。") },
+            confirmButton = {
+                TextButton(
+                    onClick = onConfirmBatchDelete,
+                    enabled = !state.batchDeleting,
+                    modifier = Modifier.testTag(ChatListTestTags.BATCH_DELETE_DIALOG_CONFIRM),
+                ) {
+                    Text(if (state.batchDeleting) "删除中..." else "删除")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = onCancelBatchDelete,
+                    enabled = !state.batchDeleting,
+                    modifier = Modifier.testTag(ChatListTestTags.BATCH_DELETE_DIALOG_CANCEL),
+                ) {
+                    Text("取消")
                 }
             },
         )

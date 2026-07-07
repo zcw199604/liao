@@ -20,6 +20,7 @@
 - Android 会话列表新增会话项“清未读”和“删除”动作，其中删除对齐 Web 端 `/api/deleteUpstreamUser`，成功后清理本地会话和消息缓存。
 - Android 会话列表新增会话项“全局收藏 / 取消全局收藏”动作，对齐 Web 端 `/api/favorite/add` 与 `/api/favorite/remove`。
 - Android 会话列表新增会话项“查在线”动作，对齐 Web 端 `ShowUserLoginInfo` WebSocket 协议并展示在线/离线/未知状态和最后时间。
+- Android 会话列表新增“批量管理 / 批量删除”动作，对齐 Web 端 `/api/batchDeleteUpstreamUsers`，支持部分失败时保留失败项。
 
 ### 变更
 - 知识库以当前 Go 后端、Vue 前端、Android 客户端、SQL 迁移脚本和 Docker 构建为准；旧备份目录仅作为历史参考。

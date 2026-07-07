@@ -72,6 +72,19 @@ data class ChatArchiveSearchResponseDto(
 )
 
 @Serializable
+data class BatchDeleteUsersResponseDto(
+    val successCount: Int = 0,
+    val failCount: Int = 0,
+    val failedItems: List<BatchDeleteFailedItemDto> = emptyList(),
+)
+
+@Serializable
+data class BatchDeleteFailedItemDto(
+    val userToId: String = "",
+    val reason: String = "",
+)
+
+@Serializable
 data class ContactCandidateDto(
     val targetUserId: String = "",
     val targetUserName: String? = null,
