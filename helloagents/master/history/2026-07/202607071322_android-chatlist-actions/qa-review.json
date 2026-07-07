@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "qa_mode": "standard",
+  "scope": "Android 会话列表会话项清未读与删除用户动作",
+  "outcome": "findings",
+  "conclusion": "本轮代码已实现并通过格式检查；Android Gradle 单测受当前 Java 8 环境限制未能执行，需要在 JDK 17 环境复跑。",
+  "findings": [
+    {
+      "severity": "warning",
+      "title": "Android 单测未执行",
+      "detail": "当前环境仅有 Java 8，Android Gradle Plugin 8.7.3 至少需要 Java 11，项目 compileOptions/kotlinOptions 目标为 Java 17。",
+      "recommendation": "在安装 JDK 17 的环境执行 android-app 的 testDebugUnitTest。"
+    }
+  ],
+  "file_references": [
+    "android-app/app/src/main/kotlin/io/github/a7413498/liao/android/core/database/LocalDatabase.kt",
+    "android-app/app/src/main/kotlin/io/github/a7413498/liao/android/core/network/NetworkStack.kt",
+    "android-app/app/src/main/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListFeature.kt",
+    "android-app/app/src/test/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListRepositoryTest.kt",
+    "android-app/app/src/test/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListViewModelTest.kt",
+    "android-app/app/src/androidTest/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListScreenTest.kt",
+    "helloagents/master/wiki/modules/android-client.md",
+    "helloagents/master/CHANGELOG.md"
+  ],
+  "commands": [
+    {
+      "command": "git diff --check",
+      "result": "passed",
+      "note": "无 whitespace error。"
+    },
+    {
+      "command": "cd android-app && GRADLE_USER_HOME=.gradle-user-home ./gradlew testDebugUnitTest --no-daemon --tests \"io.github.a7413498.liao.android.feature.chatlist.ChatListRepositoryTest\"",
+      "result": "blocked",
+      "note": "Gradle 配置阶段失败：com.android.tools.build:gradle:8.7.3 requires at least JVM runtime version 11; 当前为 Java 8。"
+    }
+  ],
+  "task_verification": [
+    {
+      "task": "0.1",
+      "status": "passed",
+      "evidence": "方案包范围限定为会话项清未读与删除。"
+    },
+    {
+      "task": "0.2",
+      "status": "passed",
+      "evidence": "未新增依赖，未新增 Room 字段或提升数据库版本，未改动 Vue 端代码。"
+    },
+    {
+      "task": "1.1",
+      "status": "warning",
+      "evidence": "Repository 测试已补删除成功/失败断言；运行被 JDK 环境阻断。"
+    },
+    {
+      "task": "1.2",
+      "status": "warning",
+      "evidence": "ViewModel 测试已补清未读和删除结果状态断言；运行被 JDK 环境阻断。"
+    },
+    {
+      "task": "2.1",
+      "status": "passed",
+      "evidence": "新增 ConversationDao.deleteById 与 ChatApiService.deleteUpstreamUser。"
+    },
+    {
+      "task": "2.2",
+      "status": "passed",
+      "evidence": "ChatListRepository.deletePeer 远端成功后清理本地会话/消息；ViewModel 增加确认和结果消息状态。"
+    },
+    {
+      "task": "2.3",
+      "status": "passed",
+      "evidence": "会话项新增清未读与删除按钮，删除使用确认弹窗。"
+    },
+    {
+      "task": "3.1",
+      "status": "passed",
+      "evidence": "Android 客户端知识库和 CHANGELOG 已记录新能力。"
+    },
+    {
+      "task": "4.1",
+      "status": "warning",
+      "evidence": "git diff --check 通过；Android 单测被 Java 8 环境阻断。"
+    }
+  ]
+}

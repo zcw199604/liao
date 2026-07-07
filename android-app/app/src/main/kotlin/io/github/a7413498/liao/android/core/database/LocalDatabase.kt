@@ -105,6 +105,9 @@ interface ConversationDao {
     @Query("UPDATE conversation_cache SET unreadCount = 0 WHERE id = :id")
     suspend fun markAsRead(id: String)
 
+    @Query("DELETE FROM conversation_cache WHERE id = :id")
+    suspend fun deleteById(id: String)
+
     @Query("DELETE FROM conversation_cache")
     suspend fun clearAll()
 }

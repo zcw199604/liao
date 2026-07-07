@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "qa_mode": "standard",
+  "scope": "Android 会话列表会话项全局收藏切换",
+  "outcome": "findings",
+  "conclusion": "本轮已实现会话项全局收藏加载、添加、移除和 UI 状态更新，并通过格式检查；Android Gradle 单测受当前 Java 8 环境限制未能执行。",
+  "findings": [
+    {
+      "severity": "warning",
+      "title": "Android 单测未执行",
+      "detail": "当前环境为 Java 8，Android Gradle Plugin 8.7.3 至少需要 Java 11，项目配置目标为 JDK 17。",
+      "recommendation": "在 JDK 17 环境执行 android-app 的 testDebugUnitTest。"
+    }
+  ],
+  "file_references": [
+    "android-app/app/src/main/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListFeature.kt",
+    "android-app/app/src/main/kotlin/io/github/a7413498/liao/android/app/testing/AndroidUiTestTags.kt",
+    "android-app/app/src/test/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListRepositoryTest.kt",
+    "android-app/app/src/test/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListViewModelTest.kt",
+    "android-app/app/src/androidTest/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListScreenTest.kt",
+    "helloagents/master/wiki/modules/android-client.md",
+    "helloagents/master/CHANGELOG.md"
+  ],
+  "commands": [
+    {
+      "command": "git diff --check",
+      "result": "passed",
+      "note": "无 whitespace error。"
+    },
+    {
+      "command": "java -version",
+      "result": "passed",
+      "note": "当前为 openjdk version 1.8.0_492。"
+    },
+    {
+      "command": "cd android-app && GRADLE_USER_HOME=.gradle-user-home ./gradlew testDebugUnitTest --no-daemon --tests \"io.github.a7413498.liao.android.feature.chatlist.ChatListRepositoryTest\"",
+      "result": "blocked",
+      "note": "Gradle 配置阶段失败：com.android.tools.build:gradle:8.7.3 requires at least JVM runtime version 11; 当前为 Java 8。"
+    }
+  ],
+  "task_verification": [
+    {
+      "task": "0.1",
+      "status": "passed",
+      "evidence": "方案包范围限定为会话列表全局收藏切换，在线状态查询列为范围外。"
+    },
+    {
+      "task": "0.2",
+      "status": "passed",
+      "evidence": "复用 FavoriteApiService，不新增依赖或 Room schema。"
+    },
+    {
+      "task": "1.1",
+      "status": "warning",
+      "evidence": "Repository 测试已补加载、添加、移除和失败断言；运行被 JDK 环境阻断。"
+    },
+    {
+      "task": "1.2",
+      "status": "warning",
+      "evidence": "ViewModel 测试已补状态加载、添加成功、移除成功和失败路径；运行被 JDK 环境阻断。"
+    },
+    {
+      "task": "2.1",
+      "status": "passed",
+      "evidence": "ChatListRepository 新增 loadGlobalFavoriteTargetIds 与 toggleGlobalFavorite。"
+    },
+    {
+      "task": "2.2",
+      "status": "passed",
+      "evidence": "ChatListViewModel 初始加载收藏集合，切换成功后局部更新集合和提示。"
+    },
+    {
+      "task": "2.3",
+      "status": "passed",
+      "evidence": "会话项新增全局收藏按钮和稳定 test tag。"
+    },
+    {
+      "task": "3.1",
+      "status": "passed",
+      "evidence": "Android 客户端知识库和 CHANGELOG 已记录会话项全局收藏切换。"
+    },
+    {
+      "task": "4.1",
+      "status": "warning",
+      "evidence": "git diff --check 通过；Android 单测被 Java 8 环境阻断。"
+    }
+  ]
+}

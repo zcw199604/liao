@@ -2,7 +2,9 @@ package io.github.a7413498.liao.android.feature.identity
 
 import io.github.a7413498.liao.android.core.common.AppResult
 import io.github.a7413498.liao.android.core.common.CurrentIdentitySession
+import io.github.a7413498.liao.android.core.database.ConversationDao
 import io.github.a7413498.liao.android.core.database.IdentityDao
+import io.github.a7413498.liao.android.core.database.MessageDao
 import io.github.a7413498.liao.android.core.datastore.AppPreferencesStore
 import io.github.a7413498.liao.android.core.network.ApiEnvelope
 import io.github.a7413498.liao.android.core.network.IdentityApiService
@@ -22,8 +24,10 @@ import org.junit.Test
 class IdentityRepositoryTest {
     private val identityApiService = mockk<IdentityApiService>()
     private val identityDao = mockk<IdentityDao>(relaxUnitFun = true)
+    private val conversationDao = mockk<ConversationDao>(relaxUnitFun = true)
+    private val messageDao = mockk<MessageDao>(relaxUnitFun = true)
     private val preferencesStore = mockk<AppPreferencesStore>(relaxUnitFun = true)
-    private val repository = IdentityRepository(identityApiService, identityDao, preferencesStore)
+    private val repository = IdentityRepository(identityApiService, identityDao, conversationDao, messageDao, preferencesStore)
 
     @Test
     fun `load identities should cache remote items`() = runTest {
@@ -167,6 +171,8 @@ class IdentityRepositoryTest {
         val result = repository.selectIdentity(identity)
 
         assertTrue(result is AppResult.Success)
+        coVerify { conversationDao.clearAll() }
+        coVerify { messageDao.clearAll() }
         assertEquals("id-2", savedSession.captured.id)
         assertEquals("Bob", savedSession.captured.name)
         assertEquals("男", savedSession.captured.sex)

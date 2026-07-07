@@ -30,10 +30,16 @@ class ChatListScreenTest {
                 state = state,
                 onSwitchTab = { state = state.copy(tab = it) },
                 onRefresh = {},
+                onOpenCrossIdentity = {},
+                onOpenArchiveSearch = {},
                 onOpenGlobalFavorites = {},
                 onOpenSettings = {},
                 onOpenChat = { _, _ -> },
                 onMarkPeerRead = {},
+                onClearPeerUnread = {},
+                onToggleGlobalFavorite = { _, _ -> },
+                onRequestDeletePeer = {},
+                onCheckOnlineStatus = {},
             )
         }
 
@@ -53,10 +59,16 @@ class ChatListScreenTest {
                 ),
                 onSwitchTab = {},
                 onRefresh = {},
+                onOpenCrossIdentity = {},
+                onOpenArchiveSearch = {},
                 onOpenGlobalFavorites = {},
                 onOpenSettings = {},
                 onOpenChat = { _, _ -> },
                 onMarkPeerRead = {},
+                onClearPeerUnread = {},
+                onToggleGlobalFavorite = { _, _ -> },
+                onRequestDeletePeer = {},
+                onCheckOnlineStatus = {},
             )
         }
 
@@ -85,6 +97,8 @@ class ChatListScreenTest {
                 state = ChatListUiState(loading = false, items = listOf(peer)),
                 onSwitchTab = {},
                 onRefresh = {},
+                onOpenCrossIdentity = {},
+                onOpenArchiveSearch = {},
                 onOpenGlobalFavorites = {},
                 onOpenSettings = {},
                 onOpenChat = { peerId, peerName ->
@@ -92,6 +106,10 @@ class ChatListScreenTest {
                     openedPeerName = peerName
                 },
                 onMarkPeerRead = { markedReadId = it },
+                onClearPeerUnread = {},
+                onToggleGlobalFavorite = { _, _ -> },
+                onRequestDeletePeer = {},
+                onCheckOnlineStatus = {},
             )
         }
 
@@ -102,5 +120,91 @@ class ChatListScreenTest {
             assertEquals(peer.id, openedPeerId)
             assertEquals(peer.name, openedPeerName)
         }
+    }
+
+    @Test
+    fun peer_item_actions_should_clear_unread_and_request_delete() {
+        val peer = ChatPeer(
+            id = "peer-actions",
+            name = "动作会话",
+            sex = "女",
+            ip = "127.0.0.1",
+            address = "上海",
+            lastMessage = "你好",
+            lastTime = "10:00",
+            unreadCount = 3,
+        )
+        var clearedPeerId: String? = null
+        var toggledFavorite: Pair<String, Boolean>? = null
+        var requestedDeleteId: String? = null
+        var checkedOnlineId: String? = null
+
+        composeRule.setLiaoTestContent {
+            ChatListScreenContent(
+                state = ChatListUiState(
+                    loading = false,
+                    items = listOf(peer),
+                    globalFavoriteTargetIds = setOf(peer.id),
+                ),
+                onSwitchTab = {},
+                onRefresh = {},
+                onOpenCrossIdentity = {},
+                onOpenArchiveSearch = {},
+                onOpenGlobalFavorites = {},
+                onOpenSettings = {},
+                onOpenChat = { _, _ -> },
+                onMarkPeerRead = {},
+                onClearPeerUnread = { clearedPeerId = it.id },
+                onToggleGlobalFavorite = { target, isGlobalFavorite -> toggledFavorite = target.id to isGlobalFavorite },
+                onRequestDeletePeer = { requestedDeleteId = it.id },
+                onCheckOnlineStatus = { checkedOnlineId = it.id },
+            )
+        }
+
+        composeRule.onNodeWithText("取消全局收藏").fetchSemanticsNode()
+        composeRule.onNodeWithTag(ChatListTestTags.clearUnreadButton(peer.id)).performClick()
+        composeRule.onNodeWithTag(ChatListTestTags.globalFavoriteButton(peer.id)).performClick()
+        composeRule.onNodeWithTag(ChatListTestTags.checkOnlineButton(peer.id)).performClick()
+        composeRule.onNodeWithTag(ChatListTestTags.deleteButton(peer.id)).performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(peer.id, clearedPeerId)
+            assertEquals(peer.id to true, toggledFavorite)
+            assertEquals(peer.id, checkedOnlineId)
+            assertEquals(peer.id, requestedDeleteId)
+        }
+    }
+
+    @Test
+    fun online_status_dialog_should_render_status_and_last_time() {
+        composeRule.setLiaoTestContent {
+            ChatListScreenContent(
+                state = ChatListUiState(
+                    loading = false,
+                    onlineStatusVisible = true,
+                    onlineStatusPeerName = "在线用户",
+                    onlineStatusOnline = true,
+                    onlineStatusLastTime = "2026-07-07 13:00",
+                ),
+                onSwitchTab = {},
+                onRefresh = {},
+                onOpenCrossIdentity = {},
+                onOpenArchiveSearch = {},
+                onOpenGlobalFavorites = {},
+                onOpenSettings = {},
+                onOpenChat = { _, _ -> },
+                onMarkPeerRead = {},
+                onClearPeerUnread = {},
+                onToggleGlobalFavorite = { _, _ -> },
+                onRequestDeletePeer = {},
+                onCheckOnlineStatus = {},
+                onDismissOnlineStatus = {},
+            )
+        }
+
+        composeRule.onNodeWithText("在线状态").fetchSemanticsNode()
+        composeRule.onNodeWithText("在线用户").fetchSemanticsNode()
+        composeRule.onNodeWithText("在线").fetchSemanticsNode()
+        composeRule.onNodeWithText("2026-07-07 13:00").fetchSemanticsNode()
     }
 }

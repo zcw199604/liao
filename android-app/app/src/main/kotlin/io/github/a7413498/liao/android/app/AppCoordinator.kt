@@ -36,6 +36,7 @@ class AppCoordinatorViewModel @Inject constructor(
     val uiState: StateFlow<AppCoordinatorUiState> = _uiState.asStateFlow()
 
     private val activeChatPeerId = MutableStateFlow<String?>(null)
+    private var lastBoundSessionId: String? = null
 
     init {
         observeSessionBinding()
@@ -76,11 +77,19 @@ class AppCoordinatorViewModel @Inject constructor(
 
                     when {
                         token.isBlank() || session == null -> {
+                            lastBoundSessionId = null
                             webSocketClient.disconnect(manual = true)
                             conversationDao.clearAll()
                             messageDao.clearAll()
                         }
-                        else -> webSocketClient.connect(token = token, session = session)
+                        else -> {
+                            if (lastBoundSessionId != null && lastBoundSessionId != session.id) {
+                                conversationDao.clearAll()
+                                messageDao.clearAll()
+                            }
+                            lastBoundSessionId = session.id
+                            webSocketClient.connect(token = token, session = session)
+                        }
                     }
                 }
         }

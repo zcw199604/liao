@@ -45,10 +45,13 @@ import io.github.a7413498.liao.android.core.common.AppResult
 import io.github.a7413498.liao.android.core.common.GlobalFavoriteItem
 import io.github.a7413498.liao.android.core.common.generateCookie
 import io.github.a7413498.liao.android.core.common.generateRandomIp
+import io.github.a7413498.liao.android.core.database.ConversationDao
+import io.github.a7413498.liao.android.core.database.ConversationEntity
 import io.github.a7413498.liao.android.core.database.FavoriteDao
 import io.github.a7413498.liao.android.core.database.FavoriteEntity
 import io.github.a7413498.liao.android.core.database.IdentityDao
 import io.github.a7413498.liao.android.core.database.IdentityEntity
+import io.github.a7413498.liao.android.core.database.MessageDao
 import io.github.a7413498.liao.android.core.database.toFavoriteItem
 import io.github.a7413498.liao.android.core.datastore.AppPreferencesStore
 import io.github.a7413498.liao.android.core.network.FavoriteApiService
@@ -80,6 +83,8 @@ class GlobalFavoritesRepository @Inject constructor(
     private val favoriteDao: FavoriteDao,
     private val identityApiService: IdentityApiService,
     private val identityDao: IdentityDao,
+    private val conversationDao: ConversationDao,
+    private val messageDao: MessageDao,
     private val preferencesStore: AppPreferencesStore,
 ) {
     suspend fun loadFavorites(): AppResult<GlobalFavoritesPayload> = runCatching {
@@ -126,10 +131,14 @@ class GlobalFavoritesRepository @Inject constructor(
             cookie = generateCookie(selected.id, selected.name),
             ip = generateRandomIp(),
         )
+        val peerName = item.resolvedPeerName()
+        conversationDao.clearAll()
+        messageDao.clearAll()
         preferencesStore.saveCurrentSession(session)
+        conversationDao.upsert(item.toPreparedConversation(peerName))
         OpenChatPayload(
             peerId = item.targetUserId,
-            peerName = item.targetUserName.ifBlank { "用户${item.targetUserId.take(4)}" },
+            peerName = peerName,
         )
     }.fold(
         onSuccess = { AppResult.Success(it) },
@@ -176,6 +185,22 @@ class GlobalFavoritesRepository @Inject constructor(
         }
         return cached
     }
+
+    private fun GlobalFavoriteItem.resolvedPeerName(): String =
+        targetUserName.ifBlank { "用户${targetUserId.take(4)}" }
+
+    private fun GlobalFavoriteItem.toPreparedConversation(peerName: String): ConversationEntity =
+        ConversationEntity(
+            id = targetUserId,
+            name = peerName,
+            sex = "",
+            ip = "",
+            address = "",
+            isFavorite = true,
+            lastMessage = "暂无消息",
+            lastTime = "刚刚",
+            unreadCount = 0,
+        )
 }
 
 data class GlobalFavoritesUiState(

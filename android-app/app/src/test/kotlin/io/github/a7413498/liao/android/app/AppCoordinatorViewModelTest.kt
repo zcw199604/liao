@@ -82,6 +82,33 @@ class AppCoordinatorViewModelTest {
     }
 
     @Test
+    fun `session change should clear chat caches before binding new identity`() = runTest(mainDispatcherRule.dispatcher) {
+        val firstSession = sampleSession(id = "session-1")
+        val secondSession = sampleSession(id = "session-2")
+        authTokenFlow.value = "jwt-token"
+        currentSessionFlow.value = firstSession
+
+        val viewModel = AppCoordinatorViewModel(
+            preferencesStore = preferencesStore,
+            webSocketClient = webSocketClient,
+            conversationDao = conversationDao,
+            messageDao = messageDao,
+        )
+        advanceUntilIdle()
+
+        assertEquals(LiaoRoute.CHAT_LIST, viewModel.uiState.value.launchRoute)
+        coVerify(exactly = 0) { conversationDao.clearAll() }
+        coVerify(exactly = 0) { messageDao.clearAll() }
+
+        currentSessionFlow.value = secondSession
+        advanceUntilIdle()
+
+        verify { webSocketClient.connect(token = "jwt-token", session = secondSession) }
+        coVerify(exactly = 1) { conversationDao.clearAll() }
+        coVerify(exactly = 1) { messageDao.clearAll() }
+    }
+
+    @Test
     fun `match success should reuse cached conversation fields and mark active peer as read`() = runTest(mainDispatcherRule.dispatcher) {
         authTokenFlow.value = "jwt-token"
         currentSessionFlow.value = sampleSession()
@@ -237,8 +264,8 @@ class AppCoordinatorViewModelTest {
         assertNull(viewModel.uiState.value.sessionExpiredMessage)
     }
 
-    private fun sampleSession(): CurrentIdentitySession = CurrentIdentitySession(
-        id = "session-1",
+    private fun sampleSession(id: String = "session-1"): CurrentIdentitySession = CurrentIdentitySession(
+        id = id,
         name = "Alice",
         sex = "女",
         cookie = "cookie",

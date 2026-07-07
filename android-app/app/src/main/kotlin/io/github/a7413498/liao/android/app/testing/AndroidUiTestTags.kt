@@ -33,13 +33,21 @@ object ChatListTestTags {
     const val FAVORITE_TAB = "chatlist_favorite_tab"
     const val SETTINGS_BUTTON = "chatlist_settings_button"
     const val TOP_GLOBAL_FAVORITES_BUTTON = "chatlist_top_global_favorites_button"
+    const val CROSS_IDENTITY_BUTTON = "chatlist_cross_identity_button"
+    const val ARCHIVE_SEARCH_BUTTON = "chatlist_archive_search_button"
     const val QUICK_GLOBAL_FAVORITES_BUTTON = "chatlist_quick_global_favorites_button"
     const val REFRESH_BUTTON = "chatlist_refresh_button"
     const val LOADING_INDICATOR = "chatlist_loading_indicator"
     const val STATE_CARD = "chatlist_state_card"
     const val LIST = "chatlist_list"
+    const val DELETE_DIALOG_CONFIRM = "chatlist_delete_dialog_confirm"
+    const val DELETE_DIALOG_CANCEL = "chatlist_delete_dialog_cancel"
 
     fun item(id: String): String = "chatlist_item_$id"
+    fun clearUnreadButton(id: String): String = "chatlist_item_clear_unread_$id"
+    fun globalFavoriteButton(id: String): String = "chatlist_item_global_favorite_$id"
+    fun checkOnlineButton(id: String): String = "chatlist_item_check_online_$id"
+    fun deleteButton(id: String): String = "chatlist_item_delete_$id"
 }
 
 object SettingsTestTags {

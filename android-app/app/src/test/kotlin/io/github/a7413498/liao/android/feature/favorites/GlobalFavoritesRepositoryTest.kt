@@ -3,10 +3,13 @@ package io.github.a7413498.liao.android.feature.favorites
 import io.github.a7413498.liao.android.core.common.AppResult
 import io.github.a7413498.liao.android.core.common.CurrentIdentitySession
 import io.github.a7413498.liao.android.core.common.GlobalFavoriteItem
+import io.github.a7413498.liao.android.core.database.ConversationDao
+import io.github.a7413498.liao.android.core.database.ConversationEntity
 import io.github.a7413498.liao.android.core.database.FavoriteDao
 import io.github.a7413498.liao.android.core.database.FavoriteEntity
 import io.github.a7413498.liao.android.core.database.IdentityDao
 import io.github.a7413498.liao.android.core.database.IdentityEntity
+import io.github.a7413498.liao.android.core.database.MessageDao
 import io.github.a7413498.liao.android.core.datastore.AppPreferencesStore
 import io.github.a7413498.liao.android.core.network.ApiEnvelope
 import io.github.a7413498.liao.android.core.network.FavoriteApiService
@@ -29,8 +32,18 @@ class GlobalFavoritesRepositoryTest {
     private val favoriteDao = mockk<FavoriteDao>(relaxUnitFun = true)
     private val identityApiService = mockk<IdentityApiService>()
     private val identityDao = mockk<IdentityDao>(relaxUnitFun = true)
+    private val conversationDao = mockk<ConversationDao>(relaxUnitFun = true)
+    private val messageDao = mockk<MessageDao>(relaxUnitFun = true)
     private val preferencesStore = mockk<AppPreferencesStore>(relaxUnitFun = true)
-    private val repository = GlobalFavoritesRepository(favoriteApiService, favoriteDao, identityApiService, identityDao, preferencesStore)
+    private val repository = GlobalFavoritesRepository(
+        favoriteApiService,
+        favoriteDao,
+        identityApiService,
+        identityDao,
+        conversationDao,
+        messageDao,
+        preferencesStore,
+    )
 
     @Test
     fun `load favorites should cache valid remote items and resolve names from cache`() = runTest {
@@ -117,6 +130,7 @@ class GlobalFavoritesRepositoryTest {
     @Test
     fun `switch identity should use cached identity and fallback peer name`() = runTest {
         val saved = slot<CurrentIdentitySession>()
+        val preparedConversation = slot<ConversationEntity>()
         val item = GlobalFavoriteItem(
             id = 1,
             identityId = "id-1",
@@ -126,6 +140,7 @@ class GlobalFavoritesRepositoryTest {
         )
         coEvery { identityDao.getById("id-1") } returns IdentityEntity("id-1", "Alice", "女", "", "")
         coEvery { identityApiService.selectIdentity("id-1") } returns ApiEnvelope(code = 0, data = null)
+        coEvery { conversationDao.upsert(capture(preparedConversation)) } just runs
         coEvery { preferencesStore.saveCurrentSession(capture(saved)) } just runs
 
         val result = repository.switchIdentityAndPrepareChat(item)
@@ -138,6 +153,13 @@ class GlobalFavoritesRepositoryTest {
         assertEquals("Alice", saved.captured.name)
         assertTrue(saved.captured.cookie.startsWith("id-1_Alice_"))
         assertTrue(saved.captured.ip.matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+")))
+        assertEquals("peer-1234", preparedConversation.captured.id)
+        assertEquals("用户peer", preparedConversation.captured.name)
+        assertTrue(preparedConversation.captured.isFavorite)
+        assertEquals("暂无消息", preparedConversation.captured.lastMessage)
+        assertEquals(0, preparedConversation.captured.unreadCount)
+        coVerify { conversationDao.clearAll() }
+        coVerify { messageDao.clearAll() }
     }
 
     @Test

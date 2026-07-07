@@ -288,6 +288,8 @@ sealed interface LiaoWsEvent {
         override val raw: String,
         val envelope: LiaoWsEnvelope,
         val message: String,
+        val isOnline: Boolean? = null,
+        val lastTime: String = "",
     ) : LiaoWsEvent
 
     data class MatchSuccess(
@@ -626,7 +628,16 @@ class LiaoWebSocketClient @Inject constructor(
             }
 
             LiaoWsKnownCode.OnlineStatus -> {
-                _events.tryEmit(LiaoWsEvent.OnlineStatus(raw = raw, envelope = envelope, message = envelope.content.ifBlank { "已返回在线状态" }))
+                val onlineStatus = parseOnlineStatus(root)
+                _events.tryEmit(
+                    LiaoWsEvent.OnlineStatus(
+                        raw = raw,
+                        envelope = envelope,
+                        message = envelope.content.ifBlank { "已返回在线状态" },
+                        isOnline = onlineStatus?.first,
+                        lastTime = onlineStatus?.second.orEmpty(),
+                    )
+                )
                 return
             }
 
@@ -684,6 +695,18 @@ class LiaoWebSocketClient @Inject constructor(
             age = root["sel_userAge"]?.jsonPrimitive?.contentOrNull.orEmpty().ifBlank { "0" },
             address = root["sel_userAddress"]?.jsonPrimitive?.contentOrNull.orEmpty().ifBlank { "未知" },
         )
+    }
+
+    private fun parseOnlineStatus(root: JsonObject?): Pair<Boolean?, String>? {
+        val data = root?.get("data") as? JsonObject ?: return null
+        val onlineValue = data["IF_Online"]?.jsonPrimitive?.contentOrNull.orEmpty().trim()
+        val isOnline = when (onlineValue) {
+            "1" -> true
+            "0" -> false
+            else -> null
+        }
+        val lastTime = data["TimeAll"]?.jsonPrimitive?.contentOrNull.orEmpty().trim()
+        return isOnline to lastTime
     }
 
     private fun isForceoutActive(nowMillis: Long = System.currentTimeMillis()): Boolean = nowMillis < forceoutUntilMillis

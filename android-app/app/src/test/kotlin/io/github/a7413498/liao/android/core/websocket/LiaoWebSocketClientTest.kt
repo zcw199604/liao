@@ -208,7 +208,7 @@ class LiaoWebSocketClientTest {
         listeners.single().onMessage(webSocket, """{"act":"inputStatusOn_peer-1_","fromuser":{"nickname":"Bob"}}""")
         listeners.single().onMessage(webSocket, """{"code":14,"act":"inputStatusOff_peer-2_","fromuser":{"nickname":"Carol"}}""")
         listeners.single().onMessage(webSocket, """{"code":12,"content":""}""")
-        listeners.single().onMessage(webSocket, """{"code":30}""")
+        listeners.single().onMessage(webSocket, """{"code":30,"data":{"IF_Online":"1","TimeAll":"2026-07-07 13:00"}}""")
         listeners.single().onMessage(webSocket, """{"code":15,"sel_userid":"peer-9"}""")
         listeners.single().onMessage(webSocket, """{"code":16,"content":""}""")
         listeners.single().onMessage(webSocket, """{"code":19,"content":"系统提示"}""".encodeUtf8())
@@ -227,7 +227,10 @@ class LiaoWebSocketClientTest {
         assertEquals(false, (events[2] as LiaoWsEvent.Typing).typing)
         assertEquals("Carol", (events[2] as LiaoWsEvent.Typing).peerName)
         assertEquals("连接成功", (events[3] as LiaoWsEvent.ConnectNotice).message)
-        assertEquals("已返回在线状态", (events[4] as LiaoWsEvent.OnlineStatus).message)
+        val onlineStatus = events[4] as LiaoWsEvent.OnlineStatus
+        assertEquals("已返回在线状态", onlineStatus.message)
+        assertEquals(true, onlineStatus.isOnline)
+        assertEquals("2026-07-07 13:00", onlineStatus.lastTime)
         val candidate = (events[5] as LiaoWsEvent.MatchSuccess).candidate
         assertEquals("peer-9", candidate.id)
         assertEquals("匿名用户", candidate.name)
@@ -243,6 +246,37 @@ class LiaoWebSocketClientTest {
         assertFalse(chatMessage.isSelf)
         assertTrue(events[9] is LiaoWsEvent.Unknown)
         assertNotNull((events[9] as LiaoWsEvent.Unknown).envelope)
+    }
+
+    @Test
+    fun `online status should parse offline and unknown payloads`() = runTest {
+        val okHttpClient = mockk<OkHttpClient>()
+        val baseUrlProvider = mockk<io.github.a7413498.liao.android.core.network.BaseUrlProvider>()
+        val webSocket = mockk<WebSocket>(relaxed = true)
+        val listeners = mutableListOf<WebSocketListener>()
+        every { baseUrlProvider.currentWebSocketUrl(any()) } returns "ws://demo.test/ws?token=t"
+        every { okHttpClient.newWebSocket(any<Request>(), any<WebSocketListener>()) } answers {
+            listeners += secondArg<WebSocketListener>()
+            webSocket
+        }
+        every { webSocket.send(any<String>()) } returns true
+
+        val client = LiaoWebSocketClient(okHttpClient, baseUrlProvider, json, runtimeConfigProvider())
+        val events = mutableListOf<LiaoWsEvent>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { client.events.collect { events += it } }
+
+        client.connect("token-1", sampleSession(id = "self-1"))
+        listeners.single().onOpen(webSocket, mockk<Response>())
+        listeners.single().onMessage(webSocket, """{"code":30,"data":{"IF_Online":"0","TimeAll":"昨天"}}""")
+        listeners.single().onMessage(webSocket, """{"code":30,"data":{"IF_Online":"unexpected"}}""")
+        advanceUntilIdle()
+
+        val offline = events[0] as LiaoWsEvent.OnlineStatus
+        val unknown = events[1] as LiaoWsEvent.OnlineStatus
+        assertEquals(false, offline.isOnline)
+        assertEquals("昨天", offline.lastTime)
+        assertEquals(null, unknown.isOnline)
+        assertEquals("", unknown.lastTime)
     }
 
     @Test

@@ -43,8 +43,10 @@ import io.github.a7413498.liao.android.app.testing.IdentityTestTags
 import io.github.a7413498.liao.android.core.common.AppResult
 import io.github.a7413498.liao.android.core.common.generateCookie
 import io.github.a7413498.liao.android.core.common.generateRandomIp
+import io.github.a7413498.liao.android.core.database.ConversationDao
 import io.github.a7413498.liao.android.core.database.IdentityDao
 import io.github.a7413498.liao.android.core.database.IdentityEntity
+import io.github.a7413498.liao.android.core.database.MessageDao
 import io.github.a7413498.liao.android.core.datastore.AppPreferencesStore
 import io.github.a7413498.liao.android.core.network.IdentityApiService
 import io.github.a7413498.liao.android.core.network.IdentityDto
@@ -55,6 +57,8 @@ import kotlinx.coroutines.launch
 class IdentityRepository @Inject constructor(
     private val identityApiService: IdentityApiService,
     private val identityDao: IdentityDao,
+    private val conversationDao: ConversationDao,
+    private val messageDao: MessageDao,
     private val preferencesStore: AppPreferencesStore,
 ) {
     private suspend fun replaceIdentityCache(items: List<IdentityDto>) {
@@ -135,6 +139,8 @@ class IdentityRepository @Inject constructor(
         identityApiService.selectIdentity(identity.id)
         val cookie = generateCookie(identity.id, identity.name)
         val session = identity.toSession(cookie = cookie, ip = generateRandomIp())
+        conversationDao.clearAll()
+        messageDao.clearAll()
         preferencesStore.saveCurrentSession(session)
     }.fold(
         onSuccess = { AppResult.Success(Unit) },

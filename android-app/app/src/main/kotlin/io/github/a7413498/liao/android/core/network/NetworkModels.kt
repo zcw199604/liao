@@ -67,6 +67,65 @@ data class ChatUserDto(
 )
 
 @Serializable
+data class ChatArchiveSearchResponseDto(
+    val items: List<ChatArchiveSearchItemDto> = emptyList(),
+)
+
+@Serializable
+data class ContactCandidateDto(
+    val targetUserId: String = "",
+    val targetUserName: String? = null,
+    val name: String? = null,
+    val nickname: String? = null,
+    val sex: String? = null,
+    val age: String? = null,
+    val area: String? = null,
+    val address: String? = null,
+    val lastMsg: String? = null,
+    val lastTime: String? = null,
+    val sources: List<String> = emptyList(),
+    val localArchived: Boolean = false,
+)
+
+@Serializable
+data class ContactCandidatesResponseDto(
+    val sourceIdentityId: String = "",
+    val items: List<ContactCandidateDto> = emptyList(),
+)
+
+@Serializable
+data class ChatArchiveSearchItemDto(
+    val ownerUserId: String = "",
+    val targetUserId: String = "",
+    val targetUserName: String? = null,
+    val name: String? = null,
+    val nickname: String? = null,
+    val sex: String? = null,
+    val age: String? = null,
+    val area: String? = null,
+    val address: String? = null,
+    val lastMsg: String? = null,
+    val lastTime: String? = null,
+    val sources: List<String> = emptyList(),
+    val localArchived: Boolean = false,
+) {
+    fun toContactCandidate(): ContactCandidateDto = ContactCandidateDto(
+        targetUserId = targetUserId,
+        targetUserName = targetUserName,
+        name = name,
+        nickname = nickname,
+        sex = sex,
+        age = age,
+        area = area,
+        address = address,
+        lastMsg = lastMsg,
+        lastTime = lastTime,
+        sources = sources,
+        localArchived = localArchived,
+    )
+}
+
+@Serializable
 data class ChatMessageUserDto(
     val id: String = "",
     val name: String? = null,

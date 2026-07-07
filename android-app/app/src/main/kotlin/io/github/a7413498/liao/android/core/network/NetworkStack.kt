@@ -209,6 +209,30 @@ interface ChatApiService {
     ): List<ChatUserDto>
 
     @FormUrlEncoded
+    @POST("/api/deleteUpstreamUser")
+    suspend fun deleteUpstreamUser(
+        @Field("myUserId") myUserId: String,
+        @Field("userToId") userToId: String,
+    ): ApiEnvelope<JsonElement>
+
+    @GET("/api/chat/archiveSearch")
+    suspend fun searchChatArchive(
+        @Query("q") query: String,
+        @Query("limit") limit: Int = 100,
+    ): ApiEnvelope<ChatArchiveSearchResponseDto>
+
+    @GET("/api/chat/contactCandidates")
+    suspend fun getContactCandidates(
+        @Query("sourceIdentityId") sourceIdentityId: String,
+        @Query("includeUpstream") includeUpstream: String = "1",
+        @Query("q") query: String = "",
+        @Query("limit") limit: Int = 300,
+        @Query("cookieData") cookieData: String = "",
+        @Query("referer") referer: String = "",
+        @Query("userAgent") userAgent: String = "",
+    ): ApiEnvelope<ContactCandidatesResponseDto>
+
+    @FormUrlEncoded
     @POST("/api/getMessageHistory")
     suspend fun getMessageHistory(
         @Field("myUserID") myUserId: String,

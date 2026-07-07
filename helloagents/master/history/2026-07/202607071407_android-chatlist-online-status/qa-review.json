@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "qa_mode": "standard",
+  "scope": "Android 会话列表查询在线状态切片：WebSocket code=30 解析、会话列表请求动作、ViewModel 状态、Compose 按钮与弹窗、知识库同步。",
+  "outcome": "findings",
+  "conclusion": "实现与文档已完成，文本级检查通过；Android Gradle 测试在当前 Java 8 环境被 AGP 8.7.3 的 Java 11+ 要求阻断，未进入 Kotlin 编译或测试执行阶段。",
+  "findings": [
+    {
+      "severity": "warning",
+      "title": "Android 自动化测试环境 JVM 版本不足",
+      "detail": "当前 openjdk version \"1.8.0_492\"，Gradle 配置阶段解析 com.android.tools.build:gradle:8.7.3 时失败，提示至少需要 JVM runtime version 11。",
+      "recommendation": "在 JDK 17 或至少 JDK 11 环境重新执行 Android 单元测试和 androidTest 编译命令。"
+    }
+  ],
+  "file_references": [
+    "android-app/app/src/main/kotlin/io/github/a7413498/liao/android/core/websocket/LiaoWebSocketClient.kt",
+    "android-app/app/src/main/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListFeature.kt",
+    "android-app/app/src/main/kotlin/io/github/a7413498/liao/android/app/testing/AndroidUiTestTags.kt",
+    "android-app/app/src/test/kotlin/io/github/a7413498/liao/android/core/websocket/LiaoWebSocketClientTest.kt",
+    "android-app/app/src/test/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListRepositoryTest.kt",
+    "android-app/app/src/test/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListViewModelTest.kt",
+    "android-app/app/src/androidTest/kotlin/io/github/a7413498/liao/android/feature/chatlist/ChatListScreenTest.kt",
+    "helloagents/master/wiki/modules/android-client.md",
+    "helloagents/master/CHANGELOG.md"
+  ],
+  "commands": [
+    {
+      "command": "git diff --check",
+      "result": "passed",
+      "note": "无空白错误。"
+    },
+    {
+      "command": "rg -n \"password|secret|token|rm -rf|DROP TABLE\" \"android-app/app/src/main/kotlin\"",
+      "result": "passed",
+      "note": "命中既有 token 处理代码；未发现本轮新增明文密钥、危险命令或 SQL 破坏语句。"
+    },
+    {
+      "command": "git diff -U0 -- \"android-app/app/src/main/kotlin\" | rg -n \"password|secret|token|rm -rf|DROP TABLE\"",
+      "result": "passed",
+      "note": "diff 中仅出现既有 AppCoordinator token 连接上下文变更；未新增敏感字面量。"
+    },
+    {
+      "command": "java -version",
+      "result": "warning",
+      "note": "当前为 OpenJDK 1.8.0_492。"
+    },
+    {
+      "command": "cd android-app && GRADLE_USER_HOME=.gradle-user-home ./gradlew testDebugUnitTest --no-daemon --tests \"io.github.a7413498.liao.android.core.websocket.LiaoWebSocketClientTest\"",
+      "result": "blocked",
+      "note": "配置阶段失败：AGP 8.7.3 requires at least JVM runtime version 11，当前 Java 8。"
+    },
+    {
+      "command": "cd android-app && GRADLE_USER_HOME=.gradle-user-home ./gradlew :app:compileDebugAndroidTestKotlin --no-daemon",
+      "result": "blocked",
+      "note": "配置阶段失败：AGP 8.7.3 requires at least JVM runtime version 11，当前 Java 8。"
+    }
+  ],
+  "task_verification": [
+    {
+      "task": "0.1-0.3",
+      "status": "passed",
+      "evidence": "方案包边界限定为 Android 会话列表查在线切片，未包含服务端、Vue 或数据库变更。"
+    },
+    {
+      "task": "1.1-1.2",
+      "status": "passed_with_warning",
+      "evidence": "已补 LiaoWebSocketClientTest，生产代码解析 IF_Online/TimeAll；自动化执行被 Java 8 阻断。"
+    },
+    {
+      "task": "2.1-2.3",
+      "status": "passed_with_warning",
+      "evidence": "已补 Repository/ViewModel/Compose 测试，生产代码实现请求、查询中状态、OnlineStatus 弹窗；自动化执行被 Java 8 阻断。"
+    },
+    {
+      "task": "3.1",
+      "status": "passed",
+      "evidence": "安全关键词扫描与 diff 扫描未发现本轮新增敏感信息或危险语句。"
+    },
+    {
+      "task": "4.1",
+      "status": "passed",
+      "evidence": "Android Client 模块文档和 CHANGELOG 已记录会话项查在线能力。"
+    },
+    {
+      "task": "5A.1-5A.2",
+      "status": "passed_with_warning",
+      "evidence": "RED/GREEN/VERIFY 命令已尝试执行并记录；Android Gradle 测试因 JVM 环境阻断。"
+    }
+  ]
+}

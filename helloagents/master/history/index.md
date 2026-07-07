@@ -8,6 +8,9 @@
 
 | 时间戳 | 功能名称 | 类型 | 状态 | 方案包路径 |
 |--------|----------|------|------|------------|
+| 202607071407 | android-chatlist-online-status | 功能 | ⚠️测试环境受限 | [history/2026-07/202607071407_android-chatlist-online-status](2026-07/202607071407_android-chatlist-online-status/) |
+| 202607071351 | android-chatlist-global-favorite | 功能 | ⚠️测试环境受限 | [history/2026-07/202607071351_android-chatlist-global-favorite](2026-07/202607071351_android-chatlist-global-favorite/) |
+| 202607071322 | android-chatlist-actions | 功能 | ⚠️测试环境受限 | [history/2026-07/202607071322_android-chatlist-actions](2026-07/202607071322_android-chatlist-actions/) |
 | 202606030554 | chat-archive-global-search | 功能 | ✅已完成 | [history/2026-06/202606030554_chat-archive-global-search](2026-06/202606030554_chat-archive-global-search/) |
 | 202605291304 | fix_global_favorite_identity_chat | 修复 | ✅已完成 | [history/2026-05/202605291304_fix_global_favorite_identity_chat](2026-05/202605291304_fix_global_favorite_identity_chat/) |
 | 202605290916 | mtphoto_api_key_migration | 重构 | ✅已完成 | [history/2026-05/202605290916_mtphoto_api_key_migration](2026-05/202605290916_mtphoto_api_key_migration/) |
@@ -25,6 +28,11 @@
 ---
 
 ## 按月归档
+
+### 2026-07
+- [202607071407_android-chatlist-online-status](2026-07/202607071407_android-chatlist-online-status/) - Android 会话列表补齐会话项查在线动作，对齐 `ShowUserLoginInfo` WebSocket 协议并展示在线状态。
+- [202607071351_android-chatlist-global-favorite](2026-07/202607071351_android-chatlist-global-favorite/) - Android 会话列表补齐会话项全局收藏切换，对齐 `/api/favorite/add` 与 `/api/favorite/remove`。
+- [202607071322_android-chatlist-actions](2026-07/202607071322_android-chatlist-actions/) - Android 会话列表补齐清未读和删除会话动作；删除对齐 `/api/deleteUpstreamUser`，本地清理会话与消息缓存。
 
 ### 2026-06
 - [202606030554_chat-archive-global-search](2026-06/202606030554_chat-archive-global-search/) - 新增全局聊天归档搜索接口和侧边栏归档搜索入口。
