@@ -362,6 +362,8 @@
             </div>
 
             <div class="px-2 pt-2 pb-1 shrink-0">
+              <button v-if="mtPhotoStore.folderCurrentId" class="mb-2 px-3 py-1.5 rounded border border-line-strong text-xs text-fg-muted hover:border-pink-500 disabled:opacity-50"
+                :disabled="mtPhotoStore.folderLoading || folderAlbumSaving" @click="openFolderMove">移动此目录全部文件</button>
               <div class="flex flex-wrap items-center gap-2 mb-2 text-xs">
                 <span class="text-fg-subtle">勾选文件夹创建相册，可跨目录选择</span>
                 <button
@@ -583,10 +585,13 @@
         @media-change="handlePreviewMediaChange"
       />
     </div>
+    <MtPhotoFolderMoveDialog v-if="folderMoveSource" :source-id="folderMoveSource.id" :source-path="folderMoveSource.path"
+      @close="folderMoveSource = null" @moved="finishFolderMove" @refresh="refreshMovedFolder" />
   </teleport>
 </template>
 
 <script setup lang="ts">
+import MtPhotoFolderMoveDialog from './MtPhotoFolderMoveDialog.vue'
 import { computed, ref, watch } from 'vue'
 import { useMtPhotoStore, type MtPhotoFolderFavorite, type MtPhotoMediaItem } from '@/stores/mtphoto'
 import { useUserStore } from '@/stores/user'
@@ -618,6 +623,21 @@ const favoriteNoteInput = ref('')
 const folderFilter = ref('')
 const isMobileFavoritesOpen = ref(false)
 const isFavoriteEditOpen = ref(false)
+const folderMoveSource = ref<{ id: number; path: string; name: string } | null>(null)
+const openFolderMove = () => {
+  if (!mtPhotoStore.folderCurrentId) return
+  folderMoveSource.value = { id: mtPhotoStore.folderCurrentId, path: mtPhotoStore.folderPath, name: mtPhotoStore.folderCurrentName }
+}
+const refreshMovedFolder = async () => {
+  const source = folderMoveSource.value
+  if (source) await mtPhotoStore.openFromExternalFolder({ folderId: source.id, folderName: source.name })
+}
+const finishFolderMove = async (count: number) => {
+  await refreshMovedFolder()
+  folderMoveSource.value = null
+  await mtPhotoStore.loadAlbums()
+  show(count ? `已移动 ${count} 个文件` : '当前范围没有可移动的文件')
+}
 
 const selectedAlbumFolders = ref<{ id: number; name: string; path: string }[]>([])
 const folderAlbumName = ref('')
@@ -938,6 +958,7 @@ const getOriginalDownloadUrl = (id: number, md5: string) => {
 }
 
 const close = () => {
+  if (folderMoveSource.value) return
   if (folderAlbumSaving.value) {
     show('正在创建文件夹相册，请稍候')
     return

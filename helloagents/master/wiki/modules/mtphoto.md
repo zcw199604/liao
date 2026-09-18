@@ -30,6 +30,13 @@
 **模块:** mtPhoto  
 文件夹收藏落库到 `mtphoto_folder_favorite`，按 `folder_id` 唯一。
 
+### 文件夹内全部文件移动
+
+- Web 文件夹页“移动此目录全部文件”打开目标目录选择弹窗，默认移动直属文件，可勾选包含子目录（文件集中移动到目标目录，原目录保留）。执行前显示源、目标、范围；同名自动重命名，不提供覆盖操作。
+- `POST /api/moveMtPhotoFolderFiles` 接收 `sourceId`、`targetId`、`includeSubfolders`。后端从 `/gateway/foldersV2/{id}` 完整原始文件列表收集 ID，不能使用展示用的分页或 MD5 过滤列表；递归读取失败则不发起移动。
+- 上游调用 `POST /gateway/filePathEdit`，参数 `type:"move"`、`fileIds`、`distId`、`overwrite:2`。目标不得为源目录；递归模式目标也不得位于源目录内部。
+- 成功返回 `success:true,count`；空目录返回 count=0。移动请求发出后无论结果如何均失效相册/文件缓存；上游可能部分成功，失败提示要求刷新确认，不自动重试。
+
 ### 文件夹相册创建
 
 - Web 文件夹浏览支持勾选当前目录或多个子目录，可跨目录保留选择、按 ID 去重、全选搜索结果，并将所选目录合并为一个命名相册。
@@ -57,6 +64,7 @@ mtPhoto 上游文档已整理为本地快照，后续接口变更应优先更新
 ## API接口
 - `GET /api/getMtPhotoAlbums`
 - `POST /api/createMtPhotoFolderAlbum`
+- `POST /api/moveMtPhotoFolderFiles`
 - `GET /api/getMtPhotoAlbumFiles`
 - `GET /api/getMtPhotoFolderRoot`
 - `GET /api/getMtPhotoFolderContent`

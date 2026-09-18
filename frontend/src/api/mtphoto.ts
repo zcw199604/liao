@@ -83,6 +83,10 @@ export const getMtPhotoAlbums = () => {
   return request.get<any, any>('/getMtPhotoAlbums')
 }
 
+export const moveMtPhotoFolderFiles = (data: { sourceId: number; targetId: number; includeSubfolders: boolean }) => {
+  return request.post<any, { success: boolean; count: number }>('/moveMtPhotoFolderFiles', data, { timeout: 300000 })
+}
+
 export const createMtPhotoFolderAlbum = (data: { name: string; folders: { id: number; path: string }[] }) => {
   return request.post<any, { success: boolean; album: { id: number; name: string } }>(
     '/createMtPhotoFolderAlbum', data,
