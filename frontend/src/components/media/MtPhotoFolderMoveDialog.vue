@@ -11,13 +11,22 @@
         <button v-for="(item, index) in history" :key="item.id" class="border border-line rounded px-2 py-1" :disabled="loading || saving" @click="navigate(item.id, index)">{{ item.name }}</button>
       </div>
       <p class="text-xs break-all">目标目录：{{ targetId ? targetPath : '请选择下方文件夹' }}</p>
+      <div class="flex items-center gap-2">
+        <input v-model="folderSearch" type="search" aria-label="搜索目标文件夹" placeholder="筛选当前层级的名称或路径..."
+          class="min-w-0 flex-1 rounded border border-line-strong bg-surface-3 px-3 py-2 text-sm focus:outline-none focus:border-pink-500"
+          :disabled="loading || saving" />
+        <button v-if="folderSearch" aria-label="清空目录搜索" class="shrink-0 text-xs text-fg-subtle hover:text-fg"
+          :disabled="loading || saving" @click="folderSearch = ''">清空</button>
+      </div>
+      <p v-if="!loading && folders.length" class="text-xs text-fg-subtle" aria-live="polite">显示 {{ filteredFolders.length }} / {{ folders.length }} 个文件夹</p>
       <div class="overflow-y-auto min-h-20 max-h-[35vh] border border-line rounded p-2 space-y-1">
         <p v-if="loading" class="text-sm text-fg-subtle">加载中...</p>
-        <button v-for="folder in folders" v-else :key="folder.id" :data-testid="`target-${folder.id}`"
+        <button v-for="folder in filteredFolders" v-else :key="folder.id" :data-testid="`target-${folder.id}`"
           class="block w-full text-left rounded p-2 bg-surface-3 hover:bg-surface-2 text-sm disabled:opacity-50" :disabled="saving" @click="navigate(folder.id)">
           {{ folder.name }} →
         </button>
         <p v-if="!loading && !folders.length" class="text-xs text-fg-subtle">无子文件夹，可将当前目录作为目标</p>
+        <p v-else-if="!loading && !filteredFolders.length" class="text-xs text-fg-subtle">没有匹配的文件夹，请更换关键词或清空搜索</p>
       </div>
       <p v-if="invalidTarget" class="text-xs text-amber-500">目标不能是源目录；包含子目录时，目标也不能位于源目录内。</p>
       <p v-if="error" role="alert" class="text-xs text-red-400 break-all">{{ error }}</p>
@@ -40,6 +49,15 @@ const includeSubfolders = ref(false)
 const targetId = ref(0)
 const targetPath = ref('')
 const folders = ref<api.MtPhotoFolderNode[]>([])
+const folderSearch = ref('')
+const filteredFolders = computed(() => {
+  const keyword = folderSearch.value.trim().toLowerCase()
+  if (!keyword) return folders.value
+  return folders.value.filter(folder => {
+    const path = folder.path || `${targetPath.value.replace(/\/$/, '')}/${folder.name}`
+    return folder.name.toLowerCase().includes(keyword) || path.toLowerCase().includes(keyword)
+  })
+})
 const history = ref([{ id: 0, name: '根目录' }])
 const loading = ref(false)
 const saving = ref(false)
@@ -59,6 +77,7 @@ const navigate = async (id: number, historyIndex?: number) => {
     targetId.value = id
     targetPath.value = result.path || ''
     folders.value = result.folderList || []
+    folderSearch.value = ''
     if (historyIndex !== undefined) history.value = history.value.slice(0, historyIndex + 1)
     else if (id) history.value.push({ id, name })
   } catch (e: any) {

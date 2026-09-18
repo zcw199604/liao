@@ -4,6 +4,34 @@ import MoveDialog from '@/components/media/MtPhotoFolderMoveDialog.vue'
 const api = vi.hoisted(() => ({ root: vi.fn(), content: vi.fn(), move: vi.fn() }))
 vi.mock('@/api/mtphoto', () => ({ getMtPhotoFolderRoot: api.root, getMtPhotoFolderContent: api.content, moveMtPhotoFolderFiles: api.move }))
 describe('folder move dialog', () => {
+  it('filters the current level by name or path and clears the filter after navigation', async () => {
+    api.root.mockResolvedValue({ folderList: [
+      { id: 2, name: '旅行 Photos', path: '/archive/travel' },
+      { id: 3, name: '家人', path: '/archive/family' }
+    ] })
+    api.content.mockResolvedValue({ path: '/archive/travel', folderList: [{ id: 4, name: '2026' }] })
+    const wrapper = mount(MoveDialog, { props: { sourceId: 1, sourcePath: '/source' } })
+    await flushPromises()
+    const search = wrapper.get('input[aria-label="搜索目标文件夹"]')
+    await search.setValue('  PHOTOS  ')
+    expect(wrapper.find('[data-testid="target-2"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="target-3"]').exists()).toBe(false)
+    await search.setValue('FAMILY')
+    expect(wrapper.find('[data-testid="target-3"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="target-2"]').exists()).toBe(false)
+    await search.setValue('不存在')
+    expect(wrapper.text()).toContain('没有匹配的文件夹')
+    expect(wrapper.text()).not.toContain('无子文件夹')
+    await wrapper.get('[aria-label="清空目录搜索"]').trigger('click')
+    expect(wrapper.findAll('[data-testid^="target-"]')).toHaveLength(2)
+    await search.setValue('旅行')
+    await wrapper.get('[data-testid="target-2"]').trigger('click')
+    await flushPromises()
+    expect((search.element as HTMLInputElement).value).toBe('')
+    expect(wrapper.find('[data-testid="target-4"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="confirm-move"]').attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
   it('selects a destination and explicitly confirms source, scope and safe rename', async () => {
     api.root.mockResolvedValue({ folderList: [{ id: 1, name: '源' }, { id: 2, name: '目标' }] })
     api.content.mockResolvedValue({ path: '/target', folderList: [] })
