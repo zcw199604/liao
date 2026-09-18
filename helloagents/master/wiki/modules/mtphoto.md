@@ -39,6 +39,10 @@
 
 ### 文件夹相册创建
 
+- 文件夹列表（包括 tg 目录）按 ID 展示直接相册关联：绿色“已加入相册”并显示相册名，未关联显示“未加入相册”；查询中和失败分别显示加载/未知状态，不把失败当作未加入。父目录的间接包含不标记为子目录直接关联。
+- `GET /api/getMtPhotoFolderAlbumLinks` 汇总相册列表及 `GET /api-album/link/{id}`，仅收集 `type:folder,exclude:false`，返回 `items:{folderId:[album,...]}`。按文件夹/相册去重，上游并发最多 4；任一相册关联查询失败则整体返回错误，避免误标未加入。相册列表沿用 30 秒缓存，关联配置每次重新读取。
+- 打开文件夹模式及创建相册后刷新标识，也支持手动“刷新相册状态”；普通文件夹导航复用已获取的关联映射。
+
 - Web 文件夹浏览支持勾选当前目录或多个子目录，可跨目录保留选择、按 ID 去重、全选搜索结果，并将所选目录合并为一个命名相册。
 - `POST /api/createMtPhotoFolderAlbum` 接收 `{"name":"相册名","folders":[{"id":1063,"path":"/upload/root/test"}]}`，沿用本地 API 登录鉴权和服务端 `MTPHOTO_API_KEY`。
 - 上游流程为 `POST /api-album` → 逐个 `POST /api-album/link/{id}` → `POST /api-album/linkSyncFiles/{id}`。关联参数是 `type:"folder"`、`value: JSON.stringify({id,label:完整路径})`、`exclude:false`；保留自动关联，而非一次性拷贝文件列表。
@@ -63,6 +67,7 @@ mtPhoto 上游文档已整理为本地快照，后续接口变更应优先更新
 
 ## API接口
 - `GET /api/getMtPhotoAlbums`
+- `GET /api/getMtPhotoFolderAlbumLinks`
 - `POST /api/createMtPhotoFolderAlbum`
 - `POST /api/moveMtPhotoFolderFiles`
 - `GET /api/getMtPhotoAlbumFiles`

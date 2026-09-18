@@ -304,6 +304,9 @@ describe('api/mtphoto', () => {
     mtphotoApi.getMtPhotoAlbums()
     expect(spies.requestGet).toHaveBeenCalledWith('/getMtPhotoAlbums')
 
+    mtphotoApi.getMtPhotoFolderAlbumLinks()
+    expect(spies.requestGet).toHaveBeenCalledWith('/getMtPhotoFolderAlbumLinks')
+
     const folderAlbum = { name: '旅行', folders: [{ id: 12, path: '/photos/旅行' }] }
     mtphotoApi.createMtPhotoFolderAlbum(folderAlbum)
     expect(spies.requestPost).toHaveBeenCalledWith('/createMtPhotoFolderAlbum', folderAlbum, { timeout: 90000 })

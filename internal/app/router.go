@@ -129,6 +129,7 @@ func (a *App) buildRouter() http.Handler {
 
 		// mtPhoto 相册
 		api.Get("/getMtPhotoAlbums", a.handleGetMtPhotoAlbums)
+		api.Get("/getMtPhotoFolderAlbumLinks", a.handleGetMtPhotoFolderAlbumLinks)
 		api.Post("/createMtPhotoFolderAlbum", a.handleCreateMtPhotoFolderAlbum)
 		api.Post("/moveMtPhotoFolderFiles", a.handleMoveMtPhotoFolderFiles)
 		api.Get("/getMtPhotoAlbumFiles", a.handleGetMtPhotoAlbumFiles)

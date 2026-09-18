@@ -405,6 +405,13 @@
                 </div>
               </div>
               <div v-if="folderAlbumError" role="alert" class="mb-2 text-xs text-red-400">{{ folderAlbumError }}</div>
+              <div class="flex flex-wrap items-center gap-2 mb-2 text-xs text-fg-subtle">
+                <span>相册标识按文件夹直接关联显示</span>
+                <button aria-label="刷新文件夹相册状态" class="hover:text-fg disabled:opacity-50" :disabled="folderAlbumLinksLoading" @click="refreshFolderAlbumLinks">
+                  {{ folderAlbumLinksLoading ? '查询中…' : '刷新相册状态' }}
+                </button>
+                <span v-if="folderAlbumLinksError" class="text-amber-500">{{ folderAlbumLinksError }}</span>
+              </div>
               <div class="flex items-center justify-between gap-2 mb-1.5">
                 <div class="text-xs text-fg-subtle">子文件夹</div>
                 <input
@@ -438,6 +445,12 @@
                       @change="toggleAlbumFolder(folder)" />
                     <button class="min-w-0 flex-1 text-left" :disabled="mtPhotoStore.folderLoading" @click="mtPhotoStore.openFolder(folder)">
                       <div class="text-sm text-fg truncate">{{ folder.name }}</div>
+                      <div :data-testid="`folder-album-status-${folder.id}`"
+                        class="mt-1 inline-block max-w-full rounded px-1.5 py-0.5 text-[11px] truncate"
+                        :class="folderLinkedAlbums(folder.id).length ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' : 'bg-surface-2 text-fg-subtle'"
+                        :title="folderLinkedAlbums(folder.id).map(album => album.name).join('、')">
+                        {{ folderAlbumLinksLoading ? '查询中…' : !folderAlbumLinksLoaded ? '相册状态未知' : folderLinkedAlbums(folder.id).length ? `已加入相册 · ${folderLinkedAlbums(folder.id).map(album => album.name).join('、')}` : '未加入相册' }}
+                      </div>
                       <div class="text-[11px] text-fg-subtle mt-1">
                         {{ folder.subFileNum ?? 0 }} 图 · {{ folder.subFolderNum ?? 0 }} 目录
                       </div>
@@ -623,6 +636,32 @@ const favoriteNoteInput = ref('')
 const folderFilter = ref('')
 const isMobileFavoritesOpen = ref(false)
 const isFavoriteEditOpen = ref(false)
+const folderAlbumLinks = ref<Record<string, { id: number; name: string }[]>>({})
+const folderAlbumLinksLoading = ref(false)
+const folderAlbumLinksLoaded = ref(false)
+const folderAlbumLinksError = ref('')
+let folderAlbumLinksRequest = 0
+const folderLinkedAlbums = (id: number) => folderAlbumLinksLoaded.value ? folderAlbumLinks.value[String(id)] || [] : []
+const refreshFolderAlbumLinks = async () => {
+  const request = ++folderAlbumLinksRequest
+  folderAlbumLinksLoading.value = true
+  folderAlbumLinksLoaded.value = false
+  folderAlbumLinksError.value = ''
+  try {
+    const result = await mtphotoApi.getMtPhotoFolderAlbumLinks()
+    if (request !== folderAlbumLinksRequest) return
+    if (!result?.items || typeof result.items !== 'object' || Array.isArray(result.items)) throw new Error('响应格式无效')
+    folderAlbumLinks.value = result.items
+    folderAlbumLinksLoaded.value = true
+  } catch {
+    if (request === folderAlbumLinksRequest) folderAlbumLinksError.value = '相册状态查询失败，请重试'
+  } finally {
+    if (request === folderAlbumLinksRequest) folderAlbumLinksLoading.value = false
+  }
+}
+watch(() => mtPhotoStore.showModal && mtPhotoStore.mode === 'folders', active => {
+  if (active) void refreshFolderAlbumLinks()
+}, { immediate: true })
 const folderMoveSource = ref<{ id: number; path: string; name: string } | null>(null)
 const openFolderMove = () => {
   if (!mtPhotoStore.folderCurrentId) return
@@ -682,12 +721,14 @@ const createFolderAlbum = async () => {
     clearAlbumFolderSelection()
     show('文件夹相册已创建')
     await mtPhotoStore.loadAlbums()
+    await refreshFolderAlbumLinks()
   } catch (e: any) {
     folderAlbumError.value = e?.response?.data?.error || e?.message || '创建失败，请刷新相册列表确认结果后再操作'
     if (!e?.response) folderAlbumError.value += '；请先刷新相册列表确认是否已创建，避免重复创建'
     if (e?.response?.data?.album?.id) {
       clearAlbumFolderSelection()
       await mtPhotoStore.loadAlbums()
+      await refreshFolderAlbumLinks()
     }
   } finally {
     folderAlbumSaving.value = false

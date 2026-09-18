@@ -238,6 +238,7 @@
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/getMtPhotoAlbums` | 查询 mtPhoto 相册 |
+| GET | `/api/getMtPhotoFolderAlbumLinks` | 查询文件夹直接关联的相册映射 `items:{folderId:[album,...]}`，排除规则不计入；上游查询失败时返回错误 |
 | POST | `/api/moveMtPhotoFolderFiles` | 移动源目录全部文件到目标目录；JSON：`sourceId,targetId,includeSubfolders`，默认直属文件，重名自动重命名 |
 | POST | `/api/createMtPhotoFolderAlbum` | 将一个或多个文件夹自动关联到新相册；JSON：`name`、`folders:[{id,path}]`；部分失败保留并返回已创建的相册，详见 mtphoto 模块文档 |
 | GET | `/api/getMtPhotoAlbumFiles` | 查询相册文件 |

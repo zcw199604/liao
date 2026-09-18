@@ -5,8 +5,8 @@ import { nextTick } from 'vue'
 import MtPhotoAlbumModal from '@/components/media/MtPhotoAlbumModal.vue'
 import { useMtPhotoStore } from '@/stores/mtphoto'
 
-const api = vi.hoisted(() => ({ create: vi.fn(), toast: vi.fn() }))
-vi.mock('@/api/mtphoto', () => ({ createMtPhotoFolderAlbum: api.create }))
+const api = vi.hoisted(() => ({ create: vi.fn(), toast: vi.fn(), links: vi.fn() }))
+vi.mock('@/api/mtphoto', () => ({ createMtPhotoFolderAlbum: api.create, getMtPhotoFolderAlbumLinks: api.links }))
 vi.mock('@/composables/useToast', () => ({ useToast: () => ({ show: api.toast }) }))
 
 function setup() {
@@ -24,7 +24,34 @@ function setup() {
 }
 
 describe('创建文件夹相册', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    api.links.mockResolvedValue({ items: {} })
+  })
+
+  it('distinguishes directly linked folders and lists the related album names', async () => {
+    api.links.mockResolvedValue({ items: { '12': [{ id: 1, name: '旅行相册' }, { id: 2, name: '精选' }] } })
+    const { wrapper } = setup()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="folder-album-status-12"]').text()).toContain('已加入相册')
+    expect(wrapper.get('[data-testid="folder-album-status-12"]').attributes('title')).toBe('旅行相册、精选')
+    expect(wrapper.get('[data-testid="folder-album-status-34"]').text()).toBe('未加入相册')
+    wrapper.unmount()
+  })
+
+  it('shows unknown status on failure and supports refreshing without leaving the folder', async () => {
+    api.links.mockRejectedValueOnce(new Error('无权限'))
+    const { wrapper } = setup()
+    expect(wrapper.get('[data-testid="folder-album-status-12"]').text()).toBe('查询中…')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="folder-album-status-12"]').text()).toBe('相册状态未知')
+    expect(wrapper.text()).not.toContain('未加入相册')
+    api.links.mockResolvedValue({ items: { '34': [{ id: 3, name: '家人相册' }] } })
+    await wrapper.get('[aria-label="刷新文件夹相册状态"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="folder-album-status-34"]').text()).toContain('已加入相册')
+    wrapper.unmount()
+  })
 
   it('keeps selection across navigation and creates one album with a trimmed name', async () => {
     const { store, wrapper } = setup()
@@ -47,6 +74,7 @@ describe('创建文件夹相册', () => {
     expect(store.loadAlbums).toHaveBeenCalledOnce()
     expect(wrapper.text()).not.toContain('已选 2 个文件夹')
     expect(api.toast).toHaveBeenCalledWith('文件夹相册已创建')
+    expect(api.links).toHaveBeenCalledTimes(2)
     wrapper.unmount()
   })
 
