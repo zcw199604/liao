@@ -238,6 +238,7 @@
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/getMtPhotoAlbums` | 查询 mtPhoto 相册 |
+| POST | `/api/createMtPhotoFolderAlbum` | 将一个或多个文件夹自动关联到新相册；JSON：`name`、`folders:[{id,path}]`；部分失败保留并返回已创建的相册，详见 mtphoto 模块文档 |
 | GET | `/api/getMtPhotoAlbumFiles` | 查询相册文件 |
 | GET | `/api/getMtPhotoFolderRoot` | 查询文件夹根节点 |
 | GET | `/api/getMtPhotoFolderContent` | 查询文件夹内容 |

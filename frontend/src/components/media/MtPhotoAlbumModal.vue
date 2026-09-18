@@ -362,6 +362,47 @@
             </div>
 
             <div class="px-2 pt-2 pb-1 shrink-0">
+              <div class="flex flex-wrap items-center gap-2 mb-2 text-xs">
+                <span class="text-fg-subtle">勾选文件夹创建相册，可跨目录选择</span>
+                <button
+                  v-if="mtPhotoStore.folderCurrentId"
+                  data-testid="select-current-folder"
+                  class="px-2 py-1 rounded border border-line-strong text-fg-muted disabled:opacity-50"
+                  :disabled="folderAlbumSaving || mtPhotoStore.folderLoading"
+                  @click="toggleCurrentAlbumFolder"
+                >{{ isAlbumFolderSelected(mtPhotoStore.folderCurrentId) ? '取消选择当前目录' : '选择当前目录' }}</button>
+                <button
+                  v-if="filteredFolderList.length"
+                  class="px-2 py-1 rounded border border-line-strong text-fg-muted disabled:opacity-50"
+                  :disabled="folderAlbumSaving || mtPhotoStore.folderLoading"
+                  @click="selectVisibleAlbumFolders"
+                >全选当前列表</button>
+              </div>
+              <div v-if="selectedAlbumFolders.length" class="mb-2 p-2 rounded-lg border border-pink-500/40 bg-pink-500/5 space-y-2">
+                <div class="flex flex-wrap gap-2 items-center text-xs">
+                  <span class="text-fg">已选 {{ selectedAlbumFolders.length }} 个文件夹</span>
+                  <button class="text-fg-subtle hover:text-fg" :disabled="folderAlbumSaving" @click="clearAlbumFolderSelection">清空选择</button>
+                  <span class="text-fg-subtle">合并到一个相册，自动关联文件夹内容</span>
+                </div>
+                <div class="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                  <button v-for="folder in selectedAlbumFolders" :key="folder.id" :title="folder.path"
+                    class="px-2 py-1 rounded bg-surface-3 text-xs text-fg-muted max-w-full truncate"
+                    :disabled="folderAlbumSaving" :aria-label="`取消选择 ${folder.path}`" @click="removeAlbumFolder(folder.id)">
+                    {{ folder.path }} ×
+                  </button>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <input v-model="folderAlbumName" aria-label="相册名称" placeholder="相册名称"
+                    class="min-w-0 flex-1 rounded-md border border-line-strong bg-surface-3 px-2 py-1.5 text-sm text-fg focus:outline-none focus:border-pink-500"
+                    :disabled="folderAlbumSaving" @keydown.enter.prevent="createFolderAlbum" />
+                  <button data-testid="create-folder-album"
+                    class="px-3 py-1.5 rounded-md bg-pink-500 text-white text-xs disabled:opacity-50"
+                    :disabled="folderAlbumSaving || !folderAlbumName.trim()" @click="createFolderAlbum">
+                    {{ folderAlbumSaving ? '创建中...' : '创建文件夹相册' }}
+                  </button>
+                </div>
+              </div>
+              <div v-if="folderAlbumError" role="alert" class="mb-2 text-xs text-red-400">{{ folderAlbumError }}</div>
               <div class="flex items-center justify-between gap-2 mb-1.5">
                 <div class="text-xs text-fg-subtle">子文件夹</div>
                 <input
@@ -384,17 +425,22 @@
                   当前目录无子文件夹
                 </div>
                 <div v-else class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2">
-                  <button
+                  <div
                     v-for="folder in filteredFolderList"
                     :key="folder.id"
-                    class="text-left rounded-lg border border-line-strong bg-surface-3 hover:border-pink-500 transition-colors p-2"
-                    @click="mtPhotoStore.openFolder(folder)"
+                    class="flex items-start gap-2 text-left rounded-lg border bg-surface-3 hover:border-pink-500 transition-colors p-2"
+                    :class="isAlbumFolderSelected(folder.id) ? 'border-pink-500' : 'border-line-strong'"
                   >
-                    <div class="text-sm text-fg truncate">{{ folder.name }}</div>
-                    <div class="text-[11px] text-fg-subtle mt-1">
-                      {{ folder.subFileNum ?? 0 }} 图 · {{ folder.subFolderNum ?? 0 }} 目录
-                    </div>
-                  </button>
+                    <input type="checkbox" class="mt-1 accent-pink-500" :aria-label="`选择文件夹 ${folder.name}`"
+                      :checked="isAlbumFolderSelected(folder.id)" :disabled="folderAlbumSaving || mtPhotoStore.folderLoading"
+                      @change="toggleAlbumFolder(folder)" />
+                    <button class="min-w-0 flex-1 text-left" :disabled="mtPhotoStore.folderLoading" @click="mtPhotoStore.openFolder(folder)">
+                      <div class="text-sm text-fg truncate">{{ folder.name }}</div>
+                      <div class="text-[11px] text-fg-subtle mt-1">
+                        {{ folder.subFileNum ?? 0 }} 图 · {{ folder.subFolderNum ?? 0 }} 目录
+                      </div>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -572,6 +618,68 @@ const favoriteNoteInput = ref('')
 const folderFilter = ref('')
 const isMobileFavoritesOpen = ref(false)
 const isFavoriteEditOpen = ref(false)
+
+const selectedAlbumFolders = ref<{ id: number; name: string; path: string }[]>([])
+const folderAlbumName = ref('')
+const folderAlbumSaving = ref(false)
+const folderAlbumError = ref('')
+const isAlbumFolderSelected = (id: number) => selectedAlbumFolders.value.some(folder => folder.id === id)
+const clearAlbumFolderSelection = () => {
+  selectedAlbumFolders.value = []
+  folderAlbumName.value = ''
+}
+const removeAlbumFolder = (id: number) => {
+  if (folderAlbumSaving.value) return
+  selectedAlbumFolders.value = selectedAlbumFolders.value.filter(folder => folder.id !== id)
+  if (!selectedAlbumFolders.value.length) folderAlbumName.value = ''
+}
+const addAlbumFolder = (folder: { id: number; name: string; path?: string }) => {
+  if (folderAlbumSaving.value || isAlbumFolderSelected(folder.id)) return
+  const path = folder.path || `${mtPhotoStore.folderPath.replace(/\/$/, '')}/${folder.name}`
+  selectedAlbumFolders.value.push({ id: folder.id, name: folder.name, path })
+  if (!folderAlbumName.value.trim()) folderAlbumName.value = folder.name
+}
+const toggleAlbumFolder = (folder: { id: number; name: string; path?: string }) => {
+  if (isAlbumFolderSelected(folder.id)) removeAlbumFolder(folder.id)
+  else addAlbumFolder(folder)
+}
+const toggleCurrentAlbumFolder = () => {
+  if (!mtPhotoStore.folderCurrentId || !mtPhotoStore.folderPath) return
+  toggleAlbumFolder({ id: mtPhotoStore.folderCurrentId, name: mtPhotoStore.folderCurrentName, path: mtPhotoStore.folderPath })
+}
+const selectVisibleAlbumFolders = () => filteredFolderList.value.forEach(addAlbumFolder)
+
+const createFolderAlbum = async () => {
+  const name = folderAlbumName.value.trim()
+  if (folderAlbumSaving.value || !name || !selectedAlbumFolders.value.length) return
+  folderAlbumSaving.value = true
+  folderAlbumError.value = ''
+  try {
+    const result = await mtphotoApi.createMtPhotoFolderAlbum({
+      name, folders: selectedAlbumFolders.value.map(({ id, path }) => ({ id, path }))
+    })
+    if (!result?.success) throw new Error('未能确认创建结果，请刷新相册列表检查后再操作')
+    clearAlbumFolderSelection()
+    show('文件夹相册已创建')
+    await mtPhotoStore.loadAlbums()
+  } catch (e: any) {
+    folderAlbumError.value = e?.response?.data?.error || e?.message || '创建失败，请刷新相册列表确认结果后再操作'
+    if (!e?.response) folderAlbumError.value += '；请先刷新相册列表确认是否已创建，避免重复创建'
+    if (e?.response?.data?.album?.id) {
+      clearAlbumFolderSelection()
+      await mtPhotoStore.loadAlbums()
+    }
+  } finally {
+    folderAlbumSaving.value = false
+  }
+}
+
+watch(() => mtPhotoStore.showModal, visible => {
+  if (!visible && !folderAlbumSaving.value) {
+    clearAlbumFolderSelection()
+    folderAlbumError.value = ''
+  }
+})
 
 const filteredFolderList = computed(() => {
   const keyword = folderFilter.value.trim().toLowerCase()
@@ -830,6 +938,10 @@ const getOriginalDownloadUrl = (id: number, md5: string) => {
 }
 
 const close = () => {
+  if (folderAlbumSaving.value) {
+    show('正在创建文件夹相册，请稍候')
+    return
+  }
   mtPhotoStore.close()
   showPreview.value = false
   previewUrl.value = ''

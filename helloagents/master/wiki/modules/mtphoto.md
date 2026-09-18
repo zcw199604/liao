@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** mtPhoto API Key 接入、相册列表、文件列表、文件夹树、缩略图代理、原图下载、MD5 路径解析、同图查询、文件夹收藏。
 - **状态:** 稳定
-- **最后更新:** 2026-05-29
+- **最后更新:** 2026-09-18
 
 ## 规范
 
@@ -30,6 +30,14 @@
 **模块:** mtPhoto  
 文件夹收藏落库到 `mtphoto_folder_favorite`，按 `folder_id` 唯一。
 
+### 文件夹相册创建
+
+- Web 文件夹浏览支持勾选当前目录或多个子目录，可跨目录保留选择、按 ID 去重、全选搜索结果，并将所选目录合并为一个命名相册。
+- `POST /api/createMtPhotoFolderAlbum` 接收 `{"name":"相册名","folders":[{"id":1063,"path":"/upload/root/test"}]}`，沿用本地 API 登录鉴权和服务端 `MTPHOTO_API_KEY`。
+- 上游流程为 `POST /api-album` → 逐个 `POST /api-album/link/{id}` → `POST /api-album/linkSyncFiles/{id}`。关联参数是 `type:"folder"`、`value: JSON.stringify({id,label:完整路径})`、`exclude:false`；保留自动关联，而非一次性拷贝文件列表。
+- 2026-09-18 核对官网 OpenAPI 及官方网页实现：OpenAPI 的 `exclude` 字段描述与示例有矛盾，官方网页自动加入使用 `false`，排除使用 `true`。
+- 成功返回 `{"success":true,"album":{...}}`。已创建但关联或同步失败时返回 HTTP 502、`success:false`、已创建的 `album` 和包含恢复建议的 `error`；保留相册，不自动删除或重复创建。创建后清除相册列表缓存，前端刷新列表；部分成功也清空选择并展示错误。
+
 ### 需求: 上游 API 快照可追溯
 **模块:** mtPhoto
 mtPhoto 上游文档已整理为本地快照，后续接口变更应优先更新快照再同步本模块说明。
@@ -48,6 +56,7 @@ mtPhoto 上游文档已整理为本地快照，后续接口变更应优先更新
 
 ## API接口
 - `GET /api/getMtPhotoAlbums`
+- `POST /api/createMtPhotoFolderAlbum`
 - `GET /api/getMtPhotoAlbumFiles`
 - `GET /api/getMtPhotoFolderRoot`
 - `GET /api/getMtPhotoFolderContent`

@@ -83,6 +83,14 @@ export const getMtPhotoAlbums = () => {
   return request.get<any, any>('/getMtPhotoAlbums')
 }
 
+export const createMtPhotoFolderAlbum = (data: { name: string; folders: { id: number; path: string }[] }) => {
+  return request.post<any, { success: boolean; album: { id: number; name: string } }>(
+    '/createMtPhotoFolderAlbum', data,
+    // 创建、逐个关联及同步均需请求上游，为多文件夹操作保留足够时间。
+    { timeout: Math.max(30000, (data.folders.length + 2) * 30000) }
+  )
+}
+
 export const getMtPhotoAlbumFiles = (albumId: number, page: number, pageSize: number) => {
   return request.get<any, any>('/getMtPhotoAlbumFiles', {
     params: { albumId, page, pageSize }
