@@ -13,6 +13,9 @@ func TestMtPhotoFolderAlbumLinks(t *testing.T) {
 		status       int
 	}{
 		{"multiple albums and exclusions", `[{"type":"folder","value":"{\"id\":12}","exclude":false}]`, 200},
+		{"object values mixed with strings", `[{"type":"folder","value":{"id":12,"label":"/tg/a"},"exclude":false},{"type":"folder","value":"{\"id\":12}","exclude":false},{"type":"folder","value":{"id":34},"exclude":true},{"type":"tag","value":{"id":56},"exclude":false}]`, 200},
+		{"null folder value", `[{"type":"folder","value":null,"exclude":false}]`, 502},
+		{"object missing folder id", `[{"type":"folder","value":{"label":"/tg/a"},"exclude":false}]`, 502},
 		{"invalid link must not report unlinked", `[{"type":"folder","value":"broken","exclude":false}]`, 502},
 		{"upstream permission failure", "forbidden", 502},
 	} {

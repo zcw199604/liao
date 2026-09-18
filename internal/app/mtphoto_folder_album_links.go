@@ -19,9 +19,9 @@ func (s *MtPhotoService) albumFolderIDs(ctx context.Context, albumID int) ([]int
 		return nil, fmt.Errorf("读取相册 %d 关联失败：%s", albumID, resp.Status)
 	}
 	var links []struct {
-		Type    string `json:"type"`
-		Value   string `json:"value"`
-		Exclude bool   `json:"exclude"`
+		Type    string          `json:"type"`
+		Value   json.RawMessage `json:"value"`
+		Exclude bool            `json:"exclude"`
 	}
 	if err = json.NewDecoder(resp.Body).Decode(&links); err != nil {
 		return nil, err
@@ -35,7 +35,13 @@ func (s *MtPhotoService) albumFolderIDs(ctx context.Context, albumID int) ([]int
 		var value struct {
 			ID int64 `json:"id"`
 		}
-		if err = json.Unmarshal([]byte(link.Value), &value); err != nil || value.ID <= 0 {
+		// mtPhoto may return value as an object even though OpenAPI describes a JSON string.
+		raw := link.Value
+		var encoded string
+		if json.Unmarshal(raw, &encoded) == nil {
+			raw = []byte(encoded)
+		}
+		if err = json.Unmarshal(raw, &value); err != nil || value.ID <= 0 {
 			return nil, fmt.Errorf("相册 %d 的文件夹关联格式无效", albumID)
 		}
 		if !seen[value.ID] {
