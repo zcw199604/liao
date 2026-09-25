@@ -74,7 +74,7 @@ func NewDouyinCookieCloudProvider(cfg config.Config, httpClient *http.Client) (*
 
 	ttlHours := cfg.CookieCloudCookieExpireHours
 	if ttlHours <= 0 {
-		ttlHours = 72
+		ttlHours = 1
 	}
 	ttl := time.Duration(ttlHours) * time.Hour
 

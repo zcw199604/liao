@@ -92,7 +92,7 @@ type Config struct {
 	CookieCloudCryptoType string
 	CookieCloudDomain     string
 	// CookieCloudCookieExpireHours controls how long the decrypted CookieCloud cookie header value is cached.
-	// Unit: hours. Default 72 hours (3 days).
+	// Unit: hours. Default 1 hour.
 	CookieCloudCookieExpireHours int
 
 	// 视频抽帧（ffmpeg/ffprobe）配置。
@@ -171,7 +171,7 @@ func Load() (Config, error) {
 		CookieCloudCookieExpireHours: getEnvIntOptional2(
 			"COOKIECLOUD_COOKIE_EXPIRE_HOURS",
 			"COOKIE_CLOUD_COOKIE_EXPIRE_HOURS",
-			72,
+			1,
 		),
 
 		FFmpegPath:              getEnv("FFMPEG_PATH", "ffmpeg"),
@@ -256,7 +256,7 @@ func Load() (Config, error) {
 	}
 
 	if cfg.CookieCloudCookieExpireHours <= 0 {
-		cfg.CookieCloudCookieExpireHours = 72
+		cfg.CookieCloudCookieExpireHours = 1
 	}
 
 	if cfg.MtPhotoTimelineDeferSubfolderThreshold <= 0 {

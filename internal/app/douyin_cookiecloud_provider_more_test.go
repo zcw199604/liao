@@ -69,8 +69,8 @@ func TestNewDouyinCookieCloudProvider_ValidationAndDefaults(t *testing.T) {
 	if p.domain != "douyin.com" {
 		t.Fatalf("domain=%q", p.domain)
 	}
-	if p.ttl != 72*time.Hour {
-		t.Fatalf("ttl=%v", p.ttl)
+	if p.ttl != time.Hour {
+		t.Fatalf("ttl=%v, want %v", p.ttl, time.Hour)
 	}
 }
 
