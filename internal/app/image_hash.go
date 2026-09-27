@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	phashCosTable [phashLowFreq][phashSize]float64
+	phashDCTFactors [phashSize]float64
 )
 
 var (
@@ -40,10 +40,9 @@ var (
 )
 
 func init() {
-	n := float64(phashSize)
-	for u := 0; u < phashLowFreq; u++ {
-		for x := 0; x < phashSize; x++ {
-			phashCosTable[u][x] = math.Cos(math.Pi * (float64(x) + 0.5) * float64(u) / n)
+	for n := 2; n <= phashSize; n *= 2 {
+		for i := 0; i < n/2; i++ {
+			phashDCTFactors[n/2+i] = 2 * math.Cos(math.Pi*(float64(i)+0.5)/float64(n))
 		}
 	}
 }
@@ -233,63 +232,87 @@ func resizeToGray(src image.Image, width, height int) (*image.Gray, error) {
 		return nil, fmt.Errorf("无效图片尺寸")
 	}
 
-	dst := image.NewGray(image.Rect(0, 0, width, height))
-
-	// 尽量对齐 PIL 的 ANTIALIAS(LANCZOS) 重采样，避免与 imagehash.phash 生成的 pHash 差异过大。
-	// 说明：这里实现了灰度域的 Lanczos3 缩放（目标尺寸固定 32x32，开销可控）。
-	const a = 3.0
-	scaleX := float64(sw) / float64(width)
-	scaleY := float64(sh) / float64(height)
-	halfKernel := int(math.Ceil(a))
-
-	for y := 0; y < height; y++ {
-		srcY := (float64(y)+0.5)*scaleY - 0.5
-		iy := int(math.Floor(srcY))
-		rowStart := y * dst.Stride
-		for x := 0; x < width; x++ {
-			srcX := (float64(x)+0.5)*scaleX - 0.5
-			ix := int(math.Floor(srcX))
-
-			sum := 0.0
-			sumW := 0.0
-
-			for sy := iy - halfKernel + 1; sy <= iy+halfKernel; sy++ {
-				wy := lanczosKernelFunc(srcY-float64(sy), a)
-				if wy == 0 {
-					continue
-				}
-				py := clampInt(sy, 0, sh-1)
-				for sx := ix - halfKernel + 1; sx <= ix+halfKernel; sx++ {
-					wx := lanczosKernelFunc(srcX-float64(sx), a)
-					if wx == 0 {
-						continue
-					}
-					px := clampInt(sx, 0, sw-1)
-
-					gy := color.GrayModel.Convert(src.At(b.Min.X+px, b.Min.Y+py)).(color.Gray)
-					w := wx * wy
-					sum += float64(gy.Y) * w
-					sumW += w
-				}
-			}
-
-			if sumW == 0 {
-				gy := color.GrayModel.Convert(src.At(b.Min.X+clampInt(ix, 0, sw-1), b.Min.Y+clampInt(iy, 0, sh-1))).(color.Gray)
-				dst.Pix[rowStart+x] = gy.Y
+	// Pillow convert("L") rounds fixed-point RGB luminance and ignores alpha.
+	// GrayModel instead truncates and composites translucent colors against black.
+	gray := image.NewGray(image.Rect(0, 0, sw, sh))
+	for y := 0; y < sh; y++ {
+		for x := 0; x < sw; x++ {
+			pixel := src.At(b.Min.X+x, b.Min.Y+y)
+			if c, ok := pixel.(color.Gray16); ok {
+				// Pillow's I;16/I -> L conversion clips instead of dividing by 256.
+				gray.Pix[y*gray.Stride+x] = uint8(clampInt(int(c.Y), 0, 255))
 				continue
 			}
-
-			v := sum / sumW
-			if v < 0 {
-				v = 0
-			} else if v > 255 {
-				v = 255
-			}
-			dst.Pix[rowStart+x] = uint8(math.Round(v))
+			c := color.NRGBAModel.Convert(pixel).(color.NRGBA)
+			gray.Pix[y*gray.Stride+x] = uint8((19595*uint32(c.R) + 38470*uint32(c.G) + 7471*uint32(c.B) + 32768) >> 16)
 		}
 	}
 
-	return dst, nil
+	// Pillow resamples horizontally, rounds/clips to 8 bits, then vertically.
+	// Downsampling widens the Lanczos support by the scale factor to avoid aliasing.
+	if sw != width {
+		weights := pillowResizeWeights(sw, width)
+		tmp := image.NewGray(image.Rect(0, 0, width, sh))
+		for y := 0; y < sh; y++ {
+			for x, w := range weights {
+				sum := int64(1 << 21)
+				for i, k := range w.values {
+					sum += int64(gray.Pix[y*gray.Stride+w.start+i]) * int64(k)
+				}
+				tmp.Pix[y*tmp.Stride+x] = uint8(clampInt(int(sum>>22), 0, 255))
+			}
+		}
+		gray = tmp
+	}
+	if sh != height {
+		weights := pillowResizeWeights(sh, height)
+		dst := image.NewGray(image.Rect(0, 0, width, height))
+		for y, w := range weights {
+			for x := 0; x < width; x++ {
+				sum := int64(1 << 21)
+				for i, k := range w.values {
+					sum += int64(gray.Pix[(w.start+i)*gray.Stride+x]) * int64(k)
+				}
+				dst.Pix[y*dst.Stride+x] = uint8(clampInt(int(sum>>22), 0, 255))
+			}
+		}
+		gray = dst
+	}
+	return gray, nil
+}
+
+type pillowResampleWeights struct {
+	start  int
+	values []int32
+}
+
+// Match Pillow's normalized, signed 22-bit resampling coefficients. Pixels
+// beyond the image are excluded before normalization, not edge-replicated.
+func pillowResizeWeights(input, output int) []pillowResampleWeights {
+	scale := float64(input) / float64(output)
+	filterScale := math.Max(scale, 1)
+	support := 3 * filterScale
+	weights := make([]pillowResampleWeights, output)
+	for i := range weights {
+		center := (float64(i) + 0.5) * scale
+		start := clampInt(int(center-support+0.5), 0, input)
+		end := clampInt(int(center+support+0.5), 0, input)
+		values := make([]float64, end-start)
+		total := 0.0
+		for j := range values {
+			values[j] = lanczosKernelFunc((float64(start+j)-center+0.5)/filterScale, 3)
+			total += values[j]
+		}
+		w := pillowResampleWeights{start: start, values: make([]int32, len(values))}
+		for j, value := range values {
+			if total != 0 {
+				value /= total
+			}
+			w.values[j] = int32(math.Round(value * (1 << 22)))
+		}
+		weights[i] = w
+	}
+	return weights
 }
 
 func lanczos(x, a float64) float64 {
@@ -316,25 +339,52 @@ func dctLowFreq8x8(img *image.Gray) []float64 {
 		return nil
 	}
 
-	// 仅计算低频 8x8（其余不参与 pHash）
-	// 对齐 Python imagehash.phash 的 DCT 顺序：
-	// - scipy.fftpack.dct(..., axis=0) 再 axis=1
-	// - 因此 lowfreq 的第一维是 y 方向频率，第二维是 x 方向频率
+	// Match imagehash: DCT-II along axis 0, then axis 1. A butterfly
+	// decomposition preserves exact zero AC coefficients for constant inputs;
+	// direct cosine summation produces roundoff bits in otherwise flat images.
+	var columns [phashLowFreq][phashSize]float64
+	var values, scratch [phashSize]float64
+	for x := 0; x < phashSize; x++ {
+		for y := 0; y < phashSize; y++ {
+			values[y] = float64(img.Pix[y*img.Stride+x])
+		}
+		dctII(values[:], scratch[:])
+		for u := 0; u < phashLowFreq; u++ {
+			columns[u][x] = values[u]
+		}
+	}
 	out := make([]float64, 0, phashBitLength)
 	for u := 0; u < phashLowFreq; u++ {
+		dctII(columns[u][:], scratch[:])
 		for v := 0; v < phashLowFreq; v++ {
-			sum := 0.0
-			for y := 0; y < phashSize; y++ {
-				cosUy := phashCosTable[u][y]
-				rowStart := y * img.Stride
-				for x := 0; x < phashSize; x++ {
-					sum += float64(img.Pix[rowStart+x]) * cosUy * phashCosTable[v][x]
-				}
-			}
-			out = append(out, sum)
+			// scipy's unnormalized DCT-II includes a factor of 2 per axis.
+			out = append(out, 4*columns[u][v])
 		}
 	}
 	return out
+}
+
+// Lee's recursive DCT-II for power-of-two lengths up to phashSize.
+func dctII(values, scratch []float64) {
+	n := len(values)
+	if n == 1 {
+		return
+	}
+	half := n / 2
+	for i := 0; i < half; i++ {
+		a, b := values[i], values[n-1-i]
+		scratch[i] = a + b
+		scratch[half+i] = (a - b) / phashDCTFactors[half+i]
+	}
+	dctII(scratch[:half], values[:half])
+	dctII(scratch[half:], values[half:])
+	for i := 0; i < half; i++ {
+		values[2*i] = scratch[i]
+		values[2*i+1] = scratch[half+i]
+		if i+1 < half {
+			values[2*i+1] += scratch[half+i+1]
+		}
+	}
 }
 
 func medianFloat64(values []float64) float64 {
