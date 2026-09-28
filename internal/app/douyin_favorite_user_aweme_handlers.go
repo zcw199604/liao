@@ -271,7 +271,6 @@ func (a *App) handleDouyinFavoriteUserAwemeList(w http.ResponseWriter, r *http.R
 
 type douyinFavoriteUserAwemePullLatestRequest struct {
 	SecUserID string `json:"secUserId"`
-	Cookie    string `json:"cookie,omitempty"`
 	Count     int    `json:"count,omitempty"`
 }
 
@@ -304,7 +303,7 @@ func (a *App) handleDouyinFavoriteUserAwemePullLatest(w http.ResponseWriter, r *
 		count = 200
 	}
 
-	data, err := a.douyinDownloader.FetchAccount(r.Context(), secUserID, "post", strings.TrimSpace(req.Cookie), "", 0, count)
+	data, err := a.douyinDownloader.FetchAccount(r.Context(), secUserID, "post", "", "", 0, count)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return

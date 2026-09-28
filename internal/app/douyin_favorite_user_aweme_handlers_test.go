@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -419,12 +420,20 @@ func TestHandleDouyinFavoriteUserAwemeList_OrderByPinnedPublish(t *testing.T) {
 }
 
 func TestHandleDouyinFavoriteUserAwemePullLatest_Success(t *testing.T) {
+	seenCookie := make(chan string, 1)
 	var upstream *httptest.Server
 	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/douyin/account/page" {
 			http.NotFound(w, r)
 			return
 		}
+		var body struct {
+			Cookie string `json:"cookie"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode upstream request: %v", err)
+		}
+		seenCookie <- body.Cookie
 		w.Header().Set("Content-Type", "application/json")
 		payload := map[string]any{
 			"message": "获取数据成功！",
@@ -496,16 +505,27 @@ func TestHandleDouyinFavoriteUserAwemePullLatest_Success(t *testing.T) {
 		douyinFavorite:   NewDouyinFavoriteService(wrapMySQLDB(db)),
 		douyinDownloader: NewDouyinDownloaderService(upstream.URL, "", "", "", 60*time.Second),
 	}
+	app.douyinDownloader.SetCookieProvider(cookieProviderFunc(func(context.Context) (string, error) {
+		return "cloud=1", nil
+	}))
 
 	req := newJSONRequest(t, http.MethodPost, "http://example.com/api/douyin/favoriteUser/aweme/pullLatest", map[string]any{
 		"secUserId": "MS4wLjABAAAA_x",
-		"cookie":    "",
+		"cookie":    "manual=1",
 		"count":     1,
 	})
 	rr := httptest.NewRecorder()
 	app.handleDouyinFavoriteUserAwemePullLatest(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status=%d, want %d, body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	select {
+	case got := <-seenCookie:
+		if got != "cloud=1" {
+			t.Fatalf("upstream cookie=%q, want cloud=1", got)
+		}
+	default:
+		t.Fatal("upstream request not observed")
 	}
 
 	var resp map[string]any

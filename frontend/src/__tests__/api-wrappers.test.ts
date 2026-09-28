@@ -421,8 +421,8 @@ describe('api/videoExtract', () => {
 
 describe('api/douyin', () => {
   it('covers all douyin wrappers', () => {
-    douyinApi.getDouyinDetail({ input: 'x', cookie: 'c' })
-    expect(spies.douyinPost).toHaveBeenCalledWith('/douyin/detail', { input: 'x', cookie: 'c' })
+    douyinApi.getDouyinDetail({ input: 'x' })
+    expect(spies.douyinPost).toHaveBeenCalledWith('/douyin/detail', { input: 'x' })
 
     douyinApi.getDouyinAccount({ input: 'x', tab: 'favorite', cursor: 1, count: 20 })
     expect(spies.douyinPost).toHaveBeenCalledWith('/douyin/account', { input: 'x', tab: 'favorite', cursor: 1, count: 20 })
@@ -451,8 +451,8 @@ describe('api/douyin', () => {
     douyinApi.upsertDouyinFavoriteUserAwemes({ secUserId: 'sec', items: [{ awemeId: 'a1' }] })
     expect(spies.douyinPost).toHaveBeenCalledWith('/douyin/favoriteUser/aweme/upsert', { secUserId: 'sec', items: [{ awemeId: 'a1' }] })
 
-    douyinApi.pullLatestDouyinFavoriteUserAwemes({ secUserId: 'sec', cookie: 'c', count: 1 })
-    expect(spies.douyinPost).toHaveBeenCalledWith('/douyin/favoriteUser/aweme/pullLatest', { secUserId: 'sec', cookie: 'c', count: 1 })
+    douyinApi.pullLatestDouyinFavoriteUserAwemes({ secUserId: 'sec', count: 1 })
+    expect(spies.douyinPost).toHaveBeenCalledWith('/douyin/favoriteUser/aweme/pullLatest', { secUserId: 'sec', count: 1 })
 
     // Favorite awemes
     douyinApi.listDouyinFavoriteAwemes()

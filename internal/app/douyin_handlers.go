@@ -15,13 +15,11 @@ import (
 
 type douyinDetailRequest struct {
 	Input  string `json:"input"`
-	Cookie string `json:"cookie,omitempty"`
 	Proxy  string `json:"proxy,omitempty"`
 }
 
 type douyinAccountRequest struct {
 	Input  string `json:"input"`
-	Cookie string `json:"cookie,omitempty"`
 	Tab    string `json:"tab,omitempty"`    // post|favorite
 	Cursor int    `json:"cursor,omitempty"` // 游标
 	Count  int    `json:"count,omitempty"`  // 每页数量（>0）
@@ -1096,7 +1094,7 @@ func (a *App) handleDouyinAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := a.douyinDownloader.FetchAccount(r.Context(), secUserID, tab, req.Cookie, req.Proxy, cursor, count)
+	data, err := a.douyinDownloader.FetchAccount(r.Context(), secUserID, tab, "", req.Proxy, cursor, count)
 	if err != nil {
 		msg := err.Error()
 		if resolvedURL != "" {
@@ -1165,7 +1163,7 @@ func (a *App) handleDouyinDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	detail, err := a.douyinDownloader.FetchDetail(r.Context(), detailID, req.Cookie, req.Proxy)
+	detail, err := a.douyinDownloader.FetchDetail(r.Context(), detailID, "", req.Proxy)
 	if err != nil {
 		msg := err.Error()
 		if resolvedURL != "" {

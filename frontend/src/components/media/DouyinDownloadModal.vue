@@ -100,37 +100,6 @@
               </button>
             </div>
 
-            <div class="flex flex-col sm:flex-row gap-2">
-              <button
-                class="px-4 py-3 bg-surface-3 hover:bg-surface-hover text-fg rounded-xl border border-line transition"
-                @click="showAdvanced = !showAdvanced"
-              >
-                {{ showAdvanced ? '隐藏 Cookie' : '填写 Cookie' }}
-              </button>
-              <button
-                v-if="showAdvanced && cookie"
-                class="px-4 py-3 bg-surface-3 hover:bg-surface-hover text-fg rounded-xl border border-line transition"
-                @click="clearCookie"
-                title="清除本地保存的 Cookie"
-              >
-                清除 Cookie
-              </button>
-            </div>
-
-            <div v-if="showAdvanced" class="space-y-2">
-              <textarea
-                v-model="cookie"
-                :class="[
-                  'w-full min-h-[90px] bg-surface-deep border rounded-xl px-4 py-3 text-fg placeholder-fg-subtle focus:outline-none focus:border-emerald-500',
-                  highlightConfig ? 'border-red-500' : 'border-line'
-                ]"
-                placeholder="抖音 Cookie（可选；仅本地保存，不会写入服务端）"
-              ></textarea>
-              <div class="text-xs text-red-400">
-                Cookie 属敏感信息：仅保存在本地浏览器（localStorage），请勿在公共设备使用；如怀疑泄露请立即失效/更新。
-              </div>
-            </div>
-
             <div v-if="activeMode !== 'favorites'" class="flex gap-2">
               <button
                 class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
@@ -1537,10 +1506,7 @@ const inputText = ref('')
 const accountInput = ref('')
 const detailInputRef = ref<HTMLTextAreaElement | null>(null)
 const accountInputRef = ref<HTMLTextAreaElement | null>(null)
-const cookie = ref('')
-const showAdvanced = ref(false)
 const cookieHint = ref('')
-const highlightConfig = ref(false)
 
 const autoClipboard = ref(true)
 const autoResolveClipboard = ref(false)
@@ -1698,14 +1664,12 @@ const batchImportPercent = computed(() => (batchImport.total > 0 ? Math.round((b
 const batchDownloadPercent = computed(() => (batchDownload.total > 0 ? Math.round((batchDownload.done / batchDownload.total) * 100) : 0))
 
 const restoreLocalConfig = () => {
-  cookie.value = localStorage.getItem('douyin_cookie') || ''
-
+  localStorage.removeItem('douyin_cookie')
   autoClipboard.value = localStorage.getItem('douyin_auto_clipboard') !== '0'
   autoResolveClipboard.value = localStorage.getItem('douyin_auto_resolve_clipboard') === '1'
 }
 
 const persistLocalConfig = () => {
-  localStorage.setItem('douyin_cookie', cookie.value || '')
   localStorage.removeItem('douyin_proxy')
   localStorage.setItem('douyin_auto_clipboard', autoClipboard.value ? '1' : '0')
   localStorage.setItem('douyin_auto_resolve_clipboard', autoResolveClipboard.value ? '1' : '0')
@@ -1762,12 +1726,6 @@ const applyInputText = (txt: string) => {
   } else {
     inputText.value = v
   }
-}
-
-const clearCookie = () => {
-  cookie.value = ''
-  localStorage.removeItem('douyin_cookie')
-  show('已清除本地 Cookie')
 }
 
 const focusActiveInput = async () => {
@@ -1946,7 +1904,6 @@ watch(
       accountSecUserIdShowFull.value = false
       resetAccountStates()
       cookieHint.value = ''
-      highlightConfig.value = false
       resetDetailStates()
       showPreview.value = false
       previewUrl.value = ''
@@ -2063,7 +2020,6 @@ const close = () => {
   error.value = ''
   accountError.value = ''
   cookieHint.value = ''
-	highlightConfig.value = false
 	detail.value = null
 	favoriteUserDetailOpen.value = false
 	favoriteUserDetailId.value = ''
@@ -2074,7 +2030,6 @@ const close = () => {
 
 const handleClear = () => {
   cookieHint.value = ''
-  highlightConfig.value = false
 
   if (activeMode.value === 'detail') {
     inputText.value = ''
@@ -2103,7 +2058,6 @@ const switchMode = (mode: 'detail' | 'account' | 'favorites') => {
   }
   activeMode.value = mode
   cookieHint.value = ''
-  highlightConfig.value = false
 
   // 从“作品解析”切到“用户作品”时，避免预览悬浮造成干扰
   if (mode !== 'detail') {
@@ -2141,7 +2095,6 @@ const handleFetchAccount = async (opts: { append?: boolean; fetchAll?: boolean }
   accountLoading.value = true
   accountError.value = ''
   cookieHint.value = ''
-  highlightConfig.value = false
   persistLocalConfig()
 
 	if (!append) {
@@ -2166,7 +2119,6 @@ const handleFetchAccount = async (opts: { append?: boolean; fetchAll?: boolean }
     const fetchPage = async (cursor: number) => {
       const res = await douyinApi.getDouyinAccount({
         input,
-        cookie: String(cookie.value || '').trim(),
         tab: 'post',
         cursor,
         count: countPerPage
@@ -2283,9 +2235,7 @@ const handleFetchAccount = async (opts: { append?: boolean; fetchAll?: boolean }
     accountError.value = msg
 
     if (String(msg).includes('获取数据失败') || String(msg).toLowerCase().includes('cookie') || String(msg).includes('风控')) {
-      showAdvanced.value = true
-      highlightConfig.value = true
-      cookieHint.value = '提示：可能需要更新 Cookie 后重试。'
+      cookieHint.value = '提示：可能需要更新 CookieCloud 中的抖音 Cookie 后重试。'
     }
   } finally {
     accountLoading.value = false
@@ -2699,7 +2649,6 @@ const openBatchTagSheet = () => {
 	  try {
 	    const res = await douyinApi.pullLatestDouyinFavoriteUserAwemes({
 	      secUserId,
-	      cookie: String(cookie.value || '').trim() || undefined,
 	      count: 50
 	    })
 	    const added = Number(res?.added || 0)
@@ -2762,8 +2711,7 @@ const openBatchTagSheet = () => {
 	  favoriteUserWorkLoading.add(id)
 	  try {
 	    const res = await douyinApi.getDouyinDetail({
-	      input: id,
-	      cookie: String(cookie.value || '').trim()
+	      input: id
 	    })
 
 	    if (res?.key && Array.isArray(res?.items)) {
@@ -2808,7 +2756,6 @@ const copyText = async (value: string, okMsg = '已复制') => {
   try {
     const res = (await douyinApi.getDouyinAccount({
       input: secUserId,
-      cookie: String(cookie.value || '').trim(),
       tab: 'post',
       cursor: 0,
       count: 1
@@ -3317,8 +3264,7 @@ const openAccountItem = async (item: DouyinAccountItem) => {
 
   try {
     const res = await douyinApi.getDouyinDetail({
-      input: id,
-      cookie: String(cookie.value || '').trim()
+      input: id
     })
 
     if (res?.key && Array.isArray(res?.items)) {
@@ -3459,14 +3405,12 @@ const handleResolve = async () => {
   error.value = ''
   detail.value = null
   cookieHint.value = ''
-  highlightConfig.value = false
   resetDetailStates()
   persistLocalConfig()
 
   try {
     const res = await douyinApi.getDouyinDetail({
-      input,
-      cookie: String(cookie.value || '').trim()
+      input
     })
 
     if (!res?.key || !Array.isArray(res?.items)) {
@@ -3503,11 +3447,9 @@ const handleResolve = async () => {
 	    const msg = e?.response?.data?.error || e?.message || '解析失败'
 	    error.value = msg
 
-    // 经验判断：Cookie 问题更常见，解析失败时引导用户填写
+    // CookieCloud 中的抖音 Cookie 失效时，提示用户更新同步数据。
     if (String(msg).includes('获取数据失败') || String(msg).toLowerCase().includes('cookie') || String(msg).includes('风控')) {
-      showAdvanced.value = true
-      highlightConfig.value = true
-      cookieHint.value = '提示：可能需要更新 Cookie 后重试。'
+      cookieHint.value = '提示：可能需要更新 CookieCloud 中的抖音 Cookie 后重试。'
     }
   } finally {
     loading.value = false

@@ -1,12 +1,11 @@
 import { douyinRequest, createFormData } from './request'
 
-export const getDouyinDetail = (data: { input: string; cookie?: string }) => {
+export const getDouyinDetail = (data: { input: string }) => {
   return douyinRequest.post<any, any>('/douyin/detail', data)
 }
 
 export const getDouyinAccount = (data: {
   input: string
-  cookie?: string
   tab?: 'post' | 'favorite'
   cursor?: number
   count?: number
@@ -72,7 +71,7 @@ export const upsertDouyinFavoriteUserAwemes = (data: {
   return douyinRequest.post<any, any>('/douyin/favoriteUser/aweme/upsert', data)
 }
 
-export const pullLatestDouyinFavoriteUserAwemes = (data: { secUserId: string; cookie?: string; count?: number }) => {
+export const pullLatestDouyinFavoriteUserAwemes = (data: { secUserId: string; count?: number }) => {
   return douyinRequest.post<any, any>('/douyin/favoriteUser/aweme/pullLatest', data)
 }
 

@@ -268,9 +268,7 @@ describe('components/media/DouyinDownloadModal.vue (modes)', () => {
     accountMock.mockRejectedValueOnce(new Error('cookie invalid'))
     vm.accountInput = 'MS4wLjABuser'
     await vm.handleFetchAccount()
-    expect(vm.showAdvanced).toBe(true)
-    expect(vm.highlightConfig).toBe(true)
-    expect(String(vm.cookieHint || '')).toContain('Cookie')
+    expect(String(vm.cookieHint || '')).toContain('CookieCloud')
 
     // favorite user toggle
     vm.accountSecUserId = ''
@@ -464,7 +462,7 @@ describe('components/media/DouyinDownloadModal.vue (modes)', () => {
     // pull latest resets and reloads
     await vm.pullLatestFavoriteUserWorks()
     await flushAsync()
-    expect(douyinApi.pullLatestDouyinFavoriteUserAwemes).toHaveBeenCalled()
+    expect(douyinApi.pullLatestDouyinFavoriteUserAwemes).toHaveBeenCalledWith({ secUserId: 'SU1', count: 50 })
     expect(vm.favoriteUserWorks.length).toBe(1)
 
     // open an item without key/items triggers getDouyinDetail and shows preview

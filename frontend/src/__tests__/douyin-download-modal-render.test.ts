@@ -122,13 +122,9 @@ describe('components/media/DouyinDownloadModal.vue (render branches)', () => {
 
     const vm = wrapper.vm as any
 
-    // detail mode: input + advanced + error
+    // detail mode: input + error
     vm.activeMode = 'detail'
     vm.inputText = 'x'
-    vm.showAdvanced = true
-    vm.cookie = 'c'
-    vm.cookieHint = 'Cookie 提示'
-    vm.highlightConfig = true
     vm.error = '解析失败'
     await flush()
 

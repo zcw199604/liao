@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,64 @@ import (
 	"testing"
 	"time"
 )
+
+func TestHandleDouyinParsingUsesCookieCloudEvenWithClientCookie(t *testing.T) {
+	seen := make(chan struct{ path, cookie string }, 2)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Cookie string `json:"cookie"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode upstream request: %v", err)
+		}
+		seen <- struct{ path, cookie string }{r.URL.Path, body.Cookie}
+		switch r.URL.Path {
+		case "/douyin/detail":
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{
+				"id": "123456", "desc": "作品", "type": "视频", "downloads": "https://example.com/video.mp4",
+			}})
+		case "/douyin/account/page":
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{
+				"items": []any{}, "next_cursor": 0, "has_more": false,
+			}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	svc := NewDouyinDownloaderService(upstream.URL, "", "", "", time.Second)
+	svc.SetCookieProvider(cookieProviderFunc(func(context.Context) (string, error) {
+		return "cloud=1", nil
+	}))
+	a := &App{douyinDownloader: svc}
+	for _, tc := range []struct {
+		path, input, upstreamPath string
+		handler                   http.HandlerFunc
+	}{
+		{"/api/douyin/detail", "123456", "/douyin/detail", a.handleDouyinDetail},
+		{"/api/douyin/account", "MS4wLjABAAAA_test_secuid", "/douyin/account/page", a.handleDouyinAccount},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			req := newJSONRequest(t, http.MethodPost, "http://example.com"+tc.path, map[string]any{
+				"input": tc.input, "cookie": "manual=1",
+			})
+			rr := httptest.NewRecorder()
+			tc.handler(rr, req)
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status=%d, body=%s", rr.Code, rr.Body.String())
+			}
+			select {
+			case got := <-seen:
+				if got.path != tc.upstreamPath || got.cookie != "cloud=1" {
+					t.Fatalf("upstream request=%+v, want path=%s cookie=cloud=1", got, tc.upstreamPath)
+				}
+			default:
+				t.Fatal("upstream request not observed")
+			}
+		})
+	}
+}
 
 func TestHandleDouyinDetailAndDownload_Video(t *testing.T) {
 	videoBytes := []byte("video-bytes")

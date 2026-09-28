@@ -78,6 +78,36 @@ beforeEach(() => {
 })
 
 describe('components/media/DouyinDownloadModal.vue', () => {
+  it('hides manual Cookie input and omits browser Cookie from parsing requests', async () => {
+    localStorage.setItem('douyin_cookie', 'manual=secret')
+    localStorage.setItem('douyin_auto_clipboard', '0')
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const wrapper = mount(DouyinDownloadModal, {
+      global: {
+        plugins: [pinia],
+        stubs: { teleport: true, MediaPreview: true, MediaTile: true, MediaTileBadge: true, MediaTileSelectMark: true }
+      }
+    })
+    useDouyinStore().showModal = true
+    await nextTick()
+
+    expect(wrapper.text()).not.toContain('填写 Cookie')
+    expect(wrapper.find('textarea[placeholder*="Cookie"]').exists()).toBe(false)
+    expect(localStorage.getItem('douyin_cookie')).toBeNull()
+
+    const vm = wrapper.vm as any
+    ;(douyinApi.getDouyinDetail as any).mockResolvedValue({ key: 'k', items: [] })
+    vm.inputText = '123456'
+    await vm.handleResolve()
+    expect(douyinApi.getDouyinDetail).toHaveBeenCalledWith({ input: '123456' })
+
+    vm.accountInput = 'MS4wLjABAAAA_test'
+    await vm.handleFetchAccount()
+    expect(douyinApi.getDouyinAccount).toHaveBeenCalled()
+    expect((douyinApi.getDouyinAccount as any).mock.lastCall[0]).not.toHaveProperty('cookie')
+  })
+
   it('pastes any non-empty clipboard text (no douyin filter)', async () => {
     localStorage.setItem('douyin_auto_clipboard', '0')
     localStorage.setItem('douyin_auto_resolve_clipboard', '0')
@@ -588,7 +618,7 @@ describe('components/media/DouyinDownloadModal.vue', () => {
     ;(globalThis as any).fetch = originalFetch
   })
 
-  it('handleResolve highlights cookie config when cookie-related error happens', async () => {
+  it('handleResolve points Cookie errors to CookieCloud', async () => {
     localStorage.setItem('douyin_auto_clipboard', '0')
     localStorage.setItem('douyin_auto_resolve_clipboard', '0')
 
@@ -606,9 +636,7 @@ describe('components/media/DouyinDownloadModal.vue', () => {
     ;(douyinApi.getDouyinDetail as any).mockRejectedValue(new Error('cookie invalid'))
     vm.inputText = 'a1'
     await vm.handleResolve()
-    expect(vm.showAdvanced).toBe(true)
-    expect(vm.highlightConfig).toBe(true)
-    expect(String(vm.cookieHint || '')).toContain('Cookie')
+    expect(String(vm.cookieHint || '')).toContain('CookieCloud')
   })
 
   it('syncFavoriteUserWorksFromAccount keeps pinnedRank=0 when favoriting user from account mode', async () => {

@@ -80,7 +80,7 @@ type Config struct {
 	TikTokDownloaderBaseURL string
 	// TikTokDownloaderToken 为上游 Web API 的 token Header（默认上游不校验，可为空；如你自行启用校验则配置）。
 	TikTokDownloaderToken string
-	// DouyinDefaultCookie/DouyinDefaultProxy 为抖音抓取的默认 Cookie/代理（可选；页面传入优先）。
+	// DouyinDefaultCookie/DouyinDefaultProxy 为抖音抓取的默认 Cookie/代理；配置 CookieCloud 时优先使用同步的 Cookie。
 	DouyinDefaultCookie string
 	DouyinDefaultProxy  string
 
