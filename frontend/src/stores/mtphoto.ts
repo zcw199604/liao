@@ -19,6 +19,20 @@ export interface MtPhotoAlbum {
   endTime?: string
 }
 
+export interface MtPhotoAlbumGroup {
+  id: number
+  name: string
+  weights: number
+  albumIds: number[]
+}
+
+export interface MtPhotoAlbumSection {
+  // 上游分组ID
+  key: number
+  name: string
+  albums: MtPhotoAlbum[]
+}
+
 export interface MtPhotoFolderNode {
   id: number
   name: string
@@ -229,13 +243,16 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
 
   const showModal = ref(false)
   const mode = ref<'albums' | 'folders'>('albums')
-  const view = ref<'albums' | 'album' | 'folders'>('albums')
+  const view = ref<'albums' | 'group' | 'album' | 'folders'>('albums')
 
   const albums = ref<MtPhotoAlbum[]>([])
+  const albumGroups = ref<MtPhotoAlbumGroup[]>([])
   const albumsLoading = ref(false)
   const lastError = ref('')
 
   const selectedAlbum = ref<MtPhotoAlbum | null>(null)
+  // 当前打开的相册分组ID（view === 'group'，或从分组内进入相册时保留，用于返回）
+  const selectedGroupId = ref<number | null>(null)
 
   const mediaItems = ref<MtPhotoMediaItem[]>([])
   const mediaLoading = ref(false)
@@ -347,6 +364,7 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
 
   const resetAlbumState = () => {
     selectedAlbum.value = null
+    selectedGroupId.value = null
     mediaItems.value = []
     mediaPage.value = 1
     mediaPageSize.value = 60
@@ -401,6 +419,60 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     showModal.value = false
   }
 
+  // 按上游分组切分相册（仅包含有相册的分组；收藏夹不属于任何分组）
+  const albumSections = computed<MtPhotoAlbumSection[]>(() => {
+    const byId = new Map<number, MtPhotoAlbum>()
+    for (const album of albums.value) {
+      if (!album.isFavorites) byId.set(album.mtPhotoAlbumId, album)
+    }
+
+    const used = new Set<number>()
+    const sections: MtPhotoAlbumSection[] = []
+    for (const group of albumGroups.value) {
+      const items: MtPhotoAlbum[] = []
+      for (const albumId of group.albumIds) {
+        const album = byId.get(albumId)
+        if (!album || used.has(albumId)) continue
+        used.add(albumId)
+        items.push(album)
+      }
+      if (items.length) sections.push({ key: group.id, name: group.name, albums: items })
+    }
+    return sections
+  })
+
+  // 未归入任何分组的相册（无分组数据时即全部相册，不含收藏夹）
+  const ungroupedAlbums = computed<MtPhotoAlbum[]>(() => {
+    const grouped = new Set<number>()
+    for (const section of albumSections.value) {
+      for (const album of section.albums) grouped.add(album.mtPhotoAlbumId)
+    }
+    return albums.value.filter(a => !a.isFavorites && !grouped.has(a.mtPhotoAlbumId))
+  })
+
+  const selectedGroup = computed<MtPhotoAlbumSection | null>(() => {
+    if (selectedGroupId.value === null) return null
+    return albumSections.value.find(section => section.key === selectedGroupId.value) ?? null
+  })
+
+  const mapAlbumGroups = (raw: unknown): MtPhotoAlbumGroup[] => {
+    if (!Array.isArray(raw)) return []
+    const output: MtPhotoAlbumGroup[] = []
+    for (const item of raw) {
+      if (!item || typeof item !== 'object') continue
+      const g = item as any
+      const id = Number(g.id)
+      if (!Number.isFinite(id) || id <= 0) continue
+      output.push({
+        id,
+        name: String(g.name ?? '').trim() || `分组 ${id}`,
+        weights: Number.isFinite(Number(g.weights)) ? Number(g.weights) : 0,
+        albumIds: Array.isArray(g.albumIds) ? g.albumIds.map(Number).filter((n: number) => Number.isFinite(n) && n > 0) : []
+      })
+    }
+    return output
+  }
+
   const loadAlbums = async () => {
     albumsLoading.value = true
     try {
@@ -430,6 +502,7 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
       }
 
       albums.value = [favorites, ...mapped]
+      albumGroups.value = mapAlbumGroups(res?.groups)
       lastError.value = ''
 
       void (async () => {
@@ -443,6 +516,7 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     } catch (e: any) {
       console.error('加载 mtPhoto 相册失败:', e)
       albums.value = []
+      albumGroups.value = []
       lastError.value = e?.response?.data?.error || e?.message || '加载失败'
     } finally {
       albumsLoading.value = false
@@ -460,10 +534,24 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     await loadAlbumPage(1)
   }
 
+  const openGroup = (groupId: number) => {
+    mode.value = 'albums'
+    selectedAlbum.value = null
+    selectedGroupId.value = groupId
+    view.value = 'group'
+  }
+
+  // 返回上一级：相册 → （所属分组 →）相册列表
   const backToAlbums = () => {
     mode.value = 'albums'
-    view.value = 'albums'
+    const groupId = view.value === 'album' ? selectedGroupId.value : null
     resetAlbumState()
+    if (groupId !== null && albumSections.value.some(section => section.key === groupId)) {
+      selectedGroupId.value = groupId
+      view.value = 'group'
+      return
+    }
+    view.value = 'albums'
   }
 
   const loadAlbumPage = async (page: number) => {
@@ -917,6 +1005,7 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
 
     if (nextMode === 'albums') {
       view.value = 'albums'
+      selectedGroupId.value = null
       resetFolderState()
       cancelEditFavorite()
       return
@@ -1008,6 +1097,10 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     mode,
     view,
     albums,
+    albumGroups,
+    albumSections,
+    ungroupedAlbums,
+    selectedGroup,
     albumsLoading,
     lastError,
     selectedAlbum,
@@ -1053,6 +1146,7 @@ export const useMtPhotoStore = defineStore('mtphoto', () => {
     switchMode,
     loadAlbums,
     openAlbum,
+    openGroup,
     backToAlbums,
     loadMore,
     loadFolderRoot,

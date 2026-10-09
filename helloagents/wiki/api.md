@@ -202,7 +202,7 @@
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/getMtPhotoAlbums` | 查询 mtPhoto 相册 |
+| GET | `/api/getMtPhotoAlbums` | 查询 mtPhoto 相册；响应 `{data, groups}`，`groups` 为上游相册分组（旧版上游无该接口时为空数组） |
 | GET | `/api/getMtPhotoAlbumFiles` | 查询相册文件 |
 | GET | `/api/getMtPhotoFolderRoot` | 查询文件夹根节点 |
 | GET | `/api/getMtPhotoFolderContent` | 查询文件夹内容 |

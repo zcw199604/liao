@@ -85,33 +85,39 @@
         <!-- 相册模式 -->
         <template v-if="mtPhotoStore.mode === 'albums'">
           <!-- 相册列表 -->
-          <div v-if="mtPhotoStore.view === 'albums'" class="flex-1 overflow-y-auto p-2 no-scrollbar">
+          <div v-if="mtPhotoStore.view === 'albums' || mtPhotoStore.view === 'group'" class="flex-1 overflow-y-auto p-2 no-scrollbar">
             <div v-if="mtPhotoStore.albumsLoading" class="flex-1 flex items-center justify-center text-fg-subtle text-sm">
               加载中...
             </div>
 
-            <div v-else-if="mtPhotoStore.albums.length > 0" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div v-else-if="albumGridEntries.length > 0" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
               <button
-                v-for="album in mtPhotoStore.albums"
-                :key="album.id"
+                v-for="entry in albumGridEntries"
+                :key="entry.key"
                 class="text-left rounded-xl overflow-hidden border border-line-strong hover:border-pink-500 transition-colors bg-surface-deep"
-                @click="mtPhotoStore.openAlbum(album)"
+                @click="handleAlbumEntryClick(entry)"
               >
-                <div class="aspect-square bg-black/30 overflow-hidden">
+                <div class="relative aspect-square bg-black/30 overflow-hidden">
                   <MediaTile
-                    v-if="album.cover"
-                    :src="getThumbUrl('s260', album.cover)"
+                    v-if="entry.cover"
+                    :src="getThumbUrl('s260', entry.cover)"
                     type="image"
                     class="w-full h-full"
                     :show-skeleton="false"
                   />
                   <div v-else class="w-full h-full flex items-center justify-center text-fg-subtle">
-                    <i class="fas fa-images text-3xl opacity-40"></i>
+                    <i :class="entry.kind === 'group' ? 'fas fa-layer-group' : 'fas fa-images'" class="text-3xl opacity-40"></i>
                   </div>
+                  <span
+                    v-if="entry.kind === 'group'"
+                    class="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/60 text-[10px] text-white flex items-center gap-1"
+                  >
+                    <i class="fas fa-layer-group"></i>分组
+                  </span>
                 </div>
                 <div class="p-3">
-                  <div class="text-fg font-medium text-sm truncate">{{ album.name }}</div>
-                  <div class="text-xs text-fg-subtle mt-1">{{ album.count ?? 0 }} 个</div>
+                  <div class="text-fg font-medium text-sm truncate">{{ entry.name }}</div>
+                  <div class="text-xs text-fg-subtle mt-1">{{ entry.countText }}</div>
                 </div>
               </button>
             </div>
@@ -606,7 +612,7 @@
 <script setup lang="ts">
 import MtPhotoFolderMoveDialog from './MtPhotoFolderMoveDialog.vue'
 import { computed, ref, watch } from 'vue'
-import { useMtPhotoStore, type MtPhotoFolderFavorite, type MtPhotoMediaItem } from '@/stores/mtphoto'
+import { useMtPhotoStore, type MtPhotoAlbum, type MtPhotoFolderFavorite, type MtPhotoMediaItem } from '@/stores/mtphoto'
 import { useUserStore } from '@/stores/user'
 import { useToast } from '@/composables/useToast'
 import { useModalFullscreen } from '@/composables/useModalFullscreen'
@@ -620,6 +626,50 @@ import { encodeLocalMediaUrl } from '@/utils/media'
 const mtPhotoStore = useMtPhotoStore()
 const userStore = useUserStore()
 const { show } = useToast()
+
+// 相册列表网格项：顶层为 收藏夹 + 分组入口 + 未分组相册；分组内为该分组的相册
+type AlbumGridEntry = {
+  key: string
+  kind: 'album' | 'group'
+  name: string
+  cover: string
+  countText: string
+  album?: MtPhotoAlbum
+  groupId?: number
+}
+
+const toAlbumEntry = (album: MtPhotoAlbum): AlbumGridEntry => ({
+  key: `album-${album.id}`,
+  kind: 'album',
+  name: album.name,
+  cover: album.cover,
+  countText: `${album.count ?? 0} 个`,
+  album
+})
+
+const albumGridEntries = computed<AlbumGridEntry[]>(() => {
+  if (mtPhotoStore.view === 'group') {
+    return (mtPhotoStore.selectedGroup?.albums ?? []).map(toAlbumEntry)
+  }
+  const favorites = mtPhotoStore.albums.filter(a => a.isFavorites).map(toAlbumEntry)
+  const groups = mtPhotoStore.albumSections.map<AlbumGridEntry>(section => ({
+    key: `group-${section.key}`,
+    kind: 'group',
+    name: section.name,
+    cover: section.albums.find(a => a.cover)?.cover ?? '',
+    countText: `${section.albums.length} 个相册`,
+    groupId: section.key
+  }))
+  return [...favorites, ...groups, ...mtPhotoStore.ungroupedAlbums.map(toAlbumEntry)]
+})
+
+const handleAlbumEntryClick = (entry: AlbumGridEntry) => {
+  if (entry.kind === 'group' && entry.groupId !== undefined) {
+    mtPhotoStore.openGroup(entry.groupId)
+    return
+  }
+  if (entry.album) void mtPhotoStore.openAlbum(entry.album)
+}
 
 const showPreview = ref(false)
 const previewUrl = ref('')
@@ -804,7 +854,7 @@ const toggleLayout = () => {
 }
 
 const showBackButton = computed(() => {
-  if (mtPhotoStore.mode === 'albums') return mtPhotoStore.view === 'album'
+  if (mtPhotoStore.mode === 'albums') return mtPhotoStore.view === 'album' || mtPhotoStore.view === 'group'
   return mtPhotoStore.folderCurrentId !== null
 })
 
@@ -816,6 +866,7 @@ const showLayoutSwitcher = computed(() => {
 const titleText = computed(() => {
   if (mtPhotoStore.mode === 'albums') {
     if (mtPhotoStore.view === 'albums') return 'mtPhoto 相册'
+    if (mtPhotoStore.view === 'group') return mtPhotoStore.selectedGroup?.name || 'mtPhoto 相册'
     return mtPhotoStore.selectedAlbum?.name || 'mtPhoto 相册'
   }
   return mtPhotoStore.folderCurrentName || 'mtPhoto 文件夹'
@@ -823,7 +874,8 @@ const titleText = computed(() => {
 
 const subTitleText = computed(() => {
   if (mtPhotoStore.mode === 'albums') {
-    if (mtPhotoStore.view === 'albums') return mtPhotoStore.albums.length ? `(共 ${mtPhotoStore.albums.length} 个)` : ''
+    if (mtPhotoStore.view === 'albums') return albumGridEntries.value.length ? `(共 ${albumGridEntries.value.length} 个)` : ''
+    if (mtPhotoStore.view === 'group') return `(共 ${albumGridEntries.value.length} 个相册)`
     if (mtPhotoStore.selectedAlbum) return `(共 ${mtPhotoStore.selectedAlbum.count ?? 0} 个)`
     return ''
   }

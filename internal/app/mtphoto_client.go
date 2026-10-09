@@ -326,6 +326,49 @@ func (s *MtPhotoService) GetAlbums(ctx context.Context) ([]MtPhotoAlbum, error) 
 	return parsed, nil
 }
 
+// MtPhotoAlbumGroup 上游相册分组（api-group/album）；未出现在任一 AlbumIDs 中的相册视为未分组
+type MtPhotoAlbumGroup struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	Weights  int    `json:"weights"`
+	AlbumIDs []int  `json:"albumIds"`
+}
+
+// GetAlbumGroups 获取相册分组列表；上游版本过低（无该接口）时由调用方按失败降级为不分组
+func (s *MtPhotoService) GetAlbumGroups(ctx context.Context) ([]MtPhotoAlbumGroup, error) {
+	if !s.configured() {
+		return nil, fmt.Errorf("mtPhoto 未配置")
+	}
+
+	urlStr, err := s.buildURL("/api-group/album", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := s.doRequest(ctx, http.MethodGet, urlStr, map[string]string{
+		"Accept": "application/json",
+	}, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("mtPhoto 获取相册分组失败: %s", resp.Status)
+	}
+
+	var parsed []MtPhotoAlbumGroup
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return nil, err
+	}
+	for i := range parsed {
+		if parsed[i].AlbumIDs == nil {
+			parsed[i].AlbumIDs = []int{}
+		}
+	}
+	return parsed, nil
+}
+
 type MtPhotoFolderItem struct {
 	ID               int64   `json:"id"`
 	Name             string  `json:"name"`

@@ -65,7 +65,7 @@ mtPhoto 上游文档已整理为本地快照，后续接口变更应优先更新
 
 | 本地接口 | 上游接口 | 上游认证 | 说明 |
 |----------|----------|----------|------|
-| `GET /api/getMtPhotoAlbums` | `GET /api-album` | `x-api-key` | 相册列表 |
+| `GET /api/getMtPhotoAlbums` | `GET /api-album` + `GET /api-group/album` | `x-api-key` | 相册列表 + 相册分组（`groups`，上游 ≥1.57；分组请求失败降级为空，前端按分组折叠展示，未分组相册归入「未分组」） |
 | `GET /api/getMtPhotoAlbumFiles` | `GET /api-album/filesV2/{id}?listVer=v2` | `x-api-key` | 相册时间线文件 |
 | `GET /api/getMtPhotoFolderRoot` | `GET /gateway/folders/root` | `x-api-key` | 根目录 |
 | `GET /api/getMtPhotoFolderContent` | `GET /gateway/foldersV2/{id}` + `GET /gateway/folderFiles/{id}` | `x-api-key` | 目录内容与时间线合并 |

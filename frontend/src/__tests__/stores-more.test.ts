@@ -450,6 +450,49 @@ describe('stores/mtphoto', () => {
     vi.useRealTimers()
   })
 
+  it('splits albums into upstream groups and drills down group -> album -> back', async () => {
+    vi.mocked(mtphotoApi.getMtPhotoAlbums).mockResolvedValue({
+      data: [
+        { id: 2, name: 'A', cover: 'c', count: 1 },
+        { id: 3, name: 'B', cover: 'c', count: 1 },
+        { id: 4, name: 'C', cover: 'c', count: 1 }
+      ],
+      groups: [
+        { id: 10, name: '旅行', weights: 1, albumIds: [3, 4, 99] },
+        { id: 11, name: '空组', weights: 2, albumIds: [] }
+      ]
+    } as any)
+    vi.mocked(mtphotoApi.getMtPhotoAlbumFiles).mockResolvedValue({ total: 0, data: [], page: 1, totalPages: 0 } as any)
+
+    const store = useMtPhotoStore()
+    await store.loadAlbums()
+    expect(store.albumSections.map(s => [s.key, s.albums.map(a => a.mtPhotoAlbumId)])).toEqual([[10, [3, 4]]])
+    expect(store.ungroupedAlbums.map(a => a.mtPhotoAlbumId)).toEqual([2])
+
+    store.openGroup(10)
+    expect(store.view).toBe('group')
+    expect(store.selectedGroup?.name).toBe('旅行')
+
+    await store.openAlbum(store.selectedGroup!.albums[0]!)
+    expect(store.view).toBe('album')
+    store.backToAlbums()
+    expect(store.view).toBe('group')
+    store.backToAlbums()
+    expect(store.view).toBe('albums')
+    expect(store.selectedGroup).toBeNull()
+  })
+
+  it('returns no sections when upstream has no groups', async () => {
+    vi.mocked(mtphotoApi.getMtPhotoAlbums).mockResolvedValue({ data: [{ id: 2, name: 'A', cover: 'c', count: 1 }] } as any)
+    vi.mocked(mtphotoApi.getMtPhotoAlbumFiles).mockResolvedValue({ total: 0, data: [], page: 1 } as any)
+
+    const store = useMtPhotoStore()
+    await store.loadAlbums()
+    expect(store.albumGroups).toEqual([])
+    expect(store.albumSections).toEqual([])
+    expect(store.ungroupedAlbums.map(a => a.mtPhotoAlbumId)).toEqual([2])
+  })
+
   it('handles album load error and records lastError', async () => {
     vi.mocked(mtphotoApi.getMtPhotoAlbums).mockRejectedValue({ message: 'nope' } as any)
     const store = useMtPhotoStore()

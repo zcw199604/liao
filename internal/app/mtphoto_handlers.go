@@ -29,7 +29,14 @@ func (a *App) handleGetMtPhotoAlbums(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": albums})
+
+	// 相册分组为增强信息：上游版本较旧或请求失败时降级为空，不影响相册列表
+	groups, groupErr := a.mtPhoto.GetAlbumGroups(r.Context())
+	if groupErr != nil {
+		slog.Warn("获取 mtPhoto 相册分组失败，按未分组展示", "error", groupErr)
+		groups = []MtPhotoAlbumGroup{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": albums, "groups": groups})
 }
 
 func (a *App) handleGetMtPhotoAlbumFiles(w http.ResponseWriter, r *http.Request) {
