@@ -239,7 +239,7 @@ CREATE TABLE IF NOT EXISTS image_hash (
 
 CREATE INDEX IF NOT EXISTS idx_ih_md5_hash ON image_hash (md5_hash);
 
-CREATE INDEX IF NOT EXISTS idx_ih_phash ON image_hash (phash);
+-- 不为 phash 建 btree 索引：相似度查询使用 bit_count(phash # x)，btree 无法加速
 
 CREATE TABLE IF NOT EXISTS system_config (
 			config_key varchar(64) PRIMARY KEY,
