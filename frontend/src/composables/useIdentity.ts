@@ -35,8 +35,6 @@ export const useIdentity = () => {
   }
 
   const select = async (identity: any, options: SelectIdentityOptions = {}) => {
-    console.log('选择身份:', identity)
-
     const name = identity.name || 'User'
     const cookie = generateCookie(identity.id, name)
 
@@ -52,7 +50,6 @@ export const useIdentity = () => {
       area: '未知'
     }
 
-    console.log('设置当前用户:', currentUser)
     userStore.setCurrentUser(currentUser)
 
     await identityStore.selectIdentity(identity.id)

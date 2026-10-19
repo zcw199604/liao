@@ -12,6 +12,7 @@ const wsMocks = {
 }
 
 const chatMocks = {
+  loadUsers: vi.fn().mockResolvedValue(undefined),
   toggleFavorite: vi.fn(),
   enterChat: vi.fn(),
   startMatch: vi.fn().mockReturnValue(true)
@@ -96,14 +97,16 @@ const createTestRouter = () => {
 const createStubs = (opts?: { isAtBottom?: boolean }) => {
   const scrollToBottom = vi.fn()
   const scrollToTop = vi.fn()
+  const captureScrollAnchor = vi.fn().mockReturnValue({ scrollHeight: 100, scrollTop: 0 })
+  const restoreScrollAnchor = vi.fn()
   const getIsAtBottom = vi.fn().mockReturnValue(opts?.isAtBottom ?? true)
 
   const MessageList = {
     name: 'MessageList',
     inheritAttrs: false,
     props: ['messages', 'isTyping', 'loadingMore', 'canLoadMore', 'floatingBottomOffsetPx'],
-    emits: ['load-more', 'close-all-panels', 'retry'],
-    methods: { scrollToBottom, scrollToTop, getIsAtBottom },
+    emits: ['load-more', 'close-all-panels', 'retry', 'preview'],
+    methods: { scrollToBottom, scrollToTop, getIsAtBottom, captureScrollAnchor, restoreScrollAnchor },
     template: '<div class="message-list-stub" v-bind=\"$attrs\"></div>'
   }
 
@@ -370,7 +373,7 @@ describe('views/ChatRoomView.vue (branch coverage gaps)', () => {
     chatStore.enterChat({ id: 'u1', name: 'U1', nickname: 'U1' } as any)
     chatStore.wsConnected = false
     ;(wrapper.vm as any).handleSendMedia({ url: 'x', type: 'image' })
-    expect(toastShow).toHaveBeenCalledWith('连接已断开，请刷新页面重试')
+    expect(toastShow).toHaveBeenCalledWith('连接已断开，正在重连…')
   })
 
   it('covers route-param enterChat vs redirect-to-list branches on mount', async () => {
@@ -422,8 +425,8 @@ describe('views/ChatRoomView.vue (branch coverage gaps)', () => {
     const pinia2 = createPinia()
     setActivePinia(pinia2)
     const router2 = createTestRouter()
-    const pushSpy2 = vi.spyOn(router2, 'push')
     await router2.push('/chat/missing')
+    const replaceSpy2 = vi.spyOn(router2, 'replace')
     await router2.isReady()
 
     const userStore2 = useUserStore()
@@ -453,7 +456,11 @@ describe('views/ChatRoomView.vue (branch coverage gaps)', () => {
       }
     })
     await flushAsync()
-    expect(pushSpy2).toHaveBeenCalledWith('/list')
+    await flushAsync()
+    await flushAsync()
+    // 找不到会话时先尝试拉取列表，仍找不到才回列表页
+    expect(chatMocks.loadUsers).toHaveBeenCalled()
+    expect(replaceSpy2).toHaveBeenCalledWith('/list')
     expect(pushSpy).not.toHaveBeenCalledWith('/list')
   })
 
@@ -527,11 +534,11 @@ describe('views/ChatRoomView.vue (branch coverage gaps)', () => {
     expect(toastShow).toHaveBeenCalledWith('重新上传失败: 未知错误')
 
     // handlePreview: rawUrl chooses imageUrl/videoUrl/content, and found toggles list mode.
-    ;(wrapper.vm as any).handlePreview({ detail: { url: 'http://x/img.png', type: 'image' } })
+    ;(wrapper.vm as any).handlePreview('http://x/img.png', 'image')
     await flushAsync()
     expect((wrapper.vm as any).previewMediaList.length).toBeGreaterThan(0)
 
-    ;(wrapper.vm as any).handlePreview({ detail: { url: 'http://x/not-found.png', type: 'image' } })
+    ;(wrapper.vm as any).handlePreview('http://x/not-found.png', 'image')
     await flushAsync()
     expect((wrapper.vm as any).previewMediaList).toEqual([])
   })

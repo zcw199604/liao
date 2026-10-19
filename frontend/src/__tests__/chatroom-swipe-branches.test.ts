@@ -12,6 +12,7 @@ const wsMocks = {
 }
 
 const chatMocks = {
+  loadUsers: vi.fn().mockResolvedValue(undefined),
   toggleFavorite: vi.fn(),
   enterChat: vi.fn(),
   startMatch: vi.fn().mockReturnValue(true)
@@ -88,14 +89,16 @@ const flushAsync = async () => {
 const createStubs = () => {
   const scrollToBottom = vi.fn()
   const scrollToTop = vi.fn()
+  const captureScrollAnchor = vi.fn().mockReturnValue({ scrollHeight: 100, scrollTop: 0 })
+  const restoreScrollAnchor = vi.fn()
   const getIsAtBottom = vi.fn().mockReturnValue(true)
 
   const MessageList = {
     name: 'MessageList',
     inheritAttrs: false,
     props: ['messages', 'isTyping', 'loadingMore', 'canLoadMore', 'floatingBottomOffsetPx'],
-    emits: ['load-more', 'close-all-panels', 'retry'],
-    methods: { scrollToBottom, scrollToTop, getIsAtBottom },
+    emits: ['load-more', 'close-all-panels', 'retry', 'preview'],
+    methods: { scrollToBottom, scrollToTop, getIsAtBottom, captureScrollAnchor, restoreScrollAnchor },
     template: '<div class="message-list-stub" v-bind=\"$attrs\"></div>'
   }
 
@@ -103,6 +106,8 @@ const createStubs = () => {
     MessageList,
     scrollToBottom,
     scrollToTop,
+    captureScrollAnchor,
+    restoreScrollAnchor,
     getIsAtBottom
   }
 }
@@ -132,7 +137,8 @@ describe('views/ChatRoomView.vue (swipe branches)', () => {
     setActivePinia(pinia)
 
     const router = createTestRouter()
-    const pushSpy = vi.spyOn(router, 'push')
+    const pushSpy = vi.spyOn(router, 'replace')
+    const backSpy = vi.spyOn(router, 'back').mockImplementation(() => {})
     await router.push('/chat')
     await router.isReady()
 
@@ -191,7 +197,18 @@ describe('views/ChatRoomView.vue (swipe branches)', () => {
     ;(wrapper.vm as any).pageTranslateX = 120
     pageSwipe.opts.onSwipeEnd?.('right')
     await flushAsync()
+    // 不是从列表页进入：replace 到列表页
     expect(pushSpy).toHaveBeenCalledWith('/list')
+    expect(backSpy).not.toHaveBeenCalled()
+
+    // 从列表页进入：直接后退，避免历史栈堆积
+    const prevState = window.history.state
+    window.history.replaceState({ ...(prevState || {}), back: '/list' }, '')
+    pushSpy.mockClear()
+    ;(wrapper.vm as any).handleBack()
+    expect(backSpy).toHaveBeenCalledTimes(1)
+    expect(pushSpy).not.toHaveBeenCalled()
+    window.history.replaceState(prevState, '')
 
     // Swipe finish: triggered -> early return
     pageSwipe.opts.onSwipeFinish?.(0, 0, true)
@@ -340,11 +357,15 @@ describe('views/ChatRoomView.vue (swipe branches)', () => {
     await flushAsync()
     expect(stubs.scrollToBottom).toHaveBeenCalled()
 
-    // handleLoadMore: count > 0 branch triggers scrollToTop
+    // handleLoadMore: count > 0 branch keeps reading position (anchor restore), no success toast
+    toastShow.mockClear()
     vi.spyOn(messageStore, 'loadHistory').mockResolvedValueOnce(1 as any)
     await (wrapper.vm as any).handleLoadMore()
     await flushAsync()
-    expect(stubs.scrollToTop).toHaveBeenCalled()
+    expect(stubs.captureScrollAnchor).toHaveBeenCalled()
+    expect(stubs.restoreScrollAnchor).toHaveBeenCalledWith({ scrollHeight: 100, scrollTop: 0 })
+    expect(stubs.scrollToTop).not.toHaveBeenCalled()
+    expect(toastShow).not.toHaveBeenCalled()
 
     // handleLoadMore: count == 0 branch
     vi.spyOn(messageStore, 'loadHistory').mockResolvedValueOnce(0 as any)

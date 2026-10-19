@@ -39,7 +39,6 @@ vi.mock('@/composables/useChat', () => ({
 import ChatInput from '@/components/chat/ChatInput.vue'
 import EmojiPanel from '@/components/chat/EmojiPanel.vue'
 import UploadMenu from '@/components/chat/UploadMenu.vue'
-import MessageBubble from '@/components/chat/MessageBubble.vue'
 import MessageList from '@/components/chat/MessageList.vue'
 import MatchButton from '@/components/chat/MatchButton.vue'
 
@@ -167,109 +166,6 @@ describe('components/chat/UploadMenu.vue', () => {
   })
 })
 
-describe('components/chat/MessageBubble.vue', () => {
-  it('renders formatted time for text message', () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 0, 5, 12, 0, 0))
-
-    const wrapper = mount(MessageBubble, {
-      props: {
-        message: {
-          content: 'hi',
-          time: new Date(2026, 0, 5, 9, 5, 0).toISOString(),
-          tid: '1',
-          isSelf: false,
-          isImage: false,
-          isVideo: false,
-          isFile: false,
-          fromuser: { id: 'u1', nickname: 'u1', name: 'u1', sex: '未知', ip: '' },
-          touser: { id: 'me', nickname: 'me', name: 'me', sex: '未知', ip: '' }
-        } as any
-      }
-    })
-
-    expect(wrapper.text()).toContain('09:05')
-  })
-
-  it('dispatches preview-media for image and video', async () => {
-    const onPreview = vi.fn()
-    window.addEventListener('preview-media', onPreview as any)
-
-    const imageWrapper = mount(MessageBubble, {
-      props: {
-        message: {
-          content: '',
-          time: new Date().toISOString(),
-          tid: '1',
-          isSelf: false,
-          isImage: true,
-          isVideo: false,
-          isFile: false,
-          imageUrl: 'http://x/a.png',
-          fromuser: { id: 'u1', nickname: 'u1', name: 'u1', sex: '未知', ip: '' }
-        } as any
-      }
-    })
-
-    await imageWrapper.get('div.cursor-pointer').trigger('click')
-    expect(onPreview).toHaveBeenCalled()
-    expect((onPreview.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({
-      url: 'http://x/a.png',
-      type: 'image'
-    })
-
-    onPreview.mockClear()
-
-    const videoWrapper = mount(MessageBubble, {
-      props: {
-        message: {
-          content: '',
-          time: new Date().toISOString(),
-          tid: '2',
-          isSelf: false,
-          isImage: false,
-          isVideo: true,
-          isFile: false,
-          videoUrl: 'http://x/a.mp4',
-          fromuser: { id: 'u1', nickname: 'u1', name: 'u1', sex: '未知', ip: '' }
-        } as any
-      }
-    })
-
-    await videoWrapper.get('div.cursor-pointer').trigger('click')
-    expect((onPreview.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({
-      url: 'http://x/a.mp4',
-      type: 'video'
-    })
-
-    window.removeEventListener('preview-media', onPreview as any)
-  })
-
-  it('downloads file by creating an anchor element', async () => {
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
-
-    const wrapper = mount(MessageBubble, {
-      props: {
-        message: {
-          content: '',
-          time: new Date().toISOString(),
-          tid: '3',
-          isSelf: false,
-          isImage: false,
-          isVideo: false,
-          isFile: true,
-          fileUrl: 'http://x/img/Upload/a.pdf',
-          fromuser: { id: 'u1', nickname: 'u1', name: 'u1', sex: '未知', ip: '' }
-        } as any
-      }
-    })
-
-    await wrapper.get('div.cursor-pointer').trigger('click')
-    expect(clickSpy).toHaveBeenCalled()
-    clickSpy.mockRestore()
-  })
-})
-
 describe('components/chat/MessageList.vue', () => {
   it('copies text on dblclick and shows toast', async () => {
     const pinia = createPinia()
@@ -298,9 +194,81 @@ describe('components/chat/MessageList.vue', () => {
       global: { plugins: [pinia] }
     })
 
-    await wrapper.get('span[title=\"双击复制\"]').trigger('dblclick')
+    await wrapper.get('span[title=\"双击或长按复制\"]').trigger('dblclick')
     expect(clipboard.writeText).toHaveBeenCalledWith('hello')
     expect(toastShow).toHaveBeenCalledWith('已复制')
+  })
+
+  it('opens message menu on contextmenu/long-press and supports copy and retry', async () => {
+    vi.useFakeTimers()
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const clipboard = (navigator as any).clipboard
+
+    const failed = {
+      content: 'oops',
+      time: '',
+      tid: '',
+      clientId: 'c1',
+      isSelf: true,
+      isImage: false,
+      isVideo: false,
+      sendStatus: 'failed',
+      fromuser: { id: 'me', nickname: 'me', name: 'me', sex: '未知', ip: '' }
+    }
+    const image = {
+      content: '',
+      time: '',
+      tid: 'img-1',
+      isSelf: false,
+      isImage: true,
+      isVideo: false,
+      imageUrl: 'http://x/a.png',
+      fromuser: { id: 'u1', nickname: 'u1', name: 'u1', sex: '未知', ip: '' }
+    }
+    const wrapper = mount(MessageList, {
+      props: { messages: [image, failed] as any, isTyping: false, loadingMore: false, canLoadMore: true },
+      global: { plugins: [pinia] },
+      attachTo: document.body
+    })
+    await wrapper.vm.$nextTick()
+
+    const bubbles = wrapper.findAll('.msg-bubble')
+    // 纯图片消息没有可用操作：不拦截浏览器默认右键菜单
+    const imgEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 10, clientY: 10 })
+    bubbles[0]!.element.dispatchEvent(imgEvent)
+    expect(imgEvent.defaultPrevented).toBe(false)
+    expect(document.querySelector('[data-testid="message-menu"]')).toBeNull()
+
+    // 右键失败消息：出现复制 + 重新发送
+    const evt = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 9999, clientY: 9999 })
+    bubbles[1]!.element.dispatchEvent(evt)
+    await wrapper.vm.$nextTick()
+    expect(evt.defaultPrevented).toBe(true)
+    ;(document.querySelector('[data-testid="message-menu-retry"]') as HTMLElement).click()
+    expect(wrapper.emitted('retry')?.[0]).toEqual([failed])
+    await wrapper.vm.$nextTick()
+    expect(document.querySelector('[data-testid="message-menu"]')).toBeNull()
+
+    // 长按打开，复制文本
+    bubbles[1]!.element.dispatchEvent(new TouchEvent('touchstart', {
+      touches: [{ clientX: 5, clientY: 5 } as any]
+    }))
+    vi.advanceTimersByTime(500)
+    await wrapper.vm.$nextTick()
+    ;(document.querySelector('[data-testid="message-menu-copy"]') as HTMLElement).click()
+    await Promise.resolve()
+    expect(clipboard.writeText).toHaveBeenCalledWith('oops')
+
+    // 移动手指取消长按
+    bubbles[1]!.element.dispatchEvent(new TouchEvent('touchstart', { touches: [{ clientX: 5, clientY: 5 } as any] }))
+    bubbles[1]!.element.dispatchEvent(new TouchEvent('touchmove', { touches: [{ clientX: 50, clientY: 5 } as any] }))
+    vi.advanceTimersByTime(600)
+    await wrapper.vm.$nextTick()
+    expect(document.querySelector('[data-testid="message-menu"]')).toBeNull()
+
+    wrapper.unmount()
+    vi.useRealTimers()
   })
 
   it('shows new message badge when not at bottom and new messages arrive', async () => {

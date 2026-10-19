@@ -8,10 +8,12 @@ const toastShow = vi.fn()
 
 const wsMocks = {
   connect: vi.fn(),
-  setScrollToBottom: vi.fn()
+  setScrollToBottom: vi.fn(),
+  reconnectNow: vi.fn()
 }
 
 const chatMocks = {
+  loadUsers: vi.fn().mockResolvedValue(undefined),
   toggleFavorite: vi.fn(),
   enterChat: vi.fn(),
   startMatch: vi.fn()
@@ -103,14 +105,16 @@ const createTestRouter = () => {
 const createMessageListStub = (opts?: { isAtBottom?: boolean }) => {
   const scrollToBottom = vi.fn()
   const scrollToTop = vi.fn()
+  const captureScrollAnchor = vi.fn().mockReturnValue({ scrollHeight: 100, scrollTop: 0 })
+  const restoreScrollAnchor = vi.fn()
   const getIsAtBottom = vi.fn().mockReturnValue(opts?.isAtBottom ?? true)
 
   const MessageList = {
     name: 'MessageList',
     inheritAttrs: false,
     props: ['messages', 'isTyping', 'loadingMore', 'canLoadMore', 'floatingBottomOffsetPx'],
-    emits: ['load-more', 'close-all-panels', 'retry'],
-    methods: { scrollToBottom, scrollToTop, getIsAtBottom },
+    emits: ['load-more', 'close-all-panels', 'retry', 'preview'],
+    methods: { scrollToBottom, scrollToTop, getIsAtBottom, captureScrollAnchor, restoreScrollAnchor },
     template: '<div class=\"message-list-stub\" v-bind=\"$attrs\"></div>'
   }
 
@@ -253,15 +257,16 @@ describe('views/ChatRoomView.vue (panels/upload/remaining branches)', () => {
 
     ;(wrapper.vm as any).inputText = 'hi'
     await (wrapper.vm as any).handleSend()
-    expect(toastShow).toHaveBeenCalledWith('连接已断开，请刷新页面重试')
+    expect(toastShow).toHaveBeenCalledWith('连接已断开，正在重连…')
     expect(messageMocks.sendText).not.toHaveBeenCalled()
 
     chatStore.wsConnected = true
     await (wrapper.vm as any).handleSend()
     expect(messageMocks.sendText).toHaveBeenCalled()
 
-    // getIsAtBottom=false -> no scrollToBottom call in these handlers
-    expect(stubs.scrollToBottom).not.toHaveBeenCalled()
+    // 自己发送消息后总是回到底部（即便当前不在底部）
+    expect(stubs.scrollToBottom).toHaveBeenCalledWith(true)
+    stubs.scrollToBottom.mockClear()
 
     // typing status only sent when connected and has currentChatUser
     ;(wrapper.vm as any).handleTypingStart()
@@ -275,7 +280,7 @@ describe('views/ChatRoomView.vue (panels/upload/remaining branches)', () => {
 
     // retry connected/disconnected
     await (wrapper.vm as any).handleRetry({ tid: 't1', content: 'x' })
-    expect(toastShow).toHaveBeenCalledWith('连接已断开，请刷新页面重试')
+    expect(toastShow).toHaveBeenCalledWith('连接已断开，正在重连…')
   })
 
   it('handleFileChange covers upload success (image/video/file) and failure branches', async () => {
@@ -319,29 +324,256 @@ describe('views/ChatRoomView.vue (panels/upload/remaining branches)', () => {
 
     const file = new File(['x'], 'a.bin', { type: 'application/octet-stream' })
 
-    uploadMocks.uploadFile.mockResolvedValueOnce({ type: 'video' } as any)
+    // 单个文件：上传成功后直接发送给当前会话，并清空 input
+    uploadMocks.uploadFile.mockResolvedValueOnce({ url: 'v', type: 'video' } as any)
     const target1: any = { files: [file], value: 'x' }
     await (wrapper.vm as any).handleFileChange({ target: target1 } as any)
-    expect(toastShow).toHaveBeenCalledWith('视频上传成功')
+    expect(messageMocks.sendVideo).toHaveBeenCalledTimes(1)
     expect(target1.value).toBe('')
+    expect((wrapper.vm as any).uploadProgress).toBeNull()
 
-    uploadMocks.uploadFile.mockResolvedValueOnce({ type: 'image' } as any)
-    const target2: any = { files: [file], value: 'x' }
-    await (wrapper.vm as any).handleFileChange({ target: target2 } as any)
-    expect(toastShow).toHaveBeenCalledWith('图片上传成功')
-    expect(target2.value).toBe('')
+    // 多个文件：逐个上传，进度回调写入 uploadProgress；部分失败时提示失败个数
+    uploadMocks.uploadFile.mockImplementationOnce(async (_f: File, _id: string, _name: string, opts: any) => {
+      opts.onProgress(50)
+      expect((wrapper.vm as any).uploadProgress).toEqual({ current: 1, total: 2, percent: 50 })
+      return { url: 'i', type: 'image' }
+    })
+    uploadMocks.uploadFile.mockResolvedValueOnce(null as any)
+    await (wrapper.vm as any).uploadAndSendFiles([file, file])
+    expect(messageMocks.sendImage).toHaveBeenCalledTimes(1)
+    expect(toastShow).toHaveBeenCalledWith('1 个文件上传失败')
 
-    uploadMocks.uploadFile.mockResolvedValueOnce({ type: 'file' } as any)
-    const target3: any = { files: [file], value: 'x' }
-    await (wrapper.vm as any).handleFileChange({ target: target3 } as any)
-    expect(toastShow).toHaveBeenCalledWith('文件上传成功')
-    expect(target3.value).toBe('')
-
+    // 单文件失败
     uploadMocks.uploadFile.mockResolvedValueOnce(null as any)
     const target4: any = { files: [file], value: 'x' }
     await (wrapper.vm as any).handleFileChange({ target: target4 } as any)
     expect(toastShow).toHaveBeenCalledWith('文件上传失败')
     expect(target4.value).toBe('')
+
+    // 断线时上传成功：不自动发送，保留在已上传列表
+    chatStore.wsConnected = false
+    messageMocks.sendImage.mockClear()
+    uploadMocks.uploadFile.mockResolvedValueOnce({ url: 'i2', type: 'file' } as any)
+    await (wrapper.vm as any).uploadAndSendFiles([file])
+    expect(messageMocks.sendImage).not.toHaveBeenCalled()
+    expect(toastShow).toHaveBeenCalledWith('已上传，可在“已上传的文件”中点击发送')
+    chatStore.wsConnected = true
+
+    // 上传期间切换会话：不发给新会话
+    let resolveUpload: (v: any) => void = () => {}
+    uploadMocks.uploadFile.mockImplementationOnce(() => new Promise(r => { resolveUpload = r }))
+    const pending = (wrapper.vm as any).uploadAndSendFiles([file])
+    await flushAsync()
+    // 上传进行中再次触发：提示稍候
+    await (wrapper.vm as any).uploadAndSendFiles([file])
+    expect(toastShow).toHaveBeenCalledWith('正在上传，请稍候')
+    chatStore.enterChat({ id: 'u2', name: 'U2', nickname: 'U2' } as any)
+    resolveUpload({ url: 'i3', type: 'image' })
+    await pending
+    expect(messageMocks.sendImage).not.toHaveBeenCalled()
+
+    // 空列表/无当前用户：直接返回
+    uploadMocks.uploadFile.mockClear()
+    await (wrapper.vm as any).uploadAndSendFiles([])
+    expect(uploadMocks.uploadFile).not.toHaveBeenCalled()
+  })
+
+  it('keeps per-conversation drafts when switching chats and on unmount', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const router = createTestRouter()
+    await router.push('/chat')
+    await router.isReady()
+
+    useUserStore().currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+    const chatStore = useChatStore()
+    chatStore.wsConnected = true
+    chatStore.enterChat({ id: 'u1', name: 'U1', nickname: 'U1' } as any)
+    const messageStore = useMessageStore()
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const stubs = createMessageListStub({ isAtBottom: true })
+    const wrapper = mount(ChatRoomView, {
+      global: {
+        plugins: [pinia, router],
+        stubs: {
+          teleport: TeleportStub,
+          Dialog: DialogStub,
+          Toast: true,
+          MediaPreview: true,
+          MediaTile: MediaTileStub,
+          ChatSidebar: true,
+          UploadMenu: true,
+          EmojiPanel: true,
+          ChatInput: true,
+          ChatHeader: true,
+          MessageList: stubs.MessageList
+        }
+      }
+    })
+    await flushAsync()
+
+    ;(wrapper.vm as any).inputText = '给 u1 的半截话'
+    chatStore.enterChat({ id: 'u2', name: 'U2', nickname: 'U2' } as any)
+    await flushAsync()
+    expect((wrapper.vm as any).inputText).toBe('')
+
+    ;(wrapper.vm as any).inputText = '给 u2'
+    chatStore.enterChat({ id: 'u1', name: 'U1', nickname: 'U1' } as any)
+    await flushAsync()
+    expect((wrapper.vm as any).inputText).toBe('给 u1 的半截话')
+
+    // 离开页面时保存当前草稿
+    ;(wrapper.vm as any).inputText = '改过的草稿'
+    wrapper.unmount()
+    expect(messageStore.getDraft('me:u1')).toBe('改过的草稿')
+    expect(messageStore.getDraft('me:u2')).toBe('给 u2')
+
+    // 清空草稿 / resetAll
+    messageStore.setDraft('me:u2', '')
+    expect(messageStore.getDraft('me:u2')).toBe('')
+    messageStore.setDraft('', 'x')
+    expect(messageStore.getDraft('')).toBe('')
+    messageStore.resetAll()
+    expect(messageStore.getDraft('me:u1')).toBe('')
+  })
+
+  it('history media modal closes on Escape and header reconnect triggers reconnectNow', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const router = createTestRouter()
+    await router.push('/chat')
+    await router.isReady()
+
+    useUserStore().currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+    const chatStore = useChatStore()
+    chatStore.wsConnected = true
+    chatStore.enterChat({ id: 'u1', name: 'U1', nickname: 'U1' } as any)
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const stubs = createMessageListStub({ isAtBottom: true })
+    const wrapper = mount(ChatRoomView, {
+      global: {
+        plugins: [pinia, router],
+        stubs: {
+          teleport: TeleportStub,
+          Dialog: DialogStub,
+          Toast: true,
+          MediaPreview: true,
+          MediaTile: MediaTileStub,
+          ChatSidebar: true,
+          UploadMenu: true,
+          EmojiPanel: true,
+          ChatInput: true,
+          ChatHeader: { name: 'ChatHeader', emits: ['reconnect'], template: '<div />' },
+          MessageList: stubs.MessageList
+        }
+      }
+    })
+    await flushAsync()
+
+    ;(wrapper.vm as any).showHistoryMediaModal = true
+    await flushAsync()
+    // 预览打开时 Esc 交给预览处理
+    ;(wrapper.vm as any).showMediaPreview = true
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect((wrapper.vm as any).showHistoryMediaModal).toBe(true)
+    ;(wrapper.vm as any).showMediaPreview = false
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    expect((wrapper.vm as any).showHistoryMediaModal).toBe(true)
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect((wrapper.vm as any).showHistoryMediaModal).toBe(false)
+
+    wsMocks.reconnectNow.mockReturnValueOnce(true)
+    wrapper.findComponent({ name: 'ChatHeader' }).vm.$emit('reconnect')
+    expect(toastShow).toHaveBeenCalledWith('正在重新连接…')
+    toastShow.mockClear()
+    wsMocks.reconnectNow.mockReturnValueOnce(false)
+    wrapper.findComponent({ name: 'ChatHeader' }).vm.$emit('reconnect')
+    expect(toastShow).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('supports paste files from ChatInput and drag-and-drop upload', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const router = createTestRouter()
+    await router.push('/chat')
+    await router.isReady()
+
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+    const chatStore = useChatStore()
+    chatStore.wsConnected = true
+    chatStore.enterChat({ id: 'u1', name: 'U1', nickname: 'U1' } as any)
+
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+
+    const ChatInputStub = { name: 'ChatInput', emits: ['paste-files'], template: '<div />' }
+    const stubs = createMessageListStub({ isAtBottom: true })
+    const wrapper = mount(ChatRoomView, {
+      global: {
+        plugins: [pinia, router],
+        stubs: {
+          teleport: TeleportStub,
+          Dialog: DialogStub,
+          Toast: true,
+          MediaPreview: true,
+          MediaTile: MediaTileStub,
+          ChatSidebar: true,
+          UploadMenu: true,
+          EmojiPanel: true,
+          ChatInput: ChatInputStub,
+          ChatHeader: true,
+          MessageList: stubs.MessageList
+        }
+      }
+    })
+    await flushAsync()
+
+    const file = new File(['x'], 'p.png', { type: 'image/png' })
+    uploadMocks.uploadFile.mockResolvedValue({ url: 'p', type: 'image' } as any)
+    wrapper.findComponent({ name: 'ChatInput' }).vm.$emit('paste-files', [file])
+    await flushAsync()
+    expect(messageMocks.sendImage).toHaveBeenCalledTimes(1)
+
+    const makeDragEvent = (type: string, types: string[], files: File[] = []) => {
+      const e = new Event(type, { bubbles: true, cancelable: true }) as any
+      e.dataTransfer = { types, files }
+      return e
+    }
+    const root = wrapper.element as HTMLElement
+
+    // 非文件拖拽忽略
+    root.dispatchEvent(makeDragEvent('dragenter', ['text/plain']))
+    await flushAsync()
+    expect(wrapper.find('[data-testid="drop-overlay"]').exists()).toBe(false)
+
+    root.dispatchEvent(makeDragEvent('dragenter', ['Files']))
+    const over = makeDragEvent('dragover', ['Files'])
+    root.dispatchEvent(over)
+    await flushAsync()
+    expect(over.defaultPrevented).toBe(true)
+    expect(wrapper.find('[data-testid="drop-overlay"]').exists()).toBe(true)
+
+    root.dispatchEvent(makeDragEvent('dragleave', ['Files']))
+    await flushAsync()
+    expect(wrapper.find('[data-testid="drop-overlay"]').exists()).toBe(false)
+
+    root.dispatchEvent(makeDragEvent('dragenter', ['Files']))
+    root.dispatchEvent(makeDragEvent('drop', ['Files'], [file]))
+    await flushAsync()
+    expect(wrapper.find('[data-testid="drop-overlay"]').exists()).toBe(false)
+    expect(messageMocks.sendImage).toHaveBeenCalledTimes(2)
+    uploadMocks.uploadFile.mockReset()
   })
 
   it('executeClearAndReload covers count==0 and catch branches; Dialog/MediaTile template lines render', async () => {
@@ -546,7 +778,7 @@ describe('views/ChatRoomView.vue (panels/upload/remaining branches)', () => {
       const pinia = createPinia()
       setActivePinia(pinia)
       const router = createTestRouter()
-      const pushSpy = vi.spyOn(router, 'push')
+      const pushSpy = vi.spyOn(router, 'replace')
       await router.push('/chat')
       await router.isReady()
 

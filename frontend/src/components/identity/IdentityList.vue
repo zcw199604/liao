@@ -3,8 +3,9 @@
     <div
       v-for="identity in identities"
       :key="identity.id"
-      @click="$emit('select', identity)"
+      @click="!disabled && $emit('select', identity)"
       class="identity-card flex items-center p-4 mb-3 bg-surface/70 hover:bg-surface/90 rounded-2xl border border-line cursor-pointer transition-colors"
+      :class="{ 'opacity-60 cursor-wait': disabled && busyId !== identity.id }"
     >
       <!-- 头像 -->
       <div
@@ -34,12 +35,15 @@
       <!-- 操作按钮 -->
       <div class="flex items-center gap-2">
         <button
-          @click.stop="$emit('delete', identity)"
-          class="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-500/10 rounded-lg transition"
+          @click.stop="!disabled && $emit('delete', identity)"
+          :disabled="disabled"
+          class="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-500/10 rounded-lg transition disabled:opacity-40"
+          aria-label="删除身份"
         >
           <i class="fas fa-trash-alt text-sm"></i>
         </button>
-        <i class="fas fa-chevron-right text-fg/25"></i>
+        <span v-if="busyId === identity.id" class="radar-spinner !w-4 !h-4"></span>
+        <i v-else class="fas fa-chevron-right text-fg/25"></i>
       </div>
     </div>
 
@@ -57,9 +61,16 @@ import { getColorClass } from '@/constants/colors'
 
 interface Props {
   identities: Identity[]
+  // 正在处理（选择/删除）的身份 ID，用于显示行内加载
+  busyId?: string
+  // 有操作进行中时禁用点击，防止重复触发
+  disabled?: boolean
 }
 
-defineProps<Props>()
+withDefaults(defineProps<Props>(), {
+  busyId: '',
+  disabled: false
+})
 defineEmits<{
   'select': [identity: Identity]
   'delete': [identity: Identity]

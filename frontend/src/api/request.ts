@@ -1,4 +1,4 @@
-import axios, { AxiosError } from 'axios'
+import axios, { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { API_BASE } from '@/constants/config'
 import type { ApiResponse } from '@/types'
 
@@ -20,44 +20,47 @@ export const navigation = {
 }
 
 // 请求拦截器：添加Token
-request.interceptors.request.use(
-  config => {
-    const token = localStorage.getItem('authToken')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  error => Promise.reject(error)
-)
+const attachToken = (config: InternalAxiosRequestConfig) => {
+  const token = localStorage.getItem('authToken')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+}
 
-// 响应拦截器：统一处理错误
-request.interceptors.response.use(
-  response => {
-    const data = response.data
-    if (typeof data === 'string') {
-      const trimmed = data.trim()
-      const looksLikeJson =
-        (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-        (trimmed.startsWith('[') && trimmed.endsWith(']'))
-      if (looksLikeJson) {
-        try {
-          return JSON.parse(trimmed)
-        } catch {
-          // ignore parse error, return raw string
-        }
+// 响应拦截器：上游可能以 text/plain 返回 JSON，这里尽量解析
+const parseResponseData = (response: AxiosResponse) => {
+  const data = response.data
+  if (typeof data === 'string') {
+    const trimmed = data.trim()
+    const looksLikeJson =
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'))
+    if (looksLikeJson) {
+      try {
+        return JSON.parse(trimmed)
+      } catch {
+        // ignore parse error, return raw string
       }
     }
-    return data
-  },
-  (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('authToken')
-      navigation.toLogin()
-    }
-    return Promise.reject(error)
   }
-)
+  return data
+}
+
+// 响应错误：401 统一跳转登录
+const handleResponseError = (error: AxiosError) => {
+  if (error.response?.status === 401) {
+    localStorage.removeItem('authToken')
+    navigation.toLogin()
+  }
+  return Promise.reject(error)
+}
+
+// 两个实例共用同一套拦截器
+for (const instance of [request, douyinRequest]) {
+  instance.interceptors.request.use(attachToken, error => Promise.reject(error))
+  instance.interceptors.response.use(parseResponseData, handleResponseError)
+}
 
 // 辅助函数：创建URLSearchParams
 export const createFormData = (data: Record<string, any>): URLSearchParams => {
@@ -69,44 +72,5 @@ export const createFormData = (data: Record<string, any>): URLSearchParams => {
   })
   return params
 }
-
-// 为 douyinRequest 配置相同的拦截器
-douyinRequest.interceptors.request.use(
-  config => {
-    const token = localStorage.getItem('authToken')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  error => Promise.reject(error)
-)
-
-douyinRequest.interceptors.response.use(
-  response => {
-    const data = response.data
-    if (typeof data === 'string') {
-      const trimmed = data.trim()
-      const looksLikeJson =
-        (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-        (trimmed.startsWith('[') && trimmed.endsWith(']'))
-      if (looksLikeJson) {
-        try {
-          return JSON.parse(trimmed)
-        } catch {
-          // ignore parse error, return raw string
-        }
-      }
-    }
-    return data
-  },
-  (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('authToken')
-      navigation.toLogin()
-    }
-    return Promise.reject(error)
-  }
-)
 
 export default request

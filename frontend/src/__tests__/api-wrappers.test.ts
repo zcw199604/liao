@@ -247,6 +247,15 @@ describe('api/media', () => {
     mediaApi.uploadMedia(fd)
     expect(spies.requestPost).toHaveBeenCalledWith('/uploadMedia', fd)
 
+    // 带进度回调：换算成 0-100 的百分比，total 未知时不回调
+    const onProgress = vi.fn()
+    mediaApi.uploadMedia(fd, onProgress)
+    const config = spies.requestPost.mock.calls.at(-1)?.[2]
+    config.onUploadProgress({ loaded: 50, total: 200 })
+    config.onUploadProgress({ loaded: 10 })
+    expect(onProgress).toHaveBeenCalledTimes(1)
+    expect(onProgress).toHaveBeenCalledWith(25)
+
     mediaApi.checkDuplicateMedia(fd)
     expect(spies.requestPost).toHaveBeenCalledWith('/checkDuplicateMedia', fd)
 

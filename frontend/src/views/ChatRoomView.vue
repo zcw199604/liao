@@ -1,11 +1,15 @@
 <template>
-  <div 
-    ref="pageRef" 
+  <div
+    ref="pageRef"
     class="page-container bg-canvas relative overflow-hidden"
     :style="{
       transform: `translateX(${pageTranslateX}px)`,
       transition: isPageAnimating ? swipeTransition : 'none'
     }"
+    @dragenter="handleDragEnter"
+    @dragover="handleDragOver"
+    @dragleave="handleDragLeave"
+    @drop="handleDrop"
   >
     <!-- 侧边栏抽屉 -->
     <Transition name="slide-right">
@@ -25,7 +29,7 @@
         />
       </div>
     </Transition>
-    
+
     <!-- 侧边栏遮罩 -->
     <Transition name="fade">
       <div
@@ -39,11 +43,14 @@
       <ChatHeader
         :user="chatStore.currentChatUser"
         :connected="chatStore.wsConnected"
+        :connection-state="connectionState"
+        :status-text="connectionText"
         @back="handleBack"
         @toggle-favorite="handleToggleFavorite"
         @blacklist="handleBlacklist"
         @clear-and-reload="handleClearAndReload"
         @toggle-sidebar="showSidebar = !showSidebar"
+        @reconnect="handleReconnect"
       />
       <div
         v-if="isTemporaryConversation"
@@ -65,11 +72,30 @@
       @load-more="handleLoadMore"
       @close-all-panels="handleCloseAllPanels"
       @retry="handleRetry"
+      @preview="handlePreview"
       ref="messageListRef"
     />
 
     <!-- 底部悬浮控制区 -->
     <div ref="bottomDockRef" class="absolute bottom-0 left-0 right-0 z-30 flex flex-col">
+      <!-- 上传进度 -->
+      <div
+        v-if="uploadProgress"
+        data-testid="upload-progress"
+        class="mx-4 mb-2 rounded-xl border border-line bg-surface/90 backdrop-blur-md px-3 py-2 text-xs text-fg-muted shadow-sm"
+      >
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="flex items-center gap-2">
+            <span class="radar-spinner !w-3 !h-3"></span>
+            上传中{{ uploadProgress.total > 1 ? ` ${uploadProgress.current}/${uploadProgress.total}` : '' }}
+          </span>
+          <span>{{ uploadProgress.percent }}%</span>
+        </div>
+        <div class="h-1 rounded-full bg-surface-3 overflow-hidden">
+          <div class="h-full bg-indigo-500 transition-[width] duration-200" :style="{ width: `${uploadProgress.percent}%` }"></div>
+        </div>
+      </div>
+
       <!-- 上传菜单 -->
       <UploadMenu
         v-model:visible="showUploadMenu"
@@ -100,7 +126,20 @@
         @typing-start="handleTypingStart"
         @typing-end="handleTypingEnd"
         @start-match="handleStartMatch"
+        @paste-files="uploadAndSendFiles"
       />
+    </div>
+
+    <!-- 拖拽上传提示 -->
+    <div
+      v-if="isDraggingFiles"
+      data-testid="drop-overlay"
+      class="absolute inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-none"
+    >
+      <div class="rounded-2xl border-2 border-dashed border-white/60 px-8 py-6 text-white text-center">
+        <i class="fas fa-cloud-upload-alt text-4xl mb-3"></i>
+        <p class="text-sm">松开即可发送给 {{ chatStore.currentChatUser?.nickname || '对方' }}</p>
+      </div>
     </div>
 
     <!-- 媒体预览 -->
@@ -113,10 +152,11 @@
       @upload="confirmPreviewUpload"
     />
 
-    <!-- 隐藏的文件输入 -->
+    <!-- 隐藏的文件输入（支持多选） -->
     <input
       ref="fileInput"
       type="file"
+      multiple
       @change="handleFileChange"
       style="display: none"
     />
@@ -149,7 +189,8 @@
     <teleport to="body">
       <div
         v-if="showHistoryMediaModal"
-        class="fixed inset-0 z-[75] bg-black/70 flex items-center justify-center"
+        data-testid="history-media-modal"
+        class="fixed inset-0 z-[75] bg-black/70 flex items-center justify-center overscroll-contain"
         @click="closeHistoryMediaModal"
       >
         <div class="w-[90%] max-w-2xl h-[70vh] bg-surface rounded-2xl shadow-2xl flex flex-col" @click.stop>
@@ -163,6 +204,7 @@
             <button
               @click="closeHistoryMediaModal"
               class="w-8 h-8 flex items-center justify-center text-fg-muted hover:text-fg transition rounded-lg hover:bg-surface-3"
+              aria-label="关闭"
             >
               <i class="fas fa-times"></i>
             </button>
@@ -175,7 +217,7 @@
             </div>
           </div>
 
-          <div v-else-if="historyMedia && historyMedia.length > 0" class="flex-1 overflow-y-auto p-6 no-scrollbar">
+          <div v-else-if="historyMedia && historyMedia.length > 0" class="flex-1 overflow-y-auto overscroll-contain p-6 no-scrollbar">
             <div class="grid grid-cols-3 sm:grid-cols-4 gap-4">
               <MediaTile
                 v-for="(media, idx) in historyMedia"
@@ -212,7 +254,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
@@ -220,22 +262,21 @@ import { useMediaStore } from '@/stores/media'
 import { useMtPhotoStore } from '@/stores/mtphoto'
 import { useDouyinStore } from '@/stores/douyin'
 import { useUserStore } from '@/stores/user'
+import { useSystemConfigStore } from '@/stores/systemConfig'
 import { useMessage } from '@/composables/useMessage'
 import { useUpload } from '@/composables/useUpload'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useToast } from '@/composables/useToast'
 import { useChat } from '@/composables/useChat'
-	import { useSwipeAction } from '@/composables/useInteraction'
-	import { extractUploadLocalPath, inferMediaTypeFromUrl } from '@/utils/media'
-	import { generateCookie } from '@/utils/cookie'
-	import { useSystemConfigStore } from '@/stores/systemConfig'
-import { 
-  EDGE_BACK_START_PX, 
-  EDGE_BACK_MIN_SWIPE_PX, 
-  EDGE_BACK_MAX_Y_PX, 
-  DRAWER_CLOSE_EDGE_PX, 
-  DRAWER_CLOSE_MIN_SWIPE_PX, 
-  DRAWER_CLOSE_MAX_Y_PX,
+import { useSwipeAction } from '@/composables/useInteraction'
+import { useConnectionStatus } from '@/composables/useConnectionStatus'
+import { extractUploadLocalPath, inferMediaTypeFromUrl } from '@/utils/media'
+import { generateCookie } from '@/utils/cookie'
+import { hasNativeEdgeSwipeBack } from '@/utils/device'
+import { UPSTREAM_REFERER, WS_DISCONNECTED_TIP } from '@/constants/config'
+import {
+  EDGE_BACK_START_PX,
+  DRAWER_CLOSE_EDGE_PX,
   SWIPE_RESET_DURATION_MS
 } from '@/constants/interaction'
 import * as mediaApi from '@/api/media'
@@ -252,19 +293,20 @@ import Dialog from '@/components/common/Dialog.vue'
 import type { ChatMessage, UploadedMedia, User } from '@/types'
 
 const router = useRouter()
+const route = useRoute()
 const chatStore = useChatStore()
-	const messageStore = useMessageStore()
-	const mediaStore = useMediaStore()
+const messageStore = useMessageStore()
+const mediaStore = useMediaStore()
 const mtPhotoStore = useMtPhotoStore()
 const douyinStore = useDouyinStore()
-	const systemConfigStore = useSystemConfigStore()
-	const userStore = useUserStore()
+const systemConfigStore = useSystemConfigStore()
+const userStore = useUserStore()
 const { sendText, sendImage, sendVideo, retryMessage, sendTypingStatus } = useMessage()
 const { uploadFile, getMediaUrl } = useUpload()
-const route = useRoute()
-const { connect, setScrollToBottom, send } = useWebSocket()
+const { connect, setScrollToBottom, send, reconnectNow } = useWebSocket()
 const { show } = useToast()
-const { toggleFavorite, enterChat, startMatch } = useChat()
+const { toggleFavorite, enterChat, startMatch, loadUsers } = useChat()
+const { state: connectionState, text: connectionText } = useConnectionStatus()
 
 const inputText = ref('')
 const showUploadMenu = ref(false)
@@ -287,6 +329,14 @@ const showSidebar = ref(false)
 const showHistoryMediaModal = ref(false)
 const historyMediaLoading = ref(false)
 const historyMedia = ref<UploadedMedia[]>([])
+
+// 上传进度：current/total 为第几个文件，percent 为当前文件进度
+const uploadProgress = ref<{ current: number; total: number; percent: number } | null>(null)
+const isDraggingFiles = ref(false)
+let dragDepth = 0
+
+// iOS 浏览器自带边缘返回手势，此时不启用页面自定义的边缘右滑返回
+const edgeSwipeBackEnabled = !hasNativeEdgeSwipeBack()
 
 // 动态测量：顶部 Header 与底部悬浮区高度，避免固定 padding 造成留白过大
 const chatHeaderWrapRef = ref<HTMLElement | null>(null)
@@ -335,6 +385,16 @@ const refreshLayoutMeasurements = () => {
 
   headerHeightPx.value = Math.max(0, headerH)
   bottomDockHeightPx.value = Math.max(0, dockH)
+}
+
+// 面板开合等布局变化后：重新测量，并在用户本来就在底部时保持贴底
+const relayoutKeepBottom = async () => {
+  await nextTick()
+  refreshLayoutMeasurements()
+
+  if (messageListRef.value?.getIsAtBottom?.()) {
+    messageListRef.value?.scrollToBottom()
+  }
 }
 
 let layoutResizeObserver: ResizeObserver | null = null
@@ -399,12 +459,22 @@ const canLoadMore = computed(() => {
   return !!chatStore.currentChatUser
 })
 
+// 草稿按会话保存：切换会话时先存旧会话草稿，再恢复新会话草稿，避免把半截消息发给别人
+watch(
+  currentConversationKey,
+  (newKey, oldKey) => {
+    if (oldKey) messageStore.setDraft(oldKey, inputText.value)
+    inputText.value = messageStore.getDraft(newKey)
+  },
+  { immediate: true }
+)
+
 const handleSidebarSelect = (user: User) => {
   if (user.id === chatStore.currentChatUser?.id) {
     showSidebar.value = false
     return
   }
-  
+
   // 切换聊天对象
   showSidebar.value = false
   enterChat(user, true)
@@ -418,38 +488,35 @@ const handleSidebarMatchSuccess = (user: User) => {
   router.replace(`/chat/${user.id}`)
 }
 
+const handleReconnect = () => {
+  if (reconnectNow()) show('正在重新连接…')
+}
+
 const handleSend = async () => {
   if (!inputText.value.trim() || !chatStore.currentChatUser) return
   if (!chatStore.wsConnected) {
-    show('连接已断开，请刷新页面重试')
+    show(WS_DISCONNECTED_TIP)
     return
   }
 
   sendText(inputText.value, chatStore.currentChatUser)
   inputText.value = ''
 
+  // 自己发送的消息总是回到底部（MessageList 也会处理，这里确保布局测量后再贴底）
   await nextTick()
   refreshLayoutMeasurements()
-
-  if (messageListRef.value?.getIsAtBottom?.()) {
-    messageListRef.value?.scrollToBottom()
-  }
+  messageListRef.value?.scrollToBottom(true)
 }
 
 const handleRetry = async (msg: ChatMessage) => {
   if (!chatStore.currentChatUser) return
   if (!chatStore.wsConnected) {
-    show('连接已断开，请刷新页面重试')
+    show(WS_DISCONNECTED_TIP)
     return
   }
 
   retryMessage(msg)
-
-  await nextTick()
-  refreshLayoutMeasurements()
-  if (messageListRef.value?.getIsAtBottom?.()) {
-    messageListRef.value?.scrollToBottom()
-  }
+  await relayoutKeepBottom()
 }
 
 const handleToggleUpload = async () => {
@@ -462,12 +529,7 @@ const handleToggleUpload = async () => {
     }
   }
 
-  await nextTick()
-  refreshLayoutMeasurements()
-
-  if (messageListRef.value?.getIsAtBottom?.()) {
-    messageListRef.value?.scrollToBottom()
-  }
+  await relayoutKeepBottom()
 }
 
 const handleToggleEmoji = async () => {
@@ -476,24 +538,14 @@ const handleToggleEmoji = async () => {
     showUploadMenu.value = false
   }
 
-  await nextTick()
-  refreshLayoutMeasurements()
-
-  if (messageListRef.value?.getIsAtBottom?.()) {
-    messageListRef.value?.scrollToBottom()
-  }
+  await relayoutKeepBottom()
 }
 
 const handleCloseAllPanels = async () => {
   showUploadMenu.value = false
   showEmojiPanel.value = false
 
-  await nextTick()
-  refreshLayoutMeasurements()
-
-  if (messageListRef.value?.getIsAtBottom?.()) {
-    messageListRef.value?.scrollToBottom()
-  }
+  await relayoutKeepBottom()
 }
 
 const handleTypingStart = () => {
@@ -512,12 +564,7 @@ const handleEmojiSelect = async (text: string) => {
   inputText.value += text
   showEmojiPanel.value = false
 
-  await nextTick()
-  refreshLayoutMeasurements()
-
-  if (messageListRef.value?.getIsAtBottom?.()) {
-    messageListRef.value?.scrollToBottom()
-  }
+  await relayoutKeepBottom()
 }
 
 const handleUploadFile = () => {
@@ -526,47 +573,133 @@ const handleUploadFile = () => {
   }
 }
 
-const handleFileChange = async (e: Event) => {
-  const target = e.target as HTMLInputElement
-  const file = target.files?.[0]
-  if (!file || !userStore.currentUser) return
-
-  showUploadMenu.value = false
-
-  const media = await uploadFile(file, userStore.currentUser.id, userStore.currentUser.name)
-  if (media) {
-    let msg = '文件上传成功'
-    if (media.type === 'video') msg = '视频上传成功'
-    else if (media.type === 'image') msg = '图片上传成功'
-    show(msg)
+// 发送已上传的媒体给指定用户
+const sendMediaTo = (media: UploadedMedia, targetUser: User) => {
+  if (media.type === 'video') {
+    void sendVideo(media.url, targetUser, media.localFilename)
   } else {
-    show('文件上传失败')
+    // 图片和普通文件都走这个通道
+    void sendImage(media.url, targetUser, media.localFilename)
+  }
+}
+
+// 上传并直接发送：逐个上传，上传完成时若仍停留在同一会话且连接正常则自动发送，
+// 否则保留在“已上传的文件”里，由用户手动发送，避免上传期间切换会话后发错人
+const uploadAndSendFiles = async (files: File[]) => {
+  if (!files.length || !userStore.currentUser) return
+  if (uploadProgress.value) {
+    show('正在上传，请稍候')
+    return
   }
 
+  showUploadMenu.value = false
+  const targetUser = chatStore.currentChatUser
+  const { id: myUserId, name: myUserName } = userStore.currentUser
+  let sentCount = 0
+  let keptCount = 0
+  let failedCount = 0
+
+  try {
+    for (let i = 0; i < files.length; i++) {
+      uploadProgress.value = { current: i + 1, total: files.length, percent: 0 }
+      const media = await uploadFile(files[i]!, myUserId, myUserName, {
+        onProgress: (percent) => {
+          if (uploadProgress.value) uploadProgress.value.percent = percent
+        }
+      })
+      if (!media) {
+        failedCount++
+        continue
+      }
+
+      if (targetUser && chatStore.currentChatUser?.id === targetUser.id && chatStore.wsConnected) {
+        sendMediaTo(media, targetUser)
+        sentCount++
+      } else {
+        keptCount++
+      }
+    }
+  } finally {
+    uploadProgress.value = null
+  }
+
+  if (failedCount > 0) {
+    show(files.length === 1 ? '文件上传失败' : `${failedCount} 个文件上传失败`)
+  } else if (keptCount > 0) {
+    show('已上传，可在“已上传的文件”中点击发送')
+  }
+  if (sentCount > 0) {
+    await nextTick()
+    messageListRef.value?.scrollToBottom(true)
+  }
+}
+
+const handleFileChange = async (e: Event) => {
+  const target = e.target as HTMLInputElement
+  const files = Array.from(target.files || [])
   target.value = ''
+  await uploadAndSendFiles(files)
+}
+
+// === 拖拽上传（桌面端）===
+const isFileDrag = (e: DragEvent) => Array.from(e.dataTransfer?.types || []).includes('Files')
+
+const handleDragEnter = (e: DragEvent) => {
+  if (!isFileDrag(e) || !chatStore.currentChatUser) return
+  e.preventDefault()
+  dragDepth++
+  isDraggingFiles.value = true
+}
+
+const handleDragOver = (e: DragEvent) => {
+  if (!isFileDrag(e) || !chatStore.currentChatUser) return
+  e.preventDefault()
+}
+
+const handleDragLeave = (e: DragEvent) => {
+  if (!isFileDrag(e)) return
+  dragDepth = Math.max(0, dragDepth - 1)
+  if (dragDepth === 0) isDraggingFiles.value = false
+}
+
+const handleDrop = (e: DragEvent) => {
+  if (!isFileDrag(e)) return
+  e.preventDefault()
+  dragDepth = 0
+  isDraggingFiles.value = false
+  if (!chatStore.currentChatUser) return
+  void uploadAndSendFiles(Array.from(e.dataTransfer?.files || []))
 }
 
 const handleSendMedia = (media: UploadedMedia) => {
   if (!chatStore.currentChatUser) return
   if (!chatStore.wsConnected) {
-    show('连接已断开，请刷新页面重试')
+    show(WS_DISCONNECTED_TIP)
     return
   }
 
-  if (media.type === 'video') {
-    void sendVideo(media.url, chatStore.currentChatUser, media.localFilename)
-  } else {
-    // 图片和普通文件都走这个通道
-    void sendImage(media.url, chatStore.currentChatUser, media.localFilename)
-  }
-
+  sendMediaTo(media, chatStore.currentChatUser)
   showUploadMenu.value = false
 }
 
 const handleBack = () => {
   messageStore.isTyping = false
   chatStore.exitChat()
-  router.push('/list')
+  // 从列表页进入时直接后退，避免历史栈里堆积 列表→聊天→列表
+  const backPath = (typeof window !== 'undefined' ? window.history.state?.back : undefined) as unknown
+  if (typeof backPath === 'string' && backPath.startsWith('/list')) {
+    router.back()
+  } else {
+    router.replace('/list')
+  }
+}
+
+const resetPageTranslate = () => {
+  isPageAnimating.value = true
+  pageTranslateX.value = 0
+  setTimeout(() => {
+    isPageAnimating.value = false
+  }, SWIPE_RESET_DURATION_MS)
 }
 
 // 页面边缘右滑返回
@@ -574,8 +707,9 @@ const { coordsStart: pageSwipeStart } = useSwipeAction(pageRef, {
   threshold: 0, // 手动处理
   passive: true,
   onSwipeProgress: (deltaX, deltaY) => {
+    if (!edgeSwipeBackEnabled) return
     if (showSidebar.value) return // 抽屉开启时不响应
-    
+
     // 起手位置判定
     if (pageSwipeStart.x > EDGE_BACK_START_PX) return
 
@@ -583,11 +717,11 @@ const { coordsStart: pageSwipeStart } = useSwipeAction(pageRef, {
     if (Math.abs(deltaY) > Math.abs(deltaX)) return // 垂直主导忽略
     if (deltaX <= 0) return // 仅处理向右滑
 
-    // 跟手位移
-    // 增加阻尼
-    pageTranslateX.value = Math.min(deltaX, 150) // 限制最大视觉位移
+    // 跟手位移，限制最大视觉位移
+    pageTranslateX.value = Math.min(deltaX, 150)
   },
   onSwipeEnd: (direction) => {
+    if (!edgeSwipeBackEnabled) return
     if (showSidebar.value) return
     if (pageSwipeStart.x > EDGE_BACK_START_PX) {
       pageTranslateX.value = 0
@@ -595,15 +729,11 @@ const { coordsStart: pageSwipeStart } = useSwipeAction(pageRef, {
     }
 
     if (direction === 'right' && pageTranslateX.value > 80) { // 简单阈值
-       // 触发返回
-       handleBack()
+      // 触发返回
+      handleBack()
     } else {
-       // 回弹
-       isPageAnimating.value = true
-       pageTranslateX.value = 0
-       setTimeout(() => {
-         isPageAnimating.value = false
-       }, SWIPE_RESET_DURATION_MS)
+      // 回弹
+      resetPageTranslate()
     }
   },
   onSwipeFinish: (_deltaX, _deltaY, isTriggered) => {
@@ -616,11 +746,7 @@ const { coordsStart: pageSwipeStart } = useSwipeAction(pageRef, {
       return
     }
     if (pageTranslateX.value === 0) return
-    isPageAnimating.value = true
-    pageTranslateX.value = 0
-    setTimeout(() => {
-      isPageAnimating.value = false
-    }, SWIPE_RESET_DURATION_MS)
+    resetPageTranslate()
   }
 })
 
@@ -640,17 +766,16 @@ const { coordsStart: drawerSwipeStart } = useSwipeAction(sidebarRef, {
     if (drawerSwipeStart.x < rect.right - DRAWER_CLOSE_EDGE_PX) return
 
     // 方向判定 (左滑 deltaX < 0)
-    if (deltaX >= 0) return 
+    if (deltaX >= 0) return
     if (Math.abs(deltaY) > Math.abs(deltaX)) return
 
     // 跟手位移 (负值)
     sidebarTranslateX.value = deltaX
   },
-  onSwipeEnd: (direction) => {
+  onSwipeEnd: () => {
     if (!showSidebar.value) return
-    
-    // 判定是否关闭
-    // 向左滑且距离足够
+
+    // 向左滑且距离足够则关闭
     if (sidebarTranslateX.value < -80) {
       showSidebar.value = false
       // 关闭后需要重置状态，但 Transition 会处理离场，这里重置位移以便下次打开
@@ -713,7 +838,7 @@ const generateWarningReportUuid = (): string => {
 const handleBlacklist = () => {
   if (!chatStore.currentChatUser) return
   if (!chatStore.wsConnected) {
-    show('连接已断开，请刷新页面重试')
+    show(WS_DISCONNECTED_TIP)
     return
   }
 
@@ -723,7 +848,7 @@ const handleBlacklist = () => {
 const executeBlacklist = () => {
   if (!chatStore.currentChatUser) return
   if (!chatStore.wsConnected) {
-    show('连接已断开，请刷新页面重试')
+    show(WS_DISCONNECTED_TIP)
     return
   }
 
@@ -783,9 +908,11 @@ const executeClearAndReload = async () => {
   }
 }
 
+// 加载更早的历史消息：保持当前阅读位置不跳动，成功时不再弹 toast
 const handleLoadMore = async () => {
   if (!chatStore.currentChatUser || !userStore.currentUser) return
 
+  const anchor = messageListRef.value?.captureScrollAnchor?.() ?? null
   const lastTid = currentConversationKey.value ? messageStore.firstTidMap[currentConversationKey.value] : undefined
   const count = await messageStore.loadHistory(userStore.currentUser.id, chatStore.currentChatUser.id, {
     isFirst: false,
@@ -794,13 +921,7 @@ const handleLoadMore = async () => {
   })
 
   if (count > 0) {
-    show(`加载了 ${count} 条历史消息`)
-
-    // 滚动到顶部，显示刚加载的历史消息
-    await nextTick()
-    if (messageListRef.value) {
-      messageListRef.value.scrollToTop()
-    }
+    messageListRef.value?.restoreScrollAnchor?.(anchor)
   } else if (count === 0) {
     show('没有更多历史消息了')
   } else {
@@ -832,6 +953,17 @@ const closeHistoryMediaModal = () => {
   showHistoryMediaModal.value = false
 }
 
+// 历史图片弹窗支持 Esc 关闭（预览打开时交给预览自己处理）
+const handleHistoryModalKeydown = (e: KeyboardEvent) => {
+  if (e.key !== 'Escape' || showMediaPreview.value) return
+  closeHistoryMediaModal()
+}
+
+watch(showHistoryMediaModal, (visible) => {
+  if (visible) window.addEventListener('keydown', handleHistoryModalKeydown)
+  else window.removeEventListener('keydown', handleHistoryModalKeydown)
+})
+
 const openPreviewUpload = (media: UploadedMedia) => {
   previewTarget.value = media
   previewUrl.value = media.url
@@ -853,7 +985,7 @@ const confirmPreviewUpload = async () => {
 
   const localPath = extractUploadLocalPath(previewTarget.value.url)
   const cookieData = generateCookie(userStore.currentUser.id, userStore.currentUser.name)
-  const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
+  const referer = UPSTREAM_REFERER
   const userAgent = navigator.userAgent
 
   try {
@@ -865,17 +997,17 @@ const confirmPreviewUpload = async () => {
       userAgent
     })
 
-	    if (res?.state === 'OK' && res.msg) {
-		      const port = await systemConfigStore.resolveImagePort(res.msg, mediaStore.imgServer)
-	      const remoteUrl = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
-	      
-	      const filename = localPath.substring(localPath.lastIndexOf('/') + 1)
-      mediaStore.addUploadedMedia({ 
-        url: remoteUrl, 
+    if (res?.state === 'OK' && res.msg) {
+      const port = await systemConfigStore.resolveImagePort(res.msg, mediaStore.imgServer)
+      const remoteUrl = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
+
+      const filename = localPath.substring(localPath.lastIndexOf('/') + 1)
+      mediaStore.addUploadedMedia({
+        url: remoteUrl,
         type: previewTarget.value.type,
         localFilename: filename
       })
-      
+
       show('图片已加载，点击可发送')
       showMediaPreview.value = false
       previewCanUpload.value = false
@@ -922,43 +1054,46 @@ const handleStartMatch = () => {
     return
   }
 
-  const success = startMatch()
-  if (success) {
-    console.log('从聊天室发起随机匹配')
-  }
+  startMatch()
 }
 
-const handlePreview = (e: any) => {
-  const clickedUrl = e.detail.url
+// 聊天消息中的图片/视频预览：点击的媒体在当前会话里时启用画廊模式
+const handlePreview = (clickedUrl: string, type: 'image' | 'video') => {
   previewUrl.value = clickedUrl
-  previewType.value = e.detail.type
+  previewType.value = type
   previewCanUpload.value = false
   previewTarget.value = null
-  
-  // 构造媒体列表（仅在查看聊天消息时有效）
-  // 通过检测 url 是否在当前消息列表的媒体中来判断
-  // 1. 提取所有媒体消息
-  const mediaMsgs = messages.value.filter(m => m.isImage || m.isVideo)
-  
-  // 2. 转换为 UploadedMedia 列表
-  const list: UploadedMedia[] = mediaMsgs.map(m => {
-     const rawUrl = m.imageUrl || m.videoUrl || m.content || ''
-     return {
-       url: getMediaUrl(rawUrl), // 确保是完整URL
-       type: m.isVideo ? 'video' : 'image'
-     }
-  })
-  
-  // 3. 只有当点击的URL在列表中找到时，才启用画廊模式
-  // 这是为了防止在"已上传文件"等其他地方预览时出现奇怪的列表
-  const found = list.some(m => m.url === clickedUrl)
-  if (found && list.length > 0) {
-    previewMediaList.value = list
-  } else {
-    previewMediaList.value = [] // 为空时 MediaPreview 会回退到单图模式
-  }
-  
+
+  const list: UploadedMedia[] = messages.value
+    .filter(m => m.isImage || m.isVideo)
+    .map(m => ({
+      url: getMediaUrl(m.imageUrl || m.videoUrl || m.content || ''), // 确保是完整URL
+      type: m.isVideo ? 'video' : 'image'
+    }))
+
+  // 只有点击的 URL 在列表中时才启用画廊模式，否则 MediaPreview 回退到单图模式
+  previewMediaList.value = list.some(m => m.url === clickedUrl) ? list : []
   showMediaPreview.value = true
+}
+
+// 刷新页面后内存中的会话列表为空：先拉取列表再恢复路由里的会话
+const restoreChatFromRoute = async (): Promise<boolean> => {
+  const userId = String(route.params.userId || '')
+  if (!userId || chatStore.currentChatUser) return true
+
+  let user = chatStore.getUser(userId)
+  if (!user) {
+    try {
+      await loadUsers()
+    } catch (e) {
+      console.warn('恢复会话时加载用户列表失败:', e)
+    }
+    user = chatStore.getUser(userId)
+  }
+
+  if (!user) return false
+  enterChat(user, true)
+  return true
 }
 
 onMounted(async () => {
@@ -979,16 +1114,9 @@ onMounted(async () => {
     console.warn('初始化已上传文件列表失败:', e)
   }
 
-  // 兜底：允许直接通过路由进入聊天室
-  const userId = String(route.params.userId || '')
-  if (userId && !chatStore.currentChatUser) {
-    const user = chatStore.getUser(userId)
-    if (user) {
-      enterChat(user, true)
-    } else {
-      router.push('/list')
-      return
-    }
+  if (!(await restoreChatFromRoute())) {
+    router.replace('/list')
+    return
   }
 
   if (!chatStore.wsConnected) {
@@ -1000,14 +1128,19 @@ onMounted(async () => {
       messageListRef.value?.scrollToBottom()
     })
   }
+})
 
-  window.addEventListener('preview-media', handlePreview)
+onBeforeUnmount(() => {
+  // 离开页面前保存当前会话草稿
+  if (currentConversationKey.value) {
+    messageStore.setDraft(currentConversationKey.value, inputText.value)
+  }
 })
 
 onUnmounted(() => {
   layoutResizeObserver?.disconnect()
   layoutResizeObserver = null
-  window.removeEventListener('preview-media', handlePreview)
+  window.removeEventListener('keydown', handleHistoryModalKeydown)
   chatStore.exitChat()
 })
 
@@ -1019,12 +1152,7 @@ watch(
     showEmojiPanel.value = false
     showUploadMenu.value = true
 
-    await nextTick()
-    refreshLayoutMeasurements()
-
-    if (messageListRef.value?.getIsAtBottom?.()) {
-      messageListRef.value?.scrollToBottom()
-    }
+    await relayoutKeepBottom()
   }
 )
 

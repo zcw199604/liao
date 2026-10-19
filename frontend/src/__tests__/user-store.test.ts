@@ -106,3 +106,34 @@ describe('stores/user', () => {
     expect(userStore.editUserInfo).toEqual({})
   })
 })
+
+describe('stores/user persistence', () => {
+  it('persists current user to sessionStorage and restores it in a fresh store', async () => {
+    const { CURRENT_USER_STORAGE_KEY } = await import('@/stores/user')
+    const userStore = useUserStore()
+    userStore.setCurrentUser(makeUser())
+    expect(JSON.parse(sessionStorage.getItem(CURRENT_USER_STORAGE_KEY) || '{}').id).toBe('u1')
+
+    userStore.updateUserInfo({ nickname: 'Bob' })
+    expect(JSON.parse(sessionStorage.getItem(CURRENT_USER_STORAGE_KEY) || '{}').nickname).toBe('Bob')
+
+    setActivePinia(createPinia())
+    expect(useUserStore().currentUser?.nickname).toBe('Bob')
+  })
+
+  it('clearCurrentUser removes persisted user and ignores corrupted storage', async () => {
+    const { CURRENT_USER_STORAGE_KEY } = await import('@/stores/user')
+    const userStore = useUserStore()
+    userStore.setCurrentUser(makeUser())
+    userStore.clearCurrentUser()
+    expect(sessionStorage.getItem(CURRENT_USER_STORAGE_KEY)).toBeNull()
+
+    sessionStorage.setItem(CURRENT_USER_STORAGE_KEY, '{bad json')
+    setActivePinia(createPinia())
+    expect(useUserStore().currentUser).toBeNull()
+
+    sessionStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify({ name: 'no-id' }))
+    setActivePinia(createPinia())
+    expect(useUserStore().currentUser).toBeNull()
+  })
+})

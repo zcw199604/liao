@@ -17,12 +17,14 @@ const identityMocks = {
 const chatMocks = {
   toggleFavorite: vi.fn(),
   enterChat: vi.fn(),
-  startMatch: vi.fn()
+  startMatch: vi.fn(),
+  loadUsers: vi.fn().mockResolvedValue(undefined)
 }
 
 const wsMocks = {
   connect: vi.fn(),
-  setScrollToBottom: vi.fn()
+  setScrollToBottom: vi.fn(),
+  disconnect: vi.fn()
 }
 
 const messageMocks = {
@@ -41,7 +43,8 @@ const authStoreMocks = {
   login: vi.fn(),
   checkToken: vi.fn(),
   isAuthenticated: false,
-  loginLoading: false
+  loginLoading: false,
+  logout: vi.fn()
 }
 
 vi.mock('@/composables/useToast', () => ({
@@ -241,7 +244,105 @@ describe('views/IdentityPicker.vue', () => {
 
     expect(identityMocks.quickCreate).toHaveBeenCalledOnce()
     expect(toastShow).toHaveBeenCalledWith('创建成功')
-    expect(identityMocks.loadList).toHaveBeenCalledOnce()
+    // store 内部创建成功后已刷新列表，页面不再重复加载
+    expect(identityMocks.loadList).not.toHaveBeenCalled()
+  })
+})
+
+describe('views/IdentityPicker.vue (actions)', () => {
+  const mountPicker = async (pinia: any, router: any) => {
+    const wrapper = mount(IdentityPicker, {
+      global: {
+        plugins: [pinia, router],
+        stubs: { CreateDialog: true, Dialog: true, SettingsDrawer: true, Toast: true }
+      }
+    })
+    await Promise.resolve()
+    await nextTick()
+    return wrapper
+  }
+
+  it('keeps list visible during actions, blocks repeated clicks, and reports failures', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const router = createTestRouter()
+    identityMocks.loadList.mockResolvedValue(undefined)
+
+    const { useIdentityStore } = await import('@/stores/identity')
+    useIdentityStore().identityList = [{ id: 'id-1', name: 'Alice', sex: '女' } as any]
+
+    const wrapper = await mountPicker(pinia, router)
+    expect(wrapper.text()).toContain('Alice')
+
+    let resolveSelect: () => void = () => {}
+    identityMocks.select.mockImplementationOnce(() => new Promise<void>(r => { resolveSelect = r }))
+    await wrapper.get('.identity-card').trigger('click')
+    await nextTick()
+    // 操作中列表仍可见，并且再次点击不会重复触发
+    expect(wrapper.text()).toContain('Alice')
+    expect((wrapper.vm as any).busyIdentityId).toBe('id-1')
+    await wrapper.get('.identity-card').trigger('click')
+    expect(identityMocks.select).toHaveBeenCalledTimes(1)
+    resolveSelect()
+    await Promise.resolve()
+    await nextTick()
+    expect((wrapper.vm as any).actionLoading).toBe(false)
+
+    // 选择失败
+    identityMocks.select.mockRejectedValueOnce(new Error('x'))
+    await (wrapper.vm as any).handleSelect({ id: 'id-1' })
+    expect(toastShow).toHaveBeenCalledWith('选择身份失败')
+
+    // 快速创建失败 / 异常
+    identityMocks.quickCreate.mockResolvedValueOnce(false)
+    await (wrapper.vm as any).handleQuickCreate()
+    expect(toastShow).toHaveBeenLastCalledWith('创建失败')
+    identityMocks.quickCreate.mockRejectedValueOnce(new Error('x'))
+    await (wrapper.vm as any).handleQuickCreate()
+    expect(toastShow).toHaveBeenLastCalledWith('创建失败')
+
+    // 自定义创建：成功 / 失败 / 异常
+    identityMocks.create.mockResolvedValueOnce(true)
+    await (wrapper.vm as any).handleCreate({ name: 'B', sex: '男' })
+    expect(toastShow).toHaveBeenLastCalledWith('创建成功')
+    identityMocks.create.mockRejectedValueOnce(new Error('x'))
+    await (wrapper.vm as any).handleCreate({ name: 'B', sex: '男' })
+    expect(toastShow).toHaveBeenLastCalledWith('创建失败')
+
+    // 删除：成功 / 失败 / 异常 / 无目标
+    await (wrapper.vm as any).handleDelete()
+    expect(identityMocks.deleteIdentity).not.toHaveBeenCalled()
+    for (const [impl, msg] of [
+      [() => Promise.resolve(true), '删除成功'],
+      [() => Promise.resolve(false), '删除失败'],
+      [() => Promise.reject(new Error('x')), '删除失败']
+    ] as const) {
+      identityMocks.deleteIdentity.mockImplementationOnce(impl as any)
+      ;(wrapper.vm as any).handleDeleteConfirm({ id: 'id-1', name: 'Alice' })
+      await (wrapper.vm as any).handleDelete()
+      expect(toastShow).toHaveBeenLastCalledWith(msg)
+      expect((wrapper.vm as any).deleteTarget).toBeNull()
+    }
+  })
+
+  it('logout disconnects ws, clears identity and token, and returns to login', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const router = createTestRouter()
+    identityMocks.loadList.mockResolvedValue(undefined)
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'me' } as any
+
+    const replaceSpy = vi.spyOn(router, 'replace')
+    const wrapper = await mountPicker(pinia, router)
+    await wrapper.get('[data-testid="identity-logout"]').trigger('click')
+    expect((wrapper.vm as any).showLogoutDialog).toBe(true)
+
+    ;(wrapper.vm as any).handleLogout()
+    expect(wsMocks.disconnect).toHaveBeenCalledWith(true)
+    expect(userStore.currentUser).toBeNull()
+    expect(authStoreMocks.logout).toHaveBeenCalled()
+    expect(replaceSpy).toHaveBeenCalledWith('/login')
   })
 })
 
@@ -420,8 +521,8 @@ describe('views/ChatRoomView.vue', () => {
     await router.push('/chat/u404')
     await router.isReady()
 
-    const pushSpy = vi.spyOn(router, 'push')
-    pushSpy.mockClear()
+    const replaceSpy = vi.spyOn(router, 'replace')
+    replaceSpy.mockClear()
 
     shallowMount(ChatRoomView, {
       global: {
@@ -444,7 +545,12 @@ describe('views/ChatRoomView.vue', () => {
     await Promise.resolve()
     await nextTick()
 
-    expect(pushSpy).toHaveBeenCalledWith('/list')
+    await Promise.resolve()
+    await nextTick()
+
+    // 刷新恢复：先尝试拉取会话列表，仍找不到才回列表页
+    expect(chatMocks.loadUsers).toHaveBeenCalled()
+    expect(replaceSpy).toHaveBeenCalledWith('/list')
   })
 
   it('toggles sidebar when ChatHeader emits toggle-sidebar and closes on overlay click', async () => {

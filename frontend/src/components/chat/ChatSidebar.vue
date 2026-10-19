@@ -75,7 +75,11 @@
 
       <!-- 右侧：连接状态 -->
       <div class="flex items-center gap-1">
-        <span class="w-2 h-2 rounded-full" :class="chatStore.wsConnected ? 'bg-green-500' : 'bg-red-500'"></span>
+        <span
+          class="w-2 h-2 rounded-full"
+          :class="chatStore.wsConnected ? 'bg-green-500' : (chatStore.wsReconnecting ? 'bg-amber-500 animate-pulse' : 'bg-red-500')"
+          :title="chatStore.wsConnected ? '已连接' : (chatStore.wsReconnecting ? '重连中' : '未连接')"
+        ></span>
       </div>
     </div>
 
@@ -85,206 +89,206 @@
     </div>
 
     <!-- 列表内容 -->
-	    <PullToRefresh :on-refresh="refreshCurrentTab" class="flex-1 min-h-0">
-	      <div 
-	        class="h-full overflow-y-auto no-scrollbar px-4 pt-2 pb-24" 
-	        ref="listAreaRef" 
-	        @click="closeContextMenu"
-	        :style="{ 
-	          transform: `translateX(${listTranslateX}px)`, 
-	          transition: isAnimating ? listSwipeTransition : 'none' 
-	        }"
-	      >
-	        <!-- 列表搜索：位于滚动区域顶部，向下滚动时不固定在顶栏 -->
-	        <div class="pb-2">
-	          <div class="relative">
-	            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-fg-muted"></i>
-	            <input
-	              v-model="searchKeyword"
-	              data-testid="chat-sidebar-search-input"
-	              type="text"
-	              placeholder="搜索用户（昵称/名称/ID/地址）"
-	              class="w-full rounded-xl border border-line bg-surface-2 py-2 pl-9 pr-9 text-sm text-fg placeholder:text-fg-muted outline-none focus:ring-2 focus:ring-blue-500/30"
-	            />
-	            <button
-	              v-if="searchKeyword"
-	              @click="searchKeyword = ''"
-	              class="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-surface-3 text-fg-muted hover:text-fg transition"
-	              aria-label="清空搜索"
-	            >
-	              <i class="fas fa-times text-[10px]"></i>
-	            </button>
-	          </div>
-	          <div class="mt-2 flex items-center justify-end">
-	            <button
-	              type="button"
-	              class="chat-archive-search-btn mr-2"
-	              @click="openArchiveSearchPicker"
-	            >
-	              <i class="fas fa-search text-[10px]"></i>
-	              <span>归档搜索</span>
-	            </button>
-	            <button
-	              type="button"
-	              class="chat-cross-identity-btn mr-2"
-	              @click="openCrossIdentityPicker"
-	            >
-	              <i class="fas fa-random text-[10px]"></i>
-	              <span>从其他身份接入</span>
-	            </button>
-	            <button
-	              type="button"
-	              data-testid="chat-sidebar-archive-filter-toggle"
-	              class="chat-archive-filter-btn"
-	              :class="{
-	                'is-active': archivedOnly,
-	                'is-disabled': archivedUserCount === 0 && !archivedOnly
-	              }"
-	              :disabled="archivedUserCount === 0 && !archivedOnly"
-	              @click="archivedOnly = !archivedOnly"
-	            >
-	              <i class="fas fa-database text-[10px]"></i>
-	              <span>仅归档 ({{ archivedUserCount }})</span>
-	            </button>
-	          </div>
-	        </div>
-	
-	        <!-- 骨架屏：首次加载用户列表时占位，减少跳动 -->
-	        <template v-if="isInitialLoadingUsers && (!chatStore.displayList || chatStore.displayList.length === 0)">
-	          <div v-for="i in 8" :key="'sk-user-' + i" class="flex items-center p-4 mb-3 bg-surface rounded-2xl">
-	            <Skeleton class="w-12 h-12 rounded-xl" />
-	            <div class="ml-4 flex-1 min-w-0">
-	              <Skeleton class="h-4 w-28 rounded" />
-	              <Skeleton class="h-3 w-44 rounded mt-2" />
-	            </div>
-	            <div class="ml-2 w-10 flex justify-end">
-	              <Skeleton class="h-4 w-6 rounded" />
-	            </div>
-	          </div>
-	        </template>
+    <PullToRefresh :on-refresh="refreshCurrentTab" class="flex-1 min-h-0">
+      <div 
+        class="h-full overflow-y-auto no-scrollbar px-4 pt-2 pb-24" 
+        ref="listAreaRef" 
+        @click="closeContextMenu"
+        :style="{ 
+          transform: `translateX(${listTranslateX}px)`, 
+          transition: isAnimating ? listSwipeTransition : 'none' 
+        }"
+      >
+        <!-- 列表搜索：位于滚动区域顶部，向下滚动时不固定在顶栏 -->
+        <div class="pb-2">
+          <div class="relative">
+            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-fg-muted"></i>
+            <input
+              v-model="searchKeyword"
+              data-testid="chat-sidebar-search-input"
+              type="text"
+              placeholder="搜索用户（昵称/名称/ID/地址）"
+              class="w-full rounded-xl border border-line bg-surface-2 py-2 pl-9 pr-9 text-sm text-fg placeholder:text-fg-muted outline-none focus:ring-2 focus:ring-blue-500/30"
+            />
+            <button
+              v-if="searchKeyword"
+              @click="searchKeyword = ''"
+              class="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-surface-3 text-fg-muted hover:text-fg transition"
+              aria-label="清空搜索"
+            >
+              <i class="fas fa-times text-[10px]"></i>
+            </button>
+          </div>
+          <div class="mt-2 flex items-center justify-end">
+            <button
+              type="button"
+              class="chat-archive-search-btn mr-2"
+              @click="openArchiveSearchPicker"
+            >
+              <i class="fas fa-search text-[10px]"></i>
+              <span>归档搜索</span>
+            </button>
+            <button
+              type="button"
+              class="chat-cross-identity-btn mr-2"
+              @click="openCrossIdentityPicker"
+            >
+              <i class="fas fa-random text-[10px]"></i>
+              <span>从其他身份接入</span>
+            </button>
+            <button
+              type="button"
+              data-testid="chat-sidebar-archive-filter-toggle"
+              class="chat-archive-filter-btn"
+              :class="{
+                'is-active': archivedOnly,
+                'is-disabled': archivedUserCount === 0 && !archivedOnly
+              }"
+              :disabled="archivedUserCount === 0 && !archivedOnly"
+              @click="archivedOnly = !archivedOnly"
+            >
+              <i class="fas fa-database text-[10px]"></i>
+              <span>仅归档 ({{ archivedUserCount }})</span>
+            </button>
+          </div>
+        </div>
 
-	        <template v-else>
-	          <div
-	            v-for="user in filteredDisplayList"
-	            :key="user.id"
-	            @click="handleClick(user, $event)"
-	            @touchstart="startLongPress(user, $event)"
-	            @touchend="endLongPress"
-	            @touchmove="cancelLongPress"
-	            @mousedown="startLongPress(user, $event)"
-	            @mouseup="endLongPress"
-	            @mouseleave="cancelLongPress"
-	            @contextmenu.prevent="handleContextMenu(user, $event)"
-	            class="ui-list-item flex items-center p-4 mb-3 cursor-pointer"
-	            :class="[
-	              { 'border border-blue-500/30': currentUserId === user.id && !selectionMode },
-	              selectionMode && isSelected(user.id) ? 'ring-2 ring-blue-500/30 border border-blue-500/30' : ''
-	            ]"
-	          >
-	            <!-- 多选标记 -->
-	            <div
-	              v-if="selectionMode"
-	              class="w-6 h-6 rounded-full border border-line-strong flex items-center justify-center shrink-0 mr-3"
-	              :class="isSelected(user.id) ? 'bg-blue-600 border-blue-500 text-white' : 'bg-surface-3 text-fg-muted'"
-	            >
-	              <i v-if="isSelected(user.id)" class="fas fa-check text-xs"></i>
-	            </div>
+        <!-- 骨架屏：首次加载用户列表时占位，减少跳动 -->
+        <template v-if="isInitialLoadingUsers && (!chatStore.displayList || chatStore.displayList.length === 0)">
+          <div v-for="i in 8" :key="'sk-user-' + i" class="flex items-center p-4 mb-3 bg-surface rounded-2xl">
+            <Skeleton class="w-12 h-12 rounded-xl" />
+            <div class="ml-4 flex-1 min-w-0">
+              <Skeleton class="h-4 w-28 rounded" />
+              <Skeleton class="h-3 w-44 rounded mt-2" />
+            </div>
+            <div class="ml-2 w-10 flex justify-end">
+              <Skeleton class="h-4 w-6 rounded" />
+            </div>
+          </div>
+        </template>
 
-	            <!-- 纯色块代替头像 -->
-	            <div
-	              :class="getColorClass(user.id)"
-	              class="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shrink-0"
-	            >
-	              {{ user.nickname.charAt(0).toUpperCase() }}
-	            </div>
-	  
-	            <!-- 文本信息 -->
-	            <div class="ml-4 flex-1 min-w-0">
-	              <div class="flex justify-between items-baseline mb-1">
-	                <div class="flex items-center gap-2 truncate">
-	                  <span class="font-bold text-base text-fg truncate">
-	                    <template v-for="(part, index) in getHighlightParts(user.nickname)" :key="`nickname-${user.id}-${index}`">
-	                      <span :class="part.match ? 'search-highlight rounded px-0.5' : ''">{{ part.text }}</span>
-	                    </template>
-	                  </span>
-	                  <!-- 性别年龄标签 -->
-	                  <span 
-	                    v-if="user.sex !== '未知' || (user.age && user.age !== '0')"
-	                    class="px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1 shrink-0"
-	                    :class="user.sex === '男' ? 'bg-blue-500/20 text-blue-400' : (user.sex === '女' ? 'bg-pink-500/20 text-pink-400' : 'bg-gray-500/20 text-gray-400')"
-	                  >
-	                    <i v-if="user.sex === '男'" class="fas fa-mars"></i>
-	                    <i v-else-if="user.sex === '女'" class="fas fa-venus"></i>
-	                    <span v-if="user.age && user.age !== '0'">{{ user.age }}</span>
-	                  </span>
-	                  <span
-	                    v-if="user.localArchived"
-	                    class="chat-user-tag-local-archived shrink-0"
-	                    title="该用户来自本地归档，可能已被上游清理"
-	                    aria-label="本地归档用户"
-	                  >
-	                    <i class="fas fa-database text-[9px]"></i>
-	                    <span>归档</span>
-	                  </span>
-	                </div>
-	                <span class="text-xs text-fg-subtle shrink-0 ml-2">{{ formatTime(user.lastTime || '') }}</span>
-	              </div>
-	              
-	              <div class="flex justify-between items-center">
-	                <div class="flex items-center gap-2 min-w-0 flex-1">
-	                   <!-- 地址显示 (如果有) -->
-	                   <span v-if="user.address && user.address !== '未知' && user.address !== '保密'" class="px-1.5 py-0.5 bg-surface-3/70 rounded text-[10px] text-fg-muted truncate max-w-[80px]">
-	                     <template v-for="(part, index) in getHighlightParts(user.address)" :key="`address-${user.id}-${index}`">
-	                       <span :class="part.match ? 'search-highlight rounded px-0.5' : ''">{{ part.text }}</span>
-	                     </template>
-	                   </span>
-	                   <p class="text-sm text-fg-muted truncate flex-1">
-	                     <template v-for="(part, index) in getHighlightParts(user.lastMsg)" :key="`lastmsg-${user.id}-${index}`">
-	                       <span :class="part.match ? 'search-highlight rounded px-0.5' : ''">{{ part.text }}</span>
-	                     </template>
-	                   </p>
-	                </div>
-	                <!-- 收藏标识 -->
-	                <i v-if="user.isFavorite && chatStore.activeTab === 'history'" class="fas fa-star text-xs text-yellow-500 ml-2 shrink-0"></i>
-	              </div>
-	            </div>
-	  
-	            <!-- 右侧操作栏 -->
-	            <div class="flex flex-col items-end justify-center ml-2 gap-2 relative">
-	                <!-- 未读消息数气泡 -->
-	                <DraggableBadge
-	                  v-if="user.unreadCount && user.unreadCount > 0"
-	                  :count="user.unreadCount"
-	                  @clear="handleClearUnread(user)"
-	                />
-	            </div>
-	          </div>
-	          
-	          <!-- 空状态提示 -->
-	          <div
-	            v-if="showNoSearchMatch"
-	            class="ui-empty-state mt-20"
-	          >
-	            <i class="fas fa-search text-5xl mb-4 opacity-50"></i>
-	            <p class="text-sm">未找到匹配用户</p>
-	          </div>
-	          <div
-	            v-else-if="showNoArchivedMatch"
-	            class="ui-empty-state mt-20"
-	          >
-	            <i class="fas fa-database text-5xl mb-4 opacity-50"></i>
-	            <p class="text-sm">暂无归档用户</p>
-	          </div>
-	          <div
-	            v-else-if="(!chatStore.displayList || chatStore.displayList.length === 0) && !isInitialLoadingUsers"
-	            class="ui-empty-state mt-20"
-	          >
-	            <i class="far fa-comments text-5xl mb-4 opacity-50"></i>
-	            <p class="text-sm">暂无{{ chatStore.activeTab === 'history' ? '消息' : '收藏' }}</p>
-	          </div>
-	        </template>
-	      </div>
-	    </PullToRefresh>
+        <template v-else>
+          <div
+            v-for="user in filteredDisplayList"
+            :key="user.id"
+            @click="handleClick(user, $event)"
+            @touchstart="startLongPress(user, $event)"
+            @touchend="endLongPress"
+            @touchmove="cancelLongPress"
+            @mousedown="startLongPress(user, $event)"
+            @mouseup="endLongPress"
+            @mouseleave="cancelLongPress"
+            @contextmenu.prevent="handleContextMenu(user, $event)"
+            class="ui-list-item flex items-center p-4 mb-3 cursor-pointer"
+            :class="[
+              { 'border border-blue-500/30': currentUserId === user.id && !selectionMode },
+              selectionMode && isSelected(user.id) ? 'ring-2 ring-blue-500/30 border border-blue-500/30' : ''
+            ]"
+          >
+            <!-- 多选标记 -->
+            <div
+              v-if="selectionMode"
+              class="w-6 h-6 rounded-full border border-line-strong flex items-center justify-center shrink-0 mr-3"
+              :class="isSelected(user.id) ? 'bg-blue-600 border-blue-500 text-white' : 'bg-surface-3 text-fg-muted'"
+            >
+              <i v-if="isSelected(user.id)" class="fas fa-check text-xs"></i>
+            </div>
+
+            <!-- 纯色块代替头像 -->
+            <div
+              :class="getColorClass(user.id)"
+              class="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shrink-0"
+            >
+              {{ user.nickname.charAt(0).toUpperCase() }}
+            </div>
+  
+            <!-- 文本信息 -->
+            <div class="ml-4 flex-1 min-w-0">
+              <div class="flex justify-between items-baseline mb-1">
+                <div class="flex items-center gap-2 truncate">
+                  <span class="font-bold text-base text-fg truncate">
+                    <template v-for="(part, index) in getHighlightParts(user.nickname)" :key="`nickname-${user.id}-${index}`">
+                      <span :class="part.match ? 'search-highlight rounded px-0.5' : ''">{{ part.text }}</span>
+                    </template>
+                  </span>
+                  <!-- 性别年龄标签 -->
+                  <span 
+                    v-if="user.sex !== '未知' || (user.age && user.age !== '0')"
+                    class="px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1 shrink-0"
+                    :class="user.sex === '男' ? 'bg-blue-500/20 text-blue-400' : (user.sex === '女' ? 'bg-pink-500/20 text-pink-400' : 'bg-gray-500/20 text-gray-400')"
+                  >
+                    <i v-if="user.sex === '男'" class="fas fa-mars"></i>
+                    <i v-else-if="user.sex === '女'" class="fas fa-venus"></i>
+                    <span v-if="user.age && user.age !== '0'">{{ user.age }}</span>
+                  </span>
+                  <span
+                    v-if="user.localArchived"
+                    class="chat-user-tag-local-archived shrink-0"
+                    title="该用户来自本地归档，可能已被上游清理"
+                    aria-label="本地归档用户"
+                  >
+                    <i class="fas fa-database text-[9px]"></i>
+                    <span>归档</span>
+                  </span>
+                </div>
+                <span class="text-xs text-fg-subtle shrink-0 ml-2">{{ formatTime(user.lastTime || '') }}</span>
+              </div>
+              
+              <div class="flex justify-between items-center">
+                <div class="flex items-center gap-2 min-w-0 flex-1">
+                   <!-- 地址显示 (如果有) -->
+                   <span v-if="user.address && user.address !== '未知' && user.address !== '保密'" class="px-1.5 py-0.5 bg-surface-3/70 rounded text-[10px] text-fg-muted truncate max-w-[80px]">
+                     <template v-for="(part, index) in getHighlightParts(user.address)" :key="`address-${user.id}-${index}`">
+                       <span :class="part.match ? 'search-highlight rounded px-0.5' : ''">{{ part.text }}</span>
+                     </template>
+                   </span>
+                   <p class="text-sm text-fg-muted truncate flex-1">
+                     <template v-for="(part, index) in getHighlightParts(user.lastMsg)" :key="`lastmsg-${user.id}-${index}`">
+                       <span :class="part.match ? 'search-highlight rounded px-0.5' : ''">{{ part.text }}</span>
+                     </template>
+                   </p>
+                </div>
+                <!-- 收藏标识 -->
+                <i v-if="user.isFavorite && chatStore.activeTab === 'history'" class="fas fa-star text-xs text-yellow-500 ml-2 shrink-0"></i>
+              </div>
+            </div>
+  
+            <!-- 右侧操作栏 -->
+            <div class="flex flex-col items-end justify-center ml-2 gap-2 relative">
+                <!-- 未读消息数气泡 -->
+                <DraggableBadge
+                  v-if="user.unreadCount && user.unreadCount > 0"
+                  :count="user.unreadCount"
+                  @clear="handleClearUnread(user)"
+                />
+            </div>
+          </div>
+          
+          <!-- 空状态提示 -->
+          <div
+            v-if="showNoSearchMatch"
+            class="ui-empty-state mt-20"
+          >
+            <i class="fas fa-search text-5xl mb-4 opacity-50"></i>
+            <p class="text-sm">未找到匹配用户</p>
+          </div>
+          <div
+            v-else-if="showNoArchivedMatch"
+            class="ui-empty-state mt-20"
+          >
+            <i class="fas fa-database text-5xl mb-4 opacity-50"></i>
+            <p class="text-sm">暂无归档用户</p>
+          </div>
+          <div
+            v-else-if="(!chatStore.displayList || chatStore.displayList.length === 0) && !isInitialLoadingUsers"
+            class="ui-empty-state mt-20"
+          >
+            <i class="far fa-comments text-5xl mb-4 opacity-50"></i>
+            <p class="text-sm">暂无{{ chatStore.activeTab === 'history' ? '消息' : '收藏' }}</p>
+          </div>
+        </template>
+      </div>
+    </PullToRefresh>
 
     <!-- 批量删除底栏 -->
     <div v-if="selectionMode" class="shrink-0 px-4 py-3 border-t border-line bg-canvas">
@@ -1189,18 +1193,18 @@ onMounted(async () => {
   // 连接WebSocket
   connect()
 
-	// 加载数据；身份变化时必须刷新列表，避免复用上一个身份的内存列表。
-	if (
-	  chatStore.listOwnerUserId !== userStore.currentUser.id ||
-	  (chatStore.historyUsers.length === 0 && chatStore.favoriteUsers.length === 0)
-	) {
-	  isInitialLoadingUsers.value = true
-	  try {
-	    await loadUsers()
-	  } finally {
-	    isInitialLoadingUsers.value = false
-	  }
-	}
+  // 加载数据；身份变化时必须刷新列表，避免复用上一个身份的内存列表。
+  if (
+    chatStore.listOwnerUserId !== userStore.currentUser.id ||
+    (chatStore.historyUsers.length === 0 && chatStore.favoriteUsers.length === 0)
+  ) {
+    isInitialLoadingUsers.value = true
+    try {
+      await loadUsers()
+    } finally {
+      isInitialLoadingUsers.value = false
+    }
+  }
   // 加载全局收藏数据
   if (favoriteStore.allFavorites.length === 0) {
     favoriteStore.loadAllFavorites()

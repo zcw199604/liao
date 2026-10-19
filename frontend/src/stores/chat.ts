@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import type { User } from '@/types'
 import * as chatApi from '@/api/chat'
 import { generateCookie } from '@/utils/cookie'
+import { UPSTREAM_REFERER } from '@/constants/config'
 import { useMessageStore } from '@/stores/message'
 
 // 辅助函数：标准化用户数据
@@ -37,6 +38,10 @@ export const useChatStore = defineStore('chat', () => {
   const activeTab = ref<'history' | 'favorite'>('history')
   const isMatching = ref(false)
   const wsConnected = ref(false)
+  // 断线后等待自动重连中
+  const wsReconnecting = ref(false)
+  // 后端因重复登录暂时禁止连接时的解禁时间戳（毫秒），0 表示未被禁止
+  const wsForbiddenUntil = ref(0)
   const listScrollTop = ref(0)
 
   // === 连续匹配状态 ===
@@ -155,7 +160,7 @@ export const useChatStore = defineStore('chat', () => {
     try {
       ensureListOwner(userId)
       const cookieData = generateCookie(userId, userName)
-      const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
+      const referer = UPSTREAM_REFERER
       const userAgent = navigator.userAgent
 
       const data = await chatApi.getHistoryUserList(userId, cookieData, referer, userAgent)
@@ -195,7 +200,7 @@ export const useChatStore = defineStore('chat', () => {
     try {
       ensureListOwner(userId)
       const cookieData = generateCookie(userId, userName)
-      const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
+      const referer = UPSTREAM_REFERER
       const userAgent = navigator.userAgent
 
       const data = await chatApi.getFavoriteUserList(userId, cookieData, referer, userAgent)
@@ -327,6 +332,8 @@ export const useChatStore = defineStore('chat', () => {
     activeTab,
     isMatching,
     wsConnected,
+    wsReconnecting,
+    wsForbiddenUntil,
     listScrollTop,
 
     // 连续匹配状态

@@ -54,17 +54,43 @@ describe('components/chat/ChatHeader.vue', () => {
     expect(wrapper.text()).toContain('未知用户')
     expect(wrapper.text()).toContain('离线')
 
-    await wrapper.get('button[aria-label="显示列表"]').trigger('click')
+    await wrapper.get('button[aria-label="会话列表"]').trigger('click')
     await wrapper.get('button[aria-label="返回"]').trigger('click')
-    await wrapper.get('button[title="清空并重新加载聊天记录"]').trigger('click')
-    await wrapper.get('button[title="拉黑该用户"]').trigger('click')
-    await wrapper.findAll('button').find(b => b.find('i').classes().includes('fa-star'))!.trigger('click')
+    // 清空/拉黑收在“更多”菜单里
+    expect(wrapper.find('[data-testid="chat-header-blacklist"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="chat-header-more"]').trigger('click')
+    await wrapper.get('[data-testid="chat-header-clear-reload"]').trigger('click')
+    expect(wrapper.find('[data-testid="chat-header-clear-reload"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="chat-header-more"]').trigger('click')
+    await wrapper.get('[data-testid="chat-header-blacklist"]').trigger('click')
+    await wrapper.get('button[aria-label="收藏"]').trigger('click')
 
     expect(wrapper.emitted('toggleSidebar')).toHaveLength(1)
     expect(wrapper.emitted('back')).toHaveLength(1)
     expect(wrapper.emitted('clearAndReload')).toHaveLength(1)
     expect(wrapper.emitted('blacklist')).toHaveLength(1)
     expect(wrapper.emitted('toggleFavorite')).toHaveLength(1)
+  })
+
+  it('shows reconnecting/forbidden status, emits reconnect only when allowed, closes menu on outside click', async () => {
+    const wrapper = mount(ChatHeader, {
+      props: { user: null, connected: false, connectionState: 'reconnecting', statusText: '重连中…' },
+      attachTo: document.body
+    })
+    expect(wrapper.text()).toContain('重连中…')
+    await wrapper.get('[data-testid="chat-header-status"]').trigger('click')
+    expect(wrapper.emitted('reconnect')).toHaveLength(1)
+
+    await wrapper.setProps({ connectionState: 'forbidden', statusText: '暂停连接 10s' })
+    expect(wrapper.text()).toContain('暂停连接 10s')
+    expect(wrapper.get('[data-testid="chat-header-status"]').attributes('disabled')).toBeDefined()
+
+    await wrapper.get('[data-testid="chat-header-more"]').trigger('click')
+    expect(wrapper.find('[data-testid="chat-header-blacklist"]').exists()).toBe(true)
+    document.body.click()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-testid="chat-header-blacklist"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 
   it('shows sex/age/address and favorite icon when user data is present', () => {

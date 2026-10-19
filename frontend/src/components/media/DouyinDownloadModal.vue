@@ -1365,6 +1365,7 @@ import MediaTile from '@/components/common/MediaTile.vue'
 import MediaTileBadge from '@/components/common/MediaTileBadge.vue'
 import MediaTileSelectMark from '@/components/common/MediaTileSelectMark.vue'
 import { generateCookie } from '@/utils/cookie'
+import { UPSTREAM_REFERER } from '@/constants/config'
 import { copyToClipboard } from '@/utils/clipboard'
 import { formatFullTime } from '@/utils/time'
 import * as douyinApi from '@/api/douyin'
@@ -2005,7 +2006,9 @@ watch(
         await handlePrimaryAction()
       }
     }
-  }
+  },
+  // 弹窗按需懒加载：首次打开时组件才挂载，需立即执行一次初始化
+  { immediate: true }
 )
 
 
@@ -3623,7 +3626,7 @@ const importIndex = async (idx: number) => {
   const userId = userStore.currentUser?.id || 'pre_identity'
   const nickname = userStore.currentUser?.name || 'pre_identity'
   const cookieData = generateCookie(userId, nickname)
-  const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
+  const referer = UPSTREAM_REFERER
   const userAgent = navigator.userAgent
 
   try {

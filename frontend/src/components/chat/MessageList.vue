@@ -58,7 +58,15 @@
               <span v-if="row.message.time">{{ formatTime(row.message.time) }}</span>
             </div>
 
-            <div class="msg-bubble shadow-sm" :class="row.message.isSelf ? 'msg-right' : 'msg-left'">
+            <div
+              class="msg-bubble shadow-sm"
+              :class="row.message.isSelf ? 'msg-right' : 'msg-left'"
+              @contextmenu="handleMessageContextMenu(row.message, $event)"
+              @touchstart.passive="startMessageLongPress(row.message, $event)"
+              @touchmove.passive="cancelMessageLongPress"
+              @touchend="cancelMessageLongPress"
+              @touchcancel="cancelMessageLongPress"
+            >
               <template v-if="row.message.segments && row.message.segments.length">
                 <div class="flex flex-col gap-2">
                   <template v-for="(seg, idx) in row.message.segments" :key="idx">
@@ -66,8 +74,8 @@
                       v-if="seg.kind === 'text'"
                       v-html="parseEmoji(seg.text, emojiMap)"
                       @dblclick="copyToClipboard(row.message.content)"
-                      class="cursor-text select-text"
-                      title="双击复制"
+                      class="msg-text cursor-text select-text"
+                      title="双击或长按复制"
                     ></span>
 
                     <ChatMedia
@@ -86,47 +94,23 @@
                       @preview="(url) => previewMedia(url, 'video')"
                     />
 
-                    <div
+                    <ChatFileCard
                       v-else-if="seg.kind === 'file'"
-                      class="p-3 rounded-lg flex items-center gap-3 min-w-[200px] max-w-sm cursor-pointer transition border group"
-                      :class="row.message.isSelf ? 'bg-white/10 hover:bg-white/20 border-white/10 text-white' : 'bg-surface-3/70 hover:bg-surface-hover border-line text-fg'"
-                      @click="downloadFile(getMediaUrl(seg.url))"
-                    >
-                      <div
-                        class="w-12 h-12 rounded-lg flex items-center justify-center shrink-0"
-                        :class="row.message.isSelf ? 'bg-gray-800 text-indigo-400' : 'bg-surface text-indigo-600 dark:text-indigo-400 border border-line'"
-                      >
-                        <i class="fas fa-file text-2xl"></i>
-                      </div>
-                      <div class="flex-1 overflow-hidden min-w-0">
-                        <div
-                          class="text-sm truncate font-medium"
-                          :class="row.message.isSelf ? 'text-white/90' : 'text-fg'"
-                          :title="getDownloadFileName(getMediaUrl(seg.url))"
-                        >
-                          {{ getDownloadFileName(getMediaUrl(seg.url)) }}
-                        </div>
-                        <div class="text-xs mt-0.5" :class="row.message.isSelf ? 'text-white/50' : 'text-fg-muted'">点击下载</div>
-                      </div>
-                      <div
-                        class="w-8 h-8 rounded-full flex items-center justify-center transition"
-                        :class="row.message.isSelf ? 'bg-white/5 text-gray-300 group-hover:bg-white/10 group-hover:text-white' : 'bg-surface/60 text-fg-muted group-hover:bg-surface-hover group-hover:text-fg border border-line'"
-                      >
-                        <i class="fas fa-download text-sm"></i>
-                      </div>
-                    </div>
+                      :url="getMediaUrl(seg.url)"
+                      :is-self="row.message.isSelf"
+                    />
                   </template>
                 </div>
               </template>
 
               <template v-else>
-                <!-- 文本（支持表情解析，双击复制） -->
+                <!-- 文本（支持表情解析，双击/长按复制） -->
                 <span
                   v-if="!row.message.isImage && !row.message.isVideo && !row.message.isFile"
                   v-html="parseEmoji(row.message.content, emojiMap)"
                   @dblclick="copyToClipboard(row.message.content)"
-                  class="cursor-text select-text"
-                  title="双击复制"
+                  class="msg-text cursor-text select-text"
+                  title="双击或长按复制"
                 ></span>
 
                 <!-- 图片 -->
@@ -149,35 +133,11 @@
                 />
 
                 <!-- 文件 -->
-                <div
+                <ChatFileCard
                   v-else-if="row.message.isFile"
-                  class="p-3 rounded-lg flex items-center gap-3 min-w-[200px] max-w-sm cursor-pointer transition border group"
-                  :class="row.message.isSelf ? 'bg-white/10 hover:bg-white/20 border-white/10 text-white' : 'bg-surface-3/70 hover:bg-surface-hover border-line text-fg'"
-                  @click="downloadFile(getMediaUrl(row.message.fileUrl || row.message.content || ''))"
-                >
-                  <div
-                    class="w-12 h-12 rounded-lg flex items-center justify-center shrink-0"
-                    :class="row.message.isSelf ? 'bg-gray-800 text-indigo-400' : 'bg-surface text-indigo-600 dark:text-indigo-400 border border-line'"
-                  >
-                    <i class="fas fa-file text-2xl"></i>
-                  </div>
-                  <div class="flex-1 overflow-hidden min-w-0">
-                    <div
-                      class="text-sm truncate font-medium"
-                      :class="row.message.isSelf ? 'text-white/90' : 'text-fg'"
-                      :title="getDownloadFileName(getMediaUrl(row.message.fileUrl || row.message.content || ''))"
-                    >
-                      {{ getDownloadFileName(getMediaUrl(row.message.fileUrl || row.message.content || '')) }}
-                    </div>
-                    <div class="text-xs mt-0.5" :class="row.message.isSelf ? 'text-white/50' : 'text-fg-muted'">点击下载</div>
-                  </div>
-                  <div
-                    class="w-8 h-8 rounded-full flex items-center justify-center transition"
-                    :class="row.message.isSelf ? 'bg-white/5 text-gray-300 group-hover:bg-white/10 group-hover:text-white' : 'bg-surface/60 text-fg-muted group-hover:bg-surface-hover group-hover:text-fg border border-line'"
-                  >
-                    <i class="fas fa-download text-sm"></i>
-                  </div>
-                </div>
+                  :url="getMediaUrl(row.message.fileUrl || row.message.content || '')"
+                  :is-self="row.message.isSelf"
+                />
               </template>
             </div>
 
@@ -231,6 +191,43 @@
         <span v-if="hasNewMessages" class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
       </button>
     </transition>
+
+    <!-- 消息操作菜单（长按/右键） -->
+    <Teleport to="body">
+      <div
+        v-if="messageMenu"
+        class="fixed inset-0 z-[80]"
+        data-testid="message-menu-backdrop"
+        @click="closeMessageMenu"
+        @contextmenu.prevent="closeMessageMenu"
+      >
+        <div
+          class="fixed ui-card-sm py-1 min-w-[120px]"
+          data-testid="message-menu"
+          :style="{ left: `${messageMenu.x}px`, top: `${messageMenu.y}px` }"
+          @click.stop
+        >
+          <button
+            v-if="messageMenu.copyText"
+            data-testid="message-menu-copy"
+            class="w-full px-4 py-2.5 text-left text-sm hover:bg-surface-3 text-fg flex items-center gap-3"
+            @click="handleMenuCopy"
+          >
+            <i class="far fa-copy w-4 text-fg-muted"></i>
+            <span>复制</span>
+          </button>
+          <button
+            v-if="messageMenu.canRetry"
+            data-testid="message-menu-retry"
+            class="w-full px-4 py-2.5 text-left text-sm hover:bg-surface-3 text-fg flex items-center gap-3 border-t border-line"
+            @click="handleMenuRetry"
+          >
+            <i class="fas fa-redo-alt w-4 text-fg-muted"></i>
+            <span>重新发送</span>
+          </button>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -248,6 +245,7 @@ import { useMessageStore } from '@/stores/message'
 import { useToast } from '@/composables/useToast'
 import Skeleton from '@/components/common/Skeleton.vue'
 import ChatMedia from '@/components/chat/ChatMedia.vue'
+import ChatFileCard from '@/components/chat/ChatFileCard.vue'
 
 defineOptions({ inheritAttrs: false })
 
@@ -267,10 +265,11 @@ const props = withDefaults(defineProps<Props>(), {
   floatingBottomOffsetPx: 96
 })
 
-defineEmits<{
+const emit = defineEmits<{
   loadMore: []
   closeAllPanels: []
   retry: [ChatMessage]
+  preview: [url: string, type: 'image' | 'video']
 }>()
 
 type RenderItem =
@@ -427,49 +426,32 @@ const handleMediaLayout = () => {
   }, MEDIA_LAYOUT_DEBOUNCE_MS)
 }
 
-// 滚动到顶部（查看历史消息）
-const scrollToTop = () => {
-  nextTick(() => {
-    const scroller = scrollerRef.value
-    if (scroller?.scrollToItem) {
-      scroller.scrollToItem(0)
-      return
-    }
+// 加载更早的历史消息前记录滚动位置，加载后按高度差恢复，保持用户正在看的内容不跳动
+type ScrollAnchor = { scrollHeight: number; scrollTop: number }
 
+const captureScrollAnchor = (): ScrollAnchor | null => {
+  const el = getScrollerEl()
+  return el ? { scrollHeight: el.scrollHeight, scrollTop: el.scrollTop } : null
+}
+
+const restoreScrollAnchor = (anchor: ScrollAnchor | null) => {
+  if (!anchor) return
+  const apply = () => {
     const el = getScrollerEl()
-    if (el) el.scrollTop = 0
+    if (!el) return
+    el.scrollTop = Math.max(0, el.scrollHeight - anchor.scrollHeight + anchor.scrollTop)
+  }
+  nextTick(() => {
+    apply()
+    // 虚拟列表测量新条目高度后 scrollHeight 会再变化，下一帧再校正一次
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(apply)
+    }
   })
 }
 
 const previewMedia = (url: string, type: 'image' | 'video') => {
-  window.dispatchEvent(
-    new CustomEvent('preview-media', {
-      detail: { url, type }
-    })
-  )
-}
-
-const getDownloadFileName = (url: string): string => {
-  const raw = String(url || '')
-  if (!raw) return '未知文件'
-  try {
-    const u = new URL(raw)
-    return decodeURIComponent(u.pathname.split('/').pop() || '未知文件')
-  } catch {
-    return raw.split('/').pop() || '未知文件'
-  }
-}
-
-const downloadFile = (url: string) => {
-  const href = String(url || '')
-  if (!href) return
-
-  const link = document.createElement('a')
-  link.href = href
-  link.download = getDownloadFileName(href)
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+  emit('preview', url, type)
 }
 
 const copyToClipboard = async (text: string) => {
@@ -478,18 +460,109 @@ const copyToClipboard = async (text: string) => {
   show(ok ? '已复制' : '复制失败')
 }
 
-watch(
-  () => props.messages.length,
-  (newVal, oldVal) => {
-    // 忽略加载历史消息时的长度变化
-    if (messageStore.isLoadingHistory) return
+// === 消息操作菜单（长按/右键）===
+type MessageMenuState = { x: number; y: number; message: ChatMessage; copyText: string; canRetry: boolean }
+const messageMenu = ref<MessageMenuState | null>(null)
+const LONG_PRESS_MS = 500
+const MENU_WIDTH_PX = 140
+const MENU_HEIGHT_PX = 100
+let longPressTimer: ReturnType<typeof setTimeout> | null = null
 
-    if (newVal > oldVal) {
-      if (isAtBottom.value) {
-        scrollToBottom()
-      } else {
-        hasNewMessages.value = true
-      }
+// 可复制的纯文本：分段消息只取文本段，媒体消息无文本
+const getCopyText = (msg: ChatMessage): string => {
+  if (msg.segments && msg.segments.length) {
+    return msg.segments.map(seg => (seg.kind === 'text' ? seg.text : '')).join('').trim()
+  }
+  if (msg.isImage || msg.isVideo || msg.isFile) return ''
+  return String(msg.content || '')
+}
+
+// 返回 true 表示菜单已打开（有可用操作）
+const openMessageMenu = (msg: ChatMessage, clientX: number, clientY: number): boolean => {
+  const copyText = getCopyText(msg)
+  const canRetry = Boolean(msg.isSelf && msg.sendStatus === 'failed')
+  if (!copyText && !canRetry) return false
+
+  const vw = typeof window !== 'undefined' ? window.innerWidth : MENU_WIDTH_PX
+  const vh = typeof window !== 'undefined' ? window.innerHeight : MENU_HEIGHT_PX
+  messageMenu.value = {
+    x: Math.max(8, Math.min(clientX, vw - MENU_WIDTH_PX - 8)),
+    y: Math.max(8, Math.min(clientY, vh - MENU_HEIGHT_PX - 8)),
+    message: msg,
+    copyText,
+    canRetry
+  }
+  return true
+}
+
+const closeMessageMenu = () => {
+  messageMenu.value = null
+}
+
+const handleMessageContextMenu = (msg: ChatMessage, e: MouseEvent) => {
+  // 没有可用操作时保留浏览器默认菜单（例如图片另存为）
+  if (openMessageMenu(msg, e.clientX, e.clientY)) e.preventDefault()
+}
+
+const cancelMessageLongPress = () => {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+}
+
+const startMessageLongPress = (msg: ChatMessage, e: TouchEvent) => {
+  cancelMessageLongPress()
+  const touch = e.touches[0]
+  if (!touch) return
+  const { clientX, clientY } = touch
+  longPressTimer = setTimeout(() => {
+    longPressTimer = null
+    openMessageMenu(msg, clientX, clientY)
+  }, LONG_PRESS_MS)
+}
+
+const handleMenuCopy = () => {
+  const text = messageMenu.value?.copyText || ''
+  closeMessageMenu()
+  void copyToClipboard(text)
+}
+
+const handleMenuRetry = () => {
+  const msg = messageMenu.value?.message
+  closeMessageMenu()
+  if (msg) emit('retry', msg)
+}
+
+// 新消息检测：只关注“最后一条消息”的变化，向前加载历史（prepend）不会触发
+const lastMessageKey = computed(() => {
+  const last = props.messages[props.messages.length - 1]
+  return last ? getMessageKey(last) : ''
+})
+
+watch(
+  lastMessageKey,
+  (newKey, oldKey) => {
+    if (!newKey || newKey === oldKey) return
+
+    // 旧的最后一条已不在列表里：说明切换了会话或整体重载，直接贴底
+    const appended = Boolean(oldKey) && props.messages.some(m => getMessageKey(m) === oldKey)
+    if (!appended) {
+      scrollToBottom()
+      return
+    }
+
+    // 自己发送的消息总是回到底部
+    const last = props.messages[props.messages.length - 1]
+    if (last?.isSelf) {
+      scrollToBottom(true)
+      return
+    }
+
+    if (isAtBottom.value) {
+      scrollToBottom()
+    } else {
+      hasNewMessages.value = true
     }
   },
   { flush: 'post' }
@@ -504,13 +577,15 @@ onUnmounted(() => {
   // 清理定时器
   if (scrollTimer) clearTimeout(scrollTimer)
   if (mediaLayoutTimer) clearTimeout(mediaLayoutTimer)
+  cancelMessageLongPress()
 })
 
 const getIsAtBottom = () => isAtBottom.value
 
 defineExpose({
   scrollToBottom,
-  scrollToTop,
+  captureScrollAnchor,
+  restoreScrollAnchor,
   getIsAtBottom
 })
 </script>
@@ -533,5 +608,14 @@ defineExpose({
 
 .chat-area {
   overflow-anchor: auto;
+}
+
+/* 触屏设备上长按弹出自定义菜单，屏蔽系统的文字选择/呼出菜单，避免两者叠加 */
+@media (hover: none) {
+  .msg-text {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }
 </style>

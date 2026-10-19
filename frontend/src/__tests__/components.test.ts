@@ -7,7 +7,6 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import Loading from '@/components/common/Loading.vue'
 import Dialog from '@/components/common/Dialog.vue'
 import Toast from '@/components/common/Toast.vue'
-import UserList from '@/components/list/UserList.vue'
 import ChatSidebar from '@/components/chat/ChatSidebar.vue'
 
 import { useToast } from '@/composables/useToast'
@@ -84,43 +83,6 @@ describe('components/common/Toast.vue', () => {
     vi.advanceTimersByTime(2000)
     await nextTick()
     expect(wrapper.text()).not.toContain('你好')
-  })
-})
-
-describe('components/list/UserList.vue', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 0, 4, 12, 0, 0))
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('renders user and emits select on click', async () => {
-    const user = {
-      id: 'u1',
-      name: 'Alice',
-      nickname: 'Alice',
-      sex: '未知',
-      ip: '',
-      lastMessageTime: new Date(2026, 0, 4, 9, 5, 0).toISOString()
-    }
-
-    const wrapper = mount(UserList, { props: { users: [user], type: 'history' } })
-    expect(wrapper.text()).toContain('Alice')
-    expect(wrapper.text()).toContain('09:05')
-
-    await wrapper.get('div.cursor-pointer').trigger('click')
-    expect(wrapper.emitted('select')?.[0]).toEqual([user])
-  })
-
-  it('renders empty state for history and favorite', () => {
-    const historyWrapper = mount(UserList, { props: { users: [], type: 'history' } })
-    expect(historyWrapper.text()).toContain('暂无历史用户')
-
-    const favoriteWrapper = mount(UserList, { props: { users: [], type: 'favorite' } })
-    expect(favoriteWrapper.text()).toContain('暂无收藏用户')
   })
 })
 

@@ -141,6 +141,7 @@ import { useIdentityStore } from '@/stores/identity'
 import { useUserStore } from '@/stores/user'
 import * as chatApi from '@/api/chat'
 import { generateCookie } from '@/utils/cookie'
+import { UPSTREAM_REFERER } from '@/constants/config'
 import { getColorClass } from '@/constants/colors'
 import type { ContactCandidate } from '@/types'
 
@@ -225,7 +226,7 @@ const loadCandidates = async () => {
       q: '',
       limit: 300,
       cookieData,
-      referer: 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko',
+      referer: UPSTREAM_REFERER,
       userAgent: navigator.userAgent
     })
     candidates.value = Array.isArray(res.data?.items) ? res.data.items : []

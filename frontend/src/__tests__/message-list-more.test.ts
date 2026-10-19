@@ -48,6 +48,7 @@ vi.mock('vue-virtual-scroller', () => ({
 }))
 
 import MessageList from '@/components/chat/MessageList.vue'
+import ChatFileCard from '@/components/chat/ChatFileCard.vue'
 import { useMessageStore } from '@/stores/message'
 
 const flushAsync = async () => {
@@ -190,22 +191,23 @@ describe('components/chat/MessageList.vue (more coverage)', () => {
       global: { plugins: [pinia], stubs: { Skeleton: true, ChatMedia: true } }
     })
 
-    expect((wrapper.vm as any).getDownloadFileName('')).toBe('未知文件')
-    expect((wrapper.vm as any).getDownloadFileName('not a url')).toBe('not a url')
-
-    const createSpy = vi.spyOn(document, 'createElement')
-    ;(wrapper.vm as any).downloadFile('')
-    expect(createSpy).not.toHaveBeenCalled()
-
-    ;(wrapper.vm as any).downloadFile('http://x/a%20b.txt')
+    // 文件卡片显示解码后的文件名，点击触发下载
+    expect(wrapper.text()).toContain('a b.txt')
+    await wrapper.get('[title="a b.txt"]').trigger('click')
     expect(clickSpy).toHaveBeenCalled()
+
+    expect(mount(ChatFileCard, { props: { url: '', isSelf: false } }).text()).toContain('未知文件')
+    expect(mount(ChatFileCard, { props: { url: 'not a url', isSelf: false } }).text()).toContain('not a url')
+
+    const emptyCard = mount(ChatFileCard, { props: { url: '', isSelf: true } })
+    const createSpy = vi.spyOn(document, 'createElement')
+    await emptyCard.trigger('click')
+    expect(createSpy).not.toHaveBeenCalled()
 
     clickSpy.mockRestore()
   })
 
   it('renders typing row, sendStatus rows, and ChatMedia preview dispatch', async () => {
-    const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
-
     const pinia = createPinia()
     setActivePinia(pinia)
     const messageStore = useMessageStore()
@@ -267,12 +269,10 @@ describe('components/chat/MessageList.vue (more coverage)', () => {
     expect(wrapper.emitted('retry')?.length).toBe(1)
 
     await wrapper.get('.chat-media').trigger('click')
-    expect(dispatchSpy).toHaveBeenCalled()
+    expect(wrapper.emitted('preview')).toBeTruthy()
   })
 
-  it('dispatches preview-media when MessageList video media emits preview', async () => {
-    const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
-
+  it('emits preview when MessageList video media emits preview', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const messageStore = useMessageStore()
@@ -330,16 +330,10 @@ describe('components/chat/MessageList.vue (more coverage)', () => {
     expect(media[1]!.attributes('data-previewable')).not.toBe('false')
 
     await media[0]!.trigger('click')
-    expect(dispatchSpy).toHaveBeenLastCalledWith(expect.objectContaining({
-      type: 'preview-media',
-      detail: { url: 'http://x/seg.mp4', type: 'video' }
-    }))
+    expect(wrapper.emitted('preview')?.at(-1)).toEqual(['http://x/seg.mp4', 'video'])
 
     await media[1]!.trigger('click')
-    expect(dispatchSpy).toHaveBeenLastCalledWith(expect.objectContaining({
-      type: 'preview-media',
-      detail: { url: 'http://x/fallback.mp4', type: 'video' }
-    }))
+    expect(wrapper.emitted('preview')?.at(-1)).toEqual(['http://x/fallback.mp4', 'video'])
   })
 
   it('copyToClipboard shows success/fail toasts and ignores empty text', async () => {
@@ -554,7 +548,7 @@ describe('components/chat/MessageList.vue (more coverage)', () => {
     expect(wrapper.findAll('.chat-media').length).toBeGreaterThan(0)
   })
 
-  it('watch branch: ignores length change while loading history and toggles hasNewMessages when not at bottom', async () => {
+  it('watch branch: peer message when not at bottom shows badge; own message always scrolls to bottom', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
 
@@ -572,32 +566,30 @@ describe('components/chat/MessageList.vue (more coverage)', () => {
     })
     await flushAsync()
 
-    // ignore branch when loading history
-    messageStore.isLoadingHistory = true
-    await wrapper.setProps({ messages: [{ tid: '1', content: 'a', time: 't', isSelf: true } as any, { tid: '2', content: 'b', time: 't', isSelf: true } as any] })
-    await flushAsync()
-    expect((wrapper.vm as any).hasNewMessages).toBe(false)
+    const m1 = { tid: '1', content: 'a', time: 't', isSelf: true } as any
+    const peer = { tid: '2', content: 'b', time: 't', isSelf: false } as any
+    const mine = { tid: '3', content: 'c', time: 't', isSelf: true } as any
 
-    // not at bottom -> hasNewMessages=true
-    messageStore.isLoadingHistory = false
+    // peer message while reading history -> badge
     ;(wrapper.vm as any).isAtBottom = false
-    await wrapper.setProps({ messages: [{ tid: '1', content: 'a', time: 't', isSelf: true } as any, { tid: '2', content: 'b', time: 't', isSelf: true } as any, { tid: '3', content: 'c', time: 't', isSelf: true } as any] })
+    await wrapper.setProps({ messages: [m1, peer] })
     await flushAsync()
     expect((wrapper.vm as any).hasNewMessages).toBe(true)
+
+    // own message -> force back to bottom and clear badge
+    await wrapper.setProps({ messages: [m1, peer, mine] })
+    await flushAsync()
+    expect((wrapper.vm as any).hasNewMessages).toBe(false)
+    expect((wrapper.vm as any).isAtBottom).toBe(true)
+
+    // whole list replaced (switch conversation) -> no badge
+    ;(wrapper.vm as any).isAtBottom = false
+    await wrapper.setProps({ messages: [{ tid: 'x', content: 'x', time: 't', isSelf: false } as any] })
+    await flushAsync()
+    expect((wrapper.vm as any).hasNewMessages).toBe(false)
   })
 
-  it('getDownloadFileName returns fallback name when url ends with slash', async () => {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    const messageStore = useMessageStore()
-    messageStore.isLoadingHistory = false
-
-    const wrapper = mount(MessageList, {
-      props: { messages: [] as any, isTyping: false, loadingMore: false, canLoadMore: true },
-      global: { plugins: [pinia], stubs: { Skeleton: true, ChatMedia: true } }
-    })
-    await flushAsync()
-
-    expect((wrapper.vm as any).getDownloadFileName('http://x/')).toBe('未知文件')
+  it('ChatFileCard returns fallback name when url ends with slash', () => {
+    expect(mount(ChatFileCard, { props: { url: 'http://x/', isSelf: false } }).text()).toContain('未知文件')
   })
 })

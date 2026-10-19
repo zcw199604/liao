@@ -4,6 +4,7 @@ import * as mediaApi from '@/api/media'
 import { useSystemConfigStore } from '@/stores/systemConfig'
 import type { UploadedMedia } from '@/types'
 import { generateCookie } from '@/utils/cookie'
+import { UPSTREAM_REFERER } from '@/constants/config'
 import { useToast } from '@/composables/useToast'
 
 export type UploadSource = 'local' | 'douyin' | 'mtphoto'
@@ -14,13 +15,15 @@ export interface UploadFileOptions {
   douyinDetailId?: string
   douyinAuthorUniqueId?: string
   douyinAuthorName?: string
+  // 上传进度回调（0-100）
+  onProgress?: (percent: number) => void
 }
 
 export const useUpload = () => {
-	  const mediaStore = useMediaStore()
-	  const systemConfigStore = useSystemConfigStore()
-	  const uploadLoading = ref(false)
-	  const { error: showError } = useToast()
+  const mediaStore = useMediaStore()
+  const systemConfigStore = useSystemConfigStore()
+  const uploadLoading = ref(false)
+  const { error: showError } = useToast()
 
   const uploadFile = async (
     file: File,
@@ -45,7 +48,7 @@ export const useUpload = () => {
 
       // 上游所需 headers 参数
       const cookieData = generateCookie(userId, userName)
-      const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
+      const referer = UPSTREAM_REFERER
       const userAgent = navigator.userAgent
 
       formData.append('cookieData', cookieData)
@@ -69,15 +72,15 @@ export const useUpload = () => {
         if (douyinAuthorName) formData.append('douyinAuthorName', douyinAuthorName)
       }
 
-      const res = await mediaApi.uploadMedia(formData)
+      const res = await mediaApi.uploadMedia(formData, options?.onProgress)
 
       if (res?.state === 'OK' && res.msg) {
         let type: 'image' | 'video' | 'file' = 'file'
         if (file.type.startsWith('image/')) type = 'image'
         else if (file.type.startsWith('video/')) type = 'video'
 
-	        const port = await systemConfigStore.resolveImagePort(res.msg, mediaStore.imgServer)
-	        const url = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
+        const port = await systemConfigStore.resolveImagePort(res.msg, mediaStore.imgServer)
+        const url = `http://${mediaStore.imgServer}:${port}/img/Upload/${res.msg}`
 
         const media: UploadedMedia = {
           url,

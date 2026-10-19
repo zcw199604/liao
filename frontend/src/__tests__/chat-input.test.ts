@@ -104,6 +104,32 @@ describe('components/chat/ChatInput.vue', () => {
     expect(wrapper.emitted('send')?.length).toBe(3)
   })
 
+  it('ignores Enter while IME is composing and emits pasted files', async () => {
+    const wrapper = mount(ChatInput, {
+      props: { modelValue: '你好', disabled: false, wsConnected: true }
+    })
+    const textarea = wrapper.get('textarea')
+
+    // 中文输入法组字时按 Enter 只是确认候选词，不应发送
+    await textarea.trigger('keydown', { key: 'Enter', isComposing: true })
+    expect(wrapper.emitted('send')).toBeUndefined()
+
+    // 粘贴文件：交给上层上传并阻止默认行为
+    const file = new File(['x'], 'shot.png', { type: 'image/png' })
+    const pasteWithFile = new Event('paste', { bubbles: true, cancelable: true }) as any
+    pasteWithFile.clipboardData = { files: [file] }
+    textarea.element.dispatchEvent(pasteWithFile)
+    expect(pasteWithFile.defaultPrevented).toBe(true)
+    expect(wrapper.emitted('pasteFiles')?.[0]).toEqual([[file]])
+
+    // 纯文本粘贴保持默认行为
+    const pasteText = new Event('paste', { bubbles: true, cancelable: true }) as any
+    pasteText.clipboardData = { files: [] }
+    textarea.element.dispatchEvent(pasteText)
+    expect(pasteText.defaultPrevented).toBe(false)
+    expect(wrapper.emitted('pasteFiles')).toHaveLength(1)
+  })
+
   it('autoResize runs on modelValue change (watch)', async () => {
     const wrapper = mount(ChatInput, {
       props: { modelValue: '', disabled: false, wsConnected: true }

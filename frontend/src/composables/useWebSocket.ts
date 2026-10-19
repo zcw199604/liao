@@ -4,7 +4,7 @@ import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
 import { useUserStore } from '@/stores/user'
 import { generateCookie } from '@/utils/cookie'
-import { WS_URL } from '@/constants/config'
+import { UPSTREAM_REFERER, WS_DISCONNECTED_TIP, WS_URL } from '@/constants/config'
 import type { WebSocketMessage, ChatMessage, User } from '@/types'
 import * as chatApi from '@/api/chat'
 import * as systemApi from '@/api/system'
@@ -37,6 +37,34 @@ export const inferWsPrivateMessageIsSelf = (params: {
 
 let activeConnection: ActiveWebSocketConnection | null = null
 const forceoutFlag = ref(false)
+
+// 自动重连：指数退避，连接成功后归零
+export const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 16000, 30000]
+let reconnectAttempt = 0
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+// 后端暂时禁止连接（code=-4）时，到期后自动重连的定时器
+let forbiddenTimer: ReturnType<typeof setTimeout> | null = null
+// connect() 后置为 true；手动 disconnect 后置为 false，避免切换身份/退出后仍在后台重连
+let autoReconnectEnabled = false
+let lifecycleListenersBound = false
+
+const clearReconnectTimers = () => {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  if (forbiddenTimer) {
+    clearTimeout(forbiddenTimer)
+    forbiddenTimer = null
+  }
+}
+
+// 从 "请N秒后再试" 中解析剩余秒数
+export const parseForbiddenSeconds = (content: unknown): number => {
+  const match = String(content || '').match(/(\d+)\s*秒/)
+  const seconds = match ? Number(match[1]) : 0
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : 0
+}
 
 // 滚动到底部的方法引用（全局单例）
 let scrollToBottomCallback: (() => void) | null = null
@@ -147,6 +175,10 @@ export const useWebSocket = () => {
       activeConnection = null
     }
 
+    clearReconnectTimers()
+    autoReconnectEnabled = true
+    bindLifecycleListeners()
+
     // WebSocket URL中添加token参数
     const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const wsUrlWithToken = `${scheme}://${window.location.host}${WS_URL}?token=${encodeURIComponent(token)}`
@@ -164,6 +196,9 @@ export const useWebSocket = () => {
 
       console.log('WebSocket 连接成功')
       chatStore.wsConnected = true
+      chatStore.wsReconnecting = false
+      chatStore.wsForbiddenUntil = 0
+      reconnectAttempt = 0
       forceoutFlag.value = false
 
       // 发送登录消息
@@ -188,7 +223,7 @@ export const useWebSocket = () => {
       // 上报访问记录 -> 获取图片服务器地址 -> 刷新缓存图片
       try {
         const cookieData = generateCookie(currentUser.id, currentUser.name)
-        const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
+        const referer = UPSTREAM_REFERER
         const userAgent = navigator.userAgent
 
         await chatApi.reportReferrer({
@@ -247,6 +282,23 @@ export const useWebSocket = () => {
         if (code === -4 && data.forceout === true) {
           console.error('后端拒绝连接:', data.content)
           forceoutFlag.value = true
+          // 能解析出剩余秒数时留在当前页面倒计时，到期自动重连；否则沿用跳转登录页的旧行为
+          const forbiddenSeconds = parseForbiddenSeconds(data.content)
+          if (forbiddenSeconds > 0) {
+            chatStore.wsConnected = false
+            chatStore.wsReconnecting = false
+            chatStore.wsForbiddenUntil = Date.now() + forbiddenSeconds * 1000
+            show(String(data.content))
+            clearReconnectTimers()
+            forbiddenTimer = setTimeout(() => {
+              forbiddenTimer = null
+              forceoutFlag.value = false
+              chatStore.wsForbiddenUntil = 0
+              if (autoReconnectEnabled) connect()
+            }, forbiddenSeconds * 1000 + 1000)
+            socket.close()
+            return
+          }
           window.location.href = `/?error=${encodeURIComponent(data.content || '连接被拒绝，请稍后再试')}`
           return
         }
@@ -683,12 +735,46 @@ export const useWebSocket = () => {
         return
       }
 
-      // 尝试重连
-      setTimeout(() => {
-        console.log('尝试重新连接...')
-        connect()
-      }, 3000)
+      scheduleReconnect()
     }
+  }
+
+  // 按退避间隔安排下一次重连
+  const scheduleReconnect = () => {
+    const delay = RECONNECT_DELAYS_MS[Math.min(reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)]!
+    reconnectAttempt += 1
+    chatStore.wsReconnecting = true
+    console.log(`将在 ${delay}ms 后尝试重新连接（第 ${reconnectAttempt} 次）`)
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      connect()
+    }, delay)
+  }
+
+  // 立即重连（网络恢复/页面回到前台/用户手动点击）；被后端暂时禁止期间不重连
+  const reconnectNow = () => {
+    if (chatStore.wsConnected) return false
+    if (chatStore.wsForbiddenUntil > Date.now()) return false
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    reconnectAttempt = 0
+    connect()
+    return true
+  }
+
+  // 网络恢复、页面切回前台时立即重连，避免干等退避定时器
+  const bindLifecycleListeners = () => {
+    if (lifecycleListenersBound || typeof window === 'undefined') return
+    lifecycleListenersBound = true
+    const tryReconnect = () => {
+      if (!autoReconnectEnabled) return
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      reconnectNow()
+    }
+    window.addEventListener('online', tryReconnect)
+    document.addEventListener('visibilitychange', tryReconnect)
   }
 
   const send = (message: any) => {
@@ -700,12 +786,19 @@ export const useWebSocket = () => {
       return true
     } else {
       console.error('WebSocket未连接，无法发送消息')
-      show('连接已断开，请刷新页面重试')
+      show(WS_DISCONNECTED_TIP)
       return false
     }
   }
 
   const disconnect = (manual: boolean = false) => {
+    // 主动断开后不再自动重连，同时清理所有待执行的重连定时器
+    autoReconnectEnabled = false
+    reconnectAttempt = 0
+    clearReconnectTimers()
+    chatStore.wsReconnecting = false
+    chatStore.wsForbiddenUntil = 0
+
     const existing = activeConnection
     if (!existing) return
 
@@ -745,6 +838,7 @@ export const useWebSocket = () => {
     connect,
     send,
     disconnect,
+    reconnectNow,
     setScrollToBottom,
     forceoutFlag,
     checkUserOnlineStatus

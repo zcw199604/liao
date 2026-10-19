@@ -1,4 +1,13 @@
-import { vi } from 'vitest'
+import { beforeEach, vi } from 'vitest'
+
+// 当前身份会持久化到 sessionStorage，每个用例前清空，避免用例间串状态
+beforeEach(() => {
+  try {
+    sessionStorage.clear()
+  } catch {
+    // node 环境用例没有 sessionStorage
+  }
+})
 
 if (typeof window !== 'undefined' && !window.matchMedia) {
   Object.defineProperty(window, 'matchMedia', {

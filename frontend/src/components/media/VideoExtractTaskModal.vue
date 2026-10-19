@@ -915,7 +915,9 @@ watch(
     tempInputLocalPaths.value = []
     mobilePane.value = isMobile.value && videoExtractStore.selectedTaskId ? 'detail' : 'list'
     await videoExtractStore.loadTasks(1)
-  }
+  },
+  // 弹窗按需懒加载：首次打开时组件才挂载，需立即执行一次加载任务列表
+  { immediate: true }
 )
 
 watch([gridItemSize, gridColumns], async () => {

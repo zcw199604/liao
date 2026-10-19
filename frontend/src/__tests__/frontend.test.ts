@@ -38,6 +38,24 @@ describe('utils/string', () => {
     expect(html.match(/src="\/emoji\/smile\.png"/g)?.length).toBe(2)
   })
 
+  it('parseEmoji escapes HTML so peer content cannot inject markup', () => {
+    const html = parseEmoji('<img src=x onerror="alert(1)">&[ok]', { '[ok]': '/emoji/ok.png' })
+    expect(html).not.toContain('<img src=x')
+    expect(html).toContain('&lt;img src=x onerror=&quot;alert(1)&quot;&gt;&amp;')
+    expect(html).toContain('<img src="/emoji/ok.png"')
+  })
+
+  it('parseEmoji turns http(s) links into safe anchors without touching emoji inside urls', () => {
+    const html = parseEmoji('看 https://a.com/x?q=[ok]&b=1。 [ok]', { '[ok]': '/emoji/ok.png' })
+    expect(html).toContain('<a href="https://a.com/x?q=[ok]&amp;b=1" target="_blank" rel="noopener noreferrer"')
+    expect(html.match(/<img /g)?.length).toBe(1)
+    expect(html).toContain('。')
+
+    const trailing = parseEmoji('(see https://a.com/p).', {})
+    expect(trailing).toContain('href="https://a.com/p"')
+    expect(trailing.endsWith(').')).toBe(true)
+  })
+
   it('truncate keeps short text and truncates long text', () => {
     expect(truncate('hello', 5)).toBe('hello')
     expect(truncate('hello world', 5)).toBe('hello...')

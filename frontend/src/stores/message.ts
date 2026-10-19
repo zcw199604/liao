@@ -4,6 +4,7 @@ import { ref } from 'vue'
 import type { ChatMessage, SendStatus } from '@/types'
 import * as chatApi from '@/api/chat'
 import { generateCookie } from '@/utils/cookie'
+import { UPSTREAM_REFERER } from '@/constants/config'
 import { useMediaStore } from '@/stores/media'
 import { useSystemConfigStore } from '@/stores/systemConfig'
 import { emojiMap } from '@/constants/emoji'
@@ -15,6 +16,8 @@ export const useMessageStore = defineStore('message', () => {
   const firstTidMap = ref<Record<string, string>>({})
   const loadingMore = ref(false)
   const isLoadingHistory = ref(false)
+  // 输入框草稿：按会话 key 保存，切换会话时互不串用
+  const drafts = ref<Record<string, string>>({})
 
   // 语义去重窗口：用于合并 WebSocket 推送与历史拉取时，避免同一媒体消息短时间内重复渲染
   const MEDIA_DEDUP_WINDOW_MS = 5_000
@@ -514,7 +517,7 @@ export const useMessageStore = defineStore('message', () => {
       }
 
       const cookieData = generateCookie(myUserID, myUserName)
-      const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
+      const referer = UPSTREAM_REFERER
       const userAgent = navigator.userAgent
 
       const data = await chatApi.getMessageHistory(
@@ -658,6 +661,14 @@ export const useMessageStore = defineStore('message', () => {
     })
   }
 
+  const getDraft = (key: string): string => (key ? drafts.value[key] || '' : '')
+
+  const setDraft = (key: string, text: string) => {
+    if (!key) return
+    if (text) drafts.value[key] = text
+    else delete drafts.value[key]
+  }
+
   const resetAll = () => {
     for (const cid of pendingSendTimers.keys()) {
       clearPendingTimer(cid)
@@ -666,6 +677,7 @@ export const useMessageStore = defineStore('message', () => {
     isTyping.value = false
     firstTidMap.value = {}
     loadingMore.value = false
+    drafts.value = {}
   }
 
   return {
@@ -683,6 +695,9 @@ export const useMessageStore = defineStore('message', () => {
     confirmOutgoingEcho,
     loadHistory,
     clearHistory,
+    drafts,
+    getDraft,
+    setDraft,
     resetAll
   }
 })

@@ -26,6 +26,7 @@ const wsMocks = {
 }
 
 const chatMocks = {
+  loadUsers: vi.fn().mockResolvedValue(undefined),
   toggleFavorite: vi.fn(),
   enterChat: vi.fn(),
   startMatch: vi.fn()
@@ -88,14 +89,16 @@ const createTestRouter = () => {
 const createStubs = (opts?: { isAtBottom?: boolean }) => {
   const scrollToBottom = vi.fn()
   const scrollToTop = vi.fn()
+  const captureScrollAnchor = vi.fn().mockReturnValue({ scrollHeight: 100, scrollTop: 0 })
+  const restoreScrollAnchor = vi.fn()
   const getIsAtBottom = vi.fn().mockReturnValue(opts?.isAtBottom ?? true)
 
   const MessageList = {
     name: 'MessageList',
     inheritAttrs: false,
     props: ['messages', 'isTyping', 'loadingMore', 'canLoadMore', 'floatingBottomOffsetPx'],
-    emits: ['load-more', 'close-all-panels', 'retry'],
-    methods: { scrollToBottom, scrollToTop, getIsAtBottom },
+    emits: ['load-more', 'close-all-panels', 'retry', 'preview'],
+    methods: { scrollToBottom, scrollToTop, getIsAtBottom, captureScrollAnchor, restoreScrollAnchor },
     template: '<div class="message-list-stub" v-bind=\"$attrs\"></div>'
   }
 
@@ -135,6 +138,8 @@ const createStubs = (opts?: { isAtBottom?: boolean }) => {
     ChatHeader,
     scrollToBottom,
     scrollToTop,
+    captureScrollAnchor,
+    restoreScrollAnchor,
     getIsAtBottom
   }
 }
@@ -197,7 +202,7 @@ describe('views/ChatRoomView.vue (more coverage)', () => {
     chatStore.wsConnected = false
     wrapper.findComponent({ name: 'ChatInput' }).vm.$emit('send')
     await flushAsync()
-    expect(toastShow).toHaveBeenCalledWith('连接已断开，请刷新页面重试')
+    expect(toastShow).toHaveBeenCalledWith('连接已断开，正在重连…')
 
     chatStore.wsConnected = true
     ;(wrapper.vm as any).inputText = 'hello'
@@ -254,7 +259,7 @@ describe('views/ChatRoomView.vue (more coverage)', () => {
     const msg = { tid: '1', content: 'x' } as any
     wrapper.findComponent({ name: 'MessageList' }).vm.$emit('retry', msg)
     await flushAsync()
-    expect(toastShow).toHaveBeenCalledWith('连接已断开，请刷新页面重试')
+    expect(toastShow).toHaveBeenCalledWith('连接已断开，正在重连…')
     expect(messageMocks.retryMessage).not.toHaveBeenCalled()
 
     chatStore.wsConnected = true
@@ -502,7 +507,7 @@ describe('views/ChatRoomView.vue (more coverage)', () => {
     await flushAsync()
 
     expect(wsMocks.send).toHaveBeenCalledTimes(1)
-    expect(toastShow).toHaveBeenCalledWith('连接已断开，请刷新页面重试')
+    expect(toastShow).toHaveBeenCalledWith('连接已断开，正在重连…')
   })
 
   it('uploads file and handles send media branch', async () => {
@@ -551,14 +556,17 @@ describe('views/ChatRoomView.vue (more coverage)', () => {
     wrapper.findComponent({ name: 'UploadMenu' }).vm.$emit('upload-file')
     expect(clickSpy).toHaveBeenCalled()
 
+    // 上传成功后直接发送给当前会话
     const img = new File(['x'], 'a.png', { type: 'image/png' })
     uploadMocks.uploadFile.mockResolvedValueOnce({ url: 'u', type: 'image' })
     await (wrapper.vm as any).handleFileChange({ target: { files: [img], value: 'x' } } as any)
-    expect(toastShow).toHaveBeenCalledWith('图片上传成功')
+    expect(messageMocks.sendImage).toHaveBeenCalledWith('u', expect.objectContaining({ id: 'u1' }), undefined)
 
     uploadMocks.uploadFile.mockResolvedValueOnce({ url: 'u', type: 'video' })
     await (wrapper.vm as any).handleFileChange({ target: { files: [img], value: 'x' } } as any)
-    expect(toastShow).toHaveBeenCalledWith('视频上传成功')
+    expect(messageMocks.sendVideo).toHaveBeenCalledWith('u', expect.objectContaining({ id: 'u1' }), undefined)
+    messageMocks.sendVideo.mockClear()
+    messageMocks.sendImage.mockClear()
 
     uploadMocks.uploadFile.mockResolvedValueOnce(null)
     await (wrapper.vm as any).handleFileChange({ target: { files: [img], value: 'x' } } as any)
@@ -652,7 +660,7 @@ describe('views/ChatRoomView.vue (more coverage)', () => {
     expect((wrapper.vm as any).showUploadMenu).toBe(true)
   })
 
-  it('preview-media event toggles gallery list only when clicked url exists in message media list', async () => {
+  it('MessageList preview event toggles gallery list only when clicked url exists in message media list', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
 
@@ -698,13 +706,13 @@ describe('views/ChatRoomView.vue (more coverage)', () => {
 
     await flushAsync()
 
-    window.dispatchEvent(new CustomEvent('preview-media', { detail: { url: 'http://img/1.png', type: 'image' } }))
+    wrapper.findComponent({ name: 'MessageList' }).vm.$emit('preview', 'http://img/1.png', 'image')
     await flushAsync()
 
     expect((wrapper.vm as any).showMediaPreview).toBe(true)
     expect((wrapper.vm as any).previewMediaList.length).toBe(1)
 
-    window.dispatchEvent(new CustomEvent('preview-media', { detail: { url: 'http://img/404.png', type: 'image' } }))
+    wrapper.findComponent({ name: 'MessageList' }).vm.$emit('preview', 'http://img/404.png', 'image')
     await flushAsync()
     expect((wrapper.vm as any).previewMediaList.length).toBe(0)
   })

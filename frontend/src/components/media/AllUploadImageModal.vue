@@ -241,6 +241,7 @@ import { useUserStore } from '@/stores/user'
 import { useToast } from '@/composables/useToast'
 import { useModalFullscreen } from '@/composables/useModalFullscreen'
 import { generateCookie } from '@/utils/cookie'
+import { UPSTREAM_REFERER } from '@/constants/config'
 import { extractUploadLocalPath } from '@/utils/media'
 import { useSystemConfigStore } from '@/stores/systemConfig'
 import * as mediaApi from '@/api/media'
@@ -433,7 +434,7 @@ const confirmPreviewUpload = async () => {
 
   const localPath = extractUploadLocalPath(previewTarget.value.url)
   const cookieData = generateCookie(userStore.currentUser.id, userStore.currentUser.name)
-  const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
+  const referer = UPSTREAM_REFERER
   const userAgent = navigator.userAgent
 
   try {

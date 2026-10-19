@@ -901,6 +901,20 @@ describe('components/media/VideoExtract modals', () => {
     expect(preview.attributes('data-show-extract-task')).toBe('false')
   })
 
+  it('loads task list on mount when modal is already open (lazy-mounted from App)', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const store = useVideoExtractStore()
+    store.showTaskModal = true
+    const loadSpy = vi.spyOn(store, 'loadTasks').mockResolvedValue(undefined as any)
+
+    mount(VideoExtractTaskModal, {
+      global: { plugins: [pinia], stubs: { teleport: true, Dialog: true, InfiniteMediaGrid: true, MediaTile: true, MediaPreview: true } }
+    })
+    await nextTick()
+    expect(loadSpy).toHaveBeenCalledWith(1)
+  })
+
   it('blocks continue submit when no new limit is provided', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)

@@ -2,9 +2,14 @@ import request, { createFormData } from './request'
 import type { ApiResponse } from '@/types'
 
 // 上传图片/视频（FormData格式，不是urlencoded）
-export const uploadMedia = (formData: FormData) => {
+export const uploadMedia = (formData: FormData, onProgress?: (percent: number) => void) => {
   // 注意：后端返回为上游 JSON（可能是 text/plain），在 request 拦截器里会尝试 JSON.parse
-  return request.post<any, any>('/uploadMedia', formData)
+  if (!onProgress) return request.post<any, any>('/uploadMedia', formData)
+  return request.post<any, any>('/uploadMedia', formData, {
+    onUploadProgress: (e) => {
+      if (e.total) onProgress(Math.min(100, Math.round((e.loaded / e.total) * 100)))
+    }
+  })
 }
 
 // 上传文件并在本地 image_hash 表中查重（先 MD5，后 pHash 相似度）

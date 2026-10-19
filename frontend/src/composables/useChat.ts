@@ -5,6 +5,7 @@ import { useFavoriteStore } from '@/stores/favorite'
 import { useWebSocket } from './useWebSocket'
 import * as chatApi from '@/api/chat'
 import { generateCookie } from '@/utils/cookie'
+import { UPSTREAM_REFERER } from '@/constants/config'
 import { generateRandomHexId } from '@/utils/id'
 import { useToast } from '@/composables/useToast'
 import type { ContactCandidate, User } from '@/types'
@@ -271,7 +272,7 @@ export const useChat = () => {
     try {
       const myUserID = userStore.currentUser.id
       const cookieData = generateCookie(myUserID, userStore.currentUser.name)
-      const referer = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
+      const referer = UPSTREAM_REFERER
       const userAgent = navigator.userAgent
 
       let res: any

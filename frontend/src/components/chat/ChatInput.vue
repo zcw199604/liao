@@ -31,6 +31,7 @@
         @keydown="handleKeydown"
         @focus="handleFocus"
         @blur="handleBlur"
+        @paste="handlePaste"
         placeholder="发消息..."
         class="w-full bg-transparent text-fg outline-none text-base resize-none overflow-hidden h-6 leading-6 placeholder-fg-subtle"
         rows="1"
@@ -82,6 +83,7 @@ const emit = defineEmits<{
   'typingStart': []
   'typingEnd': []
   'startMatch': []  // 新增：匹配事件
+  'pasteFiles': [files: File[]]  // 粘贴图片/文件
 }>()
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
@@ -120,28 +122,21 @@ const autoResize = () => {
   })
 }
 
+// Enter 发送，Shift+Enter 换行；输入法组字过程中的 Enter 不触发发送
 const handleKeydown = (e: KeyboardEvent) => {
-  if (e.key === 'Enter') {
-    if (e.ctrlKey || e.metaKey) {
-      // Ctrl+Enter or Cmd+Enter to send
-      e.preventDefault()
-      if (!props.disabled) {
-        emit('send')
-      }
-    } else if (!e.shiftKey) {
-       // Regular Enter sends too (current behavior), shift+enter inserts newline (default)
-       // If you want ONLY Ctrl+Enter to send, remove this block. 
-       // But usually, standard Enter sends, Shift+Enter new line.
-       // Let's keep standard Enter behavior but ensure Ctrl+Enter also works explicitly if needed
-       // (though standard Enter usually covers it unless we want to change standard behavior)
-       
-       // Current implementation: Enter sends, Shift+Enter new line
-       e.preventDefault()
-       if (!props.disabled) {
-         emit('send')
-       }
-    }
+  if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return
+  e.preventDefault()
+  if (!props.disabled) {
+    emit('send')
   }
+}
+
+// 粘贴板中带文件（截图/复制的图片）时直接交给上层上传，纯文本粘贴保持默认行为
+const handlePaste = (e: ClipboardEvent) => {
+  const files = Array.from(e.clipboardData?.files || [])
+  if (files.length === 0) return
+  e.preventDefault()
+  emit('pasteFiles', files)
 }
 
 const handleFocus = () => {

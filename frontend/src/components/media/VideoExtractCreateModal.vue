@@ -498,7 +498,9 @@ watch(
     maxFrames.value = 500
     outputFormat.value = 'jpg'
     jpgQuality.value = null
-  }
+  },
+  // 弹窗按需懒加载：首次打开时组件才挂载，需立即执行一次
+  { immediate: true }
 )
 
 watch(

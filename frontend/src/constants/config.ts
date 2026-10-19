@@ -9,3 +9,9 @@ export let IMG_SERVER_ADDRESS = ''
 export const setImgServerAddress = (address: string) => {
   IMG_SERVER_ADDRESS = address
 }
+
+// 上游接口要求携带的 Referer（与旧版页面地址保持一致）
+export const UPSTREAM_REFERER = 'http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko'
+
+// WebSocket 断线时的统一提示文案（断线后会自动重连）
+export const WS_DISCONNECTED_TIP = '连接已断开，正在重连…'

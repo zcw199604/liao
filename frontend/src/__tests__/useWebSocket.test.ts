@@ -846,7 +846,7 @@ describe('composables/useWebSocket', () => {
 
     // do not trigger open -> CONNECTING, not OPEN
     socket.send({ a: 1 })
-    expect(toastShow).toHaveBeenCalledWith('连接已断开，请刷新页面重试')
+    expect(toastShow).toHaveBeenCalledWith('连接已断开，正在重连…')
   })
 
   it('shows toast on code=12 tip message', async () => {

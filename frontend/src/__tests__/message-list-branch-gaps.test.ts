@@ -42,6 +42,7 @@ vi.mock('vue-virtual-scroller', () => ({
 }))
 
 import MessageList from '@/components/chat/MessageList.vue'
+import ChatFileCard from '@/components/chat/ChatFileCard.vue'
 import { useMessageStore } from '@/stores/message'
 
 const flushAsync = async () => {
@@ -118,7 +119,7 @@ describe('components/chat/MessageList.vue (branch gaps)', () => {
     }
   })
 
-  it('covers watch branches (append at bottom triggers scroll; shrink does nothing) and scrollToTop both paths', async () => {
+  it('covers watch branches (append at bottom triggers scroll; prepend does nothing) and scroll anchor restore', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
 
@@ -153,11 +154,6 @@ describe('components/chat/MessageList.vue (branch gaps)', () => {
     scrollerSpies.scrollToBottom.mockClear()
     scrollerSpies.scrollToItem.mockClear()
 
-    // scrollToTop uses scrollToItem when available.
-    ;(wrapper.vm as any).scrollToTop()
-    await flushAsync()
-    expect(scrollerSpies.scrollToItem).toHaveBeenCalledWith(0)
-
     // Watch: append while at bottom -> scrollToBottom.
     ;(wrapper.vm as any).isAtBottom = true
     await wrapper.setProps({
@@ -171,20 +167,39 @@ describe('components/chat/MessageList.vue (branch gaps)', () => {
     await flushAsync()
     expect(scrollerSpies.scrollToBottom).toHaveBeenCalled()
 
-    // Watch: shrink -> no scroll/no new badge changes.
+    // Watch: prepend older history (last message unchanged) -> no scroll/no new badge.
     scrollerSpies.scrollToBottom.mockClear()
-    await wrapper.setProps({ messages: [{ tid: '1', content: 'a', time: 't', isSelf: true } as any] })
+    ;(wrapper.vm as any).isAtBottom = false
+    await wrapper.setProps({
+      messages: [
+        { tid: '0', content: 'z', time: 't', isSelf: false } as any,
+        { tid: '1', content: 'a', time: 't', isSelf: true } as any,
+        { tid: '2', content: 'b', time: 't', isSelf: true } as any,
+        { tid: '3', content: 'c', time: 't', isSelf: true } as any
+      ]
+    })
     await flushAsync()
     await flushAsync()
     expect(scrollerSpies.scrollToBottom).not.toHaveBeenCalled()
+    expect((wrapper.vm as any).hasNewMessages).toBe(false)
 
-    // scrollToTop falls back to element scrollTop when scrollToItem is unavailable.
+    // Scroll anchor: keep the viewport on the same content after prepending.
     const area = wrapper.get('.chat-area').element as HTMLElement
-    ;(area as any).scrollTop = 123
-    ;(wrapper.vm as any).scrollerRef = { $el: area } // no scrollToItem
-    ;(wrapper.vm as any).scrollToTop()
+    let height = 1000
+    Object.defineProperty(area, 'scrollHeight', { configurable: true, get: () => height })
+    ;(area as any).scrollTop = 40
+    const anchor = (wrapper.vm as any).captureScrollAnchor()
+    expect(anchor).toEqual({ scrollHeight: 1000, scrollTop: 40 })
+    height = 1600
+    ;(wrapper.vm as any).restoreScrollAnchor(anchor)
     await flushAsync()
-    expect((area as any).scrollTop).toBe(0)
+    expect((area as any).scrollTop).toBe(640)
+    // null anchor / missing scroller are no-ops
+    ;(wrapper.vm as any).restoreScrollAnchor(null)
+    ;(wrapper.vm as any).scrollerRef = null
+    expect((wrapper.vm as any).captureScrollAnchor()).toBeNull()
+    ;(wrapper.vm as any).restoreScrollAnchor(anchor)
+    await flushAsync()
 
     Object.defineProperty(window, 'requestAnimationFrame', { configurable: true, writable: true, value: raf })
   })
@@ -228,8 +243,9 @@ describe('components/chat/MessageList.vue (branch gaps)', () => {
     // Only the non-empty URLs should attempt a download.
     expect(clickSpy).toHaveBeenCalledTimes(2)
 
-    // getDownloadFileName catch fallback (raw.split('/').pop() || '未知文件')
-    expect((wrapper.vm as any).getDownloadFileName('not-a-url/')).toBe('未知文件')
+    // file name fallback (raw.split('/').pop() || '未知文件')
+    const card = mount(ChatFileCard, { props: { url: 'not-a-url/', isSelf: false } })
+    expect(card.text()).toContain('未知文件')
 
     clickSpy.mockRestore()
   })
