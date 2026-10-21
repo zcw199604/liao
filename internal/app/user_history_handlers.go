@@ -1024,11 +1024,11 @@ func (a *App) handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 		if state, _ := parsed["state"].(string); state == "OK" {
 			if msg, ok := parsed["msg"].(string); ok && msg != "" {
 				imgHostClean := strings.Split(imgServerHost, ":")[0]
-				availablePort := ""
-				if strings.HasPrefix(strings.ToLower(contentType), "video/") {
-					availablePort = "8006"
-				} else {
-					availablePort = a.resolveImagePortByConfig(r.Context(), msg)
+				// 新版上游图片/视频共用同一端口（页面 Imgarr=['7001','7004']），
+				// 旧版视频固定 8006 已不再监听，这里统一交给端口策略解析。
+				availablePort := a.resolveImagePortByConfig(r.Context(), msg)
+				if availablePort == "" {
+					availablePort = defaultVideoPort
 				}
 				imageURL := fmt.Sprintf("http://%s:%s/img/Upload/%s", imgHostClean, availablePort, msg)
 

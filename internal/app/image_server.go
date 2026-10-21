@@ -15,7 +15,7 @@ func NewImageServerService(defaultHost, port string) *ImageServerService {
 	h := strings.TrimSpace(defaultHost)
 	p := strings.TrimSpace(port)
 	if p == "" {
-		p = "9003"
+		p = defaultImagePort
 	}
 	if h == "" {
 		h = "localhost"

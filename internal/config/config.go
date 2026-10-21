@@ -142,8 +142,10 @@ func Load() (Config, error) {
 		CacheRedisChatHistoryPrefix:     getEnv("CACHE_REDIS_CHAT_HISTORY_PREFIX", "user:chathistory:"),
 		CacheRedisChatHistoryExpireDays: getEnvInt("CACHE_REDIS_CHAT_HISTORY_EXPIRE_DAYS", 30),
 
+		// 上游新版页面把媒体端口改为 Imgarr=['7001','7004']（图片/视频共用），
+		// 旧端口 9006/8006/9003 已不再监听，因此默认端口同步为 7001。
 		ImageServerHost:        getEnv("IMG_SERVER_HOST", "149.88.79.98"),
-		ImageServerPort:        getEnv("IMG_SERVER_PORT", "9003"),
+		ImageServerPort:        getEnv("IMG_SERVER_PORT", "7001"),
 		ImageServerUpstreamURL: getEnv("IMG_SERVER_UPSTREAM_URL", "http://v1.chat2019.cn/asmx/method.asmx/getImgServer"),
 
 		LspRoot: getEnv("LSP_ROOT", "/lsp"),

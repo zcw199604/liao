@@ -550,7 +550,7 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 
 **响应（HTTP 200）**
 - 无缓存：
-  - `{"port":"9006","data":[]}`
+  - `{"port":"7001","data":[]}`
 - 有缓存：
   - `{"port":"<detected>","data":["http://{host}/upload/...","..."]}`
 
@@ -909,7 +909,7 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 
 **响应（HTTP 200）**
 ```json
-{"port":"9006","data":[...],"total":0,"page":1,"pageSize":20,"totalPages":0}
+{"port":"7001","data":[...],"total":0,"page":1,"pageSize":20,"totalPages":0}
 ```
 
 #### [POST] /api/deleteMedia
@@ -983,7 +983,7 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 
 **响应（HTTP 200）**
 ```json
-{"code":0,"msg":"success","data":{"imagePortMode":"fixed","imagePortFixed":"9006","imagePortRealMinBytes":2048}}
+{"code":0,"msg":"success","data":{"imagePortMode":"fixed","imagePortFixed":"7001","imagePortRealMinBytes":2048}}
 ```
 
 #### [POST] /api/updateSystemConfig
@@ -991,12 +991,12 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 
 **请求（application/json）**
 ```json
-{"imagePortMode":"real","imagePortFixed":"9006","imagePortRealMinBytes":2048}
+{"imagePortMode":"real","imagePortFixed":"7001","imagePortRealMinBytes":2048}
 ```
 
 **响应（HTTP 200）**
 ```json
-{"code":0,"msg":"success","data":{"imagePortMode":"real","imagePortFixed":"9006","imagePortRealMinBytes":2048}}
+{"code":0,"msg":"success","data":{"imagePortMode":"real","imagePortFixed":"7001","imagePortRealMinBytes":2048}}
 ```
 
 #### [POST] /api/resolveImagePort
@@ -1009,7 +1009,7 @@ Go 中间件（`internal/app/middleware.go`）拦截所有 `/api/**`：
 
 **响应（HTTP 200）**
 ```json
-{"code":0,"msg":"success","data":{"port":"9006"}}
+{"code":0,"msg":"success","data":{"port":"7001"}}
 ```
 
 **备注**

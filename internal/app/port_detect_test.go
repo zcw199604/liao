@@ -14,14 +14,14 @@ func TestDetectAvailablePortWithPorts_EmptyHost(t *testing.T) {
 	got := detectAvailablePortWithPorts("", []string{"9006"}, func(ctx context.Context, network, address string) (net.Conn, error) {
 		return nil, errors.New("should not be called")
 	})
-	if got != "9006" {
-		t.Fatalf("got=%q, want %q", got, "9006")
+	if got != defaultImagePort {
+		t.Fatalf("got=%q, want %q", got, defaultImagePort)
 	}
 }
 
 func TestDetectAvailablePortDefault_EmptyHost(t *testing.T) {
-	if got := detectAvailablePortDefault(""); got != "9006" {
-		t.Fatalf("got=%q, want %q", got, "9006")
+	if got := detectAvailablePortDefault(""); got != defaultImagePort {
+		t.Fatalf("got=%q, want %q", got, defaultImagePort)
 	}
 }
 
@@ -48,8 +48,8 @@ func TestDetectAvailablePortWithPorts_ContextTimeout(t *testing.T) {
 	}
 
 	got := detectAvailablePortWithPorts("127.0.0.1", []string{"8001"}, dial)
-	if got != "9006" {
-		t.Fatalf("got=%q, want %q", got, "9006")
+	if got != defaultImagePort {
+		t.Fatalf("got=%q, want %q", got, defaultImagePort)
 	}
 }
 
@@ -67,8 +67,8 @@ func TestDetectAvailablePortWithPorts_CtxDoneBranch(t *testing.T) {
 	}
 
 	got := detectAvailablePortWithPorts("127.0.0.1", ports, dial)
-	if got != "9006" {
-		t.Fatalf("got=%q, want %q", got, "9006")
+	if got != defaultImagePort {
+		t.Fatalf("got=%q, want %q", got, defaultImagePort)
 	}
 
 	// release dial goroutines after the function returns via ctx.Done().

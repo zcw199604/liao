@@ -26,8 +26,8 @@ func TestHandleGetCachedImages_Empty(t *testing.T) {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
 
-	if got, _ := resp["port"].(string); got != "9006" {
-		t.Fatalf("port=%q, want %q", got, "9006")
+	if got, _ := resp["port"].(string); got != defaultImagePort {
+		t.Fatalf("port=%q, want %q", got, defaultImagePort)
 	}
 	data, ok := resp["data"].([]any)
 	if !ok {

@@ -424,7 +424,7 @@ func TestHandleUploadMedia_CoversRemainingBranches(t *testing.T) {
 			t.Fatalf("status=%d body=%q", rr.Code, rr.Body.String())
 		}
 		got := decodeJSONBody(t, rr.Body)
-		if got["state"] != "OK" || got["msg"] != "remote.jpg" || got["port"] != "9006" {
+		if got["state"] != "OK" || got["msg"] != "remote.jpg" || got["port"] != defaultImagePort {
 			t.Fatalf("resp=%v", got)
 		}
 		if name, _ := got["localFilename"].(string); !strings.HasSuffix(name, ".jpg") {
@@ -589,7 +589,7 @@ exit 0
 			t.Fatalf("status=%d body=%q", rr.Code, rr.Body.String())
 		}
 		got := decodeJSONBody(t, rr.Body)
-		if got["state"] != "OK" || got["msg"] != "remote.mp4" || got["port"] != "8006" {
+		if got["state"] != "OK" || got["msg"] != "remote.mp4" || got["port"] != defaultVideoPort {
 			t.Fatalf("resp=%v", got)
 		}
 		if name, _ := got["localFilename"].(string); !strings.HasSuffix(name, ".mp4") {

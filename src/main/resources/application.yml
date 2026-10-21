@@ -86,7 +86,7 @@ app:
       local-ttl-seconds: ${CACHE_REDIS_LOCAL_TTL_SECONDS:3600}
   image-server:
     host: ${IMG_SERVER_HOST:149.88.79.98}
-    port: ${IMG_SERVER_PORT:9003}
+    port: ${IMG_SERVER_PORT:7001}
     upstream-url: ${IMG_SERVER_UPSTREAM_URL:http://v1.chat2019.cn/asmx/method.asmx/getImgServer}
 
 # CookieCloud（浏览器 Cookie 同步，可选）

@@ -211,7 +211,7 @@ func TestHandleUploadMedia_SuccessEnhanced(t *testing.T) {
 	defer cleanup()
 
 	oldDetect := detectAvailablePort
-	detectAvailablePort = func(string) string { return "9006" }
+	detectAvailablePort = func(string) string { return defaultImagePort }
 	t.Cleanup(func() { detectAvailablePort = oldDetect })
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -264,7 +264,7 @@ func TestHandleUploadMedia_SuccessEnhanced(t *testing.T) {
 		"a.png",
 		stringPrefixSuffix{prefix: "", suffix: ".png"},
 		"abc.jpg",
-		"http://"+host+":9006/img/Upload/abc.jpg",
+		"http://"+host+":"+defaultImagePort+"/img/Upload/abc.jpg",
 		stringPrefixSuffix{prefix: "/images/", suffix: ".png"},
 		int64(len(content)),
 		"image/png",
@@ -303,8 +303,8 @@ func TestHandleUploadMedia_SuccessEnhanced(t *testing.T) {
 	if got, _ := resp["msg"].(string); got != "abc.jpg" {
 		t.Fatalf("msg=%q, want %q", got, "abc.jpg")
 	}
-	if got, _ := resp["port"].(string); got != "9006" {
-		t.Fatalf("port=%q, want %q", got, "9006")
+	if got, _ := resp["port"].(string); got != defaultImagePort {
+		t.Fatalf("port=%q, want %q", got, defaultImagePort)
 	}
 	localFilename, _ := resp["localFilename"].(string)
 	if !strings.HasSuffix(localFilename, ".png") || localFilename == "" {
@@ -355,7 +355,7 @@ func TestHandleUploadMedia_DouyinSourceSavesToDouyinMediaFile(t *testing.T) {
 	defer cleanup()
 
 	oldDetect := detectAvailablePort
-	detectAvailablePort = func(string) string { return "9006" }
+	detectAvailablePort = func(string) string { return defaultImagePort }
 	t.Cleanup(func() { detectAvailablePort = oldDetect })
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -412,7 +412,7 @@ func TestHandleUploadMedia_DouyinSourceSavesToDouyinMediaFile(t *testing.T) {
 		"a.png",
 		stringPrefixSuffix{prefix: "", suffix: ".png"},
 		"abc.jpg",
-		"http://"+host+":9006/img/Upload/abc.jpg",
+		"http://"+host+":"+defaultImagePort+"/img/Upload/abc.jpg",
 		stringPrefixSuffix{prefix: "/images/", suffix: ".png"},
 		int64(len(content)),
 		"image/png",
@@ -463,7 +463,7 @@ func TestHandleUploadMedia_FindLocalPathByMD5ErrorIgnored(t *testing.T) {
 	defer cleanup()
 
 	oldDetect := detectAvailablePort
-	detectAvailablePort = func(string) string { return "9006" }
+	detectAvailablePort = func(string) string { return defaultImagePort }
 	t.Cleanup(func() { detectAvailablePort = oldDetect })
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -511,7 +511,7 @@ func TestHandleUploadMedia_FindLocalPathByMD5ErrorIgnored(t *testing.T) {
 		"a.png",
 		stringPrefixSuffix{prefix: "", suffix: ".png"},
 		"abc.jpg",
-		"http://"+host+":9006/img/Upload/abc.jpg",
+		"http://"+host+":"+defaultImagePort+"/img/Upload/abc.jpg",
 		stringPrefixSuffix{prefix: "/images/", suffix: ".png"},
 		int64(len(content)),
 		"image/png",

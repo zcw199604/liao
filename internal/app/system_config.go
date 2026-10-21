@@ -28,9 +28,27 @@ const (
 	systemConfigKeyMtPhotoTimelineDefer  = "mtphoto_timeline_defer_subfolder_threshold"
 )
 
+// 上游媒体端口约定：
+// 旧版页面把图片固定为 9006、视频固定为 8006，且端口写在页面里；
+// 新版页面（Imgarr=['7001','7004']）改成图片与视频共用 7001/7004，9006/8006 已不再监听。
+// 因此默认端口改为 7001，并在候选列表里同时保留新旧端口，便于探测/真实请求模式自动适配。
+const (
+	// defaultImagePort 上游图片服务器默认端口（fixed 模式默认值）
+	defaultImagePort = "7001"
+	// defaultVideoPort 上游视频端口；新版与图片共用同一端口
+	defaultVideoPort = defaultImagePort
+)
+
+// imagePortCandidates 端口探测与真实请求的候选顺序：优先上游当前端口，再回退历史端口。
+var imagePortCandidates = []string{
+	"7001", "7004",
+	"9006", "9005", "9003", "9002", "9001",
+	"8006", "8005", "8003", "8002", "8001",
+}
+
 var defaultSystemConfig = SystemConfig{
 	ImagePortMode:                          ImagePortModeFixed,
-	ImagePortFixed:                         "9006",
+	ImagePortFixed:                         defaultImagePort,
 	ImagePortRealMinBytes:                  2048,
 	MtPhotoTimelineDeferSubfolderThreshold: 10,
 }

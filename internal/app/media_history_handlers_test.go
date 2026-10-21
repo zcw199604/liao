@@ -27,7 +27,7 @@ func newURLEncodedRequest(t *testing.T, method, urlStr string, values url.Values
 
 func TestHandleGetAllUploadImages_Success(t *testing.T) {
 	oldDetect := detectAvailablePort
-	detectAvailablePort = func(string) string { return "9006" }
+	detectAvailablePort = func(string) string { return defaultImagePort }
 	t.Cleanup(func() { detectAvailablePort = oldDetect })
 
 	db, mock, cleanup := newSQLMock(t)
@@ -74,8 +74,8 @@ func TestHandleGetAllUploadImages_Success(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
-	if got, _ := resp["port"].(string); got != "9006" {
-		t.Fatalf("port=%q, want %q", got, "9006")
+	if got, _ := resp["port"].(string); got != defaultImagePort {
+		t.Fatalf("port=%q, want %q", got, defaultImagePort)
 	}
 	if got, _ := resp["total"].(float64); int(got) != 1 {
 		t.Fatalf("total=%v, want 1", resp["total"])
@@ -969,7 +969,7 @@ func TestHandleGetChatImages_QueryError(t *testing.T) {
 
 func TestHandleGetAllUploadImages_ListError(t *testing.T) {
 	oldDetect := detectAvailablePort
-	detectAvailablePort = func(string) string { return "9006" }
+	detectAvailablePort = func(string) string { return defaultImagePort }
 	t.Cleanup(func() { detectAvailablePort = oldDetect })
 
 	db, mock, cleanup := newSQLMock(t)
@@ -995,7 +995,7 @@ func TestHandleGetAllUploadImages_ListError(t *testing.T) {
 
 func TestHandleGetAllUploadImages_CountError(t *testing.T) {
 	oldDetect := detectAvailablePort
-	detectAvailablePort = func(string) string { return "9006" }
+	detectAvailablePort = func(string) string { return defaultImagePort }
 	t.Cleanup(func() { detectAvailablePort = oldDetect })
 
 	db, mock, cleanup := newSQLMock(t)

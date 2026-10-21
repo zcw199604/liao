@@ -11,9 +11,8 @@ import (
 var detectAvailablePort = detectAvailablePortDefault
 
 func detectAvailablePortDefault(imgServerHost string) string {
-	ports := []string{"9006", "9005", "9003", "9002", "9001", "8006", "8005", "8003", "8002", "8001"}
 	dialer := &net.Dialer{}
-	return detectAvailablePortWithPorts(imgServerHost, ports, dialer.DialContext)
+	return detectAvailablePortWithPorts(imgServerHost, imagePortCandidates, dialer.DialContext)
 }
 
 func detectAvailablePortWithPorts(
@@ -23,7 +22,7 @@ func detectAvailablePortWithPorts(
 ) string {
 	host := strings.TrimSpace(imgServerHost)
 	if host == "" {
-		return "9006"
+		return defaultImagePort
 	}
 
 	// 兼容传入 host:port 的情况（避免误拼接成 host:port:port）。
@@ -68,14 +67,14 @@ func detectAvailablePortWithPorts(
 		select {
 		case res, ok := <-results:
 			if !ok {
-				return "9006"
+				return defaultImagePort
 			}
 			if res.ok {
 				cancel()
 				return res.port
 			}
 		case <-ctx.Done():
-			return "9006"
+			return defaultImagePort
 		}
 	}
 }

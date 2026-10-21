@@ -33,8 +33,8 @@ func NewImagePortResolver(httpClient *http.Client) *ImagePortResolver {
 		client = http.DefaultClient
 	}
 
-	// 端口候选顺序优先覆盖现有默认：先 900x 再 800x（与历史实现一致）。
-	ports := []string{"9006", "9005", "9003", "9002", "9001", "8006", "8005", "8003", "8002", "8001"}
+	// 端口候选顺序见 imagePortCandidates：优先上游当前端口（7001/7004），再回退历史 900x/800x。
+	ports := append([]string(nil), imagePortCandidates...)
 	return &ImagePortResolver{
 		httpClient: client,
 		ports:      ports,

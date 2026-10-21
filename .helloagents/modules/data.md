@@ -224,7 +224,7 @@
 
 **已定义配置键（节选）**
 - `image_port_mode`：图片端口策略（`fixed/probe/real`）
-- `image_port_fixed`：固定模式图片端口（默认 `9006`）
+- `image_port_fixed`：固定模式图片端口（默认 `7001`；上游新版页面 `Imgarr=['7001','7004']`，旧 `9006` 已不再监听）
 - `image_port_real_min_bytes`：真实图片请求最小字节阈值（默认 `2048`）
 
 ---
