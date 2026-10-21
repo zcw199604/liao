@@ -162,7 +162,7 @@
               type="number"
               inputmode="numeric"
               class="w-24 bg-surface-3 text-fg text-sm rounded-lg px-2 py-1 border border-line-strong focus:outline-none focus:ring-2 focus:ring-purple-500 text-right"
-              placeholder="9006"
+              :placeholder="String(IMG_SERVER_IMAGE_PORT)"
             />
           </div>
 
@@ -208,6 +208,7 @@ import type { ImagePortMode } from '@/types'
 import { useSystemConfigStore } from '@/stores/systemConfig'
 import { useToast } from '@/composables/useToast'
 import { useThemeStore } from '@/stores/theme'
+import { IMG_SERVER_IMAGE_PORT } from '@/constants/config'
 
 interface Props {
   stats: ConnectionStats
@@ -227,7 +228,7 @@ const { show } = useToast()
 const themeStore = useThemeStore()
 
 const draftMode = ref<ImagePortMode>('fixed')
-const draftFixedPort = ref('9006')
+const draftFixedPort = ref(String(IMG_SERVER_IMAGE_PORT))
 const draftRealMinBytes = ref(2048)
 const draftMtPhotoTimelineThreshold = ref(10)
 
@@ -242,7 +243,7 @@ const themeResolvedLabel = computed(() => (themeStore.resolved === 'dark' ? '深
 onMounted(async () => {
   await systemConfigStore.loadSystemConfig()
   draftMode.value = systemConfigStore.imagePortMode
-  draftFixedPort.value = String(systemConfigStore.imagePortFixed || '9006')
+  draftFixedPort.value = String(systemConfigStore.imagePortFixed || IMG_SERVER_IMAGE_PORT)
   draftRealMinBytes.value = Number(systemConfigStore.imagePortRealMinBytes || 2048)
   draftMtPhotoTimelineThreshold.value = Number(systemConfigStore.mtPhotoTimelineDeferSubfolderThreshold || 10)
 })
@@ -250,7 +251,7 @@ onMounted(async () => {
 const saveImagePortConfig = async () => {
   const ok = await systemConfigStore.saveSystemConfig({
     imagePortMode: draftMode.value,
-    imagePortFixed: String(draftFixedPort.value || '9006'),
+    imagePortFixed: String(draftFixedPort.value || IMG_SERVER_IMAGE_PORT),
     imagePortRealMinBytes: Number(draftRealMinBytes.value || 2048),
     mtPhotoTimelineDeferSubfolderThreshold: Number(draftMtPhotoTimelineThreshold.value || 10)
   })

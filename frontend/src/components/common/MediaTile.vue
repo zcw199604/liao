@@ -35,7 +35,7 @@
 
       <img
         v-if="resolvedType === 'image' && shouldLoad"
-        :src="src"
+        :src="activeSrc"
         :alt="alt"
         :loading="imgLoading"
         :decoding="imgDecoding"
@@ -48,7 +48,7 @@
 
       <video
         v-else-if="resolvedType === 'video' && shouldLoad"
-        :src="src"
+        :src="activeSrc"
         :poster="poster"
         :controls="controls"
         :autoplay="autoplay"
@@ -111,6 +111,7 @@
 import { computed, onMounted, onUnmounted, ref, useSlots, watch } from 'vue'
 import Skeleton from '@/components/common/Skeleton.vue'
 import { inferMediaTypeFromUrl } from '@/utils/media'
+import { learnMediaPort, nextMediaUrlCandidate, parseUpstreamMediaUrl } from '@/utils/mediaPort'
 
 type MediaType = 'image' | 'video' | 'file'
 
@@ -194,6 +195,14 @@ const isLoaded = ref(false)
 const hasError = ref(false)
 let observer: IntersectionObserver | null = null
 
+// 上游媒体端口回退：加载失败时依次尝试候选端口，成功后记住可用端口。
+// 非上游地址（本地 /upload、同源代理等）nextMediaUrlCandidate 返回 null，行为与之前一致。
+const fallbackSrc = ref('')
+const triedPorts = new Set<string>()
+
+// 实际使用的地址：一旦探测到可用端口就用它，否则跟随 props.src
+const activeSrc = computed(() => fallbackSrc.value || props.src)
+
 const resolvedType = computed<MediaType>(() => {
   if (props.type !== 'auto') return props.type
   return inferMediaTypeFromUrl(props.src)
@@ -242,7 +251,7 @@ const backdropSrc = computed(() => {
     return String(props.poster || '').trim()
   }
   if (resolvedType.value === 'image') {
-    return String(props.src || '').trim()
+    return String(activeSrc.value || '').trim()
   }
   return ''
 })
@@ -316,6 +325,15 @@ const shouldShowCenter = computed(() => {
 })
 
 const handleError = (e: Event) => {
+  // 先尝试回退到下一个候选端口；换源会触发新的加载，此时不进入错误态
+  const next = nextMediaUrlCandidate(activeSrc.value, triedPorts)
+  if (next) {
+    fallbackSrc.value = next
+    isLoaded.value = false
+    hasError.value = false
+    return
+  }
+
   hasError.value = true
   isLoaded.value = false
   emit('error', e)
@@ -325,6 +343,12 @@ const handleError = (e: Event) => {
 const handleLoaded = (e: Event) => {
   isLoaded.value = true
   hasError.value = false
+
+  // 回退成功：记住这个可用端口，其他媒体直接使用，避免逐个重试
+  if (fallbackSrc.value) {
+    const parsed = parseUpstreamMediaUrl(fallbackSrc.value)
+    if (parsed?.port) learnMediaPort(parsed.port, parsed.host)
+  }
 
   // 缓存媒体尺寸，用于虚拟滚动回滚时避免再次抖动
   const target = e.target as HTMLImageElement | HTMLVideoElement
@@ -356,6 +380,9 @@ const handleClick = (e: MouseEvent) => {
 watch(() => props.src, () => {
   isLoaded.value = false
   hasError.value = false
+  // 换了一张图：重置回退状态，重新从配置端口开始
+  fallbackSrc.value = ''
+  triedPorts.clear()
 })
 
 onMounted(() => {

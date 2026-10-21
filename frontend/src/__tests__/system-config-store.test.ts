@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useSystemConfigStore } from '@/stores/systemConfig'
 import * as systemApi from '@/api/system'
+import { IMG_SERVER_IMAGE_PORT } from '@/constants/config'
 
 vi.mock('@/api/system', () => ({
   getSystemConfig: vi.fn(),
@@ -45,7 +46,7 @@ describe('stores/systemConfig', () => {
     expect(store.loaded).toBe(true)
     // Empty config -> defaults.
     expect(store.imagePortMode).toBe('fixed')
-    expect(store.imagePortFixed).toBe('9006')
+    expect(store.imagePortFixed).toBe(String(IMG_SERVER_IMAGE_PORT))
     expect(store.imagePortRealMinBytes).toBe(2048)
   })
 
@@ -64,7 +65,7 @@ describe('stores/systemConfig', () => {
     store.imagePortFixed = '' // exercise fallback to DEFAULT_FIXED_PORT
 
     const port = await store.resolveImagePort('/img/Upload/a.png', 'srv')
-    expect(port).toBe('9006')
+    expect(port).toBe(String(IMG_SERVER_IMAGE_PORT))
     expect(systemApi.resolveImagePort).not.toHaveBeenCalled()
   })
 

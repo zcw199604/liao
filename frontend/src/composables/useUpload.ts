@@ -4,6 +4,7 @@ import * as mediaApi from '@/api/media'
 import { useSystemConfigStore } from '@/stores/systemConfig'
 import type { UploadedMedia } from '@/types'
 import { generateCookie } from '@/utils/cookie'
+import { applyLearnedMediaPort } from '@/utils/mediaPort'
 import { UPSTREAM_REFERER } from '@/constants/config'
 import { useToast } from '@/composables/useToast'
 
@@ -125,7 +126,10 @@ export const useUpload = () => {
 
   const getMediaUrl = (input: string): string => {
     if (!input) return ''
-    if (input.startsWith('http://') || input.startsWith('https://')) return input
+    if (input.startsWith('http://') || input.startsWith('https://')) {
+      // 上游媒体地址：若已探测到可用端口，自动切到该端口（见 utils/mediaPort）
+      return applyLearnedMediaPort(input)
+    }
     if (input.startsWith('/upload/')) return `${window.location.origin}${input}`
     if (input.startsWith('/images/') || input.startsWith('/videos/')) return `${window.location.origin}/upload${input}`
     return input

@@ -58,7 +58,7 @@ describe('components/settings/SystemSettings.vue', () => {
     const modeSelect = wrapper.get('select')
     expect((modeSelect.element as HTMLSelectElement).value).toBe('real')
 
-    const fixedPortInput = wrapper.get('input[placeholder="9006"]')
+    const fixedPortInput = wrapper.get('input[placeholder="7001"]')
     expect((fixedPortInput.element as HTMLInputElement).value).toBe('9008')
 
     const minBytesInput = wrapper.get('input[placeholder="2048"]')
@@ -109,7 +109,7 @@ describe('components/settings/SystemSettings.vue', () => {
     await flushAsync()
 
     await wrapper.get('select').setValue('probe')
-    await wrapper.get('input[placeholder="9006"]').setValue('9010')
+    await wrapper.get('input[placeholder="7001"]').setValue('9010')
 
     const saveBtn = wrapper.findAll('button').find(btn => btn.text().includes('保存'))
     expect(saveBtn).toBeTruthy()

@@ -1,4 +1,5 @@
 import { beforeEach, vi } from 'vitest'
+import { resetLearnedMediaPort } from '@/utils/mediaPort'
 
 // 当前身份会持久化到 sessionStorage，每个用例前清空，避免用例间串状态
 beforeEach(() => {
@@ -7,6 +8,8 @@ beforeEach(() => {
   } catch {
     // node 环境用例没有 sessionStorage
   }
+  // 媒体端口探测结果是模块级共享状态，用例间必须重置，否则会串端口
+  resetLearnedMediaPort()
 })
 
 if (typeof window !== 'undefined' && !window.matchMedia) {

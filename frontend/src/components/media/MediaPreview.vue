@@ -141,6 +141,7 @@
             @touchstart="startDrag"
             @click.stop="handleClick"
             @error="handleMediaError"
+            @load="handleMediaLoaded"
           />
 
           <video
@@ -182,6 +183,7 @@
 	              class="media-preview-video shadow-2xl rounded-lg bg-black"
 	              @loadedmetadata="handleVideoLoadedMetadata"
 	              @error="handleMediaError"
+	              @loadeddata="handleMediaLoaded"
 		            ></video>
 
 		            <!-- 全屏左上：倍速/慢放（避免与右侧视频工具重叠；同时保证真全屏时仍可调速） -->
@@ -463,6 +465,7 @@ import { RecycleScroller } from 'vue-virtual-scroller'
 import type { UploadedMedia } from '@/types'
 import { useToast } from '@/composables/useToast'
 import { useUpload, type UploadFileOptions } from '@/composables/useUpload'
+import { learnMediaPort, nextMediaUrlCandidate, parseUpstreamMediaUrl } from '@/utils/mediaPort'
 import { useUserStore } from '@/stores/user'
 import { useDouyinStore } from '@/stores/douyin'
 import { useMtPhotoStore } from '@/stores/mtphoto'
@@ -1865,8 +1868,12 @@ const mediaReloadSeq = ref(0)
 const mediaRetryCount = ref(0)
 let mediaRetryTimer: ReturnType<typeof setTimeout> | null = null
 
+// 上游媒体端口回退：上游换端口后配置里的端口会失效，这里在加载失败时依次尝试候选端口
+const mediaPortFallbackUrl = ref('')
+const mediaPortTried = new Set<string>()
+
 const currentMediaDisplayUrl = computed(() => {
-  const baseUrl = currentMedia.value.url || ''
+  const baseUrl = mediaPortFallbackUrl.value || currentMedia.value.url || ''
   if (!baseUrl) return ''
   if (mediaReloadSeq.value === 0) return baseUrl
   const sep = baseUrl.includes('?') ? '&' : '?'
@@ -1886,10 +1893,29 @@ const resetMediaLoadState = () => {
   }
   mediaReloadSeq.value = 0
   mediaRetryCount.value = 0
+  mediaPortFallbackUrl.value = ''
+  mediaPortTried.clear()
+}
+
+// 回退成功时记住可用端口，供缩略图/其他媒体直接复用
+const handleMediaLoaded = () => {
+  if (!mediaPortFallbackUrl.value) return
+  const parsed = parseUpstreamMediaUrl(mediaPortFallbackUrl.value)
+  if (parsed?.port) learnMediaPort(parsed.port, parsed.host)
 }
 
 const handleMediaError = () => {
-  // 图片/视频刚上传到上游时，短时间内可能 404；这里做轻量重试，避免用户需要重复“重传”
+  // 1) 先尝试换端口：上游换端口时这一步能直接恢复，且不必等待重试
+  const currentUrl = mediaPortFallbackUrl.value || currentMedia.value.url || ''
+  const nextUrl = nextMediaUrlCandidate(currentUrl, mediaPortTried)
+  if (nextUrl) {
+    mediaPortFallbackUrl.value = nextUrl
+    mediaReloadSeq.value = 0
+    mediaRetryCount.value = 0
+    return
+  }
+
+  // 2) 端口都试过了，再做轻量重试（图片/视频刚上传到上游时可能短时间 404）
   if (mediaRetryCount.value >= 2) return
   mediaRetryCount.value += 1
 

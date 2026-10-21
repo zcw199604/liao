@@ -6,7 +6,7 @@ describe('constants/config', () => {
   it('exports defaults and allows updating IMG_SERVER_ADDRESS', () => {
     expect(API_BASE).toBe('/api')
     expect(WS_URL).toBe('/ws')
-    expect(IMG_SERVER_IMAGE_PORT).toBe(9006)
+    expect(IMG_SERVER_IMAGE_PORT).toBe(7001)
 
     const before = IMG_SERVER_ADDRESS
     setImgServerAddress('img.local')
