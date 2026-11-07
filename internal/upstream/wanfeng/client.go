@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -77,6 +78,7 @@ type Client struct {
 	partnerNickname string
 	state           string
 	decryptFailures int
+	egressID        string
 
 	// outbox 是「待下发给对方」的动作队列（保序，媒体搬运在队列内完成）
 	outbox chan OutgoingCommand
@@ -102,6 +104,19 @@ func NewClient(cfg ClientConfig) *Client {
 	dialer := cfg.Dialer
 	if dialer == nil {
 		dialer = websocket.DefaultDialer
+		// HTTP 和 WS 必须使用同一出口；Clone 的身份客户端也保留此 Transport。
+		if cfg.API != nil && cfg.API.http != nil {
+			if transport, ok := cfg.API.http.Transport.(*http.Transport); ok {
+				copy := *websocket.DefaultDialer
+				copy.Proxy = transport.Proxy
+				copy.NetDialContext = transport.DialContext
+				copy.NetDialTLSContext = transport.DialTLSContext
+				if transport.TLSClientConfig != nil {
+					copy.TLSClientConfig = transport.TLSClientConfig.Clone()
+				}
+				dialer = &copy
+			}
+		}
 	}
 	return &Client{
 		cfg:           cfg,
@@ -430,12 +445,14 @@ func (c *Client) run(ctx context.Context) {
 func (c *Client) serveOnce(ctx context.Context) (bool, error) {
 	binding, err := c.ensureBinding(ctx)
 	if err != nil {
-		return true, err
+		return !errors.Is(err, ErrIPBanSwitched), err
 	}
 
 	sess, err := c.cfg.API.Session(ctx)
 	if err != nil {
-		return false, err
+		var apiErr *APIError
+		fatal := errors.As(err, &apiErr) && apiErr.Code == "IP_BANNED" && !errors.Is(err, ErrIPBanSwitched)
+		return fatal, err
 	}
 
 	url := c.cfg.API.BuildWSURL()
@@ -443,8 +460,18 @@ func (c *Client) serveOnce(ctx context.Context) (bool, error) {
 	dialCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
-	conn, _, err := c.dialer.DialContext(dialCtx, url, header)
+	egress := c.cfg.API.egressID()
+	conn, resp, err := c.dialer.DialContext(dialCtx, url, header)
 	if err != nil {
+		if resp != nil && resp.Body != nil {
+			raw, readErr := io.ReadAll(io.LimitReader(resp.Body, apiBodyLimit))
+			_ = resp.Body.Close()
+			if readErr == nil {
+				if banErr := c.cfg.API.checkIPBan(raw, egress); banErr != nil {
+					return !errors.Is(banErr, ErrIPBanSwitched), banErr
+				}
+			}
+		}
 		return false, fmt.Errorf("连接晚风 WS 失败: %w", err)
 	}
 
@@ -454,6 +481,7 @@ func (c *Client) serveOnce(ctx context.Context) (bool, error) {
 	c.binding = binding
 	c.ready = false
 	c.decryptFailures = 0
+	c.egressID = egress
 	c.mu.Unlock()
 
 	defer func() {
@@ -503,6 +531,13 @@ func (c *Client) serveOnce(ctx context.Context) (bool, error) {
 			c.mu.Unlock()
 			if expected {
 				return true, nil
+			}
+			var closeErr *websocket.CloseError
+			if errors.As(err, &closeErr) && isIPBan("", closeErr.Text) {
+				if c.cfg.API.switchBannedEgress(egress) == nil {
+					return false, ErrIPBanSwitched
+				}
+				return true, err
 			}
 			return false, err
 		}
@@ -607,6 +642,25 @@ func (c *Client) handleFrame(payload []byte) bool {
 		c.mu.Unlock()
 		c.cfg.Emitter.Emit(c.cfg.IdentityID, proto.PartnerLeftMessage())
 	case proto.EventError:
+		if isIPBan(PickString(data, proto.ErrorCodeKeys...), PickString(data, "message", "clientMsg", "msg")) {
+			c.mu.Lock()
+			egress := c.egressID
+			c.mu.Unlock()
+			if c.cfg.API.switchBannedEgress(egress) == nil {
+				c.cfg.Emitter.Emit(c.cfg.IdentityID, map[string]any{
+					"code": codeSystemNotice, "content": "当前出口 IP 被封禁，已切换代理，正在重新连接…",
+				})
+				if conn := c.currentConn(); conn != nil {
+					_ = conn.Close()
+				}
+				return false
+			}
+			c.cfg.Emitter.EmitFatal(c.cfg.IdentityID, map[string]any{
+				"code": codeForbidden, "forceout": true,
+				"content": "当前出口 IP 已被封禁，代理切换失败，请检查备用节点和池文件写入权限",
+			})
+			return true
+		}
 		// 身份/设备类错误可自愈：清掉本地绑定后重连会自动申请新身份/新设备号，
 		// 不必把用户当成「被封禁」踢回登录页。
 		switch strings.ToUpper(PickString(data, proto.ErrorCodeKeys...)) {

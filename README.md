@@ -218,6 +218,28 @@ docker run -d -p 8080:8080 \
 - `WANFENG_TIMEOUT_SECONDS` - 调用晚风接口超时（秒，默认30）
 - `WANFENG_PROTOCOL_OVERRIDES` - 晚风协议参数覆盖（JSON，用于对方改版时热修，详见 `docs/wanfeng-niming-integration-plan.md` 与 `docs/wanfeng-reverse-engineering.md`）
 - `WANFENG_MEDIA_ENABLED` - 是否在晚风线路转发图片/视频（默认 `true`；关闭后媒体消息降级为系统提示）
+- `WANFENG_PROXY_ENABLED` - 晚风 HTTP API、媒体上传/下载及 WS 统一使用 SCF 代理（默认 `false`）
+- `SCFPROXY_POOL_FILE` - scfProxy 固定 IP 池 `pool.json` 路径，与 `SCFPROXY_ENDPOINTS_FILE` 二选一
+- `SCFPROXY_ENDPOINTS_FILE` - scfProxy endpoint 列表文件路径，每行一个 `wss://` 地址
+- `SCFPROXY_TOKEN` - SCF 隧道共享令牌，必须与代理服务端一致，仅通过环境变量提供
+
+晚风代理使用 [`scfproxy`](https://github.com/zcw199604/scfProxy) v0.1.0。推荐使用已创建的固定 IP 池：
+
+```bash
+export WANFENG_ENABLED=true
+export WANFENG_PROXY_ENABLED=true
+export SCFPROXY_POOL_FILE=/config/pool.json
+# 在运行环境中另行注入 SCFPROXY_TOKEN，勿写入仓库。
+```
+
+Docker 部署需将池文件所在目录可写挂载到容器，例如 `-v /host/scf-config:/config:rw`，并传入上述环境变量。自动切换需要在该目录写入锁文件并原子更新池文件，不能只挂载单个文件或使用只读挂载。
+代理只影响晚风线路，涵盖握手、身份、历史/关系接口、图片/视频上传下载及 WebSocket；按身份克隆的客户端仍独立保存 Cookie，共享代理出口。
+启用后配置错误会阻止启动，连接失败会返回错误，不回退直连。HTTPS/WSS 保持目标站点的 TLS 证书校验。
+固定池模式下，HTTP 错误响应或 WS 错误中包含 **“您的 IP 已被封禁”**（忽略空白和 IP 大小写），或错误码为 `IP_BANNED` 时，Liao 自动调用 scfProxy 切换到已有备用出口，并记录旧 IP 封禁（库默认 24 小时）。关键字命中不受其他错误码影响；不含该关键字的普通 403、会话/身份失效和超时不触发切换。
+切换关闭旧隧道，WS 保留身份并重新连接，后续 HTTP 请求使用新出口；业务请求不自动重放。同一旧出口的并发封禁报告只切换一次。池中至少需要一个备用节点；无备用或写入失败时保留错误、停止该 WS 的重连，不回退直连，服务日志记录切换失败原因。
+自动切换只修改本地池文件，不需要腾讯云 SecretId/SecretKey，也不会自动创建或删除云函数。备用耗尽前，应在管理机器使用 scfProxy CLI 的 `pool replenish --pool /host/scf-config/pool.json --yes` 补位（该操作需要腾讯云凭证及 scfProxy 所需部署参数）。
+库仍每约 2 秒热加载外部池变更，因此也支持通过 scfProxy CLI 的 `pool switch` 或 `pool rotate` 手动切换。
+使用 endpoint 列表时，改为配置 `SCFPROXY_ENDPOINTS_FILE` 并取消 `SCFPROXY_POOL_FILE`；同一目标主机优先固定到同一 endpoint。列表模式不支持上述业务封禁自动切换，自动切换应使用固定池模式。
 
 ### 怎么切换聊天线路
 

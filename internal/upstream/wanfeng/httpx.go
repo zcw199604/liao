@@ -63,6 +63,7 @@ type APIClient struct {
 	sessions *sessionStore
 	logger   *slog.Logger
 	now      func() time.Time
+	egress   IPBanEgress
 
 	uploadUserMu sync.RWMutex
 	uploadUserID string
@@ -76,6 +77,7 @@ type APIClientConfig struct {
 	HTTPClient *http.Client
 	Protocol   Protocol
 	Logger     *slog.Logger
+	Egress     IPBanEgress
 }
 
 // NewAPIClient 创建对方站点的 HTTP 客户端。
@@ -116,6 +118,7 @@ func NewAPIClient(cfg APIClientConfig) *APIClient {
 		http:    cfg.HTTPClient,
 		logger:  logger,
 		now:     time.Now,
+		egress:  cfg.Egress,
 	}
 	c.sessions = newSessionStore(c.handshake, c.now)
 	return c
@@ -337,6 +340,7 @@ func (c *APIClient) post(ctx context.Context, path string, body map[string]any, 
 		req.Header.Set(c.proto.SessionHeader, sess.ID)
 	}
 
+	egress := c.egressID()
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("请求晚风接口失败: %w", err)
@@ -346,6 +350,9 @@ func (c *APIClient) post(ctx context.Context, path string, body map[string]any, 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, apiBodyLimit))
 	if err != nil {
 		return nil, fmt.Errorf("读取晚风响应失败: %w", err)
+	}
+	if err := c.checkIPBan(data, egress); err != nil {
+		return nil, err
 	}
 	if resp.StatusCode >= 400 && !looksLikeJSON(data) {
 		// 常见于 WAF 拦截：返回 HTML 403/5xx 页面
@@ -512,6 +519,7 @@ func (c *APIClient) uploadMediaOnce(ctx context.Context, filename, contentType s
 	// 对方前端的媒体上传是普通 fetch（不做信封加密），只带 Cookie（credentials: include），
 	// 不带会话头 / X-Get-Via-Post；这里保持一致，避免多余头触发 40300。
 
+	egress := c.egressID()
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("上传媒体失败: %w", err)
@@ -521,6 +529,9 @@ func (c *APIClient) uploadMediaOnce(ctx context.Context, filename, contentType s
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, apiBodyLimit))
 	if err != nil {
 		return nil, fmt.Errorf("读取上传响应失败: %w", err)
+	}
+	if err := c.checkIPBan(raw, egress); err != nil {
+		return nil, err
 	}
 	if !looksLikeJSON(raw) {
 		return nil, &APIError{Status: resp.StatusCode, Message: "上传接口返回非 JSON（可能被风控拦截）"}
@@ -587,12 +598,19 @@ func (c *APIClient) DownloadMedia(ctx context.Context, mediaURL string) ([]byte,
 	req.Header.Set("Origin", c.origin)
 	req.Header.Set("Referer", c.referer)
 
+	egress := c.egressID()
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, "", fmt.Errorf("下载媒体失败: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		raw, readErr := io.ReadAll(io.LimitReader(resp.Body, apiBodyLimit))
+		if readErr == nil {
+			if err := c.checkIPBan(raw, egress); err != nil {
+				return nil, "", err
+			}
+		}
 		return nil, "", &APIError{Status: resp.StatusCode, Message: "下载媒体返回异常状态"}
 	}
 
@@ -658,6 +676,7 @@ func (c *APIClient) Clone() *APIClient {
 		WSURL:      c.wsURL,
 		Protocol:   c.proto,
 		Logger:     c.logger,
+		Egress:     c.egress,
 		HTTPClient: &http.Client{Timeout: 60 * time.Second, Transport: transport},
 	})
 	return clone

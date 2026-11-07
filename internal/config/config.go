@@ -119,6 +119,11 @@ type Config struct {
 	WanfengTimeoutSeconds int
 	// WanfengMediaEnabled 控制是否在晚风线路上启用图片/视频转发（二期）。
 	WanfengMediaEnabled bool
+	// WanfengProxyEnabled 让晚风 HTTP/WS 共用 SCF TCP 隧道。
+	WanfengProxyEnabled   bool
+	SCFProxyPoolFile      string
+	SCFProxyEndpointsFile string
+	SCFProxyToken         string
 }
 
 func Load() (Config, error) {
@@ -204,6 +209,10 @@ func Load() (Config, error) {
 		WanfengProtocolOverrides: getEnv("WANFENG_PROTOCOL_OVERRIDES", ""),
 		WanfengTimeoutSeconds:    getEnvInt("WANFENG_TIMEOUT_SECONDS", 30),
 		WanfengMediaEnabled:      getEnvBool("WANFENG_MEDIA_ENABLED", true),
+		WanfengProxyEnabled:      getEnvBool("WANFENG_PROXY_ENABLED", false),
+		SCFProxyPoolFile:         strings.TrimSpace(getEnv("SCFPROXY_POOL_FILE", "")),
+		SCFProxyEndpointsFile:    strings.TrimSpace(getEnv("SCFPROXY_ENDPOINTS_FILE", "")),
+		SCFProxyToken:            getEnv("SCFPROXY_TOKEN", ""),
 
 		FFmpegPath:              getEnv("FFMPEG_PATH", "ffmpeg"),
 		FFprobePath:             getEnv("FFPROBE_PATH", "ffprobe"),

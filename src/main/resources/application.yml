@@ -131,3 +131,9 @@ wanfeng:
   protocol-overrides: ${WANFENG_PROTOCOL_OVERRIDES:}
   # 是否在该线路转发图片/视频（关闭后媒体消息降级为系统提示）
   media-enabled: ${WANFENG_MEDIA_ENABLED:true}
+  # HTTP API、媒体与 WS 共用 SCF 隧道；Go 只读取环境变量
+  proxy-enabled: ${WANFENG_PROXY_ENABLED:false}
+  # 固定 IP 池与 endpoint 列表二选一
+  proxy-pool-file: ${SCFPROXY_POOL_FILE:}
+  proxy-endpoints-file: ${SCFPROXY_ENDPOINTS_FILE:}
+  proxy-token: ${SCFPROXY_TOKEN:}

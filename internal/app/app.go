@@ -111,6 +111,7 @@ type App struct {
 	wsManager             *UpstreamWebSocketManager
 	wanfeng               *WanfengManager
 	wanfengMedia          *wanfengMediaBridge
+	closeWanfengProxy     func()
 
 	staticDir string
 	handler   http.Handler
@@ -203,6 +204,12 @@ func New(cfg config.Config) (*App, error) {
 	_ = application.systemConfig.EnsureDefaults(context.Background())
 	application.wsManager = NewUpstreamWebSocketManager(application.httpClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache, application.chatHistoryCache, application.userArchive)
 	if cfg.WanfengEnabled {
+		wanfengHTTP, egress, closeProxy, err := newWanfengHTTPClient(cfg)
+		if err != nil {
+			application.Shutdown(context.Background())
+			return nil, err
+		}
+		application.closeWanfengProxy = closeProxy
 		proto := wanfeng.DefaultProtocol()
 		overridden, protoErr := proto.ApplyOverrides(cfg.WanfengProtocolOverrides)
 		if protoErr != nil {
@@ -213,7 +220,8 @@ func New(cfg config.Config) (*App, error) {
 		wanfengAPI := wanfeng.NewAPIClient(wanfeng.APIClientConfig{
 			BaseURL:    cfg.WanfengBaseURL,
 			WSURL:      cfg.WanfengWSURL,
-			HTTPClient: &http.Client{Timeout: time.Duration(cfg.WanfengTimeoutSeconds) * time.Second},
+			HTTPClient: wanfengHTTP,
+			Egress:     egress,
 			Protocol:   proto,
 		})
 		application.wanfeng = NewWanfengManager(wanfengAPI, NewWanfengBindingService(db), nil)
@@ -267,6 +275,9 @@ func (a *App) Shutdown(ctx context.Context) {
 	}
 	if a.wanfeng != nil {
 		a.wanfeng.CloseAll()
+	}
+	if a.closeWanfengProxy != nil {
+		a.closeWanfengProxy()
 	}
 	if a.videoExtract != nil {
 		a.videoExtract.Shutdown()
