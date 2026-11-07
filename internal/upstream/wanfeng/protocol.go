@@ -193,7 +193,9 @@ func DefaultProtocol() Protocol {
 		GetViaPostValue:  "1",
 		SessionHeader:    "X-Enc-Sid",
 		// account/identity-cookie 是 POST-only 路由，带 X-Get-Via-Post 会被当成 GET 路由 404。
-		PostOnlyPaths: []string{"/account/identity-cookie"},
+		// 只能按 POST 路由的接口：带上 X-Get-Via-Post 会被当成 GET（404）。
+		// refresh-expiry 在站点 JS 里就是裸 POST（实测：带 GET 头 404「资源不存在: GET ...」）。
+		PostOnlyPaths: []string{"/account/identity-cookie", "/niming-file/refresh-expiry"},
 		UserAgent:     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 		AcceptHeader:  "application/json, text/plain, */*",
 

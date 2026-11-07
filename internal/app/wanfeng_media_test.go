@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -310,6 +311,11 @@ func TestMirrorOutboundEndToEnd(t *testing.T) {
 	var gotUser, gotBucket string
 	var gotBytes []byte
 	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 上传后要尽力续期（RefreshMediaExpiry → 会话握手），这里让握手失败即可，只关心上传请求
+		if r.URL.Path == wanfeng.DefaultProtocol().HandshakePath {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		if r.URL.Path != wanfeng.DefaultProtocol().UploadPath {
 			t.Errorf("上传路径不符: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -460,5 +466,55 @@ func TestParseReceiveMediaUsesPayloadField(t *testing.T) {
 	})
 	if !ok || info.Kind != wanfeng.MediaKindImage || info.URL == "" || info.FromUID != "WAT1" {
 		t.Fatalf("payload 字段解析失败: %+v ok=%v", info, ok)
+	}
+}
+
+// TestMirrorInboundExpiredMedia 校验对方媒体过期（404）被归一成 ErrMediaExpired 并记住。
+func TestMirrorInboundExpiredMedia(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = io.WriteString(w, `{"success":false,"code":404,"message":"文件不存在或已失效","data":null}`)
+	}))
+	defer srv.Close()
+
+	api := wanfeng.NewAPIClient(wanfeng.APIClientConfig{
+		BaseURL:    srv.URL,
+		Protocol:   wanfeng.DefaultProtocol(),
+		HTTPClient: srv.Client(),
+	})
+	b := newWanfengMediaBridge(&App{}, api, nil)
+	url := srv.URL + "/api/tools/niming-file/view/abc123"
+
+	if _, err := b.MirrorInbound("ID-1", wanfeng.MediaKindImage, url); !errors.Is(err, wanfeng.ErrMediaExpired) {
+		t.Fatalf("过期媒体应返回 ErrMediaExpired，实际 %v", err)
+	}
+	// 裸请求 + 补 thumb 重试 = 2 次；随后应被失败记忆挡住，不再外呼
+	if hits != 2 {
+		t.Fatalf("首次应恰好请求 2 次（裸 + thumb），实际 %d", hits)
+	}
+	if _, err := b.MirrorInbound("ID-1", wanfeng.MediaKindImage, url); !errors.Is(err, wanfeng.ErrMediaExpired) {
+		t.Fatalf("第二次仍应返回 ErrMediaExpired，实际 %v", err)
+	}
+	if hits != 2 {
+		t.Fatalf("失败应被记住，不应再次外呼，实际 %d 次", hits)
+	}
+}
+
+// TestIsExpiredMediaError 校验过期判定只看 404/失效文案。
+func TestIsExpiredMediaError(t *testing.T) {
+	if !isExpiredMediaError(&wanfeng.APIError{Status: http.StatusNotFound, Message: "文件不存在或已失效"}) {
+		t.Fatal("404 应判定为过期")
+	}
+	if !isExpiredMediaError(&wanfeng.APIError{Code: "404", Message: "文件不存在或无权限"}) {
+		t.Fatal("code=404 应判定为过期")
+	}
+	if isExpiredMediaError(&wanfeng.APIError{Status: http.StatusForbidden, Message: "禁止访问"}) {
+		t.Fatal("403 不应判定为过期（可能是鉴权问题）")
+	}
+	if isExpiredMediaError(errors.New("network down")) {
+		t.Fatal("普通错误不应判定为过期")
 	}
 }

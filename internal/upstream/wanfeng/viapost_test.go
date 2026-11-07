@@ -74,6 +74,10 @@ func TestIsPostOnlyPath(t *testing.T) {
 	if proto.IsPostOnlyPath("") {
 		t.Fatal("空路径不应判定为 POST-only")
 	}
+	// refresh-expiry 在站点 JS 里是裸 POST；带上 X-Get-Via-Post 会被当 GET 路由 → 404（实测踩过）
+	if !proto.IsPostOnlyPath(proto.RefreshExpiryPath) {
+		t.Fatal("refresh-expiry 应判定为 POST-only")
+	}
 
 	overridden, err := proto.ApplyOverrides(`{"postOnlyPaths":["/account/whoami"]}`)
 	if err != nil {

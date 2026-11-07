@@ -332,3 +332,40 @@ func TestHandleGetHistoryUserListUsesWanfengBranch(t *testing.T) {
 		t.Fatalf("不应回落到 chat2019 上游: %s", rec.Body.String())
 	}
 }
+
+// TestBuildWanfengHistoryContentsExpiredMediaPlaceholder 校验过期媒体保留占位文字而不是整条消失。
+func TestBuildWanfengHistoryContentsExpiredMediaPlaceholder(t *testing.T) {
+	bridge := &wanfengMediaBridge{
+		outward: make(map[string]mediaCacheEntry),
+		inward:  make(map[string]mediaCacheEntry),
+		failed:  make(map[string]time.Time),
+	}
+	imageURL := "https://cdn.example.com/old.jpg"
+	videoURL := "https://cdn.example.com/old.mp4"
+	// 模拟「已判定过期」（对方媒体约 30 分钟就失效，救不回来）
+	bridge.markFailed(wanfeng.MediaURLKey(imageURL))
+	bridge.markFailed(wanfeng.MediaURLKey(videoURL))
+
+	a := &App{wanfengMedia: bridge}
+	page := &wanfeng.ChatHistoryPage{
+		Messages: []wanfeng.HistoryMessage{
+			{Tid: "t1", FromCid: "peer", FromUID: "WFU2", Type: "image", Payload: imageURL, TS: 1699000000000},
+			{Tid: "t2", FromCid: "peer", FromUID: "WFU2", Type: "video", Payload: videoURL, TS: 1699000001000},
+			{Tid: "t3", FromCid: "peer", FromUID: "WFU2", Type: "text", Payload: "还在吗", TS: 1699000002000},
+		},
+	}
+
+	contents := a.buildWanfengHistoryContents(context.Background(), "IDENT-1", "WFU1", "WFU2", page)
+	if len(contents.ContentsList) != 3 {
+		t.Fatalf("过期媒体不应导致消息消失，实际 %d 条", len(contents.ContentsList))
+	}
+	if got := contents.ContentsList[0].Content; got != "[图片已过期]" {
+		t.Fatalf("图片占位不符: %q", got)
+	}
+	if got := contents.ContentsList[1].Content; got != "[视频已过期]" {
+		t.Fatalf("视频占位不符: %q", got)
+	}
+	if got := contents.ContentsList[2].Content; got != "还在吗" {
+		t.Fatalf("文本消息被污染: %q", got)
+	}
+}

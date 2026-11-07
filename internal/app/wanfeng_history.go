@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -237,6 +238,21 @@ type wanfengHistoryContent struct {
 	LocalTid string `json:"localTid,omitempty"`
 }
 
+// wanfengExpiredMediaPlaceholder 给已过期的媒体消息一个文字占位。
+//
+// 前端把 "[xxx]" 里没有媒体扩展名的内容当普通文本渲染，所以直接用中括号文案即可；
+// 这样历史里的老图/老视频会显示一句「图片已过期」，而不是整条消息消失。
+func wanfengExpiredMediaPlaceholder(kind string) string {
+	switch kind {
+	case wanfeng.MediaKindVideo:
+		return "[视频已过期]"
+	case wanfeng.MediaKindAudio:
+		return "[语音已过期]"
+	default:
+		return "[图片已过期]"
+	}
+}
+
 // buildWanfengHistoryContents 把晚风历史消息翻译成前端结构。
 //
 // selfUID 是自己在晚风的 uid，selfIDMD5 是前端认的「自己」标识（md5(身份ID)）；
@@ -269,11 +285,16 @@ func (a *App) buildWanfengHistoryContents(
 			if bridge := a.wanfengMedia; bridge != nil {
 				if name, err := bridge.MirrorInbound(identityID, msg.Type, content); err == nil && strings.TrimSpace(name) != "" {
 					content = wanfeng.MediaContent(name)
+				} else if errors.Is(err, wanfeng.ErrMediaExpired) {
+					// 对方媒体约 30 分钟就过期，历史里的老图/老视频救不回来。
+					// 这里保留该条消息并替换成文字占位，别让整条消息凭空消失。
+					slog.Debug("历史消息媒体已过期", "identityID", identityID, "url", content)
+					content = wanfengExpiredMediaPlaceholder(msg.Type)
 				} else {
 					if err != nil {
 						slog.Warn("历史消息媒体转存失败", "identityID", identityID, "error", err)
 					}
-					// 转存失败就跳过该条，避免前端渲染出空图/裂图
+					// 其它失败（网络/上传异常）先跳过该条，避免前端渲染出空图/裂图
 					continue
 				}
 			} else {

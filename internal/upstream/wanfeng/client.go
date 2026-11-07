@@ -1033,9 +1033,14 @@ func (c *Client) handleReceiveMedia(info ReceiveMediaInfo, ctx DownstreamContext
 		c.log.Warn("媒体接收失败", "kind", info.Kind, "url", info.URL, "error", err)
 		// 自己发的失败就不打扰用户（本地已有预览），对方发的则提示
 		if !isSelf {
+			notice := "对方发送的图片/视频加载失败"
+			if errors.Is(err, ErrMediaExpired) {
+				// 对方媒体只有约 30 分钟有效期，过期后无法恢复
+				notice = "对方发送的图片/视频已过期"
+			}
 			c.cfg.Emitter.Emit(c.cfg.IdentityID, map[string]any{
 				"code":    codeSystemNotice,
-				"content": "对方发送的图片/视频加载失败",
+				"content": notice,
 			})
 		}
 		return

@@ -764,6 +764,11 @@ func (c *APIClient) SetUploadUserID(uid string) {
 	c.uploadUserMu.Unlock()
 }
 
+// UploadUserID 返回当前上传使用的对方 uid（续期接口需要它）。
+func (c *APIClient) UploadUserID() string {
+	return c.currentUploadUserID()
+}
+
 func (c *APIClient) currentUploadUserID() string {
 	c.uploadUserMu.RLock()
 	defer c.uploadUserMu.RUnlock()

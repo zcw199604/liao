@@ -1,6 +1,7 @@
 package wanfeng
 
 import (
+	"errors"
 	"path"
 	"strings"
 )
@@ -20,6 +21,10 @@ const (
 	MediaKindAudio = "audio"
 	MediaKindText  = "text"
 )
+
+// ErrMediaExpired 表示对方媒体已过期/不存在（对方媒体只有约 30 分钟有效期，
+// 过期后接口返回 404「文件不存在或已失效」，且无法恢复）。
+var ErrMediaExpired = errors.New("对方媒体已失效")
 
 // OutgoingMedia 描述一条待搬运并发送的媒体消息。
 type OutgoingMedia struct {

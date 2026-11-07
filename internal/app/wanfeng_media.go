@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -20,6 +21,8 @@ const (
 	wanfengMediaCacheTTL = 30 * time.Minute
 	// 缓存条目上限。
 	wanfengMediaCacheMax = 512
+	// 失败记忆时长：对方媒体过期（404）后不可能恢复，记住一段时间避免每次拉历史都重试+刷日志。
+	wanfengMediaFailTTL = 10 * time.Minute
 	// 单条媒体搬运超时。
 	wanfengMediaTimeout = 60 * time.Second
 	// 单次搬运读取上限（对方限制：图片≤10MB、视频≤50MB）。
@@ -40,6 +43,7 @@ type wanfengMediaBridge struct {
 	mu      sync.Mutex
 	outward map[string]mediaCacheEntry // chat2019 文件名 → 晚风 URL
 	inward  map[string]mediaCacheEntry // 晚风 URL 键 → chat2019 文件名
+	failed  map[string]time.Time       // 已知失效的晚风 URL 键 → 记录时间
 	// clients 按身份缓存独立的对方客户端（对方用 Cookie 认定身份，必须隔离）。
 	clients map[string]*mediaClient
 }
@@ -67,6 +71,7 @@ func newWanfengMediaBridge(app *App, api *wanfeng.APIClient, logger *slog.Logger
 		proto:   api.Protocol(),
 		outward: make(map[string]mediaCacheEntry),
 		inward:  make(map[string]mediaCacheEntry),
+		failed:  make(map[string]time.Time),
 		clients: make(map[string]*mediaClient),
 	}
 }
@@ -101,6 +106,12 @@ func (b *wanfengMediaBridge) MirrorOutbound(identityID, kind, remoteFilename str
 		return "", err
 	}
 
+	// 对方媒体只有约 30 分钟有效期，站点前端也是「发送前刷新一次」；
+	// 这里同样续期，保证对方点开时文件还在（失败不影响发送）。
+	if refreshErr := api.RefreshMediaExpiry(ctx, uploaded.FileID, api.UploadUserID(), false); refreshErr != nil {
+		b.log.Debug("刷新对方媒体有效期失败", "fileId", uploaded.FileID, "error", refreshErr)
+	}
+
 	b.put(b.outward, remoteFilename, uploaded.URL)
 	// 双向登记，避免自己消息回显时又下载一遍
 	b.put(b.inward, wanfeng.MediaURLKey(uploaded.URL), remoteFilename)
@@ -118,6 +129,9 @@ func (b *wanfengMediaBridge) MirrorInbound(identityID, kind, remoteURL string) (
 	if cached, ok := b.get(b.inward, key); ok {
 		return cached, nil
 	}
+	if b.knownFailed(key) {
+		return "", wanfeng.ErrMediaExpired
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), wanfengMediaTimeout)
 	defer cancel()
@@ -128,6 +142,11 @@ func (b *wanfengMediaBridge) MirrorInbound(identityID, kind, remoteURL string) (
 	}
 	data, contentType, err := api.DownloadMedia(ctx, remoteURL)
 	if err != nil {
+		// 404 = 对方文件已过期/不存在（不可恢复），记下来别再重试
+		if isExpiredMediaError(err) {
+			b.markFailed(key)
+			return "", wanfeng.ErrMediaExpired
+		}
 		return "", err
 	}
 
@@ -145,6 +164,59 @@ func (b *wanfengMediaBridge) MirrorInbound(identityID, kind, remoteURL string) (
 	b.put(b.outward, remoteFilename, remoteURL)
 	b.log.Info("对方媒体已转存到媒体服务器", "kind", kind, "bytes", len(data), "filename", remoteFilename)
 	return remoteFilename, nil
+}
+
+// knownFailed 判断该晚风媒体是否已被判定为过期（带记忆时长，避免重复请求）。
+func (b *wanfengMediaBridge) knownFailed(key string) bool {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return false
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	since, ok := b.failed[key]
+	if !ok {
+		return false
+	}
+	if time.Since(since) > wanfengMediaFailTTL {
+		delete(b.failed, key)
+		return false
+	}
+	return true
+}
+
+// markFailed 记录一个已失效的晚风媒体键（顺带清理过期记录，避免无界增长）。
+func (b *wanfengMediaBridge) markFailed(key string) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.failed == nil {
+		b.failed = make(map[string]time.Time)
+	}
+	if len(b.failed) >= wanfengMediaCacheMax {
+		for k, since := range b.failed {
+			if time.Since(since) > wanfengMediaFailTTL {
+				delete(b.failed, k)
+			}
+		}
+	}
+	b.failed[key] = time.Now()
+}
+
+// isExpiredMediaError 判断下载失败是否属于「对方文件已过期/不存在」。
+func isExpiredMediaError(err error) bool {
+	var apiErr *wanfeng.APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	if apiErr.Status == http.StatusNotFound || apiErr.Code == "404" {
+		return true
+	}
+	msg := apiErr.Message
+	return strings.Contains(msg, "已失效") || strings.Contains(msg, "不存在")
 }
 
 // clientFor 返回该身份专用的对方客户端（独立 Cookie Jar + 已绑定身份 Cookie）。
