@@ -245,13 +245,7 @@ func New(cfg config.Config) (*App, error) {
 	if strings.TrimSpace(cfg.CookieCloudBaseURL) != "" {
 		provider, err := NewDouyinCookieCloudProvider(cfg, application.httpClient)
 		if err != nil {
-			if closer, ok := userInfoCache.(interface{ Close() error }); ok {
-				_ = closer.Close()
-			}
-			if closer, ok := chatHistoryCache.(interface{ Close() error }); ok {
-				_ = closer.Close()
-			}
-			_ = db.Close()
+			application.Shutdown(context.Background())
 			return nil, err
 		}
 		application.douyinDownloader.SetCookieProvider(provider)

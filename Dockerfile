@@ -18,6 +18,21 @@ COPY internal/ ./internal/
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/liao ./cmd/liao
 COPY --from=frontend-builder /app/frontend/dist /out/static
 
+# CLI 与隧道库固定同一版本；云函数代码包始终使用 linux/amd64。
+FROM golang:1.25.6-alpine AS scfproxy-builder
+ENV GOPROXY=https://goproxy.cn,direct
+ENV GOSUMDB=sum.golang.google.cn
+RUN apk add --no-cache zip
+RUN go mod download github.com/zcw199604/scfproxy@v0.1.0 \
+  && mkdir -p /out \
+  && cd /go/pkg/mod/github.com/zcw199604/scfproxy@v0.1.0 \
+  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/scfproxy ./cmd/scfproxy \
+  && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/scf-server ./cmd/scf-server \
+  && cp deploy/scf_bootstrap /out/scf_bootstrap \
+  && chmod 755 /out/scf_bootstrap \
+  && cd /out \
+  && zip -q scf-server.zip scf-server scf_bootstrap
+
 FROM alpine:3.19
 ENV TZ=Asia/Shanghai
 RUN apk add --no-cache ca-certificates tzdata ffmpeg exiftool \
@@ -26,6 +41,8 @@ RUN apk add --no-cache ca-certificates tzdata ffmpeg exiftool \
   && mkdir -p /app/upload
 WORKDIR /app
 COPY --from=backend-builder /out/liao /app/
+COPY --from=scfproxy-builder /out/scfproxy /usr/local/bin/scfproxy
+COPY --from=scfproxy-builder /out/scf-server.zip /app/scf-server.zip
 COPY --from=backend-builder /out/static /app/static/
 COPY sql/ /app/sql/
 EXPOSE 8080

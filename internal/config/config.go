@@ -120,10 +120,18 @@ type Config struct {
 	// WanfengMediaEnabled 控制是否在晚风线路上启用图片/视频转发（二期）。
 	WanfengMediaEnabled bool
 	// WanfengProxyEnabled 让晚风 HTTP/WS 共用 SCF TCP 隧道。
-	WanfengProxyEnabled   bool
-	SCFProxyPoolFile      string
-	SCFProxyEndpointsFile string
-	SCFProxyToken         string
+	WanfengProxyEnabled              bool
+	SCFProxyPoolFile                 string
+	SCFProxyEndpointsFile            string
+	SCFProxyToken                    string
+	SCFProxyManaged                  bool
+	SCFProxyCLIPath                  string
+	SCFProxyPackagePath              string
+	SCFProxyRegions                  string
+	SCFProxyPoolSize                 int
+	SCFProxyPoolPrefix               string
+	SCFProxyCommandTimeoutSeconds    int
+	SCFProxyReconcileIntervalSeconds int
 }
 
 func Load() (Config, error) {
@@ -203,16 +211,24 @@ func Load() (Config, error) {
 			1,
 		),
 
-		WanfengEnabled:           getEnvBool("WANFENG_ENABLED", false),
-		WanfengBaseURL:           getEnv("WANFENG_BASE_URL", "https://wanfengniming.store"),
-		WanfengWSURL:             getEnv("WANFENG_WS_URL", ""),
-		WanfengProtocolOverrides: getEnv("WANFENG_PROTOCOL_OVERRIDES", ""),
-		WanfengTimeoutSeconds:    getEnvInt("WANFENG_TIMEOUT_SECONDS", 30),
-		WanfengMediaEnabled:      getEnvBool("WANFENG_MEDIA_ENABLED", true),
-		WanfengProxyEnabled:      getEnvBool("WANFENG_PROXY_ENABLED", false),
-		SCFProxyPoolFile:         strings.TrimSpace(getEnv("SCFPROXY_POOL_FILE", "")),
-		SCFProxyEndpointsFile:    strings.TrimSpace(getEnv("SCFPROXY_ENDPOINTS_FILE", "")),
-		SCFProxyToken:            getEnv("SCFPROXY_TOKEN", ""),
+		WanfengEnabled:                   getEnvBool("WANFENG_ENABLED", false),
+		WanfengBaseURL:                   getEnv("WANFENG_BASE_URL", "https://wanfengniming.store"),
+		WanfengWSURL:                     getEnv("WANFENG_WS_URL", ""),
+		WanfengProtocolOverrides:         getEnv("WANFENG_PROTOCOL_OVERRIDES", ""),
+		WanfengTimeoutSeconds:            getEnvInt("WANFENG_TIMEOUT_SECONDS", 30),
+		WanfengMediaEnabled:              getEnvBool("WANFENG_MEDIA_ENABLED", true),
+		WanfengProxyEnabled:              getEnvBool("WANFENG_PROXY_ENABLED", false),
+		SCFProxyPoolFile:                 strings.TrimSpace(getEnv("SCFPROXY_POOL_FILE", "")),
+		SCFProxyEndpointsFile:            strings.TrimSpace(getEnv("SCFPROXY_ENDPOINTS_FILE", "")),
+		SCFProxyToken:                    getEnv("SCFPROXY_TOKEN", ""),
+		SCFProxyManaged:                  getEnvBool("SCFPROXY_MANAGED", false),
+		SCFProxyCLIPath:                  getEnv("SCFPROXY_CLI_PATH", "scfproxy"),
+		SCFProxyPackagePath:              getEnv("SCFPROXY_PACKAGE_PATH", "/app/scf-server.zip"),
+		SCFProxyRegions:                  getEnv("SCFPROXY_REGIONS", "ap-singapore,ap-tokyo,ap-seoul"),
+		SCFProxyPoolSize:                 getEnvInt("SCFPROXY_POOL_SIZE", 2),
+		SCFProxyPoolPrefix:               getEnv("SCFPROXY_POOL_PREFIX", "scfproxy"),
+		SCFProxyCommandTimeoutSeconds:    getEnvInt("SCFPROXY_COMMAND_TIMEOUT_SECONDS", 600),
+		SCFProxyReconcileIntervalSeconds: getEnvInt("SCFPROXY_RECONCILE_INTERVAL_SECONDS", 60),
 
 		FFmpegPath:              getEnv("FFMPEG_PATH", "ffmpeg"),
 		FFprobePath:             getEnv("FFPROBE_PATH", "ffprobe"),
@@ -223,6 +239,14 @@ func Load() (Config, error) {
 
 	if cfg.ServerPort <= 0 || cfg.ServerPort > 65535 {
 		return Config{}, fmt.Errorf("SERVER_PORT 非法: %d", cfg.ServerPort)
+	}
+	if cfg.SCFProxyManaged {
+		if !cfg.WanfengEnabled || !cfg.WanfengProxyEnabled || cfg.SCFProxyPoolFile == "" || cfg.SCFProxyEndpointsFile != "" {
+			return Config{}, fmt.Errorf("SCFPROXY_MANAGED 需要启用 WANFENG_ENABLED、WANFENG_PROXY_ENABLED 并仅配置 SCFPROXY_POOL_FILE")
+		}
+		if cfg.SCFProxyPoolSize < 2 || cfg.SCFProxyCommandTimeoutSeconds <= 0 || cfg.SCFProxyReconcileIntervalSeconds <= 0 {
+			return Config{}, fmt.Errorf("SCFPROXY_POOL_SIZE 必须至少为2，SCFPROXY_COMMAND_TIMEOUT_SECONDS 和 SCFPROXY_RECONCILE_INTERVAL_SECONDS 必须为正数")
+		}
 	}
 
 	if cfg.TokenExpireHours <= 0 {

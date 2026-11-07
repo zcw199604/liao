@@ -20,13 +20,29 @@ func newWanfengHTTPClient(cfg config.Config) (*http.Client, wanfeng.IPBanEgress,
 	if !cfg.WanfengProxyEnabled {
 		return client, nil, func() {}, nil
 	}
+	var manager *scfPoolCLI
+	if cfg.SCFProxyManaged {
+		var err error
+		manager, err = startSCFPoolCLI(cfg)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
 	proxy, err := scfproxy.New(scfproxy.Config{
 		PoolFile:      cfg.SCFProxyPoolFile,
 		EndpointsFile: cfg.SCFProxyEndpointsFile,
 		Token:         cfg.SCFProxyToken,
 		Strategy:      scfproxy.StickyByHost,
+		OnSwitch: func(_, _ scfproxy.EndpointInfo, _ string) {
+			if manager != nil {
+				manager.request()
+			}
+		},
 	})
 	if err != nil {
+		if manager != nil {
+			manager.Close()
+		}
 		return nil, nil, nil, fmt.Errorf("初始化晚风 SCF 代理失败: %w", err)
 	}
 	transport := proxy.Transport()
@@ -37,6 +53,9 @@ func newWanfengHTTPClient(cfg config.Config) (*http.Client, wanfeng.IPBanEgress,
 	}
 	slog.Info("晚风 HTTP/WS 已启用 SCF 代理", "pinned", cfg.SCFProxyPoolFile != "")
 	return client, egress, func() {
+		if manager != nil {
+			manager.Close()
+		}
 		transport.CloseIdleConnections()
 		_ = proxy.Close()
 	}, nil

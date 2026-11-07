@@ -223,7 +223,7 @@ docker run -d -p 8080:8080 \
 - `SCFPROXY_ENDPOINTS_FILE` - scfProxy endpoint 列表文件路径，每行一个 `wss://` 地址
 - `SCFPROXY_TOKEN` - SCF 隧道共享令牌，必须与代理服务端一致，仅通过环境变量提供
 
-晚风代理使用 [`scfproxy`](https://github.com/zcw199604/scfProxy) v0.1.0。推荐使用已创建的固定 IP 池：
+晚风代理使用 [`scfproxy`](https://github.com/zcw199604/scfProxy) v0.1.0。固定 IP 池可由 Liao 自动管理，也可复用已有池。仅复用已有池时：
 
 ```bash
 export WANFENG_ENABLED=true
@@ -237,9 +237,45 @@ Docker 部署需将池文件所在目录可写挂载到容器，例如 `-v /host
 启用后配置错误会阻止启动，连接失败会返回错误，不回退直连。HTTPS/WSS 保持目标站点的 TLS 证书校验。
 固定池模式下，HTTP 错误响应或 WS 错误中包含 **“您的 IP 已被封禁”**（忽略空白和 IP 大小写），或错误码为 `IP_BANNED` 时，Liao 自动调用 scfProxy 切换到已有备用出口，并记录旧 IP 封禁（库默认 24 小时）。关键字命中不受其他错误码影响；不含该关键字的普通 403、会话/身份失效和超时不触发切换。
 切换关闭旧隧道，WS 保留身份并重新连接，后续 HTTP 请求使用新出口；业务请求不自动重放。同一旧出口的并发封禁报告只切换一次。池中至少需要一个备用节点；无备用或写入失败时保留错误、停止该 WS 的重连，不回退直连，服务日志记录切换失败原因。
-自动切换只修改本地池文件，不需要腾讯云 SecretId/SecretKey，也不会自动创建或删除云函数。备用耗尽前，应在管理机器使用 scfProxy CLI 的 `pool replenish --pool /host/scf-config/pool.json --yes` 补位（该操作需要腾讯云凭证及 scfProxy 所需部署参数）。
+自动切换只修改本地池文件，不需要腾讯云 SecretId/SecretKey。希望由 Liao 创建节点、清理退役云函数和自动补位时，启用下方托管模式；未启用时补位仍需自行执行 scfProxy CLI。
 库仍每约 2 秒热加载外部池变更，因此也支持通过 scfProxy CLI 的 `pool switch` 或 `pool rotate` 手动切换。
 使用 endpoint 列表时，改为配置 `SCFPROXY_ENDPOINTS_FILE` 并取消 `SCFPROXY_POOL_FILE`；同一目标主机优先固定到同一 endpoint。列表模式不支持上述业务封禁自动切换，自动切换应使用固定池模式。
+
+### 由 Liao 自动管理 SCF 代理池
+
+Docker 镜像内置 `scfproxy` CLI（v0.1.0）和 `/app/scf-server.zip`（linux/amd64 云函数代码包）。启用 `SCFPROXY_MANAGED=true` 后，Liao 启动时执行 `scfproxy pool replenish ... --yes`，空目录可直接创建主用/备用，无需手工准备 `pool.json`。已有池保留当前主用，并恢复中断的创建/删除操作。
+
+IP 封禁后先切换现有备用，再后台调用 CLI 清理退役函数、补足节点；外部池切换也会触发补位。维护任务串行执行，默认每 60 秒再次维护，失败会记录日志并重试。没有待清理节点且数量充足时 CLI 不创建新资源。启动维护失败会阻止服务启动；运行期补位失败不影响当前可用出口。服务退出会取消 CLI 子进程，保留池文件和已有云函数供下次启动恢复。
+
+在现有 Docker Compose 服务中追加（凭证通过运行环境或受保护的 `.env` 提供，勿提交仓库）：
+
+```yaml
+environment:
+  WANFENG_ENABLED: "true"
+  WANFENG_PROXY_ENABLED: "true"
+  SCFPROXY_MANAGED: "true"
+  SCFPROXY_POOL_FILE: /config/pool.json
+  SCFPROXY_TOKEN: ${SCFPROXY_TOKEN:?请设置隧道共享令牌}
+  TENCENTCLOUD_SECRET_ID: ${TENCENTCLOUD_SECRET_ID:?请设置腾讯云SecretId}
+  TENCENTCLOUD_SECRET_KEY: ${TENCENTCLOUD_SECRET_KEY:?请设置腾讯云SecretKey}
+  SCFPROXY_REGIONS: ap-singapore,ap-tokyo,ap-seoul
+  SCFPROXY_POOL_SIZE: "2"
+volumes:
+  - ./scf-config:/config:rw
+```
+
+| 可选环境变量 | 默认值 / 作用 |
+| --- | --- |
+| `TENCENTCLOUD_SESSION_TOKEN` | 临时腾讯云凭证的会话 Token；长期凭证无需设置 |
+| `SCFPROXY_CLI_PATH` | `scfproxy`，从 PATH 查找；也可设置绝对路径 |
+| `SCFPROXY_PACKAGE_PATH` | `/app/scf-server.zip`；非 Docker 运行需自行准备部署包 |
+| `SCFPROXY_REGIONS` | `ap-singapore,ap-tokyo,ap-seoul`；候选地域至少有 `SCFPROXY_POOL_SIZE` 个不同地域，建议多留一个供轮换 |
+| `SCFPROXY_POOL_SIZE` | `2`，包含主用和备用，至少为 2；设为 3 可扩大补位期间的备用余量 |
+| `SCFPROXY_POOL_PREFIX` | `scfproxy`；新节点命名前缀，CLI 只删除此前缀且标记为 scfproxy 的池内退役函数；复用旧池应保持原前缀 |
+| `SCFPROXY_COMMAND_TIMEOUT_SECONDS` | `600`，单次 CLI 操作超时；创建多个节点或地域较慢时可调高 |
+| `SCFPROXY_RECONCILE_INTERVAL_SECONDS` | `60`，周期维护及失败重试间隔 |
+
+该模式会通过腾讯云 API 创建和删除计费云函数，需要相应的 SCF 管理权限。凭证只经环境传入子进程，不进入命令行参数、池文件或日志。持久化 `/config` 目录可使容器重建后继续使用原池；停止服务不销毁云资源。启动时可能需要等待数分钟完成首次建池，部署探活需留出时间。代理节点补位完成前若再遇封禁且没有备用，该连接仍会返回错误；可增大池大小留出余量。
 
 ### 怎么切换聊天线路
 

@@ -81,7 +81,7 @@ sequenceDiagram
 - Docker：多阶段构建前端静态资源和 Go 二进制，最终 Alpine 镜像包含 `ffmpeg`、`exiftool`、SQL 脚本和静态资源。
 - 前端更新：独立部署 Go 二进制时需同步部署 Vite 产物。HTML 使用 no-cache 与内容 hash ETag，每次访问校验版本，未变化返回 304；不依赖文件修改时间。`/version.json` 使用 no-store，hash 资源使用 immutable；已打开的页面检测版本变化并提示刷新，不清除本地数据。
 - Worker 预览：通过 Go 同源代理嵌入受信 Worker 页面，避免第三方 Cookie 限制。Worker 凭据与 Token 保留在服务端，媒体流量经由 Go；浏览器仅持有预览专用 Cookie，签名密钥与普通登录 Token 隔离。
-- 晚风出口：`WANFENG_PROXY_ENABLED=true` 时，晚风 API、媒体上传下载与 WS 共用 SCF TCP 隧道，配置或连接失败不回退直连；身份客户端独立保存 Cookie。`SCFPROXY_POOL_FILE` 模式遇到“您的 IP 已被封禁”关键字（优先于错误码）或 `IP_BANNED` 自动切换现有备用，旧出口并发报告去重，保留身份并重连 WS，不重放业务 HTTP 请求；也支持外部 CLI 切换及热加载。应用不创建云资源，备用补位由外部 CLI 管理。部署时注入 `SCFPROXY_TOKEN` 并可写挂载池目录，至少准备一个备用，详见 README 的晚风代理配置。
+- 晚风出口：`WANFENG_PROXY_ENABLED=true` 时，晚风 API、媒体上传下载与 WS 共用 SCF TCP 隧道，配置或连接失败不回退直连；身份客户端独立保存 Cookie。`SCFPROXY_POOL_FILE` 模式遇到“您的 IP 已被封禁”关键字（优先于错误码）或 `IP_BANNED` 自动切换现有备用，旧出口并发报告去重，保留身份并重连 WS，不重放业务 HTTP 请求；也支持外部 CLI 切换及热加载。可选 `SCFPROXY_MANAGED=true` 由 Liao 调用内置 CLI 的 `pool replenish --yes`：启动时建池/恢复，出口切换后后台补位，定时串行重试；CLI 负责受限的云函数创建、退役删除及原子池文件事务，停服只取消子进程，不删除云资源。托管模式需要腾讯云凭证和可写持久化池目录；凭证仅经环境传入 CLI，日志脱敏。详见 README 的晚风代理配置。
 - 数据库迁移：应用启动时由 `internal/app/schema.go` 调用 `internal/database/migrator.go`，按文件名顺序执行 `sql/{dialect}/*.sql`。
 
 ## 重大架构决策

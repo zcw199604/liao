@@ -137,3 +137,13 @@ wanfeng:
   proxy-pool-file: ${SCFPROXY_POOL_FILE:}
   proxy-endpoints-file: ${SCFPROXY_ENDPOINTS_FILE:}
   proxy-token: ${SCFPROXY_TOKEN:}
+  # 托管模式：Liao 调用镜像内 CLI 自动创建、清理退役节点并补位
+  proxy-managed: ${SCFPROXY_MANAGED:false}
+  proxy-cli-path: ${SCFPROXY_CLI_PATH:scfproxy}
+  proxy-package-path: ${SCFPROXY_PACKAGE_PATH:/app/scf-server.zip}
+  proxy-regions: ${SCFPROXY_REGIONS:ap-singapore,ap-tokyo,ap-seoul}
+  proxy-pool-size: ${SCFPROXY_POOL_SIZE:2}
+  proxy-pool-prefix: ${SCFPROXY_POOL_PREFIX:scfproxy}
+  proxy-command-timeout-seconds: ${SCFPROXY_COMMAND_TIMEOUT_SECONDS:600}
+  proxy-reconcile-interval-seconds: ${SCFPROXY_RECONCILE_INTERVAL_SECONDS:60}
+  # CLI 直接读取 TENCENTCLOUD_SECRET_ID / TENCENTCLOUD_SECRET_KEY，临时凭证另加 TENCENTCLOUD_SESSION_TOKEN
