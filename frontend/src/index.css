@@ -169,6 +169,11 @@
     @apply inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-700 dark:bg-amber-400/20 dark:text-amber-200 border border-amber-500/30;
   }
 
+  /* 用户来源线路标签（目前只有晚风线路会显示） */
+  .chat-user-tag-provider {
+    @apply inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-violet-500/20 text-violet-700 dark:bg-violet-400/20 dark:text-violet-200 border border-violet-500/30;
+  }
+
   /* 会话列表“仅归档”筛选按钮 */
   .chat-archive-filter-btn {
     @apply inline-flex items-center gap-1 rounded-full border border-line bg-surface-2/80 px-2.5 py-1 text-[11px] text-fg-muted transition hover:bg-surface-3 hover:text-fg;

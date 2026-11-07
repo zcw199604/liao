@@ -15,6 +15,8 @@ export interface User {
   localArchived?: boolean
   localTemporary?: boolean
   temporarySourceIdentityId?: string
+  // provider 是该用户来源线路（晚风固定为 'wanfeng'；chat2019 老线路不下发）
+  provider?: string
 }
 
 export interface ContactCandidate {
@@ -30,6 +32,7 @@ export interface ContactCandidate {
   lastTime?: string
   sources: string[]
   localArchived?: boolean
+  provider?: string
   snapshot?: Record<string, any>
 }
 

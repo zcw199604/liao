@@ -393,7 +393,9 @@ export const useWebSocket = () => {
             isFavorite: false,
             lastMsg: '匹配成功',
             lastTime: '刚刚',
-            unreadCount: 0
+            unreadCount: 0,
+            // 匹配到的人来自当前 WS 线路，如实标记（晚风线路在标题栏显示标签）
+            provider: providerStore.currentId || undefined
           }
 
           // 更新单一数据源

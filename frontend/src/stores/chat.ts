@@ -21,7 +21,9 @@ const normalizeUser = (user: any, isFavorite: boolean = false): User => {
     lastMsg: user.lastMsg || '暂无消息',
     lastTime: user.lastTime || '刚刚',
     unreadCount: 0,
-    localArchived: Boolean(user.localArchived)
+    localArchived: Boolean(user.localArchived),
+    // 保留上游线路标记（晚风线路会下发 'wanfeng'），列表用它显示线路标签
+    provider: typeof user.provider === 'string' && user.provider ? user.provider : undefined
   }
 }
 

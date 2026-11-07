@@ -53,6 +53,11 @@ func TestBuildWanfengHistoryUsers(t *testing.T) {
 		t.Fatalf("相对时间文案异常: %s", first.LastTime)
 	}
 
+	// 前端据此在列表里打「晚风」标签，缺了会被当成默认线路
+	if first.Provider != "wanfeng" || users[1].Provider != "wanfeng" {
+		t.Fatalf("历史用户应带线路标记: %+v", users)
+	}
+
 	second := users[1]
 	if second.Nickname != "匿名" {
 		t.Fatalf("缺昵称应兜底匿名: %+v", second)
@@ -74,6 +79,9 @@ func TestBuildWanfengFavoriteUsers(t *testing.T) {
 	}
 	if users[0].ID != "WFU9" || users[0].Sex != "男" || !users[0].Pinned {
 		t.Fatalf("收藏字段错误: %+v", users[0])
+	}
+	if users[0].Provider != "wanfeng" {
+		t.Fatalf("收藏用户应带线路标记: %+v", users[0])
 	}
 }
 

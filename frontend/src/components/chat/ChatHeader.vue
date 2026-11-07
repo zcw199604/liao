@@ -24,7 +24,17 @@
       </div>
 
       <div class="flex flex-col items-center min-w-0 flex-1 px-2">
-        <div class="font-bold text-base text-fg leading-tight mb-0.5 truncate max-w-full">{{ user?.nickname || '未知用户' }}</div>
+        <div class="flex items-center gap-1.5 min-w-0 max-w-full mb-0.5">
+          <span class="font-bold text-base text-fg leading-tight truncate">{{ user?.nickname || '未知用户' }}</span>
+          <span
+            v-if="user?.provider === 'wanfeng'"
+            class="chat-user-tag-provider shrink-0"
+            title="该用户来自晚风线路"
+            aria-label="晚风线路用户"
+          >
+            <span>晚风</span>
+          </span>
+        </div>
 
         <!-- 状态信息行 -->
         <div class="flex items-center justify-center gap-2 text-[11px] text-fg/60 min-w-0">

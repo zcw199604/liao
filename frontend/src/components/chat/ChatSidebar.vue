@@ -222,6 +222,14 @@
                     <span v-if="user.age && user.age !== '0'">{{ user.age }}</span>
                   </span>
                   <span
+                    v-if="user.provider === 'wanfeng'"
+                    class="chat-user-tag-provider shrink-0"
+                    title="该用户来自晚风线路"
+                    aria-label="晚风线路用户"
+                  >
+                    <span>晚风</span>
+                  </span>
+                  <span
                     v-if="user.localArchived"
                     class="chat-user-tag-local-archived shrink-0"
                     title="该用户来自本地归档，可能已被上游清理"

@@ -106,7 +106,13 @@ type wanfengHistoryUser struct {
 	// 供前端排序/时间线使用
 	LastMessageAt string `json:"lastMessageAt,omitempty"`
 	Pinned        bool   `json:"pinned,omitempty"`
+	// Provider 标记该用户来自哪条线路（前端据此显示「晚风」标签）；
+	// chat2019 老线路不写该字段，前端按默认线路处理。
+	Provider string `json:"provider,omitempty"`
 }
+
+// wanfengUserProvider 是晚风线路在前端的线路标识（与 /api/provider/list 的 id 一致）。
+const wanfengUserProvider = "wanfeng"
 
 // buildWanfengHistoryUsers 把晚风 relations 映射成前端「历史用户列表」结构。
 func buildWanfengHistoryUsers(relations []wanfeng.Relation, selfUID, selfName string) []wanfengHistoryUser {
@@ -130,6 +136,7 @@ func buildWanfengHistoryUsers(relations []wanfeng.Relation, selfUID, selfName st
 			UnreadCount:   rel.UnreadCount,
 			LastMessageAt: rel.LastMessageAt,
 			Pinned:        rel.Pinned,
+			Provider:      wanfengUserProvider,
 		})
 	}
 	_ = selfName
@@ -157,6 +164,7 @@ func buildWanfengFavoriteUsers(favorites []wanfeng.Favorite) []wanfengHistoryUse
 			LastTime:      formatHistoryTime(fav.LastMessageAt),
 			LastMessageAt: fav.LastMessageAt,
 			Pinned:        fav.Pinned,
+			Provider:      wanfengUserProvider,
 		})
 	}
 	return out
