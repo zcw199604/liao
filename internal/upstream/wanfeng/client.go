@@ -113,6 +113,9 @@ func NewClient(cfg ClientConfig) *Client {
 				copy.NetDialTLSContext = transport.DialTLSContext
 				if transport.TLSClientConfig != nil {
 					copy.TLSClientConfig = transport.TLSClientConfig.Clone()
+					// Transport 会为 API 注入 h2；gorilla 的 Upgrade 只支持 HTTP/1.1。
+					// 仅修改 WS 的独立副本，保留 API 的 HTTP/2 和证书校验配置。
+					copy.TLSClientConfig.NextProtos = []string{"http/1.1"}
 				}
 				dialer = &copy
 			}
