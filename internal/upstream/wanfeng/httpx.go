@@ -395,23 +395,51 @@ func (c *APIClient) decodeResponseData(raw []byte, status int, sess *Session) (m
 		return map[string]any{}, nil
 	}
 
-	switch v := data.(type) {
-	case string:
-		plain, err := c.OpenFrameData(sess, v)
-		if err != nil {
-			// 解密失败不致命：原样返回让上层按纯文本处理
-			c.logger.Warn("晚风响应 data 解密失败", "error", err)
-			return map[string]any{}, nil
-		}
-		var out map[string]any
-		if err := json.Unmarshal(plain, &out); err != nil {
-			return map[string]any{}, nil
-		}
-		return out, nil
+	decoded, err := c.decodeDataField(sess, data)
+	if err != nil {
+		// 解密失败不致命：原样返回让上层按纯文本处理
+		c.logger.Warn("晚风响应 data 解密失败", "error", err)
+		return map[string]any{}, nil
+	}
+	switch v := decoded.(type) {
 	case map[string]any:
 		return v, nil
+	case []any:
+		return map[string]any{"list": v}, nil
 	default:
 		return map[string]any{}, nil
+	}
+}
+
+// decodeDataField 解析响应（或帧）里的 data 字段。
+//
+// 兼容对方两套方案：v3 信封（ECDH+AES-GCM）与旧格式（RSA 分段，见 legacyrsa.go），
+// 明文对象/数组原样返回。媒体上传接口的 data 就是旧格式，必须走这里解析。
+func (c *APIClient) decodeDataField(sess *Session, data any) (any, error) {
+	switch v := data.(type) {
+	case nil:
+		return nil, nil
+	case map[string]any, []any:
+		return v, nil
+	case string:
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			return nil, nil
+		}
+		if strings.HasPrefix(trimmed, c.proto.EnvelopePrefix) {
+			plain, err := c.OpenFrameData(sess, trimmed)
+			if err != nil {
+				return nil, err
+			}
+			var out any
+			if err := json.Unmarshal(plain, &out); err != nil {
+				return nil, err
+			}
+			return out, nil
+		}
+		return openLegacyPayload(trimmed)
+	default:
+		return nil, nil
 	}
 }
 
@@ -563,15 +591,14 @@ func (c *APIClient) uploadMediaOnce(ctx context.Context, filename, contentType s
 		return nil, fmt.Errorf("解析上传响应失败: %w", err)
 	}
 
-	// 部分环境下响应 data 仍可能是 v3 信封，尽量解密（失败就按原值处理）。
+	// 上传响应同样可能是加密的：v3 信封或旧格式（RSA 分段）。不解析会把密文当成 filePath，
+	// 拼出来的媒体地址对方打不开（表现为「对方看不到我发的图」）。
 	respData := node["data"]
-	if s, ok := respData.(string); ok {
-		plain, derr := c.OpenFrameData(c.sessions.cached(), s)
-		if derr == nil && len(plain) > 0 {
-			var out any
-			if json.Unmarshal(plain, &out) == nil {
-				respData = out
-			}
+	if _, isString := respData.(string); isString {
+		if decoded, derr := c.decodeDataField(c.sessions.cached(), respData); derr == nil && decoded != nil {
+			respData = decoded
+		} else if derr != nil {
+			c.logger.Warn("上传响应 data 解密失败", "error", derr)
 		}
 	}
 
@@ -581,6 +608,12 @@ func (c *APIClient) uploadMediaOnce(ctx context.Context, filename, contentType s
 		filePath = PickString(v, proto.UploadFilePathKeys...)
 	case string:
 		filePath = strings.TrimSpace(v)
+	}
+	// 对方上传响应带 expireAt（毫秒）：媒体有时效，发送前刷新由 RefreshMediaExpiry 负责。
+	if fields, ok := respData.(map[string]any); ok {
+		if expireAt := PickInt(fields, "expireAt"); expireAt > 0 {
+			c.logger.Debug("上传响应有效期", "expireAt", expireAt, "filePath", filePath)
+		}
 	}
 	if filePath == "" {
 		return nil, &APIError{Code: PickString(node, "code"), Message: firstNonEmpty(PickString(node, "message", "msg"), "上传未返回文件路径")}
@@ -597,8 +630,62 @@ func (c *APIClient) uploadMediaOnce(ctx context.Context, filename, contentType s
 	return &UploadResult{URL: url, Path: filePath, FileID: MediaURLKey(filePath)}, nil
 }
 
+// WithThumbParam 给媒体地址补上 `thumb=1` 参数。
+//
+// 对方 `/api/tools/niming-file/view/<id>` 不带 `thumb=1` 时返回
+// `HTTP 403 {"code":403,"message":"禁止访问"}`；站点前端渲染图片时自己会补
+// （JS：`Ld()`/`F()` 给 URL 设置 thumb），所以这里等价复刻。
+func WithThumbParam(rawURL string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" || hasThumbParam(rawURL) {
+		return rawURL
+	}
+	if strings.Contains(rawURL, "?") {
+		return rawURL + "&thumb=1"
+	}
+	return rawURL + "?thumb=1"
+}
+
+// hasThumbParam 判断地址是否已经带了 thumb 参数（避免重复追加）。
+func hasThumbParam(rawURL string) bool {
+	if idx := strings.Index(rawURL, "?"); idx >= 0 {
+		for _, pair := range strings.Split(rawURL[idx+1:], "&") {
+			if strings.HasPrefix(pair, "thumb=") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // DownloadMedia 下载对方媒体（一次性读入内存，带体积上限）。
+//
+// 先按原样请求；失败且地址没有 thumb 参数时，补 `thumb=1` 重试一次——
+// 对方 view 接口对图片要求该参数，否则 403（视频地址则不需要）。
 func (c *APIClient) DownloadMedia(ctx context.Context, mediaURL string) ([]byte, string, error) {
+	data, contentType, err := c.downloadMediaOnce(ctx, mediaURL)
+	if err == nil {
+		return data, contentType, nil
+	}
+	// 只有「对方明确拒绝」（403/404）才值得补 thumb 重试；IP 被封/网络错误重试只会放大请求
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || (apiErr.Status != http.StatusForbidden && apiErr.Status != http.StatusNotFound) {
+		return nil, "", err
+	}
+	retryURL := WithThumbParam(mediaURL)
+	if retryURL == strings.TrimSpace(mediaURL) {
+		return nil, "", err
+	}
+	if data, contentType, retryErr := c.downloadMediaOnce(ctx, retryURL); retryErr == nil {
+		return data, contentType, nil
+	} else if c.logger != nil {
+		c.logger.Debug("补 thumb 参数后仍下载失败", "url", retryURL, "error", retryErr)
+	}
+	return nil, "", err
+}
+
+// downloadMediaOnce 发起一次媒体下载请求。
+func (c *APIClient) downloadMediaOnce(ctx context.Context, mediaURL string) ([]byte, string, error) {
 	mediaURL = strings.TrimSpace(mediaURL)
 	if mediaURL == "" {
 		return nil, "", fmt.Errorf("媒体地址为空")
@@ -632,7 +719,18 @@ func (c *APIClient) DownloadMedia(ctx context.Context, mediaURL string) ([]byte,
 				return nil, "", err
 			}
 		}
-		return nil, "", &APIError{Status: resp.StatusCode, Message: "下载媒体返回异常状态"}
+		// 把上游状态码和响应片段带出来：403 常常是防盗链/权限，404 是地址形态变了
+		snippet := ""
+		if readErr == nil && len(raw) > 0 {
+			snippet = strings.TrimSpace(string(raw))
+			if len(snippet) > 120 {
+				snippet = snippet[:120]
+			}
+		}
+		return nil, "", &APIError{
+			Status:  resp.StatusCode,
+			Message: fmt.Sprintf("下载媒体返回异常状态 %d %s", resp.StatusCode, snippet),
+		}
 	}
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, mediaBodyLimit))

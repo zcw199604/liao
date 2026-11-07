@@ -761,7 +761,64 @@ if (C && /^[0-9a-f]{24}$/i.test(C)) {
 
 响应 `{code:200, data:{filePath, isDuplicate?, expireAt?}}`（✅ 实测 filePath）。
 
-⚠️ 上传响应的 `data` **也可能是加密信封**（对方前端统一走 `Z()`/`De()` 解密）。我方 `httpx.go` 的 `decodeResponseData` 已覆盖，但如果你自己写脚本调这个接口，要注意 `data` 可能是 `v3.xxx.yyy` 字符串而不是对象。
+⚠️ 上传响应的 `data` **一定是加密的**，而且不是 `v3.` 信封而是旧格式 RSA 分段（详见 [6.6.1](#661-媒体地址的加密回参--thumb-参数两个坑-️-实测-2026-11-07)）。我方 `httpx.go` 的 `decodeDataField` 已覆盖两套方案；自己写脚本调这个接口时，**必须解密**，否则 `filePath` 会是那一整段密文。
+
+### 6.6.1 媒体地址的「加密回参 + thumb 参数」两个坑 ⚠️（✅ 实测 2026-11-07）
+
+这两个坑分别是「我方发的图对方看不到」和「对方发的图我方加载失败」的根因，改媒体相关代码前必须先看：
+
+**坑 1：上传接口的回参是「旧格式」RSA 密文，不是对象**
+
+`/api/tools/niming-file/upload` 返回的 `data` 不是 `v3.*` 信封，而是站点**旧版**的加密形态：
+
+```
+data = base64( base64(RSA₁) | base64(RSA₂) | ... )      // 每段用 JS 里内嵌的 512 位私钥解
+明文 = base64( JSON )                                    // {filePath, expireAt}
+```
+
+站点 JS（`app.js`）里对应 `Gs(e)`：`rn(e)` → 按 `|` 切开 → `ti.decrypt(o)` 逐段 RSA 解密 → 再 `rn()` 一次 → `JSON.parse`。
+私钥（512 位，`BEGIN RSA PRIVATE KEY`）和公钥（`BEGIN PUBLIC KEY`）都**明文写在 JS 里**，任何访问者都能拿到。
+
+实测解密结果：
+
+```json
+{"expireAt":1794046391353,"filePath":"/api/tools/niming-file/view/6aeef507c195fc86f9b8d57e"}
+```
+
+⚠️ 若把 `data` 当明文处理，`filePath` 就会变成那一大段 base64 密文，拼出来的"媒体地址"谁也打不开——
+现象就是**我方发的图片对方看不到**（我们的日志里上传明明成功）。
+
+我方实现：`internal/upstream/wanfeng/legacyrsa.go`（`openLegacyPayload`，用大数模幂避免 Go 1.24+ 对 512 位密钥的拒绝），
+由 `httpx.go` 的 `decodeDataField` 统一分发（`v3.` 前缀走信封，其余走旧格式）。
+对方换密钥时用 `WANFENG_LEGACY_RSA_KEY`（整段 PEM）覆盖，不用改代码。
+
+**坑 2：取图片必须带 `thumb=1`，否则一律 403**
+
+```
+GET /api/tools/niming-file/view/<24位hex>          → 403 {"code":403,"message":"禁止访问"}
+GET /api/tools/niming-file/view/<24位hex>?thumb=1  → 200 image/png   ✅
+```
+
+站点前端渲染图片时**自己会补**这个参数（`app.js` 的 `Ld()`/`F()`：`searchParams.set("thumb","1")`），所以浏览器里看不出问题；
+但我们下载对方媒体时不补，就会吃到 403 —— 现象就是**对方发的图片我方加载失败**（视频地址不需要该参数，所以视频正常）。
+
+- 发送侧：`content` 就是 `origin + filePath`（站点 JS：`Mt()`/`Ld()`），**不要**手动加 `thumb=1`，对方渲染时自己加。
+- 接收侧：`httpx.go` 的 `DownloadMedia` 先按原样请求，失败且地址没有 `thumb` 参数时补 `thumb=1` 重试一次（`WithThumbParam`）。
+
+**顺带排除的几个死路**（省得再试一遍）：
+
+| 请求 | 结果 |
+|---|---|
+| `GET /api/tools/niming-file/download/<id>` | `40300 接口已升级，请使用 POST 方式调用` |
+| `POST /api/tools/niming-file/download`（明文 JSON） | `40001 请求参数解密失败` |
+| `POST /api/tools/niming-file/download`（v3 信封） | `404 资源不存在: POST /api/xxm-tools/niming-file/download` |
+| `POST` + 旧格式 `{dataEnvelope}` | `40300 客户端版本过旧，请刷新页面更新` |
+| `POST /api/tools/niming-file/list` | `404 资源不存在`（我方目前不需要，未深挖） |
+
+结论：对方给浏览器的媒体访问路径就是 `view/<id>[?thumb=1]`，没有别的对外下载接口。
+
+**bucket 归属**（📖 代码，`bucket-name` prop 实测）：随机聊天里图片/视频走 `media-lib`（`allow-video` 才允许视频），
+语音走 `chat`，故事线/小屋走 `story` + `/api/tools/story-file/upload`，漂流瓶走 `bottle`。我方 `BucketImage=media-lib`、`BucketAudio=chat` 与此一致。
 
 ### 6.7 其他
 
@@ -916,6 +973,15 @@ grep -c 'typing' *.js     # 期望 0
 ---
 
 ## 十二、修订记录
+
+### 2026-11-07 第三版（媒体两个坑：加密回参 + thumb）
+
+| 项 | 之前 | 实测后 |
+|---|---|---|
+| 上传回参 `data` | 以为可能是 `v3.` 信封 | ❌ 实际是**旧格式 RSA 分段密文**（JS 内嵌 512 位私钥可解），必须解密才能拿到 `filePath`，详见 6.6.1 |
+| 媒体访问地址 | 直接用 `origin + filePath` 下载 | 图片**必须**带 `?thumb=1`，裸地址 403「禁止访问」；站点前端自己补该参数 |
+| `/niming-file/download` 等接口 | 以为是对外下载接口 | ❌ 浏览器不走它（GET 提示改用 POST、POST 要加密、旧格式又报版本过旧），媒体访问只有 `view/<id>?thumb=1` |
+| `mediaId` | 第一版说"先上传拿 ID" | 维持第二版结论：聊天发送不带 `mediaId`，`content` 就是 URL |
 
 ### 2026-11-07 第二版（本次整理时发现并修正）
 

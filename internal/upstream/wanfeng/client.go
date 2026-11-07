@@ -1029,7 +1029,8 @@ func (c *Client) handleReceiveMedia(info ReceiveMediaInfo, ctx DownstreamContext
 
 	remoteFilename, err := bridge.MirrorInbound(c.cfg.IdentityID, info.Kind, info.URL)
 	if err != nil {
-		c.log.Warn("媒体接收失败", "kind", info.Kind, "error", err)
+		// 带上对方给的媒体地址：对方改了地址形态/加了防盗链时，靠这行才能定位
+		c.log.Warn("媒体接收失败", "kind", info.Kind, "url", info.URL, "error", err)
 		// 自己发的失败就不打扰用户（本地已有预览），对方发的则提示
 		if !isSelf {
 			c.cfg.Emitter.Emit(c.cfg.IdentityID, map[string]any{
