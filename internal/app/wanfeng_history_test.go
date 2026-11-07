@@ -400,3 +400,27 @@ func TestBuildWanfengHistoryContentsTransientMediaFailure(t *testing.T) {
 		t.Fatalf("占位文案不符: %q", got)
 	}
 }
+
+// TestBuildWanfengHistoryContentsReadFlag 校验历史里自己消息的「已读」状态会透传给前端。
+func TestBuildWanfengHistoryContentsReadFlag(t *testing.T) {
+	a := &App{}
+	page := &wanfeng.ChatHistoryPage{
+		Messages: []wanfeng.HistoryMessage{
+			{Tid: "t1", FromCid: "self", FromUID: "WFU1", Type: "text", Payload: "已读的", TS: 1699000000000, ReadByRecipient: true},
+			{Tid: "t2", FromCid: "peer", FromUID: "WFU2", Type: "text", Payload: "对方的", TS: 1699000001000, Nickname: "小晚"},
+		},
+	}
+
+	contents := a.buildWanfengHistoryContents(context.Background(), "IDENT-1", "WFU1", "WFU2", page)
+	if len(contents.ContentsList) != 2 {
+		t.Fatalf("应保留两条消息，实际 %d", len(contents.ContentsList))
+	}
+
+	self := contents.ContentsList[0]
+	if self.ReadByRecipient == nil || *self.ReadByRecipient != true {
+		t.Fatalf("自己消息应带已读状态，实际 %+v", self.ReadByRecipient)
+	}
+	if contents.ContentsList[1].ReadByRecipient != nil {
+		t.Fatalf("对方消息不需要已读标记，实际 %+v", contents.ContentsList[1].ReadByRecipient)
+	}
+}

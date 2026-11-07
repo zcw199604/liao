@@ -39,7 +39,9 @@ const (
 	codeMatching       = 13
 	codeMatched        = 15
 	codePartnerLeft    = 16
-	codeForbidden      = -4
+	// codeReadReceipt 是「我方消息被对方读过」的推送（晚风线路独有，chat2019 不会发）。
+	codeReadReceipt = 31
+	codeForbidden   = -4
 	// codeSystemNotice 用于「普通系统提示」：前端遇到未知 code 且有 content 时，
 	// 会把它追加到当前会话或弹 Toast，不会强制跳登录页。
 	codeSystemNotice = 0
@@ -90,6 +92,12 @@ type Profile struct {
 	Nickname string
 	Gender   string // male/female/secret
 	Age      int
+	// ShowCity 对应对方站点设置页的「城市：公开 / 不公开」开关（false = 不公开）。
+	//
+	// 对方站点把城市按 IP 归属地挂在我们身份上，匹配成功时以 match_result.partner.city
+	// 转给对面；这个开关是唯一能在协议层控制它的手段（没有它对方默认公开）。
+	// nil 表示不下发，沿用对方站点上的既有设置（保持行为不变）。
+	ShowCity *bool
 	// MatchPreference 是匹配偏好（对方 update_profile 的字段，可省略）。
 	MatchPreference map[string]any
 }
@@ -117,6 +125,10 @@ func (p Protocol) UpdateProfilePayload(profile Profile) map[string]any {
 	}
 	if len(profile.MatchPreference) > 0 {
 		payload["matchPreference"] = profile.MatchPreference
+	}
+	// 「城市公开」只能通过 update_profile 下发（对方 login 帧没有该字段）。
+	if profile.ShowCity != nil {
+		payload["showCity"] = *profile.ShowCity
 	}
 	return payload
 }
@@ -392,12 +404,45 @@ func (p Protocol) ReceiveMessage(data map[string]any, ctx DownstreamContext) (ma
 		}
 	}
 
-	return map[string]any{
+	out := map[string]any{
 		"code":     codePrivateMessage,
 		"tid":      tid,
 		"fromuser": fromUser,
 		"touser":   toUser,
-	}, true
+	}
+	// 自己发出的消息带上「对方是否已读」：对方读过后服务端会补 messages_read 推送，
+	// 这里把回显里已有的状态透传，前端据此显示「已读 / 未读」。
+	if isSelf {
+		readByReceiver, _ := PickBool(data, "readByRecipient", "readByReceiver")
+		out["readByRecipient"] = readByReceiver
+	}
+	return out, true
+}
+
+// ReadReceiptMessage 把 messages_read（对方读了我方消息）翻译成前端 code=31。
+//
+// 载荷：{tids:[...], readAt:<时间字符串>, targetUid:<对方 uid>}；
+// 前端按 tid 把自己发出的消息标记为已读。
+func (p Protocol) ReadReceiptMessage(data map[string]any) (map[string]any, bool) {
+	tids := PickStringSlice(data, "tids", "tidsRead", "readTids")
+	if len(tids) == 0 {
+		return nil, false
+	}
+
+	peer := PickString(data, p.FromUIDKeys...)
+	if peer == "" {
+		peer = PickString(data, p.TargetUIDKeys...)
+	}
+
+	msg := map[string]any{
+		"code":      codeReadReceipt,
+		"tids":      tids,
+		"targetUid": peer,
+	}
+	if readAt := PickString(data, "readAt"); readAt != "" {
+		msg["readAt"] = readAt
+	}
+	return msg, true
 }
 
 // ErrorMessages 把对方的 error 帧翻译成前端可识别的提示/封禁帧。

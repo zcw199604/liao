@@ -121,7 +121,9 @@
         v-model="inputText"
         :disabled="!chatStore.wsConnected"
         :ws-connected="chatStore.wsConnected"
+        :show-dice="isWanfengLine"
         @send="handleSend"
+        @dice="handleDice"
         @show-upload="handleToggleUpload"
         @show-emoji="handleToggleEmoji"
         @typing-start="handleTypingStart"
@@ -298,6 +300,7 @@ import { useUpload } from '@/composables/useUpload'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useToast } from '@/composables/useToast'
 import { useChat } from '@/composables/useChat'
+import { useProviderStore } from '@/stores/provider'
 import { useSwipeAction } from '@/composables/useInteraction'
 import { useConnectionStatus } from '@/composables/useConnectionStatus'
 import { extractUploadLocalPath, inferMediaTypeFromUrl } from '@/utils/media'
@@ -325,6 +328,9 @@ import type { ChatMessage, UploadedMedia, User } from '@/types'
 const router = useRouter()
 const route = useRoute()
 const chatStore = useChatStore()
+const providerStore = useProviderStore()
+// 是否为晚风线路：表情集、掷骰子等是对方站点独有的功能，只在晚风线路显示
+const isWanfengLine = computed(() => String(providerStore.currentId || '') === 'wanfeng')
 const messageStore = useMessageStore()
 const mediaStore = useMediaStore()
 const mtPhotoStore = useMtPhotoStore()
@@ -537,6 +543,21 @@ const handleSend = async () => {
   inputText.value = ''
 
   // 自己发送的消息总是回到底部（MessageList 也会处理，这里确保布局测量后再贴底）
+  await nextTick()
+  refreshLayoutMeasurements()
+  messageListRef.value?.scrollToBottom(true)
+}
+
+// 掷骰子：对方站点就是发一条普通文本「🎲 掷出了 N」（N=1~100），冷却在按钮内处理
+const handleDice = async (value: number) => {
+  if (!chatStore.currentChatUser) return
+  if (!chatStore.wsConnected) {
+    show(WS_DISCONNECTED_TIP)
+    return
+  }
+
+  sendText(`🎲 掷出了 ${value}`, chatStore.currentChatUser)
+
   await nextTick()
   refreshLayoutMeasurements()
   messageListRef.value?.scrollToBottom(true)

@@ -437,6 +437,23 @@ export const useWebSocket = () => {
           return
         }
 
+        // 处理已读回执 (code: 31)：晚风线路，对方读了我方发的消息
+        if (code === 31 && Array.isArray((data as any).tids)) {
+          const peerId = String(
+            (chatStore.currentChatUser as any)?.id ?? (data as any).targetUid ?? ''
+          )
+          const tids = ((data as any).tids as unknown[]).map(t => String(t || '')).filter(Boolean)
+          if (peerId && tids.length) {
+            messageStore.markMessagesReadByPeer(
+              currentUser.id,
+              peerId,
+              tids,
+              String((data as any).readAt || '')
+            )
+          }
+          return
+        }
+
         // 处理聊天消息 (code: 7)
         if (code === 7 && data.fromuser) {
           console.log('收到聊天消息:', data)
@@ -544,7 +561,11 @@ export const useWebSocket = () => {
             imageUrl,
             videoUrl,
             fileUrl,
-            segments
+            segments,
+            // 晚风线路：自己发出的消息带「对方是否已读」；chat2019 没有该字段
+            readByPeer: isSelf && typeof (data as any).readByRecipient === 'boolean'
+              ? Boolean((data as any).readByRecipient)
+              : undefined
           }
 
           // 只有与当前聊天对象相关的消息，才存储到currentChatUser.id下

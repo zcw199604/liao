@@ -139,6 +139,7 @@ docker run -d -p 8080:8080 \
 - `identities` - 身份表
 - `media_upload_history` - 媒体上传历史
 - `user_chat_history` - 用户聊天历史
+- `identity_location_setting` - 身份位置公开设置（默认不公开）
 
 ## 开发规范
 
@@ -172,10 +173,15 @@ docker run -d -p 8080:8080 \
 - **媒体两个必踩坑**（详见 `docs/wanfeng-reverse-engineering.md` 6.6.1）：① 上传接口回参 `data` 是**旧格式 RSA 分段密文**（不是 `v3.` 信封），不解密就会把密文当 `filePath` → 我方发的图对方看不到（解密在 `internal/upstream/wanfeng/legacyrsa.go`）；② 对方媒体地址 `.../niming-file/view/<id>` **必须带 `thumb=1`**，裸地址一律 403「禁止访问」→ 对方发的图我方加载失败（`DownloadMedia` 会自动补 `thumb` 重试）。视频地址不需要 `thumb`，所以视频一直是好的；③ **对方媒体只有约 30 分钟有效期**（上传回参 `expireAt`），过期后 `404 文件不存在或已失效` 且**救不回来**：我方出站上传后立刻调 `refresh-expiry` 续期（POST-only，缺 `userId` 会报「参数不完整」），历史里的过期媒体不再整条丢弃，而是替换成 `[图片已过期]`/`[视频已过期]` 文字占位 + 10 分钟失败记忆；④ **「晚风文件ID → 我方文件名」必须持久化**（表 `wanfeng_media_map`）：前端刷新历史是整体替换消息列表，映射只放内存缓存时，缓存一过（30 分钟）+ 对方文件已过期 → 聊天区里的图/视频会「看几秒突然消失」，所以搬运成功即落库、失败一律给占位文案（`[图片已过期]`/`[图片加载失败]`）
 - 历史会话/联系人/聊天记录：老接口（`/api/getHistoryUserList`、`/api/getFavoriteUserList`、`/api/getMessageHistory`）按身份绑定关系分流——绑定过晚风的身份走 `internal/app/wanfeng_history.go` → 对方 `home-data`/`favorites`/`chat/messages`，其余仍走 chat2019；前端零改动
 - **身份 Cookie 是历史接口的前置条件**：对方这几个接口按 Cookie `wf_identity` 鉴权（`uid` 只是业务主键），Cookie 缺失/错配一律 `HTTP 403 + code 40300「请求错误，请刷新页面」`。所以历史类调用必须用 `internal/app/wanfeng_client_cache.go` 里「按身份克隆、独立 Cookie Jar、已绑定身份 Cookie」的客户端，收到 40300 时重建 Cookie 重试一次；另外 `account/identity-cookie` 是 POST-only 接口，**不能带 `X-Get-Via-Post`**（带了会 404，身份 Cookie 永远换不回来）
-- 拉黑/举报/撤回/已读：前端 act 在 `adapter.go` 的 `BuildCommand` 里翻译成 `block_user`/`unblock_user`/`report_user`/`recall_message`/`read_messages`；收到对方消息会自动回一条 `read_messages`（我方无已读 UI，但对方有）
+- 拉黑/举报/撤回/已读：前端 act 在 `adapter.go` 的 `BuildCommand` 里翻译成 `block_user`/`unblock_user`/`report_user`/`recall_message`/`read_messages`；对方消息会自动回 `read_messages`（带 `tids`，对方界面才精确变已读）。
+- **已读回执显示**：`messages_read` → `Protocol.ReadReceiptMessage` → 下游 **`code=31 {tids, readAt, targetUid}`** → 前端 `messageStore.markMessagesReadByPeer` 按 tid 标记自己的消息，气泡下显示「已读/未读」；自己消息的 `readByRecipient` 随 `code=7`/历史接口透传（chat2019 没有该字段，所以不显示）。对方站点是`按视口可见`发已读、我方是`收到即回`，这是既有差异（见 docs §5.5/5.6）
+- **表情按线路分两套**：晚风用对方站点那 120 个 Unicode 表情（`frontend/src/constants/emoji.ts` 的 `wanfengEmojiList`，`EmojiPanel.vue` 按线路二选一），chat2019 保持原有图片表情 `emojiMap`；两边互不混用
+- **掷骰子（晚风独有）**：对方没有独立消息类型，就是发一条普通文本 `🎲 掷出了 N`（N=1~100 随机），**5 秒冷却纯前端**；我方 `ChatInput.vue`（按钮+倒计时）+ `ChatRoomView.vue` 发送，按钮只在晚风线路显示
 - **匹配状态机在服务端**：房间还在时 `join_match` 会被拒绝（`error` 「当前状态不允许匹配」），而 `cancel_match` 只作用于匹配队列（不离开房间）。所以 `internal/upstream/wanfeng/client.go` 的 `deliver()` 会在房间内重新匹配前先补发 `exit_chat`，房间内的 `randomOut` 也改发 `exit_chat`；收到该错误时自愈一次（`exit_chat` → 重发 `join_match`，10 秒冷却）
 - 匹配偏好：本地表 `identity_match_preference`，随 `login` 与 `update_profile` 的 `matchPreference` 字段下发；接口 `/api/getMatchPreference`、`/api/updateMatchPreference`，`supported=false` 表示该线路不支持（chat2019）
+- 位置（城市）公开：**默认不公开**，按身份存在 `identity_location_setting`（对方按我方出口 IP 给身份打城市，匹配成功会以 `match_result.partner.city` 显示给对面）。接口 `/api/getLocationSetting`、`/api/updateLocationSetting`，前端在「身份信息」面板里改；晚风线路登录后由 `client.PushShowCity` 用 `update_profile` **增量 patch `{showCity}`** 下发（login 帧没有该字段），改设置时若已连接立即生效。`supported=false` 表示该线路不生效（chat2019 前端写死 `address_show=false`，等同固定不公开）
 - 明确不支持：输入状态（对方站点没有该事件）、在线状态实时查询（只有 `favorite_online` 推送）
+- 未接入（纯装饰/独立功能线）：聊天特效 `type:effect`（`config/chat-effects` 清单，18 个，按 `minLevel` 分 VIP/SVIP）、话题按钮（`tools/public/topics/active`，本质是发 `【文案】` 文本）、闪图、故事卡片、漂流瓶、分享名片
 - 语音仍未做：前端缺音频消息类型，晚风语音会按「文件」渲染（对方录制细节已逆向，见 `docs/wanfeng-reverse-engineering.md` 5.7）
 - **逆向知识库**：`docs/wanfeng-reverse-engineering.md`（协议/API/字段/风控全量，含未验证项清单）+ `docs/js-artifacts.md`（原始 JS 片段，改版时逐字对比）。对方改版后的定位流程、重新抓取脚本都在里面，改动前先看它
 

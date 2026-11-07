@@ -16,19 +16,19 @@ func TestWanfengManagerProfileFromSign(t *testing.T) {
 	m := NewWanfengManager(api, wanfeng.NewMemoryBindingStore(), nil)
 
 	sign := `{"act":"sign","id":"u1","name":"小明","userSex":"女","userAge":"22"}`
-	profile := m.profileFromSign(sign)
+	profile := m.profileFromSign("u1", sign)
 	if profile.Nickname != "小明" || profile.Gender != "female" || profile.Age != 22 {
 		t.Fatalf("资料解析不符: %+v", profile)
 	}
 
 	// 非法 JSON 时降级为 secret，不应 panic
-	profile = m.profileFromSign("not-json")
+	profile = m.profileFromSign("u1", "not-json")
 	if profile.Gender != "secret" {
 		t.Fatalf("非法帧应降级 secret，实际 %+v", profile)
 	}
 
 	// 性别未知时应上送 secret
-	profile = m.profileFromSign(`{"act":"sign","id":"u1","name":"甲"}`)
+	profile = m.profileFromSign("u1", `{"act":"sign","id":"u1","name":"甲"}`)
 	if profile.Gender != "secret" {
 		t.Fatalf("未知性别应映射为 secret，实际 %+v", profile)
 	}

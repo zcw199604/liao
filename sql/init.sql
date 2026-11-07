@@ -181,6 +181,15 @@ CREATE TABLE IF NOT EXISTS identity_match_preference (
     PRIMARY KEY (identity_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='身份匹配偏好';
 
+-- 身份位置公开设置（默认不公开：匹配成功时对方看不到我所在城市）
+CREATE TABLE IF NOT EXISTS identity_location_setting (
+    identity_id VARCHAR(64) NOT NULL COMMENT '我方身份ID',
+    show_city TINYINT NOT NULL DEFAULT 0 COMMENT '是否公开位置/城市（0 不公开，1 公开）',
+    created_at DATETIME NOT NULL COMMENT '创建时间',
+    updated_at DATETIME NOT NULL COMMENT '更新时间',
+    PRIMARY KEY (identity_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='身份位置公开设置';
+
 -- 晚风媒体与我方媒体文件名映射（晚风媒体只有约 30 分钟有效期，映射必须长期可用）
 CREATE TABLE IF NOT EXISTS wanfeng_media_map (
     wf_key VARCHAR(191) NOT NULL COMMENT '晚风媒体键（媒体地址最后一段，即文件ID）',

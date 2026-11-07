@@ -159,6 +159,22 @@
                 </button>
               </template>
             </div>
+
+            <!-- 已读状态（晚风线路：对方是否读过我这条消息；chat2019 无此字段，不显示） -->
+            <div
+              v-if="
+                row.message.isSelf &&
+                row.message.readByPeer !== undefined &&
+                row.message.sendStatus !== 'sending' &&
+                row.message.sendStatus !== 'failed'
+              "
+              :data-read="row.message.readByPeer ? 'read' : 'unread'"
+              class="mt-1 text-[10px] flex items-center gap-1 select-none justify-end mr-1"
+              :class="row.message.readByPeer ? 'text-emerald-400/80' : 'text-fg/40'"
+            >
+              <i class="fas" :class="row.message.readByPeer ? 'fa-check-double' : 'fa-check'"></i>
+              <span>{{ row.message.readByPeer ? '已读' : '未读' }}</span>
+            </div>
           </div>
 
           <!-- 正在输入提示 -->

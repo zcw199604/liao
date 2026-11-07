@@ -64,6 +64,8 @@ func (a *App) buildRouter() http.Handler {
 		api.Post("/getHistoryUserList", a.handleGetHistoryUserList)
 		api.Get("/getMatchPreference", a.handleGetMatchPreference)
 		api.Post("/updateMatchPreference", a.handleUpdateMatchPreference)
+		api.Get("/getLocationSetting", a.handleGetLocationSetting)
+		api.Post("/updateLocationSetting", a.handleUpdateLocationSetting)
 		api.Post("/getFavoriteUserList", a.handleGetFavoriteUserList)
 		api.Post("/reportReferrer", a.handleReportReferrer)
 		api.Post("/getMessageHistory", a.handleGetMessageHistory)

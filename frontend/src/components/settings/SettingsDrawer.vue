@@ -89,6 +89,39 @@
               <div class="text-base text-fg">{{ currentUser?.area }}</div>
             </div>
 
+            <!-- 位置公开：默认不公开（匹配成功时对方看不到我所在城市） -->
+            <div class="bg-surface-3 rounded-xl p-4">
+              <div class="flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="text-xs text-fg-subtle mb-1">位置</div>
+                  <div class="text-base text-fg" data-testid="location-setting-value">
+                    {{ locationSettingStore.summary }}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  data-testid="location-setting-toggle"
+                  :disabled="locationSettingStore.saving || !currentUser?.id"
+                  :aria-pressed="locationSettingStore.setting.showCity"
+                  class="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium border transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  :class="
+                    locationSettingStore.setting.showCity
+                      ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                      : 'bg-surface border-line-strong text-fg-muted hover:bg-surface-2'
+                  "
+                  @click="toggleLocationVisible"
+                >
+                  {{ locationSettingStore.setting.showCity ? '公开' : '不公开' }}
+                </button>
+              </div>
+              <div class="text-xs text-fg-muted mt-2">
+                不公开时，匹配成功对方看不到你所在的城市（默认不公开）。
+              </div>
+              <div v-if="!locationSettingStore.supported" class="text-xs text-fg-subtle mt-1">
+                当前线路（chat2019）固定不公开，切换晚风线路后可按身份调整。
+              </div>
+            </div>
+
             <div class="bg-surface-3 rounded-xl p-4">
               <div class="text-xs text-fg-subtle mb-1">Cookie（自动生成）</div>
               <div class="text-xs text-fg-muted break-all font-mono leading-relaxed">{{ currentUser?.cookie }}</div>
@@ -302,6 +335,7 @@ import { useMtPhotoStore } from '@/stores/mtphoto'
 import { useDouyinStore } from '@/stores/douyin'
 import { useVideoExtractStore } from '@/stores/videoExtract'
 import { useProviderStore } from '@/stores/provider'
+import { useLocationSettingStore } from '@/stores/locationSetting'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useSettings } from '@/composables/useSettings'
 import { useToast } from '@/composables/useToast'
@@ -332,6 +366,7 @@ const mtPhotoStore = useMtPhotoStore()
 const douyinStore = useDouyinStore()
 const videoExtractStore = useVideoExtractStore()
 const providerStore = useProviderStore()
+const locationSettingStore = useLocationSettingStore()
 const router = useRouter()
 const switchingProvider = ref(false)
 const { disconnect, connect, send } = useWebSocket()
@@ -380,6 +415,19 @@ const switchProvider = async (providerId: string) => {
   } finally {
     switchingProvider.value = false
   }
+}
+
+// 切换「位置公开/不公开」：立即保存（晚风线路已连接时后端会马上下发 update_profile）
+const toggleLocationVisible = async () => {
+  const identityId = currentUser.value?.id
+  if (!identityId || locationSettingStore.saving) return
+  const next = !locationSettingStore.setting.showCity
+  const result = await locationSettingStore.save(next)
+  if (!result.success) {
+    show(`保存失败：${result.message || '未知错误'}`)
+    return
+  }
+  show(next ? '位置已设为公开' : '位置已设为不公开')
 }
 
 const saveUserInfo = async () => {
@@ -556,6 +604,7 @@ watch(
 
     if (props.mode === 'identity') {
       await providerStore.load()
+      await locationSettingStore.load(currentUser.value?.id || '')
     }
   }
 )

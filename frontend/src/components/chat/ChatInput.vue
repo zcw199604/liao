@@ -19,6 +19,20 @@
       >
         <i class="fas fa-smile text-2xl scale-90"></i>
       </button>
+      <!-- 掷骰子：晚风线路才有（对方站点在输入栏有同样按钮，发一条「🎲 掷出了 N」） -->
+      <button
+        v-if="showDice"
+        type="button"
+        data-testid="dice-btn"
+        :disabled="diceCooldown > 0"
+        @click.stop="rollDice"
+        class="ui-icon-btn ui-icon-btn-ghost hover:text-sky-400 relative"
+        :title="diceCooldown > 0 ? `${diceCooldown} 秒后可再掷` : '掷骰子'"
+        aria-label="掷骰子"
+      >
+        <span v-if="diceCooldown > 0" class="text-xs font-semibold tabular-nums">{{ diceCooldown }}</span>
+        <i v-else class="fas fa-dice text-2xl scale-90"></i>
+      </button>
     </div>
 
     <!-- 输入框容器 -->
@@ -65,12 +79,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
 
 interface Props {
   modelValue: string
   disabled: boolean
   wsConnected?: boolean  // 新增：WebSocket连接状态
+  showDice?: boolean     // 是否显示「掷骰子」按钮（晚风线路才有该功能）
 }
 
 const props = defineProps<Props>()
@@ -84,11 +99,41 @@ const emit = defineEmits<{
   'typingEnd': []
   'startMatch': []  // 新增：匹配事件
   'pasteFiles': [files: File[]]  // 粘贴图片/文件
+  'dice': [value: number]  // 掷骰子（参数是 1~100 的点数，由上层拼成文本发出）
 }>()
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 let typingTimer: ReturnType<typeof setTimeout> | null = null
 let isTypingStatus = false
+
+// 掷骰子：与对方站点一致——随机 1~100 点，冷却 5 秒（对方是 5000ms）
+const DICE_COOLDOWN_SECONDS = 5
+const diceCooldown = ref(0)
+let diceTimer: ReturnType<typeof setInterval> | null = null
+
+const rollDice = () => {
+  if (props.disabled || diceCooldown.value > 0) return
+  const value = Math.floor(Math.random() * 100) + 1
+  emit('dice', value)
+
+  diceCooldown.value = DICE_COOLDOWN_SECONDS
+  if (diceTimer) clearInterval(diceTimer)
+  diceTimer = setInterval(() => {
+    diceCooldown.value -= 1
+    if (diceCooldown.value <= 0) {
+      diceCooldown.value = 0
+      if (diceTimer) {
+        clearInterval(diceTimer)
+        diceTimer = null
+      }
+    }
+  }, 1000)
+}
+
+onBeforeUnmount(() => {
+  if (diceTimer) clearInterval(diceTimer)
+  if (typingTimer) clearTimeout(typingTimer)
+})
 
 const handleInput = (e: Event) => {
   const target = e.target as HTMLTextAreaElement

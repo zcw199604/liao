@@ -94,6 +94,7 @@ type App struct {
 	identityService       *IdentityService
 	favoriteService       *FavoriteService
 	matchPreference       *MatchPreferenceService
+	locationSetting       *LocationSettingService
 	douyinFavorite        *DouyinFavoriteService
 	fileStorage           *FileStorageService
 	imageServer           *ImageServerService
@@ -188,6 +189,7 @@ func New(cfg config.Config) (*App, error) {
 		identityService:  NewIdentityService(db),
 		favoriteService:  NewFavoriteService(db),
 		matchPreference:  NewMatchPreferenceService(db),
+		locationSetting:  NewLocationSettingService(db),
 		douyinFavorite:   NewDouyinFavoriteService(db),
 		fileStorage:      NewFileStorageService(db),
 		imageServer:      NewImageServerService(cfg.ImageServerHost, cfg.ImageServerPort),
@@ -227,6 +229,18 @@ func New(cfg config.Config) (*App, error) {
 			Protocol:   proto,
 		})
 		application.wanfeng = NewWanfengManager(wanfengAPI, NewWanfengBindingService(db), nil)
+		// 位置（城市）是否公开：默认不公开，按身份在本地库保存，登录后随 update_profile 下发。
+		// 注入读取回调，避免 manager 反向依赖数据库。
+		if application.locationSetting != nil {
+			locationSvc := application.locationSetting
+			application.wanfeng.SetLocationSettingProvider(func(identityID string) (bool, error) {
+				setting, err := locationSvc.Get(context.Background(), identityID)
+				if err != nil {
+					return DefaultShowCity, err
+				}
+				return setting.ShowCity, nil
+			})
+		}
 		application.wanfengClients = newWanfengIdentityClients(wanfengAPI)
 		// 匹配偏好随登录帧上送（三期）：注入读取回调，避免 manager 反向依赖数据库
 		if application.matchPreference != nil {

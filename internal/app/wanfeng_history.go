@@ -236,6 +236,8 @@ type wanfengHistoryContent struct {
 	Nickname string `json:"nickname"`
 	Type     string `json:"type,omitempty"`
 	LocalTid string `json:"localTid,omitempty"`
+	// ReadByRecipient 表示自己发出的消息对方是否已读（晚风线路才有）。
+	ReadByRecipient *bool `json:"readByRecipient,omitempty"`
 }
 
 // wanfengExpiredMediaPlaceholder 给已过期的媒体消息一个文字占位。
@@ -336,14 +338,20 @@ func (a *App) buildWanfengHistoryContents(
 			nickname = "匿名"
 		}
 
-		contents.ContentsList = append(contents.ContentsList, wanfengHistoryContent{
+		item := wanfengHistoryContent{
 			Content:  content,
 			Tid:      msg.Tid,
 			Time:     formatWanfengMessageTime(msg.TS),
 			ID:       senderID,
 			Nickname: nickname,
 			Type:     msg.Type,
-		})
+		}
+		// 自己发出的消息带「对方是否已读」，前端历史里也能显示已读/未读
+		if isSelf {
+			read := msg.ReadByRecipient
+			item.ReadByRecipient = &read
+		}
+		contents.ContentsList = append(contents.ContentsList, item)
 	}
 	return contents
 }

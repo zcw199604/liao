@@ -31,6 +31,9 @@ type WanfengManager struct {
 	mu              sync.Mutex
 	media           wanfeng.MediaBridge
 	matchPreference MatchPreferenceProvider
+	// locationSetting 读取该身份「位置是否公开」（默认不公开）。
+	// 晚风站点把它放在用户资料 showCity 里，只能通过 update_profile 下发。
+	locationSetting LocationSettingProvider
 	clients         map[string]*wanfeng.Client
 	profiles        map[string]wanfeng.Profile
 	sessions        map[string]map[*DownstreamSession]struct{}
@@ -53,6 +56,63 @@ func NewWanfengManager(api *wanfeng.APIClient, bindings wanfeng.BindingStore, lo
 	}
 }
 
+// SetLocationSettingProvider 注入「位置是否公开」的读取回调（避免 manager 反向依赖数据库）。
+func (m *WanfengManager) SetLocationSettingProvider(fn LocationSettingProvider) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	m.locationSetting = fn
+	m.mu.Unlock()
+}
+
+// showCityFor 返回该身份是否对匹配对象公开位置；读取失败/未注入时按默认值（不公开）。
+func (m *WanfengManager) showCityFor(identityID string) bool {
+	m.mu.Lock()
+	fn := m.locationSetting
+	m.mu.Unlock()
+	if fn == nil || strings.TrimSpace(identityID) == "" {
+		return DefaultShowCity
+	}
+	show, err := fn(identityID)
+	if err != nil {
+		// 读库失败时宁可不公开（位置属于隐私，失败要偏向保护）
+		return DefaultShowCity
+	}
+	return show
+}
+
+// withShowCity 把「位置是否公开」盖到资料上。
+//
+// 该设置只存在于对方用户资料里（login 帧没有 showCity），所以必须随 update_profile 下发。
+func (m *WanfengManager) withShowCity(identityID string, profile wanfeng.Profile) wanfeng.Profile {
+	value := m.showCityFor(identityID)
+	profile.ShowCity = &value
+	return profile
+}
+
+// ApplyShowCity 立即把「位置是否公开」下发给已连接的上游（用户刚在设置里改过）。
+func (m *WanfengManager) ApplyShowCity(identityID string, show bool) error {
+	identityID = strings.TrimSpace(identityID)
+	if m == nil || identityID == "" {
+		return fmt.Errorf("缺少身份ID")
+	}
+
+	m.mu.Lock()
+	if profile, ok := m.profiles[identityID]; ok {
+		value := show
+		profile.ShowCity = &value
+		m.profiles[identityID] = profile
+	}
+	client := m.clients[identityID]
+	m.mu.Unlock()
+
+	if client == nil {
+		return fmt.Errorf("上游连接未就绪")
+	}
+	return client.PushShowCity(show)
+}
+
 // RegisterDownstream 注册一个下游会话（对应前端一次 WS 连接）。
 // signMessage 是前端首帧（act=sign），用于提取昵称/性别等展示资料。
 func (m *WanfengManager) RegisterDownstream(userID string, session *DownstreamSession, signMessage string) {
@@ -61,7 +121,7 @@ func (m *WanfengManager) RegisterDownstream(userID string, session *DownstreamSe
 		return
 	}
 
-	profile := m.profileFromSign(signMessage)
+	profile := m.profileFromSign(userID, signMessage)
 	// 本地匹配偏好要随登录帧上送，否则对方站点按默认偏好匹配
 	profile = m.applyMatchPreference(userID, profile)
 
@@ -144,7 +204,7 @@ func (m *WanfengManager) SendToUpstream(userID string, message string) {
 
 	// sign 帧用于更新展示资料（含匹配偏好），不当作聊天动作转发
 	if strings.TrimSpace(frame.Act) == "sign" {
-		profile := m.profileFromFrame(frame)
+		profile := m.profileFromFrame(userID, frame)
 		m.mu.Lock()
 		previous, hadPrevious := m.profiles[userID]
 		m.profiles[userID] = profile
@@ -348,9 +408,10 @@ func (m *WanfengManager) ProfileOf(identityID string) (wanfeng.Profile, bool) {
 		return wanfeng.Profile{}, false
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	profile, ok := m.profiles[identityID]
-	return profile, ok
+	m.mu.Unlock()
+	// 统一盖上「位置是否公开」，避免调用方组出来的 update_profile 丢掉该设置
+	return m.withShowCity(identityID, profile), ok
 }
 
 // BindingOf 返回某个身份的晚风绑定（含 uid 与 identityToken）。
@@ -425,6 +486,7 @@ func (m *WanfengManager) createClient(userID string) {
 	m.mu.Unlock()
 
 	profile = m.applyMatchPreference(userID, profile)
+	profile = m.withShowCity(userID, profile)
 
 	m.mu.Lock()
 	media := m.media
@@ -463,30 +525,37 @@ func (m *WanfengManager) createClient(userID string) {
 }
 
 // profileFromSign 从 sign 帧解析展示资料。
-func (m *WanfengManager) profileFromSign(signMessage string) wanfeng.Profile {
+func (m *WanfengManager) profileFromSign(identityID, signMessage string) wanfeng.Profile {
 	frame, err := wanfeng.ParseClientFrame(signMessage)
 	if err != nil {
-		return wanfeng.Profile{Gender: "secret"}
+		// 解析失败也要带上「位置是否公开」，否则会退回对方默认的公开
+		return m.withShowCity(identityID, wanfeng.Profile{Gender: "secret"})
 	}
-	return m.profileFromFrame(frame)
+	return m.profileFromFrame(identityID, frame)
 }
 
-func (m *WanfengManager) profileFromFrame(frame wanfeng.ClientFrame) wanfeng.Profile {
+func (m *WanfengManager) profileFromFrame(identityID string, frame wanfeng.ClientFrame) wanfeng.Profile {
 	age, _ := strconv.Atoi(strings.TrimSpace(frame.UserAge))
 	if age < 0 {
 		age = 0
 	}
-	return wanfeng.Profile{
+	return m.withShowCity(identityID, wanfeng.Profile{
 		Nickname:        strings.TrimSpace(frame.Name),
 		Gender:          wanfeng.SexToUpstream(frame.UserSex),
 		Age:             age,
 		MatchPreference: frame.MatchPreference,
-	}
+	})
 }
 
 // profileEqual 判断两份资料是否等价（匹配偏好按 JSON 比较，避免 map 直接比较 panic）。
 func profileEqual(a, b wanfeng.Profile) bool {
 	if a.Nickname != b.Nickname || a.Gender != b.Gender || a.Age != b.Age {
+		return false
+	}
+	if (a.ShowCity == nil) != (b.ShowCity == nil) {
+		return false
+	}
+	if a.ShowCity != nil && *a.ShowCity != *b.ShowCity {
 		return false
 	}
 	return matchPreferenceJSON(a.MatchPreference) == matchPreferenceJSON(b.MatchPreference)

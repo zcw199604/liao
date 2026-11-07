@@ -166,6 +166,8 @@ type ReceiveMediaInfo struct {
 	TargetUID string
 	// Flash 表示阅后即焚消息。
 	Flash bool
+	// ReadByRecipient 表示这条消息对方是否已读（仅自己发出的消息有意义）。
+	ReadByRecipient bool
 }
 
 // ParseReceiveMedia 判断一帧是否媒体消息，并取出 URL。
@@ -185,13 +187,16 @@ func (p Protocol) ParseReceiveMedia(data map[string]any) (ReceiveMediaInfo, bool
 		return ReceiveMediaInfo{}, false
 	}
 
+	readByRecipient, _ := PickBool(data, "readByRecipient", "readByReceiver")
+
 	return ReceiveMediaInfo{
-		Kind:      kind,
-		URL:       url,
-		Tid:       PickString(data, p.MessageIDKeys...),
-		TS:        PickInt(data, p.TimeKeys...),
-		FromUID:   PickString(data, p.FromUIDKeys...),
-		TargetUID: PickString(data, p.TargetUIDKeys...),
+		Kind:            kind,
+		URL:             url,
+		Tid:             PickString(data, p.MessageIDKeys...),
+		TS:              PickInt(data, p.TimeKeys...),
+		FromUID:         PickString(data, p.FromUIDKeys...),
+		TargetUID:       PickString(data, p.TargetUIDKeys...),
+		ReadByRecipient: readByRecipient,
 	}, true
 }
 
@@ -253,11 +258,16 @@ func (p Protocol) MediaMessage(info ReceiveMediaInfo, remoteFilename string, ctx
 		}
 	}
 
-	return map[string]any{
+	out := map[string]any{
 		"code":     codePrivateMessage,
 		"tid":      tid,
 		"type":     info.Kind,
 		"fromuser": fromUser,
 		"touser":   toUser,
 	}
+	// 自己发出的媒体同样带「对方是否已读」，前端据此显示「已读 / 未读」
+	if self {
+		out["readByRecipient"] = info.ReadByRecipient
+	}
+	return out
 }

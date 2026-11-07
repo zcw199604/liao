@@ -61,9 +61,11 @@ type HistoryMessage struct {
 	Duration int
 	Flash    bool
 	Recalled bool
-	Nickname string
-	Gender   string
-	Age      int
+	// ReadByRecipient 表示这条消息对方是否已读（自己发的消息才有意义）。
+	ReadByRecipient bool
+	Nickname        string
+	Gender          string
+	Age             int
 }
 
 // ChatHistoryPage 是一页聊天记录。
@@ -318,6 +320,9 @@ func (c *APIClient) parseHistoryMessages(data map[string]any) []HistoryMessage {
 		}
 		if v, ok := pickAny(item, "flash").(bool); ok {
 			msg.Flash = v
+		}
+		if v, ok := pickAny(item, "readByRecipient").(bool); ok {
+			msg.ReadByRecipient = v
 		}
 		if v, ok := pickAny(item, "recalled").(bool); ok {
 			msg.Recalled = v

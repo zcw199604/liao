@@ -29,6 +29,11 @@ export interface ChatMessage extends Message {
   // When present, render message as "rich segments" (text + inline media).
   segments?: MessageSegment[]
 
+  // === 已读回执（晚风线路）===
+  // true=对方已读，false=未读，undefined=该线路没有已读回执（chat2019）
+  readByPeer?: boolean
+  readAt?: string
+
   // === Optimistic UI (frontend-only fields) ===
   clientId?: string
   sendStatus?: SendStatus

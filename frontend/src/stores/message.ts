@@ -344,6 +344,31 @@ export const useMessageStore = defineStore('message', () => {
     setMessages(key, [...messages, message])
   }
 
+  // markMessagesReadByPeer 把「我方发出、已被对方读过」的消息标记为已读。
+  // 只用于晚风线路（chat2019 没有已读回执），按 tid 精确匹配。
+  const markMessagesReadByPeer = (userIdOrOwnerId: string, targetUserId: string, tids: string[], readAt?: string) => {
+    if (!Array.isArray(tids) || tids.length === 0) return 0
+    const key = resolveMessageKey(userIdOrOwnerId, targetUserId)
+    const list = getMessages(key)
+    if (!list.length) return 0
+
+    const wanted = new Set(tids.map(t => String(t || '').trim()).filter(Boolean))
+    if (wanted.size === 0) return 0
+
+    let changed = 0
+    const next = list.map(msg => {
+      if (!msg.isSelf) return msg
+      if (!msg.tid || !wanted.has(String(msg.tid))) return msg
+      if (msg.readByPeer === true) return msg
+      changed += 1
+      return { ...msg, readByPeer: true, readAt: readAt || msg.readAt }
+    })
+
+    if (!changed) return 0
+    setMessages(key, next)
+    return changed
+  }
+
   const clearPendingTimer = (clientId: string) => {
     const t = pendingSendTimers.get(clientId)
     if (t) {
@@ -484,6 +509,8 @@ export const useMessageStore = defineStore('message', () => {
       videoUrl: echoed.videoUrl,
       fileUrl: echoed.fileUrl,
       segments: echoed.segments,
+      readByPeer: echoed.readByPeer,
+      readAt: echoed.readAt,
       sendStatus: 'sent' as SendStatus,
       sendError: undefined,
       optimistic: false
@@ -587,7 +614,11 @@ export const useMessageStore = defineStore('message', () => {
             imageUrl: meta.imageUrl,
             videoUrl: meta.videoUrl,
             fileUrl: meta.fileUrl,
-            segments
+            segments,
+            // 晚风线路的历史里会带 readByRecipient（自己发的消息才有意义）
+            readByPeer: isSelf && typeof msg?.readByRecipient === 'boolean'
+              ? Boolean(msg.readByRecipient)
+              : undefined
           } as ChatMessage
         }))
 
@@ -689,6 +720,7 @@ export const useMessageStore = defineStore('message', () => {
     conversationKey,
     getMessages,
     addMessage,
+    markMessagesReadByPeer,
     setMessages,
     updateMessageByClientId,
     startOptimisticTimeout,

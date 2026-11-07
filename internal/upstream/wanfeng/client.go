@@ -101,6 +101,11 @@ type Client struct {
 	startOnce sync.Once
 	closeOnce sync.Once
 	done      chan struct{}
+
+	// pendingRead 记录「对方发来、还没回已读回执」的消息 tid（按对端 uid 归组）。
+	// 对方站点是带着 tids 发 read_messages 的，带上 tid 对方界面才会精确变成「已读」。
+	readMu      sync.Mutex
+	pendingRead map[string][]string
 }
 
 // NewClient 创建上游客户端。
@@ -736,7 +741,7 @@ func (c *Client) handleFrame(payload []byte) bool {
 			c.cfg.Emitter.Emit(c.cfg.IdentityID, msg)
 		}
 	case proto.EventMessagesRead:
-		// 对方已读回执：前端暂无已读 UI，这里只落日志与本地状态，不打扰用户
+		// 对方已读回执：翻译成 code=31 下发，前端据此把我的消息标成「已读」
 		c.markPartnerRead(data)
 	case proto.EventReportUser:
 		// 举报结果回执：失败才提示，成功由前端本地提示（避免重复弹窗）
@@ -904,10 +909,42 @@ func (c *Client) onConnected(data map[string]any) {
 		}
 	}
 
-	c.log.Info("晚风登录成功", "state", c.currentState())
+	c.log.Info("晚风登录成功",
+		"state", c.currentState(),
+		// 对方按 IP 给我们身份标的城市 + 当前「城市公开」开关值（false=不公开），
+		// 用于排查「对方能看到我在哪」的问题，不参与业务逻辑。
+		"city", PickString(data, proto.CityKeys...),
+		"showCity", PickString(data, "showCity"),
+	)
 	for _, msg := range proto.ConnectedMessages(data) {
 		c.cfg.Emitter.Emit(c.cfg.IdentityID, msg)
 	}
+
+	if c.cfg.Profile.ShowCity != nil {
+		if err := c.PushShowCity(*c.cfg.Profile.ShowCity); err != nil {
+			c.log.Warn("下发「位置公开」设置失败", "showCity", *c.cfg.Profile.ShowCity, "error", err)
+		}
+	}
+}
+
+// PushShowCity 向对方下发「位置（城市）是否公开」。
+//
+// 原因：对方 login 帧没有 showCity 字段，该设置只存在于用户资料里，只能通过
+// update_profile 下发；不补这一帧的话，已存在的身份会一直沿用对方站点上的旧设置
+// （对方默认公开 = 匹配成功时把我们的 IP 归属地城市显示给对面）。
+//
+// 这里只发 showCity 这一个字段（对方前端改开关时同样是增量 patch），
+// 避免用本地可能过期的昵称/年龄覆盖对方侧的其它资料。
+func (c *Client) PushShowCity(show bool) error {
+	conn := c.currentConn()
+	if conn == nil {
+		return errors.New("连接已断开")
+	}
+	if err := c.sendFrameOn(conn, c.proto().ActionUpdateProfile, map[string]any{"showCity": show}); err != nil {
+		return err
+	}
+	c.log.Info("已下发「位置公开」设置", "showCity", show)
+	return nil
 }
 
 func (c *Client) onUserInfo(data map[string]any) {
@@ -950,9 +987,19 @@ func (c *Client) onReceiveMessage(data map[string]any) {
 	}
 	c.mu.Unlock()
 
+	// 对方发来的消息（含图片/视频/语音）都要记下 tid，稍后回已读回执时带上，
+	// 对方界面才会精确变成「已读」（对方站点同样是带着 tids 发 read_messages 的）。
+	if !strings.EqualFold(PickString(data, "fromCid"), "self") {
+		if peer := firstNonEmpty(PickString(data, proto.FromUIDKeys...), ctx.PartnerUID); peer != "" {
+			c.rememberUnreadTid(peer, PickString(data, proto.MessageIDKeys...))
+		}
+	}
+
 	// 媒体消息（图片/视频/语音）需要先搬运到我方媒体服务器，前端才能渲染
 	if info, ok := proto.ParseReceiveMedia(data); ok {
 		c.handleReceiveMedia(info, ctx, data)
+		// 媒体同样要回已读，否则对方发的图一直显示未读
+		c.sendAutoRead(data, ctx)
 		return
 	}
 
@@ -982,17 +1029,53 @@ func (c *Client) sendAutoRead(data map[string]any, ctx DownstreamContext) {
 	if peer == "" || strings.EqualFold(peer, ctx.SelfUpstreamUID) {
 		return
 	}
+
 	proto := c.proto()
+	payload := map[string]any{"targetUid": peer}
+	if tids := c.takePendingReadTids(peer); len(tids) > 0 {
+		payload["tids"] = tids
+	}
 	// 非阻塞：队列满时丢弃（已读只是锦上添花，不能拖慢消息下发）
-	c.SendCommand(OutgoingCommand{
-		Action:  proto.ActionReadMessages,
-		Payload: map[string]any{"targetUid": peer},
-	})
+	c.SendCommand(OutgoingCommand{Action: proto.ActionReadMessages, Payload: payload})
 }
 
-// markPartnerRead 处理对方推来的已读回执（messages_read）。
-//
-// 前端目前没有已读 UI，这里只做日志与状态记录，方便后续接入而不必再改协议层。
+// rememberUnreadTid 记下对方发来、还没回执的消息 tid（上限 50，防止内存膨胀）。
+func (c *Client) rememberUnreadTid(peer, tid string) {
+	tid = strings.TrimSpace(tid)
+	if c == nil || peer == "" || tid == "" || strings.HasPrefix(tid, "local_") {
+		return
+	}
+	c.readMu.Lock()
+	defer c.readMu.Unlock()
+	if c.pendingRead == nil {
+		c.pendingRead = make(map[string][]string)
+	}
+	list := c.pendingRead[peer]
+	for _, existing := range list {
+		if existing == tid {
+			return
+		}
+	}
+	list = append(list, tid)
+	if len(list) > 50 {
+		list = list[len(list)-50:]
+	}
+	c.pendingRead[peer] = list
+}
+
+// takePendingReadTids 取出并清空该对端待回执的 tid 列表。
+func (c *Client) takePendingReadTids(peer string) []string {
+	c.readMu.Lock()
+	defer c.readMu.Unlock()
+	tids := c.pendingRead[peer]
+	if len(tids) == 0 {
+		return nil
+	}
+	delete(c.pendingRead, peer)
+	return tids
+}
+
+// markPartnerRead 处理对方推来的已读回执（messages_read），翻译成前端 code=31。
 func (c *Client) markPartnerRead(data map[string]any) {
 	proto := c.proto()
 	peer := PickString(data, proto.TargetUIDKeys...)
@@ -1001,6 +1084,10 @@ func (c *Client) markPartnerRead(data map[string]any) {
 	}
 	tids := PickStringSlice(data, "tids", "tidsRead", "readTids")
 	c.log.Debug("收到对方已读回执", "peer", peer, "count", len(tids))
+
+	if msg, ok := proto.ReadReceiptMessage(data); ok {
+		c.cfg.Emitter.Emit(c.cfg.IdentityID, msg)
+	}
 }
 
 // handleReceiveMedia 把对方媒体搬到 chat2019 媒体服务器，再下发 code=7（前端零改动）。

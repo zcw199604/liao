@@ -534,10 +534,37 @@ IDLE ── join_match ──► MATCHING ── match_result ──► IN_ROOM
 
 我方目前只是把前端 `warningreport` 动作直通成 `block_user`，没有实现"次日自动解除"的本地状态同步。如果要做得准确，需要在 relation 上记 `blockedAt`，跨过零点后自动清标记。
 
-### 5.5 已读回执（📖 代码）
+### 5.5 已读回执（📖 代码 + ✅ 我方已实现）
 
-- `read_messages {targetUid}` — 告诉服务端"我读了这个人的消息"
-- `messages_read` — 服务端推给**对方**，通知"他读完了"
+- `read_messages {targetUid, tids:[...]}` — 告诉服务端"我读了这些消息"（`tids` 是**对方发来、未读**的消息 tid）
+- `messages_read {tids:[...], readAt}` — 服务端推给**发起方**，把对应 tid 的消息标为已读
+
+对方的发送端实现（原样）：
+
+```js
+function Hn(M){   // M = 对方 uid
+  const re = n.value
+    .filter(j => j.fromCid !== "self" && j.fromUid === M && !j.recalled && j.readByRecipient !== !0)
+    .map(j => j.tid)
+    .filter(j => !j.startsWith("local_"));
+  re.length !== 0 && Te({ type: K.READ_MESSAGES, data: { targetUid: M, tids: re } })
+}
+function Wn(M){   // 收到 messages_read
+  const re = new Set(M.tids);
+  n.value = n.value.map(j => j.fromCid === "self" && re.has(j.tid) ? { ...j, readByRecipient: !0, readAt: M.readAt } : j)
+}
+```
+
+也就是说：**已读是按 tid 精确回执的**，不是"整段会话全部已读"。
+
+消息体里也有现成字段：自己发出的消息带 `readByRecipient`（对方读过后为 true），历史接口 `chat/messages` 的消息项同样带该字段 —— 所以刷新历史后已读状态不会丢。
+
+我方实现：
+
+- `client.go` 收到对端消息时把 `tid` 记进 `pendingRead`（按对端 uid 分组，上限 50 条），回 `read_messages` 时带上 `tids`（`takePendingReadTids`）；文本与图片/视频/语音一视同仁
+- `messages_read` 被翻译成 **`code=31 {tids, readAt, targetUid}`** 下发前端（`Protocol.ReadReceiptMessage`）
+- 前端 `useWebSocket` 收到 code=31 → `messageStore.markMessagesReadByPeer(ownerId, peerId, tids)`，按 tid 把 `isSelf` 消息的 `readByPeer` 置为 true，气泡下方显示「已读 / 未读」（仅晚风线路有该字段，chat2019 不显示）
+- 自己消息的 `readByRecipient` 会随 `code=7` / 历史接口透传，所以新消息一发出就显示「未读」，对方读过后变「已读」
 
 **发送时机有个细节**（📖 代码）：对方前端不是收到消息就发，而是 `markVisibleMessagesRead(targetUid)` —— 只标记**当前视口内可见**的消息。这意味着：
 
@@ -571,6 +598,46 @@ function r(a){
 对我方的启示：**我方的自动已读相当于强制"显示已读"，且无法被用户关闭**。如果用户从原站带过来"隐藏已读"的习惯，他会发现换到我方后已读藏不住了。要支持的话，需要在本地加一个开关，决定 `sendAutoRead` 是否跳过。
 
 对方前端在打开会话时会发 `read_messages`。我方是收到消息即回一条（前端没有已读 UI，但要让对方看到已读）。
+
+### 5.6.1 「城市：公开 / 不公开」= 资料字段 `showCity`（📖 代码，2026-11-07 抓包确认）
+
+对方站点设置页有一个「城市」开关，文案就是**公开 / 不公开**，字段名 `showCity`（布尔）。
+
+```js
+// 设置页（index-DEsjO4j9.js）：开关 + 文案
+e("span",{class:"f-label"},"城市",-1),
+g(r(l).user.showCity!==!1?"公开":"不公开"),          // 默认 !== false 即「公开」
+"onUpdate:modelValue": b => r(l).updateProfile({showCity:b})
+
+// 发送（index-DQS1rjxv.js）：走 WS 帧 update_profile，不是独立接口
+nt().send({type:K.UPDATE_PROFILE,data:y})   // y 可含 nickname/gender/age/city/showCity/pureMode/hideReadReceipts/tags/activationLevel/matchPreference
+```
+
+关键事实：
+
+- **`showCity` 只存在于用户资料里，`login` 帧没有该字段**（login 只带 `uid/nickname/gender/age/resetState/deviceId/fingerprint/hwfp/identityToken`）。
+  所以想改它，必须在登录后补一帧 `update_profile`；只改 login 载荷是无效的。
+- **默认公开**：前端判断是 `showCity !== false`，服务端不给该字段时按公开处理。
+- 这个城市不是用户填的，是对方按**访客 IP 归属地**给身份标的（我们 `generate` 身份时是空参数），
+  匹配成功时以 `match_result.partner.city` 转给对面 → 落到我们前端就是 `sel_userAddress`。
+- 对方渲染同伴城市时不看 `showCity`（`room.members[0].city` 有值就显示），
+  所以**限制一定在服务端**：`showCity:false` 时由服务端不下发/清空 `city`。这一点我方尚未实测确认（见"仍未验证"）。
+- 同一族还有其他资料开关：`hideReadReceipts`（隐藏已读，见 5.6）、`pureMode`（清流模式）、`tags`。
+
+我方实现（2026-11-07 接入）：
+
+- **默认不公开**（`app.DefaultShowCity=false`），按身份存在表 `identity_location_setting`（`identity_id` + `show_city`），
+  用户在前端「身份信息」面板里改：接口 `/api/getLocationSetting`、`/api/updateLocationSetting`
+- `wanfeng.Profile.ShowCity *bool`；`WanfengManager.withShowCity()` 用 `LocationSettingProvider` 读库后盖上
+  （provider 未注入或读库失败时**偏向不公开**，位置属于隐私，失败要往保护方向倒）
+- `client.PushShowCity(show)` 发**增量 patch `{showCity: <bool>}`**（和对方前端改开关时一致），不带昵称/年龄，
+  避免用本地可能过期的资料覆盖对方侧字段；`onConnected` 成功后自动下发一次，用户在设置里改时若已连接则立即再下发
+- 登录成功日志里会打印对方给我们的 `city` 与 `showCity`，便于验证（排查「对方能不能看到我在哪」时先看这条）
+- chat2019 线路不在我方控制范围（前端登录帧写死 `address_show:"false"`，等同固定不公开），
+  所以 `/api/getLocationSetting` 对非晚风身份返回 `supported=false`，前端据此提示「当前线路固定不公开」
+
+⚠️ 注意：城市是匹配偏好「同省匹配」的基础（`preferSameProvince` 按 `user.city.slice(0,2)` 比较）。
+不公开只影响**展示**，不改变服务端持有的城市值，因此不应影响同省匹配；但这点同样未实测。
 
 ### 5.7 语音录制细节（📖 代码）
 
@@ -622,6 +689,42 @@ getUserMedia({ audio: { echoCancellation: true, /* noiseSuppression 等 */ } })
 ⚠️ **注意编解码格式跨端兼容性**：Chrome/Android 大概率选中 `audio/webm;codecs=opus`，Safari/iOS 会选中 `audio/mp4` → `.m4a`。所以**同一条语音在不同端上传的文件扩展名不同**。我方转存时必须按 blob 的真实 type 决定扩展名，不能硬编码 `.webm`，否则 iOS 用户录的语音在 Android 上播不出来。
 
 ---
+
+### 5.8 输入栏的三个小功能：表情 / 掷骰子 / 话题（📖 代码；表情与骰子 ✅ 我方已实现）
+
+对方聊天页输入栏从左到右是：＋（图片） / 表情 / 掷骰子 / 话题 / 发送。
+
+**① 表情（`EmojiSheet`）** —— 不是"表情包/贴纸"，是**硬编码在 bundle 里的一组 Unicode 表情（120 个）**：
+
+```js
+const y=["😀","😁","😂","🤣", ... ,"🎉","🔥","⭐"];
+// 点击 → emit("pick", emoji) → 直接拼到输入框文本
+```
+
+同一个面板还有第二个 tab「特效」（`type:"effect"` 全屏动画，清单来自 `GET /api/nimingChat/config/chat-effects`，按 `minLevel` 分 VIP/SVIP 档），**我方未接入**（纯装饰）。
+
+我方实现：`frontend/src/constants/emoji.ts` 的 `wanfengEmojiList`（照抄对方那 120 个，顺序一致），
+`EmojiPanel.vue` 按线路二选一 —— 晚风渲染 Unicode 表情格，chat2019 保持原有图片表情 `emojiMap`（两套完全分开）。
+
+**② 掷骰子** —— 没有独立消息类型，**就是发一条普通文本**：
+
+```js
+const zt = 5e3;                              // 冷却 5 秒
+function T(){
+  if (L.value > 0) return;                   // 冷却中
+  const _ = Math.floor(Math.random() * 100) + 1;
+  U.sendMessage(`🎲 掷出了 ${_}`),            // 普通 send_message（type=text）
+  Y(),  /* 开始 5 秒倒计时，按钮上显示剩余秒数 */
+  d.value=!1, g.value=!1, m.value=!1, k.value=!1
+}
+```
+
+所以后端零改动：点数 1~100 随机、冷却 5 秒，全是客户端行为。
+我方实现：`ChatInput.vue` 的 `rollDice()`（5 秒倒计时，冷却时按钮显示剩余秒数）+ `ChatRoomView.vue` 的 `handleDice()` 发 `🎲 掷出了 N`；
+按钮**只在晚风线路显示**（chat2019 没有这个功能，且对方站点也认这条文本）。
+
+**③ 话题**：按钮弹出一个话题列表（`GET /api/tools/public/topics/active` → `{topics:[{text,...}]}`，本地缓存 7 天），
+点一条就发 `【话题文案】` 文本消息，同样 5 秒冷却；长按话题按钮是"随机来一条"。对方还有一堆 `tools/public/*` 接口（见 6.x），我方未接入。
 
 ## 六、HTTP API 全集（47 个路径，📖 代码）
 
@@ -944,6 +1047,9 @@ GET /api/tools/niming-file/view/<24位hex>?thumb=1  → 200 image/png   ✅
 | 历史列表 | `internal/app/wanfeng_history.go` | `HomeDataPath`, `RelationsPath`, `FavoritesPath`, `ChatMessagesPath` |
 | 媒体搬运 | `internal/app/wanfeng_media.go` | `UploadPath`, `UploadFileField`, `BucketImage`, `BucketAudio` |
 | 匹配偏好 | `internal/app/match_preference.go` | `ActionUpdateProfile` + `UpdateProfilePayload()` |
+| 位置公开/不公开（`showCity`） | `wanfeng.Profile.ShowCity` + `client.PushShowCity()` + 表 `identity_location_setting`（默认不公开） | `ActionUpdateProfile` |
+| 已读回执 | `client.go`（`rememberUnreadTid` / `takePendingReadTids` / `markPartnerRead`）+ `Protocol.ReadReceiptMessage`（`code=31`）+ 前端 `markMessagesReadByPeer` | `ActionReadMessages`, `EventMessagesRead` |
+| 表情 / 掷骰子 | `frontend/src/constants/emoji.ts`（`wanfengEmojiList`）+ `EmojiPanel.vue` + `ChatInput.vue`（骰子，纯文本） | — |
 
 对方改版时的定位流程：
 
@@ -966,7 +1072,8 @@ WANFENG_PROTOCOL_OVERRIDES='{"actionJoinMatch":"joinMatch2"}' go run ./cmd/liao
 | 语音消息 | 完整（`MediaRecorder` + `type:audio` + `duration`） | 半支持（能收能转存，前端无音频类型所以按文件渲染） | 对方录制细节已逆向完（见 5.7），我方缺 `MediaRecorder` UI + 音频气泡组件 |
 | 闪图 | 完整 | 未接入 | 需"点开即焚"组件 |
 | 故事卡片 | 完整（`type:story`） | 未接入 | payload 是 JSON 字符串，需卡片渲染 |
-| 聊天特效 | 完整（`type:effect` + `chat-effects` 清单） | 未接入 | 纯装饰，优先级低 |
+| 聊天特效 | 完整（`type:effect` + `chat-effects` 清单，18 个特效，按 `minLevel` 分 VIP/SVIP） | 未接入 | 纯装饰，优先级低 |
+| 话题 | 完整（`tools/public/topics/active` + 发 `【文案】` 文本） | 未接入 | 只是一条文本消息，加个按钮即可 |
 | 漂流瓶 | 完整独立功能线 | 未接入 | 是一整套新 UI，不是聊天机制 |
 | 分享名片 | 完整 | 未接入 | 有 `?share=` 深链机制 |
 | 激活码体系 | 完整 | 未接入 | 涉及付费等级、特权 |
@@ -1047,3 +1154,7 @@ grep -c 'typing' *.js     # 期望 0
 5. `risk` 前缀下的具体路径（代码里是动态拼接，静态分析拿不到全集）
 6. `wf_mark` 的具体用途（推断是渠道标记，无证据其影响风控）
 7. 拉黑"零点自动解除"用的是哪个时区（推测服务端时区，未验证）
+8. `showCity:false` 时服务端是否真的把 `city` 从 `match_result.partner` / `user_info` 里去掉（我方已按此实现，逻辑推断，未实测；验证方式：设置后开一帧 match_result 看对端 partner 里有无 city）
+9. 身份创建时的 `city` 是否会在每次连接按出口 IP 重算（若重算，则"不公开"是唯一稳定手段；用同一身份换出口 IP 重连对比 `connected.city` 即可判定）
+10. `messages_read` 的 `readAt` 字段类型（我方按字符串透传；对方前端只拿它做展示，不参与逻辑）
+11. 回 `read_messages` 时带 `tids` 是否被服务端严格校验（我方按对方前端的形状发，超时/失败只影响对方侧的已读显示）
