@@ -467,6 +467,27 @@ IDLE ── join_match ──► MATCHING ── match_result ──► IN_ROOM
 - `exit_chat {}` — 主动退出
 - `partner_left` — 对方退出（我方映射成 `code 16` 给前端）
 
+### 5.2.1 状态机在服务端：房间没退就发 join_match 会被拒 ⚠️（✅ 实测）
+
+状态不由客户端说了算，服务端按连接（uid）维护。实测（容器内直连 WS）：
+
+| 场景 | 我方发送 | 服务端反应 |
+|---|---|---|
+| 登录后直接匹配 | `join_match {}` | 正常，推 `match_result` → IN_ROOM |
+| IN_ROOM 时匹配 | `join_match {}` | `error {code:0, message:"当前状态不允许匹配"}`，房间不受影响 |
+| IN_ROOM 时取消 | `cancel_match {}` | 无效果（它只作用于 MATCHING 队列，不离开房间） |
+| IN_ROOM 时退出再匹配 | `exit_chat {}` → `join_match {}` | 正常退出并重新匹配成功 |
+
+结论（这也是一类很隐蔽的线上故障）：
+
+- **`cancel_match` 只取消「排队中」，`exit_chat` 才是「离开房间」**；两者不能混用。
+- 前端「返回/退出聊天」如果只是清本地界面、不通知服务端，服务端仍认为这条连接在房间里——
+  之后再点「匹配」就会一直回「当前状态不允许匹配」，直到连接断开。
+- 我方处理：`client.go` 的 `deliver()` 在房间内重新匹配前先补发 `exit_chat`；房间内的
+  `cancel_match`（前端 `act=randomOut`）改发 `exit_chat`；另外收到「不允许匹配」且确实刚发过
+  `join_match` 时，自愈一次（`exit_chat` → 300ms → 重发 `join_match`，10 秒冷却），不把这个内部
+  错误透给用户。
+
 ### 5.3 匹配偏好字段（📖 代码）
 
 **真正生效的字段名**（这是本节最有价值的一条）：

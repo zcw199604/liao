@@ -29,6 +29,10 @@ const (
 	clientReconnectMax = 5
 	// 连续解密失败多少次后重建握手
 	clientMaxDecryptFailures = 5
+	// 「当前状态不允许匹配」自愈的最小间隔（避免与对方来回打转）
+	clientStateHealCooldown = 10 * time.Second
+	// 退出房间后等待多久再重发 join_match
+	clientExitJoinDelay = 300 * time.Millisecond
 )
 
 var clientReconnectDelays = []time.Duration{
@@ -77,6 +81,10 @@ type Client struct {
 	partnerUID      string
 	partnerNickname string
 	state           string
+	// joinPending 表示「刚到对方那里要过匹配结果」，用于识别状态机不同步的报错。
+	joinPending bool
+	// lastStateHeal 是上一次状态自愈的时间（冷却用）。
+	lastStateHeal   time.Time
 	decryptFailures int
 	egressID        string
 
@@ -283,7 +291,59 @@ func (c *Client) deliver(ctx context.Context, cmd OutgoingCommand) error {
 	if conn == nil {
 		return errors.New("连接已断开")
 	}
+
+	// 对方的状态机（IDLE/MATCHING/IN_ROOM）由服务端持有，而 cancel_match 只作用于匹配队列。
+	// 房间还在时 join_match 会被拒绝（error「当前状态不允许匹配」），所以重新匹配前必须先 exit_chat。
+	proto := c.proto()
+	switch cmd.Action {
+	case proto.ActionJoinMatch:
+		c.exitRoomBeforeMatch(conn)
+		c.setJoinPending(true)
+	case proto.ActionCancelMatch:
+		// 房间里前端发的「取消/退出」实际是离开聊天，映射成 exit_chat。
+		if c.inRoom() {
+			c.markLeftRoom()
+			return c.sendFrameOn(conn, proto.ActionExitChat, map[string]any{})
+		}
+	}
 	return c.sendFrameOn(conn, cmd.Action, payload)
+}
+
+// inRoom 判断本地视角是否还在房间里。
+func (c *Client) inRoom() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.state == c.proto().StateInRoom || strings.TrimSpace(c.partnerUID) != ""
+}
+
+// markLeftRoom 清空本地房间状态（对方侧由 exit_chat 负责）。
+func (c *Client) markLeftRoom() {
+	c.mu.Lock()
+	c.partnerUID = ""
+	c.partnerNickname = ""
+	c.state = c.proto().StateIdle
+	c.joinPending = false
+	c.mu.Unlock()
+}
+
+// setJoinPending 记录「刚发过 join_match」。
+func (c *Client) setJoinPending(pending bool) {
+	c.mu.Lock()
+	c.joinPending = pending
+	c.mu.Unlock()
+}
+
+// exitRoomBeforeMatch 在房间内先通知对方离开，再让调用方发 join_match。
+func (c *Client) exitRoomBeforeMatch(conn *websocket.Conn) {
+	if !c.inRoom() {
+		return
+	}
+	proto := c.proto()
+	c.log.Info("重新匹配前先退出当前会话", "action", proto.ActionExitChat)
+	c.markLeftRoom()
+	if err := c.sendFrameOn(conn, proto.ActionExitChat, map[string]any{}); err != nil {
+		c.log.Warn("退出会话失败", "error", err)
+	}
 }
 
 // resolvePayload 计算真正要发送的载荷：媒体消息会先把内容搬运到对方站点。
@@ -553,6 +613,55 @@ func (c *Client) serveOnce(ctx context.Context) (bool, error) {
 	}
 }
 
+// healStateMismatch 处理对方的「当前状态不允许匹配」错误。
+//
+// 典型场景：用户在房间里点了「返回」，前端只清了本地界面（不发任何帧），
+// 对方仍认为这条连接在房间里；之后点「匹配」就会一直被拒。
+// 这里在确实刚发过 join_match 时自愈一次：exit_chat → 稍等 → 重新 join_match。
+// 冷却期内不再重试，避免与对方来回打转。
+func (c *Client) healStateMismatch(data map[string]any) bool {
+	message := PickString(data, "message", "clientMsg", "msg", "content")
+	if !isStateNotAllowed(message) {
+		return false
+	}
+
+	c.mu.Lock()
+	pending := c.joinPending
+	cooling := !c.lastStateHeal.IsZero() && time.Since(c.lastStateHeal) < clientStateHealCooldown
+	if pending && !cooling {
+		c.joinPending = false
+		c.lastStateHeal = time.Now()
+	}
+	c.mu.Unlock()
+	if !pending || cooling {
+		return false
+	}
+
+	conn := c.currentConn()
+	if conn == nil {
+		return false
+	}
+	proto := c.proto()
+	c.log.Warn("晚风状态机不同步（当前状态不允许匹配），退出房间后重试", "message", message)
+	c.markLeftRoom()
+	if err := c.sendFrameOn(conn, proto.ActionExitChat, map[string]any{}); err != nil {
+		c.log.Warn("状态自愈：退出房间失败", "error", err)
+		return false
+	}
+	go func() {
+		time.Sleep(clientExitJoinDelay)
+		next := c.currentConn()
+		if next == nil {
+			return
+		}
+		c.setJoinPending(true)
+		if err := c.sendFrameOn(next, proto.ActionJoinMatch, map[string]any{}); err != nil {
+			c.log.Warn("状态自愈：重发匹配失败", "error", err)
+		}
+	}()
+	return true
+}
+
 // ensureBinding 获取（或申请）对方身份绑定。
 func (c *Client) ensureBinding(ctx context.Context) (*Binding, error) {
 	existing, err := c.cfg.Bindings.Get(ctx, c.cfg.IdentityID)
@@ -642,6 +751,7 @@ func (c *Client) handleFrame(payload []byte) bool {
 		c.partnerUID = ""
 		c.partnerNickname = ""
 		c.state = proto.StateIdle
+		c.joinPending = false
 		c.mu.Unlock()
 		c.cfg.Emitter.Emit(c.cfg.IdentityID, proto.PartnerLeftMessage())
 	case proto.EventError:
@@ -684,6 +794,11 @@ func (c *Client) handleFrame(payload []byte) bool {
 			if conn := c.currentConn(); conn != nil {
 				_ = conn.Close()
 			}
+			return false
+		}
+
+		// 状态机不同步（典型：我方以为空闲、对方仍认为在房间里）→ 先退出房间再重试一次匹配。
+		if c.healStateMismatch(data) {
 			return false
 		}
 
@@ -816,6 +931,7 @@ func (c *Client) onMatchResult(data map[string]any) {
 	c.partnerUID = result.TargetUID
 	c.partnerNickname = result.Nickname
 	c.state = proto.StateInRoom
+	c.joinPending = false
 	c.mu.Unlock()
 
 	c.cfg.Emitter.Emit(c.cfg.IdentityID, proto.MatchedMessage(result))

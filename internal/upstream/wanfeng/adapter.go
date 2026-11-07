@@ -121,6 +121,18 @@ func (p Protocol) UpdateProfilePayload(profile Profile) map[string]any {
 	return payload
 }
 
+// isStateNotAllowed 判断对方是否在说「当前状态不允许匹配」。
+//
+// 对方状态机在服务端：房间/队列还在时 join_match 会被拒绝，需要先 exit_chat（离开房间）
+// 或 cancel_match（退出队列）才能重新匹配。
+func isStateNotAllowed(message string) bool {
+	compact := strings.Join(strings.Fields(message), "")
+	if compact == "" {
+		return false
+	}
+	return strings.Contains(compact, "不允许匹配") || strings.Contains(compact, "状态不允许")
+}
+
 // TargetFromAct 从 "touser_<uid>_<nickname>" 中解析目标用户 id。
 func TargetFromAct(act string) string {
 	act = strings.TrimSpace(act)
