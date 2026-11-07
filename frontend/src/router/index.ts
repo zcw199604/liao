@@ -20,6 +20,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/worker-preview',
+    name: 'WorkerPreview',
+    component: () => import('@/views/WorkerPreviewView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/list',
     name: 'ChatList',
     component: () => import('@/views/ChatListView.vue'),

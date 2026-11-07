@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as authApi from '@/api/auth'
+import { clearWorkerPreviewSession } from '@/api/workerPreview'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('authToken') || '')
@@ -47,6 +48,11 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const logout = () => {
+    if (token.value) {
+      void clearWorkerPreviewSession(token.value).catch(() => {
+        // 断网等清理失败不阻塞退出，会话最迟随原登录 Token 到期。
+      })
+    }
     token.value = ''
     localStorage.removeItem('authToken')
     isAuthenticated.value = false

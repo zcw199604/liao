@@ -214,6 +214,23 @@
                 <i class="fas fa-cloud-download-alt absolute -bottom-4 -right-2 text-6xl text-white/5 group-hover:text-white/10 transition-colors rotate-12"></i>
              </div>
 
+             <button
+               type="button"
+               @click="openWorkerPreview"
+               class="group relative mt-4 w-full overflow-hidden rounded-xl border border-white/5 bg-slate-900 bg-gradient-to-br from-sky-900/40 to-blue-900/40 text-left transition-all hover:border-sky-500/50"
+             >
+                <div class="relative z-10 flex items-center justify-between p-4">
+                   <div>
+                      <div class="mb-1 text-base font-bold text-white">X 媒体预览</div>
+                      <div class="text-xs text-white/70 transition-colors group-hover:text-sky-200">浏览时间线、搜索与下载媒体</div>
+                   </div>
+                   <div class="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 transition-all group-hover:bg-sky-500 group-hover:text-white">
+                      <i class="fas fa-chevron-right"></i>
+                   </div>
+                </div>
+                <i class="fas fa-globe absolute -bottom-4 -right-2 rotate-12 text-6xl text-white/5 transition-colors group-hover:text-white/10"></i>
+             </button>
+
              <div
                @click="openDuplicateCheck"
                class="group relative overflow-hidden rounded-xl bg-slate-900 bg-gradient-to-br from-blue-900/40 to-cyan-900/40 border border-white/5 cursor-pointer hover:border-blue-500/50 transition-all mt-4"
@@ -276,6 +293,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
 import { useMessageStore } from '@/stores/message'
@@ -314,6 +332,7 @@ const mtPhotoStore = useMtPhotoStore()
 const douyinStore = useDouyinStore()
 const videoExtractStore = useVideoExtractStore()
 const providerStore = useProviderStore()
+const router = useRouter()
 const switchingProvider = ref(false)
 const { disconnect, connect, send } = useWebSocket()
 const { show } = useToast()
@@ -511,6 +530,11 @@ const openDouyinDownloader = () => {
 
 const openDuplicateCheck = () => {
   showDuplicateCheck.value = true
+}
+
+const openWorkerPreview = () => {
+  close()
+  void router.push('/worker-preview')
 }
 
 const openVideoExtractTasks = async () => {

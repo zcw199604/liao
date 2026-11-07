@@ -12,6 +12,7 @@
 - HTTP 请求通过 `Authorization: Bearer <token>` 鉴权。
 - `/ws` 握手通过 query 参数 `token` 校验。
 - 当前中间件放行：`/api/auth/login`、`/api/auth/verify`、`/api/getMtPhotoThumb`、`/api/douyin/download`、`/api/douyin/cover`。
+- `/worker-preview/*` 使用独立签名的 HttpOnly Cookie，仅允许访问 Worker 预览页面、只读查询和媒体代理；不能用该 Cookie 访问普通 `/api`。Cookie 到期时间不晚于建立预览会话时的 liao JWT。
 
 ---
 
@@ -22,6 +23,19 @@
 |------|------|------|
 | POST | `/api/auth/login` | 访问码登录，签发 JWT |
 | GET | `/api/auth/verify` | 校验 Bearer Token 是否有效 |
+
+### Worker 媒体预览与前端版本
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/workerPreview/session` | Bearer 鉴权后由服务端自动登录 Worker，设置专用预览 Cookie，返回 `data.url=/worker-preview/preview` |
+| DELETE | `/api/workerPreview/session` | Bearer 鉴权后清除浏览器预览 Cookie，退出 liao 时调用 |
+| GET | `/worker-preview/preview` | Cookie 鉴权后代理 Worker 页面，将页面 API 指向同源代理 |
+| GET | `/worker-preview/api/auth/session` | 查询 Worker 会话，凭据由服务端提供 |
+| GET | `/worker-preview/api/preview/{twitter_is_download,twitter_link_media,twitter_following,tg_message}` | 代理只读查询，媒体 URL 改写到同源代理 |
+| GET / HEAD | `/worker-preview/api/media` | 代理媒体播放与下载，支持 Range，不向浏览器下发 Worker Token |
+| GET / HEAD | `/version.json` | 无需登录，返回当前 `index.html` 的内容 hash 与入口脚本 URL，禁止缓存 |
+
+Worker 配置：`WORKER_PREVIEW_URL`（HTTPS 根地址，本机调试允许 HTTP）、`WORKER_PREVIEW_USERNAME`（默认 admin）、`WORKER_PREVIEW_PASSWORD`（仅服务端）。未配置返回 503，登录/网络故障返回 502，预览 Cookie 失效返回 401。
 
 ### Identity
 | 方法 | 路径 | 说明 |

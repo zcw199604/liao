@@ -17,6 +17,8 @@ vi.mock('@/components/media/MtPhotoAlbumModal.vue', () => makeModalMock('mtPhoto
 vi.mock('@/components/media/DouyinDownloadModal.vue', () => makeModalMock('douyin'))
 vi.mock('@/components/media/VideoExtractCreateModal.vue', () => makeModalMock('videoExtractCreate'))
 vi.mock('@/components/media/VideoExtractTaskModal.vue', () => makeModalMock('videoExtractTask'))
+// 本组仅验证弹窗预取计时，版本检测轮询由 app-update 测试独立覆盖。
+vi.mock('@/components/common/AppUpdateNotice.vue', () => ({ default: defineComponent({ render: () => null }) }))
 
 import App from '@/App.vue'
 import { useMediaStore } from '@/stores/media'

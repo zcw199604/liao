@@ -1,4 +1,5 @@
 <template>
+  <AppUpdateNotice />
   <router-view v-slot="{ Component }">
     <Transition name="fade" mode="out-in">
       <component :is="Component" />
@@ -32,6 +33,7 @@ import { useDouyinStore } from '@/stores/douyin'
 import { useVideoExtractStore } from '@/stores/videoExtract'
 import { useProviderStore } from '@/stores/provider'
 import { useToast } from '@/composables/useToast'
+import AppUpdateNotice from '@/components/common/AppUpdateNotice.vue'
 
 const mediaStore = useMediaStore()
 const mtPhotoStore = useMtPhotoStore()

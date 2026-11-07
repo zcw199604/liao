@@ -1,16 +1,25 @@
 package app
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"time"
 )
 
 var filepathRelFn = filepath.Rel
+
+var hashedAssetName = regexp.MustCompile(`-[A-Za-z0-9_-]{8,}\.[^.]+$`)
+var moduleEntry = regexp.MustCompile(`<script\b[^>]*\btype=["']module["'][^>]*\bsrc=["']([^"']+)["']`)
 
 func (a *App) spaHandler() http.Handler {
 	indexPath := filepath.Join(a.staticDir, "index.html")
@@ -21,12 +30,64 @@ func (a *App) spaHandler() http.Handler {
 			http.NotFound(w, r)
 			return
 		}
+		w.Header().Set("Cache-Control", "no-store")
+		if r.URL.Path == "/version.json" {
+			content, err := os.ReadFile(indexPath)
+			if err != nil {
+				http.Error(w, "前端构建尚未就绪", http.StatusServiceUnavailable)
+				return
+			}
+			sum := sha256.Sum256(content)
+			entry := ""
+			if match := moduleEntry.FindSubmatch(content); len(match) > 1 {
+				entry = string(match[1])
+			}
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			if r.Method != http.MethodHead {
+				_ = json.NewEncoder(w).Encode(map[string]string{"version": hex.EncodeToString(sum[:]), "entry": entry})
+			}
+			return
+		}
+
+		serveHTML := func(filePath string) {
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				if os.IsNotExist(err) {
+					http.NotFound(w, r)
+				} else {
+					http.Error(w, "前端页面读取失败", http.StatusInternalServerError)
+				}
+				return
+			}
+			// 浏览器可保存 HTML，但使用前须校验内容版本。忽略文件时间，
+			// 避免同秒部署、保留时间戳或客户端时钟偏差造成错误的 304。
+			sum := sha256.Sum256(content)
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("ETag", `"`+hex.EncodeToString(sum[:])+`"`)
+			http.ServeContent(w, r, filepath.Base(filePath), time.Time{}, bytes.NewReader(content))
+		}
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			serveHTML(indexPath)
+			return
+		}
 
 		// 尝试按静态文件返回（若不存在则交给 SPA 回退判定）
-		clean := filepath.Clean(strings.TrimPrefix(r.URL.Path, "/"))
+		clean := filepath.FromSlash(strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/"))
 		fullPath := filepath.Join(a.staticDir, clean)
 		if fi, err := os.Stat(fullPath); err == nil && !fi.IsDir() {
+			if filepath.Ext(fullPath) == ".html" {
+				serveHTML(fullPath)
+				return
+			}
+			w.Header().Set("Cache-Control", "no-cache")
+			if strings.HasPrefix(r.URL.Path, "/assets/") && hashedAssetName.MatchString(filepath.Base(fullPath)) {
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			}
 			fileServer.ServeHTTP(w, r)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/assets/") {
+			http.NotFound(w, r)
 			return
 		}
 
@@ -35,7 +96,7 @@ func (a *App) spaHandler() http.Handler {
 		// - 无扩展名路径也视为前端路由（避免尾随 / 或新增路由漏配导致 404）
 		accept := r.Header.Get("Accept")
 		if strings.Contains(accept, "text/html") || filepath.Ext(r.URL.Path) == "" {
-			http.ServeFile(w, r, indexPath)
+			serveHTML(indexPath)
 			return
 		}
 

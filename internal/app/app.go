@@ -84,8 +84,9 @@ type App struct {
 	cfg config.Config
 	db  *database.DB
 
-	httpClient *http.Client
-	jwt        *JWTService
+	httpClient    *http.Client
+	jwt           *JWTService
+	workerPreview *workerPreviewService
 
 	systemConfig      *SystemConfigService
 	imagePortResolver *ImagePortResolver
@@ -248,6 +249,7 @@ func New(cfg config.Config) (*App, error) {
 		application.douyinDownloader.SetCookieProvider(provider)
 	}
 	application.mtPhoto = NewMtPhotoService(cfg.MtPhotoBaseURL, cfg.MtPhotoAPIKey, cfg.LspRoot, application.httpClient)
+	application.workerPreview = newWorkerPreviewService(cfg, application.httpClient)
 	application.mtPhotoFolderFavorite = NewMtPhotoFolderFavoriteService(db)
 	application.videoExtract = NewVideoExtractService(db, cfg, application.fileStorage, application.mtPhoto)
 

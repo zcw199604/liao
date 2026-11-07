@@ -20,6 +20,9 @@ func (a *App) buildRouter() http.Handler {
 	r.Handle("/upload/*", a.uploadFileServer())
 	r.Handle("/lsp/*", a.lspFileServer())
 
+	// iframe / 媒体标签通过专用 HttpOnly Cookie 鉴权，不放行到普通 API。
+	r.HandleFunc("/worker-preview/*", a.handleWorkerPreviewProxy)
+
 	// API
 	r.Route("/api", func(api chi.Router) {
 		api.Use(a.jwtMiddleware)
@@ -31,6 +34,8 @@ func (a *App) buildRouter() http.Handler {
 
 		// Runtime public config（登录后客户端运行时读取，支持 Docker -e 注入）
 		api.Get("/runtimeConfig", a.handleRuntimeConfig)
+		api.Post("/workerPreview/session", a.handleWorkerPreviewSession)
+		api.Delete("/workerPreview/session", a.handleWorkerPreviewSession)
 
 		// 上游线路列表（前端线路选择用）
 		api.Get("/provider/list", a.handleProviderList)

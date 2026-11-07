@@ -111,6 +111,12 @@ mtphoto:
   # 子目录数超过该阈值时，进入目录后延迟加载时间线预览（点击按钮后再加载）
   timeline-defer-subfolder-threshold: ${MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD:10}
 
+# CF Worker 媒体预览（可选；Go 实际读取环境变量，此处仅作名称/默认值对照）
+worker-preview:
+  url: ${WORKER_PREVIEW_URL:}
+  username: ${WORKER_PREVIEW_USERNAME:admin}
+  password: ${WORKER_PREVIEW_PASSWORD:}
+
 # 晚风线路（可选；与现有 chat2019 线路并列，前端可在设置中选择）
 wanfeng:
   # 是否启用该线路；默认关闭，避免误连第三方站点

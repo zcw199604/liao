@@ -44,6 +44,11 @@ type Config struct {
 	TokenExpireHours  int
 	WebSocketFallback string
 
+	// WorkerPreview* 用于服务端登录 CF Worker 媒体预览，凭据不下发浏览器。
+	WorkerPreviewURL      string
+	WorkerPreviewUsername string
+	WorkerPreviewPassword string
+
 	CacheType                   string
 	CacheRedisKeyPrefix         string
 	CacheRedisLastMessagePrefix string
@@ -143,6 +148,10 @@ func Load() (Config, error) {
 		JWTSecret:        getEnv("JWT_SECRET", "your-jwt-secret-key-at-least-256-bits-long-please-change-this-to-random-string"),
 		TokenExpireHours: getEnvInt("TOKEN_EXPIRE_HOURS", 24),
 
+		WorkerPreviewURL:      strings.TrimSpace(getEnv("WORKER_PREVIEW_URL", "")),
+		WorkerPreviewUsername: strings.TrimSpace(getEnv("WORKER_PREVIEW_USERNAME", "admin")),
+		WorkerPreviewPassword: getEnv("WORKER_PREVIEW_PASSWORD", ""),
+
 		WebSocketFallback: getEnv("WEBSOCKET_UPSTREAM_URL", "ws://localhost:9999"),
 
 		CacheType:                   getEnv("CACHE_TYPE", "memory"),
@@ -209,6 +218,17 @@ func Load() (Config, error) {
 
 	if cfg.TokenExpireHours <= 0 {
 		return Config{}, fmt.Errorf("TOKEN_EXPIRE_HOURS 非法: %d", cfg.TokenExpireHours)
+	}
+
+	if cfg.WorkerPreviewURL != "" {
+		u, err := url.Parse(cfg.WorkerPreviewURL)
+		if err != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+			return Config{}, fmt.Errorf("WORKER_PREVIEW_URL 需为 Worker 根地址（不含账号、路径、查询参数）")
+		}
+		localHTTP := u.Scheme == "http" && (u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1" || u.Hostname() == "::1")
+		if u.Scheme != "https" && !localHTTP {
+			return Config{}, fmt.Errorf("WORKER_PREVIEW_URL 需使用 HTTPS（本机调试可用 HTTP）")
+		}
 	}
 
 	switch cfg.CacheType {

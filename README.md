@@ -77,11 +77,30 @@ export JWT_SECRET="your-jwt-secret-at-least-256-bits-long-please-change-this-to-
 export WEBSOCKET_UPSTREAM_URL="ws://localhost:9999"
 ```
 
+可选：接入 Selenium_Crawler 的 CF Worker 媒体预览，在 **图片管理 → X 媒体预览** 中打开：
+
+```bash
+export WORKER_PREVIEW_URL="https://your-worker.example.com"
+export WORKER_PREVIEW_USERNAME="admin"
+# WORKER_PREVIEW_PASSWORD 通过部署平台的 Secret 或本地环境变量注入，勿提交到仓库。
+```
+
+`WORKER_PREVIEW_URL` 填 Worker 根地址，不带 `/preview`。配置密码后，liao 后端自动登录并代理页面、查询与媒体下载；账号密码和 Worker Token 不下发浏览器，不要求两个服务使用同一主域。未配置时其他功能照常使用。当前对接 Worker 自有账号密码登录；若另外启用了 Cloudflare Access，还需单独处理 Access 认证。
+
+预览 Cookie 仅可访问 `/worker-preview/`，不能用于普通 liao API，且有效期不超过当前 liao 登录。Worker 页面及其加载的脚本与 liao 共享浏览器源，只应接入自己信任的 Worker。媒体经过 liao 服务转发，视频流量也会经过 liao 部署节点。
+
 4. **安装前端依赖**
 ```bash
 cd frontend
 npm install
 ```
+
+### 页面更新与手机缓存
+
+- HTML 使用内容 hash 作为 ETag，允许浏览器缓存，但每次打开或刷新时校验版本：未变化返回 304，不重复传输 HTML；有变化返回新版内容。`/version.json` 不缓存；带内容 hash 的 JS/CSS 可长期缓存，重新构建后使用新的资源地址。
+- 已打开的页面会在回到前台及每分钟检测更新，发现新版本后显示“刷新”按钮；不会自动打断聊天，也不会清除登录、收藏等本地数据。旧的懒加载资源失效时也会提示刷新。
+- **仅替换 Go 二进制不会更新 Vue 页面。** 前端有改动时，需要执行 `cd frontend && npm run build`，并部署生成的静态资源；重建 Docker 镜像会自动包含前端构建。
+- 反向代理或 CDN 不应强制缓存 HTML、`/version.json` 和 `/worker-preview/*`。历史边缘缓存若已存在，需在部署时清除对应 HTML 缓存；新策略生效后，手机正常刷新即可，无需清理浏览器数据。
 
 ### 运行项目
 

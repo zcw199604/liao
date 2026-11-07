@@ -2,8 +2,32 @@ package config
 
 import (
 	"net/url"
+	"strings"
 	"testing"
 )
+
+func TestWorkerPreviewEnvironmentConfiguration(t *testing.T) {
+	t.Setenv("WORKER_PREVIEW_URL", "https://preview.example.com/")
+	t.Setenv("WORKER_PREVIEW_USERNAME", "preview-user")
+	t.Setenv("WORKER_PREVIEW_PASSWORD", "preview-password")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WorkerPreviewURL != "https://preview.example.com/" || cfg.WorkerPreviewUsername != "preview-user" || cfg.WorkerPreviewPassword != "preview-password" {
+		t.Fatal("worker preview environment configuration not loaded")
+	}
+	for _, invalid := range []string{"http://public.example.com", "https://preview.example.com/preview", "https://user:secret@preview.example.com", "https://preview.example.com?token=secret", "://invalid"} {
+		t.Setenv("WORKER_PREVIEW_URL", invalid)
+		_, err := Load()
+		if err == nil || !strings.Contains(err.Error(), "WORKER_PREVIEW_URL") {
+			t.Errorf("invalid url not rejected: %q", invalid)
+		}
+		if err != nil && strings.Contains(err.Error(), "secret") {
+			t.Fatal("configuration error leaked secret")
+		}
+	}
+}
 
 func TestGetEnv(t *testing.T) {
 	t.Setenv("X_GETENV", "")
