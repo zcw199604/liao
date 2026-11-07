@@ -46,6 +46,9 @@ type wanfengMediaBridge struct {
 	failed  map[string]time.Time       // 已知失效的晚风 URL 键 → 记录时间
 	// clients 按身份缓存独立的对方客户端（对方用 Cookie 认定身份，必须隔离）。
 	clients map[string]*mediaClient
+	// mediaMap 是「晚风媒体键 → 我方文件名」的持久映射（可为 nil）。
+	// 对方媒体约 30 分钟就过期，只有持久化映射才能让已搬运过的历史媒体永久可解析。
+	mediaMap wanfengMediaMapStore
 }
 
 // mediaClient 是某个身份专用（独立 Cookie Jar）的媒体上传客户端。
@@ -115,6 +118,7 @@ func (b *wanfengMediaBridge) MirrorOutbound(identityID, kind, remoteFilename str
 	b.put(b.outward, remoteFilename, uploaded.URL)
 	// 双向登记，避免自己消息回显时又下载一遍
 	b.put(b.inward, wanfeng.MediaURLKey(uploaded.URL), remoteFilename)
+	b.rememberPersistent(wanfeng.MediaURLKey(uploaded.URL), remoteFilename, identityID)
 	b.log.Info("媒体已上传到对方", "filename", remoteFilename, "kind", kind, "bytes", len(data))
 	return uploaded.URL, nil
 }
@@ -128,6 +132,11 @@ func (b *wanfengMediaBridge) MirrorInbound(identityID, kind, remoteURL string) (
 	key := wanfeng.MediaURLKey(remoteURL)
 	if cached, ok := b.get(b.inward, key); ok {
 		return cached, nil
+	}
+	// 内存缓存过期不代表没了：只要搬运过一次，持久映射里就还在（对方文件本身已经过期）
+	if name, ok := b.lookupPersistent(key); ok {
+		b.put(b.inward, key, name)
+		return name, nil
 	}
 	if b.knownFailed(key) {
 		return "", wanfeng.ErrMediaExpired
@@ -162,8 +171,36 @@ func (b *wanfengMediaBridge) MirrorInbound(identityID, kind, remoteURL string) (
 
 	b.put(b.inward, key, remoteFilename)
 	b.put(b.outward, remoteFilename, remoteURL)
+	b.rememberPersistent(key, remoteFilename, identityID)
 	b.log.Info("对方媒体已转存到媒体服务器", "kind", kind, "bytes", len(data), "filename", remoteFilename)
 	return remoteFilename, nil
+}
+
+// lookupPersistent 查询持久映射（无映射存储时直接未命中）。
+func (b *wanfengMediaBridge) lookupPersistent(key string) (string, bool) {
+	if b.mediaMap == nil || strings.TrimSpace(key) == "" {
+		return "", false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	name, ok, err := b.mediaMap.Get(ctx, key)
+	if err != nil {
+		b.log.Debug("查询晚风媒体映射失败", "key", key, "error", err)
+		return "", false
+	}
+	return name, ok
+}
+
+// rememberPersistent 记录持久映射（失败只记日志：内存缓存 + 失败记忆仍可兜底）。
+func (b *wanfengMediaBridge) rememberPersistent(key, remoteFilename, identityID string) {
+	if b.mediaMap == nil || strings.TrimSpace(key) == "" || strings.TrimSpace(remoteFilename) == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := b.mediaMap.Put(ctx, key, remoteFilename, identityID); err != nil {
+		b.log.Debug("保存晚风媒体映射失败", "key", key, "error", err)
+	}
 }
 
 // knownFailed 判断该晚风媒体是否已被判定为过期（带记忆时长，避免重复请求）。

@@ -518,3 +518,84 @@ func TestIsExpiredMediaError(t *testing.T) {
 		t.Fatal("普通错误不应判定为过期")
 	}
 }
+
+// memoryMediaMap 是 wanfengMediaMapStore 的内存实现（测试用）。
+type memoryMediaMap struct {
+	store map[string]string
+	puts  int
+}
+
+func (m *memoryMediaMap) Get(_ context.Context, key string) (string, bool, error) {
+	v, ok := m.store[key]
+	return v, ok, nil
+}
+
+func (m *memoryMediaMap) Put(_ context.Context, key, remoteFilename, _ string) error {
+	if m.store == nil {
+		m.store = make(map[string]string)
+	}
+	m.store[key] = remoteFilename
+	m.puts++
+	return nil
+}
+
+// TestMirrorInboundUsesPersistentMap 校验内存缓存过期后仍能靠持久映射解析（对方文件早已过期）。
+func TestMirrorInboundUsesPersistentMap(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	api := wanfeng.NewAPIClient(wanfeng.APIClientConfig{BaseURL: srv.URL, Protocol: wanfeng.DefaultProtocol(), HTTPClient: srv.Client()})
+	mem := &memoryMediaMap{store: map[string]string{"oldfileid": "2026/11/07/Random/old.jpg"}}
+	b := newWanfengMediaBridge(&App{}, api, nil)
+	b.mediaMap = mem
+
+	name, err := b.MirrorInbound("ID-1", wanfeng.MediaKindImage, srv.URL+"/api/tools/niming-file/view/oldfileid")
+	if err != nil {
+		t.Fatalf("应命中持久映射，实际失败: %v", err)
+	}
+	if name != "2026/11/07/Random/old.jpg" {
+		t.Fatalf("映射文件名不符: %q", name)
+	}
+	if hits != 0 {
+		t.Fatalf("命中持久映射时不应再外呼，实际 %d 次", hits)
+	}
+	// 命中后应回填内存缓存
+	if cached, ok := b.get(b.inward, "oldfileid"); !ok || cached != name {
+		t.Fatalf("应回填内存缓存: %q ok=%v", cached, ok)
+	}
+}
+
+// TestMirrorInboundPersistsMapping 校验搬运成功后会写入持久映射。
+func TestMirrorInboundPersistsMapping(t *testing.T) {
+	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/jpeg")
+		_, _ = w.Write([]byte("img-bytes"))
+	}))
+	defer remote.Close()
+
+	local := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"state":"OK","msg":"2026/11/07/Random/kept.jpg"}`)
+	}))
+	defer local.Close()
+
+	api := wanfeng.NewAPIClient(wanfeng.APIClientConfig{BaseURL: remote.URL, Protocol: wanfeng.DefaultProtocol(), HTTPClient: remote.Client()})
+	mem := &memoryMediaMap{}
+	b := newWanfengMediaBridge(&App{
+		imageServer: imageServerFromURL(t, local.URL),
+		mediaUpload: &MediaUploadService{httpClient: local.Client()},
+		httpClient:  local.Client(),
+	}, api, nil)
+	b.mediaMap = mem
+
+	name, err := b.MirrorInbound("ID-1", wanfeng.MediaKindImage, remote.URL+"/api/tools/niming-file/view/newid")
+	if err != nil {
+		t.Fatalf("搬运失败: %v", err)
+	}
+	if mem.store["newid"] != name {
+		t.Fatalf("应写入持久映射 newid→%q，实际 %+v", name, mem.store)
+	}
+}

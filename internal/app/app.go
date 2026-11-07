@@ -238,6 +238,8 @@ func New(cfg config.Config) (*App, error) {
 		if cfg.WanfengMediaEnabled {
 			// 二期：图片/视频在「chat2019 媒体服务器 ↔ 对方媒体服务」之间搬运，前端渲染链路复用
 			application.wanfengMedia = newWanfengMediaBridge(application, wanfengAPI, nil)
+			// 持久化「晚风媒体键 → 我方文件名」：对方媒体约 30 分钟过期，映射必须长期可用
+			application.wanfengMedia.mediaMap = NewWanfengMediaMapDB(db)
 			application.wanfeng.SetMediaBridge(application.wanfengMedia)
 		}
 		slog.Info("晚风线路已启用", "baseURL", cfg.WanfengBaseURL, "media", cfg.WanfengMediaEnabled)

@@ -180,3 +180,13 @@ CREATE TABLE IF NOT EXISTS identity_match_preference (
     updated_at DATETIME NOT NULL COMMENT '更新时间',
     PRIMARY KEY (identity_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='身份匹配偏好';
+
+-- 晚风媒体与我方媒体文件名映射（晚风媒体只有约 30 分钟有效期，映射必须长期可用）
+CREATE TABLE IF NOT EXISTS wanfeng_media_map (
+    wf_key VARCHAR(191) NOT NULL COMMENT '晚风媒体键（媒体地址最后一段，即文件ID）',
+    remote_filename VARCHAR(512) NOT NULL COMMENT '我方媒体服务器文件名（前端 "[文件名]" 里的部分）',
+    identity_id VARCHAR(64) NULL COMMENT '搬运时使用的我方身份ID（排查用）',
+    created_at DATETIME NOT NULL COMMENT '创建时间',
+    updated_at DATETIME NOT NULL COMMENT '更新时间',
+    PRIMARY KEY (wf_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='晚风媒体与我方媒体文件名映射';

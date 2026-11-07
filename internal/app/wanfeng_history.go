@@ -253,6 +253,21 @@ func wanfengExpiredMediaPlaceholder(kind string) string {
 	}
 }
 
+// wanfengFailedMediaPlaceholder 给「暂时搬运失败」的媒体消息一个文字占位。
+//
+// 与「已过期」不同，这类失败下次拉历史可能就好了（网络/媒体服务器抖动），
+// 但也不该让整条消息消失。
+func wanfengFailedMediaPlaceholder(kind string) string {
+	switch kind {
+	case wanfeng.MediaKindVideo:
+		return "[视频加载失败]"
+	case wanfeng.MediaKindAudio:
+		return "[语音加载失败]"
+	default:
+		return "[图片加载失败]"
+	}
+}
+
 // buildWanfengHistoryContents 把晚风历史消息翻译成前端结构。
 //
 // selfUID 是自己在晚风的 uid，selfIDMD5 是前端认的「自己」标识（md5(身份ID)）；
@@ -294,11 +309,12 @@ func (a *App) buildWanfengHistoryContents(
 					if err != nil {
 						slog.Warn("历史消息媒体转存失败", "identityID", identityID, "error", err)
 					}
-					// 其它失败（网络/上传异常）先跳过该条，避免前端渲染出空图/裂图
-					continue
+					// 其它失败（网络/媒体服务器异常）同样给占位：
+					// 丢掉整条会让前端的消息列表在刷新时「图突然消失」，比占位更糟。
+					content = wanfengFailedMediaPlaceholder(msg.Type)
 				}
 			} else {
-				continue
+				content = wanfengFailedMediaPlaceholder(msg.Type)
 			}
 		} else {
 			// 文本消息：对方直接给文字

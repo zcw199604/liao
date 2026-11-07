@@ -369,3 +369,34 @@ func TestBuildWanfengHistoryContentsExpiredMediaPlaceholder(t *testing.T) {
 		t.Fatalf("文本消息被污染: %q", got)
 	}
 }
+
+// TestBuildWanfengHistoryContentsTransientMediaFailure 校验暂时失败也给占位，而不是让消息消失。
+func TestBuildWanfengHistoryContentsTransientMediaFailure(t *testing.T) {
+	// 500 不是「过期」，走占位分支；且不应被失败记忆吞掉
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	api := wanfeng.NewAPIClient(wanfeng.APIClientConfig{
+		BaseURL:    srv.URL,
+		Protocol:   wanfeng.DefaultProtocol(),
+		HTTPClient: srv.Client(),
+	})
+	bridge := newWanfengMediaBridge(&App{}, api, nil)
+	a := &App{wanfengMedia: bridge}
+
+	mediaURL := srv.URL + "/api/tools/niming-file/view/broken"
+	page := &wanfeng.ChatHistoryPage{
+		Messages: []wanfeng.HistoryMessage{
+			{Tid: "t1", FromCid: "peer", FromUID: "WFU2", Type: "image", Payload: mediaURL, TS: 1699000000000},
+		},
+	}
+	contents := a.buildWanfengHistoryContents(context.Background(), "IDENT-1", "WFU1", "WFU2", page)
+	if len(contents.ContentsList) != 1 {
+		t.Fatalf("暂时失败也不应丢消息，实际 %d 条", len(contents.ContentsList))
+	}
+	if got := contents.ContentsList[0].Content; got != "[图片加载失败]" {
+		t.Fatalf("占位文案不符: %q", got)
+	}
+}
