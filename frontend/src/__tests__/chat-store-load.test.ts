@@ -53,13 +53,14 @@ describe('stores/chat load list branches', () => {
     expect(store.getUser('u2')?.localArchived).toBe(true)
   })
 
-  it('loadHistoryUsers clears list on error', async () => {
+  it('loadHistoryUsers keeps existing list on error', async () => {
+    // 失败时不能清空：否则换线路或上游抖动时，用户会看到「会话全没了」
     const store = useChatStore()
     store.historyUserIds = ['u1']
 
     ;(chatApi.getHistoryUserList as any).mockRejectedValueOnce(new Error('boom'))
     await store.loadHistoryUsers('me', 'Me')
-    expect(store.historyUserIds).toEqual([])
+    expect(store.historyUserIds).toEqual(['u1'])
   })
 
   it('loadHistoryUsers no-ops when backend returns non-array payload (covers else branch)', async () => {

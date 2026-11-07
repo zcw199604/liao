@@ -192,8 +192,9 @@ export const useChatStore = defineStore('chat', () => {
         historyUserIds.value = newHistoryIds
       }
     } catch (error) {
+      // 拉取失败时保留现有列表：清空会让用户误以为「会话全没了」，
+      // 尤其换线路/上游抖动时（后端失败已改为 5xx，不再返回空数组）。
       console.error('加载历史用户失败:', error)
-      historyUserIds.value = []
     }
   }
 
@@ -230,8 +231,8 @@ export const useChatStore = defineStore('chat', () => {
         favoriteUserIds.value = newFavoriteIds
       }
     } catch (error) {
+      // 同上：失败保留现有收藏，不整体清空
       console.error('加载收藏用户失败:', error)
-      favoriteUserIds.value = []
     }
   }
 

@@ -26,11 +26,16 @@ const (
 
 // wanfengIdentityUID 返回该身份在晚风站点的 uid。
 //
-// 判定依据是 identity_provider_binding：一个 liao 身份只会绑定一条线路
-// （绑过晚风的身份，历史数据就在晚风侧），因此不需要前端把当前线路传上来。
+// 判定依据是 identity_provider_binding：绑过晚风的身份，历史数据也在晚风侧。
+// 但绑定只说明「这条身份在晚风站点有 uid」，不代表用户此刻还在晚风线路上——
+// 所以当前请求明确声明走 chat2019（见 provider_context.go）时必须让路，
+// 否则切回 chat2019 后刷新页面会被晚风侧数据顶掉整张列表。
 func (a *App) wanfengIdentityUID(ctx context.Context, identityID string) (string, bool) {
 	identityID = strings.TrimSpace(identityID)
 	if a == nil || a.wanfeng == nil || identityID == "" {
+		return "", false
+	}
+	if currentProviderIsChat2019(ctx) {
 		return "", false
 	}
 	binding, err := a.wanfeng.BindingOf(ctx, identityID)
@@ -52,6 +57,10 @@ func (a *App) wanfengIdentityUID(ctx context.Context, identityID string) (string
 func (a *App) wanfengHistoryAPI(ctx context.Context, identityID string) (*wanfeng.APIClient, string, bool) {
 	identityID = strings.TrimSpace(identityID)
 	if a == nil || a.wanfeng == nil || identityID == "" {
+		return nil, "", false
+	}
+	// 与 wanfengIdentityUID 同一套线路判断：chat2019 线路绝不接管历史数据。
+	if currentProviderIsChat2019(ctx) {
 		return nil, "", false
 	}
 	binding, err := a.wanfeng.BindingOf(ctx, identityID)
@@ -373,7 +382,7 @@ func formatWanfengMessageTime(ts int) string {
 // 返回 true 表示已处理（调用方应直接 return）；false 表示该身份不属于晚风线路，
 // 继续走原有 chat2019 上游，保证两条线路互不影响。
 func (a *App) serveWanfengHistoryUsers(w http.ResponseWriter, r *http.Request, identityID string, favoritesOnly bool) bool {
-	ctx, cancel := context.WithTimeout(r.Context(), wanfengHistoryTimeout)
+	ctx, cancel := context.WithTimeout(requestProviderContext(r), wanfengHistoryTimeout)
 	defer cancel()
 
 	api, selfUID, ok := a.wanfengHistoryAPI(ctx, identityID)
@@ -392,8 +401,9 @@ func (a *App) serveWanfengHistoryUsers(w http.ResponseWriter, r *http.Request, i
 		}
 		if err != nil {
 			slog.Warn("晚风收藏列表获取失败", "identityID", identityID, "error", err)
-			// 失败时返回空列表而不是 5xx，避免前端整块报错
-			writeJSON(w, http.StatusOK, []wanfengHistoryUser{})
+			// 不再静默返回 200 + 空数组：那会让前端把整张列表替换成空，
+			// 表现为「一刷新收藏全没了」。返回 5xx，前端保留现有列表。
+			writeJSON(w, http.StatusBadGateway, map[string]any{"code": -1, "msg": "晚风收藏列表获取失败: " + err.Error()})
 			return true
 		}
 		writeJSON(w, http.StatusOK, buildWanfengFavoriteUsers(list))
@@ -410,7 +420,8 @@ func (a *App) serveWanfengHistoryUsers(w http.ResponseWriter, r *http.Request, i
 	}
 	if err != nil {
 		slog.Warn("晚风历史会话获取失败", "identityID", identityID, "error", err)
-		writeJSON(w, http.StatusOK, []wanfengHistoryUser{})
+		// 同上：失败必须是错误状态，不能让前端用空数组覆盖已有会话列表。
+		writeJSON(w, http.StatusBadGateway, map[string]any{"code": -1, "msg": "晚风历史会话获取失败: " + err.Error()})
 		return true
 	}
 	writeJSON(w, http.StatusOK, buildWanfengHistoryUsers(home.Relations, selfUID, ""))
@@ -421,7 +432,7 @@ func (a *App) serveWanfengHistoryUsers(w http.ResponseWriter, r *http.Request, i
 //
 // 返回 true 表示已处理；false 表示该身份不属于晚风线路。
 func (a *App) serveWanfengMessageHistory(w http.ResponseWriter, r *http.Request, identityID, peerUID, firstTid string) bool {
-	ctx, cancel := context.WithTimeout(r.Context(), wanfengHistoryTimeout)
+	ctx, cancel := context.WithTimeout(requestProviderContext(r), wanfengHistoryTimeout)
 	defer cancel()
 
 	api, selfUID, ok := a.wanfengHistoryAPI(ctx, identityID)
@@ -494,7 +505,7 @@ func (a *App) archiveWanfengHistory(ctx context.Context, identityID, peerUID str
 // 返回 true 表示已处理。收藏在对方是 WS 动作（add_favorite / remove_favorite），
 // 同时本地也写一条，保证「收藏列表」立即可见（对方列表有缓存延迟）。
 func (a *App) serveWanfengFavorite(w http.ResponseWriter, r *http.Request, identityID, targetUID string, add bool) bool {
-	ctx, cancel := context.WithTimeout(r.Context(), wanfengHistoryTimeout)
+	ctx, cancel := context.WithTimeout(requestProviderContext(r), wanfengHistoryTimeout)
 	defer cancel()
 
 	if _, ok := a.wanfengIdentityUID(ctx, identityID); !ok {

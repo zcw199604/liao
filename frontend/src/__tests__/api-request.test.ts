@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import request, { createFormData, douyinRequest, navigation } from '@/api/request'
+import { setCurrentProviderId } from '@/utils/providerHeader'
 
 const getRequestFulfilled = (instance: any) => instance.interceptors.request.handlers[0]?.fulfilled
 const getRequestRejected = (instance: any) => instance.interceptors.request.handlers[0]?.rejected
@@ -11,6 +12,8 @@ describe('api/request', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     localStorage.clear()
+    // 线路是模块级状态，用例间必须重置
+    setCurrentProviderId('')
   })
 
   it('createFormData skips undefined/null values and stringifies others', () => {
@@ -34,6 +37,23 @@ describe('api/request', () => {
 
     expect(config1.headers.Authorization).toBe('Bearer t-1')
     expect(config2.headers.Authorization).toBe('Bearer t-1')
+  })
+
+  it('request interceptor attaches current provider header (history routing depends on it)', () => {
+    setCurrentProviderId('chat2019')
+
+    const config1: any = { headers: {} }
+    const config2: any = { headers: {} }
+    getRequestFulfilled(request)(config1)
+    getRequestFulfilled(douyinRequest)(config2)
+
+    expect(config1.headers['X-Liao-Provider']).toBe('chat2019')
+    expect(config2.headers['X-Liao-Provider']).toBe('chat2019')
+
+    setCurrentProviderId('')
+    const config3: any = { headers: {} }
+    getRequestFulfilled(request)(config3)
+    expect(config3.headers['X-Liao-Provider']).toBeUndefined()
   })
 
   it('request interceptor does not set Authorization header when token is missing', () => {

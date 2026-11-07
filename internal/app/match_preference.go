@@ -213,7 +213,7 @@ func (a *App) handleGetMatchPreference(w http.ResponseWriter, r *http.Request) {
 		"code": 0,
 		"data": pref,
 		// 该线路是否真正支持匹配偏好（chat2019 不支持，前端据此隐藏入口）
-		"supported": a.matchPreferenceSupported(identityID),
+		"supported": a.matchPreferenceSupported(requestProviderContext(r), identityID),
 	})
 }
 
@@ -242,7 +242,7 @@ func (a *App) handleUpdateMatchPreference(w http.ResponseWriter, r *http.Request
 
 	// 晚风线路：立刻下发 update_profile，否则要等下次重连才生效
 	if a.wanfeng != nil && a.wanfeng.Supported() {
-		if _, ok := a.wanfengIdentityUID(r.Context(), identityID); ok {
+		if _, ok := a.wanfengIdentityUID(requestProviderContext(r), identityID); ok {
 			profile, _ := a.wanfeng.ProfileOf(identityID)
 			profile.MatchPreference = pref.UpstreamPayload()
 			if err := a.wanfeng.SendAction(identityID, a.wanfeng.Protocol().ActionUpdateProfile,
@@ -262,11 +262,15 @@ func (a *App) handleUpdateMatchPreference(w http.ResponseWriter, r *http.Request
 }
 
 // matchPreferenceSupported 判断该身份所在线路是否支持匹配偏好。
-func (a *App) matchPreferenceSupported(identityID string) bool {
+func (a *App) matchPreferenceSupported(baseCtx context.Context, identityID string) bool {
 	if a == nil || a.wanfeng == nil || !a.wanfeng.Supported() {
 		return false
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	if baseCtx == nil {
+		baseCtx = context.Background()
+	}
+	// 继承请求 context（可能已带「当前线路」），再加 3 秒超时。
+	ctx, cancel := context.WithTimeout(baseCtx, 3*time.Second)
 	defer cancel()
 	_, ok := a.wanfengIdentityUID(ctx, identityID)
 	return ok

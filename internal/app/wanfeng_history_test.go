@@ -235,10 +235,11 @@ func TestServeWanfengHistoryUsersWithoutManager(t *testing.T) {
 	}
 }
 
-// TestServeWanfengHistoryUsersBoundReturnsEmptyOnError 校验上游失败时返回空列表而不是 5xx。
+// TestServeWanfengHistoryUsersBoundReturnsErrorOnUpstreamFailure 校验上游失败时返回 502。
 //
-// 前端 loadHistoryUsers 只处理数组，返回 5xx 会让整块列表报错；空数组是更安全的降级。
-func TestServeWanfengHistoryUsersBoundReturnsEmptyOnError(t *testing.T) {
+// 早期实现返回 200 + 空数组，前端 loadHistoryUsers 会拿空数组整体替换列表，
+// 表现成「一刷新会话列表全空」，因此改成错误状态 + 前端保留现有列表。
+func TestServeWanfengHistoryUsersBoundReturnsErrorOnUpstreamFailure(t *testing.T) {
 	m := newTestWanfengManager(t, map[string]wanfeng.Binding{
 		"IDENT-1": {IdentityID: "IDENT-1", UpstreamUID: "WFU1", IdentityToken: "v1.t", DeviceID: "d1"},
 	})
@@ -249,15 +250,15 @@ func TestServeWanfengHistoryUsersBoundReturnsEmptyOnError(t *testing.T) {
 	if !a.serveWanfengHistoryUsers(rec, req, "IDENT-1", false) {
 		t.Fatal("已绑定晚风的身份应由晚风分支处理")
 	}
-	if rec.Code != http.StatusOK {
-		t.Fatalf("状态码应为 200，实际 %d", rec.Code)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("状态码应为 502，实际 %d", rec.Code)
 	}
-	var list []wanfengHistoryUser
-	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
-		t.Fatalf("响应应为数组: %v（body=%s）", err, rec.Body.String())
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("响应应为 JSON 对象: %v（body=%s）", err, rec.Body.String())
 	}
-	if len(list) != 0 {
-		t.Fatalf("上游不可达时应返回空列表，实际 %d 条", len(list))
+	if resp["code"] != float64(-1) {
+		t.Fatalf("失败响应 code 应为 -1: %+v", resp)
 	}
 }
 
@@ -324,11 +325,11 @@ func TestHandleGetHistoryUserListUsesWanfengBranch(t *testing.T) {
 
 	a.handleGetHistoryUserList(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("状态码应为 200，实际 %d（body=%s）", rec.Code, rec.Body.String())
+	// 上游不可达 → 晚风分支自己报 502；绝不能回落到 chat2019（那是「列表变成别人的」的根因）
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("状态码应为 502，实际 %d（body=%s）", rec.Code, rec.Body.String())
 	}
-	// 走 chat2019 分支时会返回 {"error": ...}，这里必须是数组
-	if strings.Contains(rec.Body.String(), "error") {
+	if strings.Contains(rec.Body.String(), "调用上游接口失败") {
 		t.Fatalf("不应回落到 chat2019 上游: %s", rec.Body.String())
 	}
 }

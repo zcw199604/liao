@@ -26,6 +26,9 @@ func (a *App) buildRouter() http.Handler {
 	// API
 	r.Route("/api", func(api chi.Router) {
 		api.Use(a.jwtMiddleware)
+		// 把前端声明的当前线路放进 context：历史/设置类接口据此分流，
+		// 避免「绑定过晚风的身份切回 chat2019 后仍被晚风接口接管」。
+		api.Use(a.providerContextMiddleware)
 
 		api.Route("/auth", func(ar chi.Router) {
 			ar.Post("/login", a.handleAuthLogin)

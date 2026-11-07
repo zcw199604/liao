@@ -1,5 +1,6 @@
 import axios, { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { API_BASE } from '@/constants/config'
+import { getCurrentProviderId, PROVIDER_HEADER_NAME } from '@/utils/providerHeader'
 import type { ApiResponse } from '@/types'
 
 const request = axios.create({
@@ -19,11 +20,18 @@ export const navigation = {
   }
 }
 
-// 请求拦截器：添加Token
+// 请求拦截器：添加Token + 当前上游线路
+//
+// 线路必须带上：后端的历史/收藏/聊天记录接口要按「当前线路」分流，
+// 只看身份绑定关系的话，从晚风切回 chat2019 后刷新页面会拉到晚风侧的列表。
 const attachToken = (config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem('authToken')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  const provider = getCurrentProviderId()
+  if (provider) {
+    config.headers[PROVIDER_HEADER_NAME] = provider
   }
   return config
 }

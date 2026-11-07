@@ -105,7 +105,8 @@ func TestServeWanfengHistoryFallsBackToSharedClient(t *testing.T) {
 	if !a.serveWanfengHistoryUsers(rec, req, "IDENT-1", false) {
 		t.Fatal("已绑定身份即使没有客户端缓存也应由晚风分支处理")
 	}
-	if rec.Code != http.StatusOK {
-		t.Fatalf("上游不可达时仍应返回 200，实际 %d", rec.Code)
+	// 上游不可达时必须给出错误状态（不能再用 200 + 空数组把前端列表覆盖掉）
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("上游不可达时应返回 502，实际 %d", rec.Code)
 	}
 }

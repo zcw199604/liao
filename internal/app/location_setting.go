@@ -140,7 +140,7 @@ func (a *App) handleGetLocationSetting(w http.ResponseWriter, r *http.Request) {
 		"code": 0,
 		"data": setting,
 		// 该身份所在线路是否能真正生效（目前只有晚风线路会下发到上游）
-		"supported": a.locationSettingSupported(identityID),
+		"supported": a.locationSettingSupported(requestProviderContext(r), identityID),
 	})
 }
 
@@ -165,15 +165,19 @@ func (a *App) handleUpdateLocationSetting(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	// 晚风线路：已连接时立即下发；未连接时下次登录后会自动带上
+	// 晚风线路：已连接时立即下发；未连接时下次登录后会自动带上。
+	// 注意必须先确认当前线路确实是晚风（绑定存在且请求声明了晚风），
+	// 否则切回 chat2019 后改设置会往晚风连接上推一帧没人消费的 update_profile。
 	if a.wanfeng != nil && a.wanfeng.Supported() {
-		if err := a.wanfeng.ApplyShowCity(identityID, setting.ShowCity); err != nil {
-			writeJSON(w, http.StatusOK, map[string]any{
-				"code": 0,
-				"data": setting,
-				"msg":  "已保存，将在下次连接时生效",
-			})
-			return
+		if _, ok := a.wanfengIdentityUID(requestProviderContext(r), identityID); ok {
+			if err := a.wanfeng.ApplyShowCity(identityID, setting.ShowCity); err != nil {
+				writeJSON(w, http.StatusOK, map[string]any{
+					"code": 0,
+					"data": setting,
+					"msg":  "已保存，将在下次连接时生效",
+				})
+				return
+			}
 		}
 	}
 
@@ -184,11 +188,15 @@ func (a *App) handleUpdateLocationSetting(w http.ResponseWriter, r *http.Request
 //
 // chat2019 线路不在我方控制范围内（前端登录帧写死 address_show=false，等同不公开），
 // 因此只有绑定过晚风的身份返回 true。
-func (a *App) locationSettingSupported(identityID string) bool {
+func (a *App) locationSettingSupported(baseCtx context.Context, identityID string) bool {
 	if a == nil || a.wanfeng == nil || !a.wanfeng.Supported() {
 		return false
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	if baseCtx == nil {
+		baseCtx = context.Background()
+	}
+	// 继承请求 context（可能已带「当前线路」），再加 3 秒超时。
+	ctx, cancel := context.WithTimeout(baseCtx, 3*time.Second)
 	defer cancel()
 	_, ok := a.wanfengIdentityUID(ctx, identityID)
 	return ok
