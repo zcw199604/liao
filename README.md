@@ -193,6 +193,11 @@ docker run -d -p 8080:8080 \
 - `CACHE_REDIS_CHAT_HISTORY_EXPIRE_DAYS` - 聊天记录缓存 TTL（天，默认30；`CACHE_TYPE=redis`）
 - `CACHE_REDIS_FLUSH_INTERVAL_SECONDS` - Redis 写入批量 flush 间隔（秒，默认60；用于降低写入频率/成本）
 - `CACHE_REDIS_LOCAL_TTL_SECONDS` - Redis L1 本地缓存 TTL（秒，默认3600；用于降低 Redis 读频率/提升响应速度）
+- `WANFENG_ENABLED` - 是否启用「晚风线路」（与现有线路并列可选，默认 `false`）
+- `WANFENG_BASE_URL` - 晚风站点根地址（默认 `https://wanfengniming.store`；HTTP 接口与 WS 同域）
+- `WANFENG_WS_URL` - 晚风 WebSocket 地址（可选；留空按 `WANFENG_BASE_URL + /ws` 推导）
+- `WANFENG_TIMEOUT_SECONDS` - 调用晚风接口超时（秒，默认30）
+- `WANFENG_PROTOCOL_OVERRIDES` - 晚风协议参数覆盖（JSON，用于对方改版时热修，详见 `docs/wanfeng-niming-integration-plan.md`）
 
 ## 开发规范
 

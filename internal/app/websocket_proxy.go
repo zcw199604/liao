@@ -50,6 +50,17 @@ func (a *App) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 线路选择：不传或非 wanfeng 时保持原有 chat2019 通路（向后兼容）
+	provider := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("provider")))
+	if provider == ProviderWanfeng {
+		if a.wanfeng == nil {
+			http.Error(w, "wanfeng线路未启用", http.StatusServiceUnavailable)
+			return
+		}
+		a.handleWanfengWebSocket(w, r)
+		return
+	}
+
 	conn, err := wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return

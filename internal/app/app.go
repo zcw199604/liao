@@ -17,6 +17,7 @@ import (
 
 	"liao/internal/config"
 	"liao/internal/database"
+	"liao/internal/upstream/wanfeng"
 )
 
 var (
@@ -106,6 +107,7 @@ type App struct {
 	userArchive           UserArchiveService
 	forceoutManager       *ForceoutManager
 	wsManager             *UpstreamWebSocketManager
+	wanfeng               *WanfengManager
 
 	staticDir string
 	handler   http.Handler
@@ -196,6 +198,24 @@ func New(cfg config.Config) (*App, error) {
 	application.imagePortResolver = NewImagePortResolver(application.httpClient)
 	_ = application.systemConfig.EnsureDefaults(context.Background())
 	application.wsManager = NewUpstreamWebSocketManager(application.httpClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache, application.chatHistoryCache, application.userArchive)
+	if cfg.WanfengEnabled {
+		proto := wanfeng.DefaultProtocol()
+		overridden, protoErr := proto.ApplyOverrides(cfg.WanfengProtocolOverrides)
+		if protoErr != nil {
+			slog.Warn("晚风协议覆盖配置无效，使用默认协议", "error", protoErr)
+		} else {
+			proto = overridden
+		}
+		wanfengAPI := wanfeng.NewAPIClient(wanfeng.APIClientConfig{
+			BaseURL:    cfg.WanfengBaseURL,
+			WSURL:      cfg.WanfengWSURL,
+			HTTPClient: &http.Client{Timeout: time.Duration(cfg.WanfengTimeoutSeconds) * time.Second},
+			Protocol:   proto,
+		})
+		application.wanfeng = NewWanfengManager(wanfengAPI, NewWanfengBindingService(db), nil)
+		slog.Info("晚风线路已启用", "baseURL", cfg.WanfengBaseURL)
+	}
+
 	application.mediaUpload = NewMediaUploadService(db, cfg.ServerPort, application.fileStorage, application.imageServer, application.httpClient)
 	application.douyinDownloader = NewDouyinDownloaderService(cfg.TikTokDownloaderBaseURL, cfg.TikTokDownloaderToken, cfg.DouyinDefaultCookie, cfg.DouyinDefaultProxy, time.Duration(cfg.TikTokDownloaderTimeoutSeconds)*time.Second)
 	if strings.TrimSpace(cfg.CookieCloudBaseURL) != "" {
@@ -227,6 +247,9 @@ func (a *App) Handler() http.Handler {
 func (a *App) Shutdown(ctx context.Context) {
 	if a.wsManager != nil {
 		a.wsManager.CloseAllConnections()
+	}
+	if a.wanfeng != nil {
+		a.wanfeng.CloseAll()
 	}
 	if a.videoExtract != nil {
 		a.videoExtract.Shutdown()

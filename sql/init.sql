@@ -152,3 +152,19 @@ CREATE TABLE IF NOT EXISTS douyin_favorite_aweme_tag_map (
     PRIMARY KEY (aweme_id, tag_id),
     INDEX idx_dfatm_tag_id (tag_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='抖音作品收藏标签映射（全局）';
+
+-- 身份与上游线路账号绑定（wanfeng 线路）
+CREATE TABLE IF NOT EXISTS identity_provider_binding (
+    identity_id VARCHAR(64) NOT NULL COMMENT '我方身份ID（前端使用的 id）',
+    provider VARCHAR(32) NOT NULL COMMENT '上游线路标识（chat2019/wanfeng）',
+    upstream_uid VARCHAR(128) NOT NULL COMMENT '上游分配的用户ID',
+    identity_token VARCHAR(1024) NULL COMMENT '上游身份令牌（重连必须携带）',
+    device_id VARCHAR(64) NULL COMMENT '设备标识（每身份独立）',
+    nickname VARCHAR(64) NULL COMMENT '上送昵称',
+    gender VARCHAR(16) NULL COMMENT '上送性别（male/female/secret）',
+    age INT NOT NULL DEFAULT 0 COMMENT '上送年龄',
+    created_at DATETIME NOT NULL COMMENT '创建时间',
+    updated_at DATETIME NOT NULL COMMENT '更新时间',
+    PRIMARY KEY (identity_id, provider),
+    INDEX idx_ipb_provider_uid (provider, upstream_uid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='身份与上游线路账号绑定';

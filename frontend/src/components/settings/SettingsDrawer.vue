@@ -105,6 +105,36 @@
                 </div>
               </div>
             </div>
+
+            <!-- 线路选择：多条线路时可选，切换后自动重连 -->
+            <div v-if="providerStore.hasChoice" class="bg-surface-3 rounded-xl p-4">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-sm text-fg-muted">聊天线路</span>
+                <span class="text-xs text-fg-subtle">{{ providerStore.currentProvider?.name || '默认线路' }}</span>
+              </div>
+              <div class="space-y-2">
+                <button
+                  v-for="p in providerStore.providers"
+                  :key="p.id"
+                  type="button"
+                  :disabled="switchingProvider"
+                  class="w-full text-left px-3 py-2 rounded-lg border transition-colors disabled:opacity-60"
+                  :class="p.id === providerStore.currentId
+                    ? 'border-purple-500 bg-purple-500/10'
+                    : 'border-line-strong hover:border-purple-400'"
+                  @click="switchProvider(p.id)"
+                >
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm text-fg">{{ p.name }}</span>
+                    <span v-if="p.id === providerStore.currentId" class="text-xs text-purple-400">当前</span>
+                  </div>
+                  <div class="text-xs text-fg-subtle mt-0.5">{{ p.description }}</div>
+                </button>
+              </div>
+              <div class="text-xs text-fg-subtle mt-2">
+                切换线路会断开并重建连接，不同线路的用户池互相独立。
+              </div>
+            </div>
           </div>
         </div>
 
@@ -253,6 +283,7 @@ import { useMediaStore } from '@/stores/media'
 import { useMtPhotoStore } from '@/stores/mtphoto'
 import { useDouyinStore } from '@/stores/douyin'
 import { useVideoExtractStore } from '@/stores/videoExtract'
+import { useProviderStore } from '@/stores/provider'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { useSettings } from '@/composables/useSettings'
 import { useToast } from '@/composables/useToast'
@@ -282,6 +313,8 @@ const mediaStore = useMediaStore()
 const mtPhotoStore = useMtPhotoStore()
 const douyinStore = useDouyinStore()
 const videoExtractStore = useVideoExtractStore()
+const providerStore = useProviderStore()
+const switchingProvider = ref(false)
 const { disconnect, connect, send } = useWebSocket()
 const { show } = useToast()
 
@@ -307,6 +340,27 @@ const startEdit = () => {
   if (!currentUser.value) return
   edit.value = { id: currentUser.value.id, name: currentUser.value.name, sex: currentUser.value.sex }
   editMode.value = true
+}
+
+// 切换上游线路：保存选择 -> 断开 -> 重置本地匹配状态 -> 重连
+const switchProvider = async (providerId: string) => {
+  const id = String(providerId || '')
+  if (!id || id === providerStore.currentId || switchingProvider.value) return
+
+  switchingProvider.value = true
+  try {
+    providerStore.setProvider(id)
+    disconnect(true)
+    chatStore.isMatching = false
+    chatStore.setCurrentMatchedUser(null)
+    connect()
+    show(`已切换到「${providerStore.currentProvider?.name || id}」线路`)
+  } catch (e: any) {
+    console.error('切换线路失败:', e)
+    show('切换线路失败，请重试')
+  } finally {
+    switchingProvider.value = false
+  }
 }
 
 const saveUserInfo = async () => {
@@ -474,6 +528,10 @@ watch(
 
     if (props.mode === 'media') {
       await mediaStore.loadAllUploadImages(1)
+    }
+
+    if (props.mode === 'identity') {
+      await providerStore.load()
     }
   }
 )

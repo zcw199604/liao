@@ -121,6 +121,11 @@ docker run -d -p 8080:8080 \
 - `CACHE_REDIS_CHAT_HISTORY_EXPIRE_DAYS` - 聊天记录缓存 TTL（天，默认30；`CACHE_TYPE=redis`）
 - `CACHE_REDIS_FLUSH_INTERVAL_SECONDS` - Redis 写入批量 flush 间隔（秒，默认60；用于降低写入频率/成本）
 - `CACHE_REDIS_LOCAL_TTL_SECONDS` - Redis L1 本地缓存 TTL（秒，默认3600；用于降低 Redis 读频率/提升响应速度）
+- `WANFENG_ENABLED` - 是否启用「晚风线路」（与 chat2019 线路并列可选，默认 `false`）
+- `WANFENG_BASE_URL` - 晚风站点根地址（默认 `https://wanfengniming.store`）
+- `WANFENG_WS_URL` - 晚风 WebSocket 地址（可选；留空按 `WANFENG_BASE_URL + /ws` 推导）
+- `WANFENG_TIMEOUT_SECONDS` - 调用晚风接口超时（秒，默认30）
+- `WANFENG_PROTOCOL_OVERRIDES` - 晚风协议参数覆盖（JSON，用于对方改版时热修）
 
 **说明**：
 - `src/main/resources/application.yml` 为配置约定参考文件（Go 运行时不读取该文件），用于记录环境变量名与默认值对齐规则。
@@ -156,6 +161,13 @@ docker run -d -p 8080:8080 \
 - 当上游返回forceout消息时，记录该用户ID和时间戳
 - 80秒内禁止该用户重新连接上游（避免IP被封）
 - 定时清理过期记录
+
+### 多线路（Provider）适配层
+- 前端 `/ws?token=...&provider=<id>` 选择线路：缺省/`chat2019` 走原有通路，`wanfeng` 走 `internal/app/websocket_wanfeng.go` → `WanfengManager`
+- 线路列表由 `/api/provider/list` 下发，前端存在 `localStorage['liao-ws-provider']`，切换线路会断开并重连
+- 晚风线路协议差异（加密信封、帧动作名、字段名）**全部集中在** `internal/upstream/wanfeng/protocol.go` + `adapter.go`；对方改版时优先改这里或通过 `WANFENG_PROTOCOL_OVERRIDES` 覆盖，不要散落到业务代码
+- 晚风身份（`uid` + `identityToken` + 独立 `deviceId`）必须落库到 `identity_provider_binding`，否则重连会变成新用户/触发对方同设备风控
+- 一期仅支持纯文字；历史列表/图片/语音等仍只走 chat2019 上游
 
 ### 上游连接池（UpstreamWebSocketManager）
 - 同一userId只创建一个上游连接

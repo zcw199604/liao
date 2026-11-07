@@ -32,6 +32,9 @@ func (a *App) buildRouter() http.Handler {
 		// Runtime public config（登录后客户端运行时读取，支持 Docker -e 注入）
 		api.Get("/runtimeConfig", a.handleRuntimeConfig)
 
+		// 上游线路列表（前端线路选择用）
+		api.Get("/provider/list", a.handleProviderList)
+
 		// Identity
 		api.Get("/getIdentityList", a.handleGetIdentityList)
 		api.Post("/createIdentity", a.handleCreateIdentity)

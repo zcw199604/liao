@@ -101,6 +101,17 @@ type Config struct {
 	VideoExtractWorkers     int
 	VideoExtractQueueSize   int
 	VideoExtractFramePageSz int
+
+	// WanfengEnabled 控制是否启用「晚风匿名聊天」上游线路（与现有线路并列可选）。
+	WanfengEnabled bool
+	// WanfengBaseURL 是晚风站点根地址（HTTP 接口与 WS 同域）。
+	WanfengBaseURL string
+	// WanfengWSURL 可显式指定 WS 地址；留空时按 WanfengBaseURL + /ws 推导。
+	WanfengWSURL string
+	// WanfengProtocolOverrides 是协议参数覆盖（JSON），用于对方改版时热修，无需改代码。
+	WanfengProtocolOverrides string
+	// WanfengTimeoutSeconds 是调用晚风接口的超时（秒）。
+	WanfengTimeoutSeconds int
 }
 
 func Load() (Config, error) {
@@ -176,6 +187,12 @@ func Load() (Config, error) {
 			1,
 		),
 
+		WanfengEnabled:           getEnvBool("WANFENG_ENABLED", false),
+		WanfengBaseURL:           getEnv("WANFENG_BASE_URL", "https://wanfengniming.store"),
+		WanfengWSURL:             getEnv("WANFENG_WS_URL", ""),
+		WanfengProtocolOverrides: getEnv("WANFENG_PROTOCOL_OVERRIDES", ""),
+		WanfengTimeoutSeconds:    getEnvInt("WANFENG_TIMEOUT_SECONDS", 30),
+
 		FFmpegPath:              getEnv("FFMPEG_PATH", "ffmpeg"),
 		FFprobePath:             getEnv("FFPROBE_PATH", "ffprobe"),
 		VideoExtractWorkers:     getEnvInt("VIDEO_EXTRACT_WORKERS", 1),
@@ -229,6 +246,20 @@ func Load() (Config, error) {
 	}
 	if cfg.VideoExtractFramePageSz <= 0 {
 		cfg.VideoExtractFramePageSz = 120
+	}
+
+	if cfg.WanfengTimeoutSeconds <= 0 {
+		cfg.WanfengTimeoutSeconds = 30
+	}
+	if v := strings.TrimSpace(cfg.WanfengBaseURL); v != "" {
+		if !(strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://")) {
+			return Config{}, fmt.Errorf("WANFENG_BASE_URL 非法: %s（需以 http(s):// 开头）", v)
+		}
+	}
+	if v := strings.TrimSpace(cfg.WanfengWSURL); v != "" {
+		if !(strings.HasPrefix(v, "ws://") || strings.HasPrefix(v, "wss://")) {
+			return Config{}, fmt.Errorf("WANFENG_WS_URL 非法: %s（需以 ws(s):// 开头）", v)
+		}
 	}
 
 	if v := strings.TrimSpace(cfg.TikTokDownloaderBaseURL); v != "" {
@@ -301,6 +332,22 @@ func getEnvInt(key string, defaultValue int) int {
 		return defaultValue
 	}
 	return parsed
+}
+
+// getEnvBool 解析布尔型环境变量（支持 1/true/yes/on 等常见写法）。
+func getEnvBool(key string, defaultValue bool) bool {
+	val := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	if val == "" {
+		return defaultValue
+	}
+	switch val {
+	case "1", "true", "yes", "on", "y":
+		return true
+	case "0", "false", "no", "off", "n":
+		return false
+	default:
+		return defaultValue
+	}
 }
 
 func getEnvIntOptional2(key1, key2 string, defaultValue int) int {

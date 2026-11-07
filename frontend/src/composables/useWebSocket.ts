@@ -10,6 +10,7 @@ import * as chatApi from '@/api/chat'
 import * as systemApi from '@/api/system'
 import { useMediaStore } from '@/stores/media'
 import { useSystemConfigStore } from '@/stores/systemConfig'
+import { useProviderStore } from '@/stores/provider'
 import { useToast } from '@/composables/useToast'
 import { emojiMap } from '@/constants/emoji'
 import { md5Hex } from '@/utils/md5'
@@ -19,6 +20,8 @@ import { buildLastMsgPreviewFromSegments, getSegmentsMeta, parseMessageSegments 
 type ActiveWebSocketConnection = {
   socket: WebSocket
   userId: string
+  // provider 记录本连接使用的上游线路，线路切换时需要重建连接
+  provider: string
 }
 
 // 推断 WebSocket 私信消息(code=7)是否为“自己发送”
@@ -88,6 +91,7 @@ export const useWebSocket = () => {
   const userStore = useUserStore()
   const mediaStore = useMediaStore()
   const systemConfigStore = useSystemConfigStore()
+  const providerStore = useProviderStore()
   const { show } = useToast()
 
   const formatNow = () => {
@@ -162,14 +166,20 @@ export const useWebSocket = () => {
     }
 
     const desiredUserId = String(currentUser.id || '')
+    // 当前选择的上游线路（默认 chat2019；wanfeng 为新增线路）
+    const desiredProvider = String(providerStore.currentId || '')
     chatStore.ensureListOwner(desiredUserId)
     const existing = activeConnection
     if (existing && (existing.socket.readyState === WebSocket.OPEN || existing.socket.readyState === WebSocket.CONNECTING)) {
-      if (existing.userId === desiredUserId) {
+      if (existing.userId === desiredUserId && existing.provider === desiredProvider) {
         console.log('WebSocket 已连接/正在连接，跳过重复连接')
         return
       }
-      console.log('检测到身份已切换，重建 WebSocket 连接:', existing.userId, '->', desiredUserId)
+      if (existing.userId !== desiredUserId) {
+        console.log('检测到身份已切换，重建 WebSocket 连接:', existing.userId, '->', desiredUserId)
+      } else {
+        console.log('检测到线路已切换，重建 WebSocket 连接:', existing.provider, '->', desiredProvider)
+      }
       disconnect(true)
     } else if (existing) {
       activeConnection = null
@@ -179,15 +189,17 @@ export const useWebSocket = () => {
     autoReconnectEnabled = true
     bindLifecycleListeners()
 
-    // WebSocket URL中添加token参数
+    // WebSocket URL中添加token参数与线路参数
     const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const wsUrlWithToken = `${scheme}://${window.location.host}${WS_URL}?token=${encodeURIComponent(token)}`
-    console.log('正在连接 WebSocket (已携带认证信息)')
+    const providerQuery = desiredProvider ? `&provider=${encodeURIComponent(desiredProvider)}` : ''
+    const wsUrlWithToken = `${scheme}://${window.location.host}${WS_URL}?token=${encodeURIComponent(token)}${providerQuery}`
+    console.log('正在连接 WebSocket (已携带认证信息)', desiredProvider || 'default')
 
     const socket = new WebSocket(wsUrlWithToken)
     const connection: ActiveWebSocketConnection = {
       socket,
-      userId: desiredUserId
+      userId: desiredUserId,
+      provider: desiredProvider
     }
     activeConnection = connection
 

@@ -30,13 +30,27 @@ import { useMediaStore } from '@/stores/media'
 import { useMtPhotoStore } from '@/stores/mtphoto'
 import { useDouyinStore } from '@/stores/douyin'
 import { useVideoExtractStore } from '@/stores/videoExtract'
+import { useProviderStore } from '@/stores/provider'
 import { useToast } from '@/composables/useToast'
 
 const mediaStore = useMediaStore()
 const mtPhotoStore = useMtPhotoStore()
 const douyinStore = useDouyinStore()
 const videoExtractStore = useVideoExtractStore()
+const providerStore = useProviderStore()
 const { show: showToast } = useToast()
+
+// 启动时（已登录）加载可选上游线路，保证 WS 连接使用正确的线路参数
+const hasAuthToken = (() => {
+  try {
+    return Boolean(localStorage.getItem('authToken'))
+  } catch {
+    return false
+  }
+})()
+if (hasAuthToken) {
+  void providerStore.load()
+}
 
 type ModalKey = 'allUpload' | 'mtPhoto' | 'douyin' | 'videoExtractCreate' | 'videoExtractTask'
 

@@ -1083,3 +1083,22 @@ ws.onmessage = (event) => {
 **文档维护者**：项目开发团队
 **最后更新**：2026-01-05
 **反馈渠道**：请提交Issue到项目仓库
+
+---
+
+## 多线路说明（wanfeng 线路）
+
+自 2026-11 起，后端除 chat2019 线路外还支持「晚风线路」（`/ws?provider=wanfeng`）。
+前端 UI 与 act 协议保持不变，后端适配层把晚风帧翻译成上表同一套 code：
+
+| 晚风事件 | 下发给前端的 code |
+|---|---|
+| `connected` | `12`（状态为 MATCHING 时追加 `13`） |
+| `match_result{type:"chat",partner}` | `15`（`sel_userid` 等字段由 partner 填充） |
+| `receive_message{type:"text"}` | `7`（自己回显的 `fromuser.id` 为 `md5(自身身份ID)`） |
+| `message_recalled` | `9` |
+| `partner_left` | `16` |
+| `error{code:IP_BANNED/USER_BANNED/DEVICE_DUPLICATE/IDENTITY_INVALID}` | `-4`（`forceout:true`，带倒计时） |
+
+一期限制：晚风线路只支持纯文字；消息类型非 `text` 时会被丢弃（不会产生 `code 7`）。
+实现细节与协议参数见 `docs/wanfeng-niming-integration-plan.md`。

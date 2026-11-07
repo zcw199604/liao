@@ -110,3 +110,16 @@ mtphoto:
   login-otp: ${MTPHOTO_LOGIN_OTP:}
   # 子目录数超过该阈值时，进入目录后延迟加载时间线预览（点击按钮后再加载）
   timeline-defer-subfolder-threshold: ${MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD:10}
+
+# 晚风线路（可选；与现有 chat2019 线路并列，前端可在设置中选择）
+wanfeng:
+  # 是否启用该线路；默认关闭，避免误连第三方站点
+  enabled: ${WANFENG_ENABLED:false}
+  # 站点根地址（HTTP 接口与 WS 同域）
+  base-url: ${WANFENG_BASE_URL:https://wanfengniming.store}
+  # WebSocket 地址，留空则按 base-url + /ws 推导
+  ws-url: ${WANFENG_WS_URL:}
+  # 调用对方接口超时（秒）
+  timeout-seconds: ${WANFENG_TIMEOUT_SECONDS:30}
+  # 协议参数覆盖（JSON）：对方改版时用于热修，无需改代码
+  protocol-overrides: ${WANFENG_PROTOCOL_OVERRIDES:}
