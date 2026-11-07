@@ -1,7 +1,7 @@
 # 晚风匿名聊天（wanfengniming.store）接入方案
 
 > 目标：把该站点的「随机匹配 + 1v1 聊天」机制作为**第二条上游线路**接入本项目（现有上游为 chat2019.cn）。
-> 状态：**P1 已实现并通过联调**（握手 → 身份 → 登录 → 匹配/文字收发链路可用），线路与现有 chat2019 并列可选。
+> 状态：**P1/P2/P3 已实现**（握手 → 身份 → 登录 → 匹配 → 文字/图片/视频 → 历史/拉黑举报/匹配偏好），线路与现有 chat2019 并列可选。
 > 最后更新：2026-11-07
 
 ## 实现状态（2026-11-07）
@@ -101,10 +101,101 @@ MediaBridge.MirrorInbound：
 WANFENG_PROTOCOL_OVERRIDES='{"uploadPath":"/api/v2/file/upload","uploadUserField":"uid","bucketImage":"chat-media"}'
 ```
 
-### 三期（尚未实现）
+### 三期：历史 / 拉黑举报 / 匹配偏好（2026-11-07 已实现）
 
-- 历史会话/联系人列表：`/api/nimingChat/user/{home-data,relations,favorites,chat/messages}` 转发（当前历史列表只读 chat2019 上游，故晚风会话刷新后不回显）；
-- 输入状态、在线状态查询（`code 18/19/30`）、拉黑/举报、匹配偏好；
+这一期解决的是「线路功能残缺感」：晚风会话刷新后历史空白、拉黑举报发不出去、匹配偏好设不了。
+
+#### ① 历史会话 / 联系人 / 聊天记录（后端分流，前端零改动）
+
+老接口 `/api/getHistoryUserList`、`/api/getFavoriteUserList`、`/api/getMessageHistory`
+不新增路径，而是**按身份绑定关系分流**：绑定过晚风的身份走晚风接口，其余继续走 chat2019。
+
+判定依据是 `identity_provider_binding`（一个身份只绑一条线路），所以前端不需要把当前
+线路传上来。
+
+```
+后端                                 晚风站点
+/api/getHistoryUserList      ──►  POST /api/nimingChat/user/home-data?uid=&paged=1&pageSize=20
+                                     → {relations[], relationsTotal, favorites[], favoritesTotal}
+/api/getFavoriteUserList     ──►  POST /api/nimingChat/user/favorites?uid=&page=&pageSize=20
+/api/getMessageHistory       ──►  POST /api/nimingChat/user/chat/messages?uid=&targetUid=&limit=&before=
+                                     → {messages[], hasMore}
+                                 ◄──  逐条翻译（媒体消息先转存成 [我方文件名]）
+                                   ──►  前端认识的 contents_list
+```
+
+翻译要点：
+
+- `relations[].targetUid/targetNickname/targetGender/targetAge` → 前端 `User` 字段；
+  性别必须转成中文（`male→男`），前端按中文渲染图标。
+- 历史消息里自己发的消息，`id` 填 `md5(身份ID)`（与一期实时消息一致），
+  前端据此判定 `isSelf`。
+- 历史消息里的图片/视频/语音先经二期媒体桥搬回我方媒体服务器，再以 `[文件名]` 下发，
+  与实时消息走同一条渲染链路；转存失败的条目直接跳过（避免裂图）。
+- 拉取后顺带写入聊天记录缓存（`chatHistoryCache`）与「最后一条消息」，
+  保证与 chat2019 线路一致的离线可见体验。
+- 上游失败时返回**空列表**而不是 5xx：前端 `loadHistoryUsers` 只处理数组，
+  5xx 会让整块列表报错。
+
+字段名与路径全部在 `Protocol` 里，对方改版时用 `WANFENG_PROTOCOL_OVERRIDES` 覆盖：
+
+```bash
+WANFENG_PROTOCOL_OVERRIDES='{"homeDataPath":"/api/v2/home","relationsPath":"/api/v2/relations"}'
+```
+
+#### ② 拉黑 / 举报 / 撤回 / 已读（WS 动作）
+
+| 前端 act | 晚风动作 | payload |
+|---|---|---|
+| `warningreport`（拉黑，既有按钮） | `block_user` | `{targetUid}` |
+| `unblockuser_<uid>` | `unblock_user` | `{targetUid}` |
+| `reportuser_<uid>_<原因>_<备注>` | `report_user` | `{targetUid, reason, remark}` |
+| `recall_<tid>` | `recall_message` | `{tid}` |
+| `read_<uid>` | `read_messages` | `{targetUid}` |
+
+- 举报调用后对方会推 `report_user {targetUid, success}`；**只有失败**才提示用户
+  （成功由前端本地 toast，避免重复弹窗）。
+- 收到对方消息时自动回一条 `read_messages`：我方前端没有已读 UI，但对方站点有，
+  这条回执让对方看到「已读」。自己发的消息不触发。
+- `messages_read` 事件只落日志（前端暂无已读展示），协议层已就位，后续加 UI 不用再改后端。
+- 前端新增「举报该用户」菜单项 + 原因选择弹窗（`ChatHeader.vue` / `ChatRoomView.vue`）。
+
+#### ③ 匹配偏好（`update_profile` 承载）
+
+对方把偏好挂在用户资料上，只能通过 `update_profile` 下发生效，因此：
+
+1. 本地落库 `identity_match_preference`（`prefer_gender / prefer_age_min / prefer_age_max / prefer_same_province`）；
+2. 登录帧（`login`）与 `update_profile` 都带上 `matchPreference`；
+3. 改偏好时若连接就绪，立即下发 `update_profile`；未就绪则下次登录生效。
+
+```
+GET  /api/getMatchPreference?identityId=        → {code, data, supported}
+POST /api/updateMatchPreference                 → {code, data}
+     identityId, preferGender(male/female/any), preferAgeMin, preferAgeMax, preferSameProvince
+```
+
+`supported` 表示该身份所在线路是否真支持偏好（chat2019 不支持 → 前端隐藏入口）。
+前端入口在「匹配新用户」按钮的下拉菜单里（连续匹配下面），改完点保存才提交。
+偏好归一化在服务端做：中文/大小写性别归一、负数归零、区间颠倒自动纠正，
+避免脏值下发被对方拒绝。
+
+#### ④ 收藏
+
+前端「收藏/取消收藏」按钮原有的 `/api/toggleFavorite`、`/api/cancelFavorite`
+在晚风线路上转成 WS 动作 `add_favorite` / `remove_favorite`，同时写本地收藏表
+（对方列表有缓存延迟，本地立即生效）。响应码保持 `{code:"0", status:"true"}`
+（前端判定条件是二者之一）。
+
+#### 明确不支持（对方站点本身没有）
+
+- **输入状态（正在输入）**：对方全部前端 bundle 里 `typing` / `输入中` / `正在输入` 零命中，
+  42 个 WS 事件枚举里也没有这一项。协议层继续忽略 `inputStatusOn_*` 帧。
+- **在线状态实时查询**：对方只有 `favorite_online`（收藏的人上线时推送），没有查询接口。
+
+#### 仍待办
+
+- 语音（录音 + 语音气泡渲染）：前端目前没有音频消息类型，晚风语音会被当作「文件」渲染。
+  需要 `MediaRecorder` 录音 UI + `audio` 段类型 + 播放器组件，属独立一期。
 - 线路健康度监控与自动熔断（当前仅日志 + 前端提示）。
 
 ---

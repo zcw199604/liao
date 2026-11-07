@@ -57,6 +57,8 @@ func (a *App) buildRouter() http.Handler {
 		api.Get("/chat/contactCandidates", a.handleGetContactCandidates)
 		api.Get("/chat/archiveSearch", a.handleSearchChatArchive)
 		api.Post("/getHistoryUserList", a.handleGetHistoryUserList)
+		api.Get("/getMatchPreference", a.handleGetMatchPreference)
+		api.Post("/updateMatchPreference", a.handleUpdateMatchPreference)
 		api.Post("/getFavoriteUserList", a.handleGetFavoriteUserList)
 		api.Post("/reportReferrer", a.handleReportReferrer)
 		api.Post("/getMessageHistory", a.handleGetMessageHistory)

@@ -11,6 +11,7 @@ import * as systemApi from '@/api/system'
 import { useMediaStore } from '@/stores/media'
 import { useSystemConfigStore } from '@/stores/systemConfig'
 import { useProviderStore } from '@/stores/provider'
+import { useMatchPreferenceStore } from '@/stores/matchPreference'
 import { useToast } from '@/composables/useToast'
 import { emojiMap } from '@/constants/emoji'
 import { md5Hex } from '@/utils/md5'
@@ -213,12 +214,33 @@ export const useWebSocket = () => {
       reconnectAttempt = 0
       forceoutFlag.value = false
 
+      // 匹配偏好随登录帧上送（晚风线路把它挂在用户资料上；未加载时字段省略）
+      const prefStore = useMatchPreferenceStore()
+      if (prefStore.preference.identityId !== currentUser.id) {
+        prefStore.load(currentUser.id).catch(() => {})
+      }
+      const hasPref = prefStore.hasPreference
+
       // 发送登录消息
       const signMessage = {
         "act": "sign",
         "id": currentUser.id,
         "name": currentUser.nickname,
         "userSex": currentUser.sex,
+        ...(hasPref
+          ? {
+              "matchPreference": {
+                "preferGender": prefStore.preference.preferGender,
+                ...(prefStore.preference.preferAgeMin > 0
+                  ? { "preferSenderAgeMin": prefStore.preference.preferAgeMin }
+                  : {}),
+                ...(prefStore.preference.preferAgeMax > 0
+                  ? { "preferSenderAgeMax": prefStore.preference.preferAgeMax }
+                  : {}),
+                ...(prefStore.preference.preferSameProvince ? { "preferSameProvince": true } : {})
+              }
+            }
+          : {}),
         "address_show": "false",
         "randomhealthmode": "0",
         "randomvipsex": "0",

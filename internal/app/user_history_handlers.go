@@ -62,6 +62,11 @@ func (a *App) handleGetHistoryUserList(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("获取历史用户列表请求", "myUserID", myUserID, "vipcode", vipcode, "serverPort", serverPort)
 
+	// 三期：绑定过晚风线路的身份，历史会话在对方站点，改走晚风接口（前端无感）
+	if a.serveWanfengHistoryUsers(w, r, myUserID, false) {
+		return
+	}
+
 	form := url.Values{}
 	form.Set("myUserID", myUserID)
 	form.Set("vipcode", vipcode)
@@ -181,6 +186,11 @@ func (a *App) handleGetFavoriteUserList(w http.ResponseWriter, r *http.Request) 
 	}()
 
 	slog.Info("获取收藏用户列表请求", "myUserID", myUserID, "vipcode", vipcode, "serverPort", serverPort)
+
+	// 三期：晚风线路的收藏列表同样来自对方站点
+	if a.serveWanfengHistoryUsers(w, r, myUserID, true) {
+		return
+	}
 
 	form := url.Values{}
 	form.Set("myUserID", myUserID)
@@ -675,6 +685,11 @@ func (a *App) handleGetMessageHistory(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("获取消息历史请求", "myUserID", myUserID, "UserToID", userToID, "isFirst", isFirst, "firstTid", firstTid)
 
+	// 三期：晚风线路的聊天记录在对方站点，直接翻译成前端期望的 contents_list
+	if a.serveWanfengMessageHistory(w, r, myUserID, userToID, firstTid) {
+		return
+	}
+
 	if a.userArchive != nil {
 		a.userArchive.TouchConversation(context.Background(), myUserID, userToID)
 	}
@@ -1139,6 +1154,11 @@ func (a *App) handleToggleFavorite(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("收藏操作", "myUserID", myUserID, "UserToID", userToID)
 
+	// 三期：晚风线路的收藏是 WS 动作（add_favorite），不走 chat2019 的 asmx 接口
+	if a.serveWanfengFavorite(w, r, myUserID, userToID, true) {
+		return
+	}
+
 	form := url.Values{}
 	form.Set("myUserID", myUserID)
 	form.Set("UserToID", userToID)
@@ -1176,6 +1196,11 @@ func (a *App) handleCancelFavorite(w http.ResponseWriter, r *http.Request) {
 	cookieData := defaultString(r.FormValue("cookieData"), "")
 	referer := defaultString(r.FormValue("referer"), "http://v1.chat2019.cn/randomdeskrynewjc46ko.html?v=jc46ko")
 	userAgent := defaultString(r.FormValue("userAgent"), "Mozilla/5.0")
+
+	// 三期：晚风线路的取消收藏对应 remove_favorite
+	if a.serveWanfengFavorite(w, r, myUserID, userToID, false) {
+		return
+	}
 
 	slog.Info("取消收藏操作", "myUserID", myUserID, "UserToID", userToID)
 

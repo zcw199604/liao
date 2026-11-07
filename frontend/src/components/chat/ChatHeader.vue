@@ -97,6 +97,14 @@
               <span>清空并重新加载</span>
             </button>
             <button
+              data-testid="chat-header-report"
+              @click="handleMenuAction('report')"
+              class="w-full px-4 py-2.5 text-left text-sm hover:bg-surface-3 text-amber-500 flex items-center gap-3 border-t border-line transition"
+            >
+              <i class="fas fa-flag w-4"></i>
+              <span>举报该用户</span>
+            </button>
+            <button
               data-testid="chat-header-blacklist"
               @click="handleMenuAction('blacklist')"
               class="w-full px-4 py-2.5 text-left text-sm hover:bg-surface-3 text-rose-500 flex items-center gap-3 border-t border-line transition"
@@ -130,6 +138,7 @@ const emit = defineEmits<{
   'back': []
   'toggleFavorite': []
   'blacklist': []
+  'report': []
   'clearAndReload': []
   'toggleSidebar': []
   'reconnect': []
@@ -159,9 +168,10 @@ const statusClass = computed(() => {
   }
 })
 
-const handleMenuAction = (action: 'clearAndReload' | 'blacklist') => {
+const handleMenuAction = (action: 'clearAndReload' | 'blacklist' | 'report') => {
   showMoreMenu.value = false
   if (action === 'clearAndReload') emit('clearAndReload')
+  else if (action === 'report') emit('report')
   else emit('blacklist')
 }
 

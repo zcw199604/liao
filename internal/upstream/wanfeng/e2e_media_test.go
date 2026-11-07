@@ -31,6 +31,10 @@ type fakeUpstream struct {
 
 	connectedSent chan struct{}
 	conn          *websocket.Conn
+
+	// apiData 按路径返回固定的加密响应，供历史/关系类接口测试使用。
+	apiData   map[string]map[string]any
+	apiParams map[string]map[string]any // 记录每个路径收到的（解密后）参数
 }
 
 type fakeUpload struct {
@@ -42,7 +46,12 @@ type fakeUpload struct {
 
 func newFakeUpstream(t *testing.T) *fakeUpstream {
 	t.Helper()
-	f := &fakeUpstream{t: t, connectedSent: make(chan struct{}, 4)}
+	f := &fakeUpstream{
+		t:             t,
+		connectedSent: make(chan struct{}, 4),
+		apiData:       make(map[string]map[string]any),
+		apiParams:     make(map[string]map[string]any),
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/app/handshake", f.handleHandshake)
@@ -50,6 +59,20 @@ func newFakeUpstream(t *testing.T) *fakeUpstream {
 	mux.HandleFunc("/api/nimingChat/account/identity-cookie", f.handleOK)
 	mux.HandleFunc("/api/tools/niming-file/upload", f.handleUpload)
 	mux.HandleFunc("/ws", f.handleWS)
+	// 历史/关系类接口统一用一个「按路径回放」的处理器
+	for _, path := range []string{
+		DefaultProtocol().HomeDataPath,
+		DefaultProtocol().RelationsPath,
+		DefaultProtocol().FavoritesPath,
+		DefaultProtocol().ChatMessagesPath,
+		DefaultProtocol().RelationReadPath,
+		DefaultProtocol().RelationReadAllPath,
+		DefaultProtocol().RelationDeletePath,
+		DefaultProtocol().RelationClearPath,
+		DefaultProtocol().FavoritePinPath,
+	} {
+		mux.HandleFunc(path, f.handleAPIData)
+	}
 	f.srv = httptest.NewServer(mux)
 	t.Cleanup(f.srv.Close)
 	return f
@@ -135,6 +158,30 @@ func (f *fakeUpstream) handleUpload(w http.ResponseWriter, r *http.Request) {
 		"code":    200,
 		"data":    map[string]any{"filePath": "/files/fake-media.jpg"},
 	})
+}
+
+// handleAPIData 解密请求参数，并按路径回放预先设置的数据。
+func (f *fakeUpstream) handleAPIData(w http.ResponseWriter, r *http.Request) {
+	params, err := f.readEnvelope(r)
+	if err != nil {
+		writeFakeJSON(w, map[string]any{"success": false, "code": "BAD_ENVELOPE", "message": "请求错误"})
+		return
+	}
+	path := r.URL.Path
+
+	f.mu.Lock()
+	if f.apiParams == nil {
+		f.apiParams = make(map[string]map[string]any)
+	}
+	f.apiParams[path] = params
+	data, has := f.apiData[path]
+	f.mu.Unlock()
+
+	if !has {
+		f.writeEncrypted(w, map[string]any{})
+		return
+	}
+	f.writeEncrypted(w, data)
 }
 
 func (f *fakeUpstream) handleWS(w http.ResponseWriter, r *http.Request) {

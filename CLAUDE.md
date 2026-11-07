@@ -169,7 +169,11 @@ docker run -d -p 8080:8080 \
 - 晚风线路协议差异（加密信封、帧动作名、字段名）**全部集中在** `internal/upstream/wanfeng/protocol.go` + `adapter.go`；对方改版时优先改这里或通过 `WANFENG_PROTOCOL_OVERRIDES` 覆盖，不要散落到业务代码
 - 晚风身份（`uid` + `identityToken` + 独立 `deviceId`）必须落库到 `identity_provider_binding`，否则重连会变成新用户/触发对方同设备风控
 - 图片/视频：前端照旧上传到 `/api/upload`（chat2019 媒体服务器），后端 `internal/app/wanfeng_media.go` 在两条线路之间搬运字节；对前端下发仍是 `code=7` 的 `[文件名]`，渲染链路零改动
-- 历史列表/语音体验仍只走 chat2019 上游
+- 历史会话/联系人/聊天记录：老接口（`/api/getHistoryUserList`、`/api/getFavoriteUserList`、`/api/getMessageHistory`）按身份绑定关系分流——绑定过晚风的身份走 `internal/app/wanfeng_history.go` → 对方 `home-data`/`favorites`/`chat/messages`，其余仍走 chat2019；前端零改动
+- 拉黑/举报/撤回/已读：前端 act 在 `adapter.go` 的 `BuildCommand` 里翻译成 `block_user`/`unblock_user`/`report_user`/`recall_message`/`read_messages`；收到对方消息会自动回一条 `read_messages`（我方无已读 UI，但对方有）
+- 匹配偏好：本地表 `identity_match_preference`，随 `login` 与 `update_profile` 的 `matchPreference` 字段下发；接口 `/api/getMatchPreference`、`/api/updateMatchPreference`，`supported=false` 表示该线路不支持（chat2019）
+- 明确不支持：输入状态（对方站点没有该事件）、在线状态实时查询（只有 `favorite_online` 推送）
+- 语音仍未做：前端缺音频消息类型，晚风语音会按「文件」渲染
 
 ### 上游连接池（UpstreamWebSocketManager）
 - 同一userId只创建一个上游连接

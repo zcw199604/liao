@@ -588,6 +588,17 @@ func (c *Client) handleFrame(payload []byte) bool {
 		if msg, ok := c.translate(proto.RecalledMessage(data)); ok {
 			c.cfg.Emitter.Emit(c.cfg.IdentityID, msg)
 		}
+	case proto.EventMessagesRead:
+		// 对方已读回执：前端暂无已读 UI，这里只落日志与本地状态，不打扰用户
+		c.markPartnerRead(data)
+	case proto.EventReportUser:
+		// 举报结果回执：失败才提示，成功由前端本地提示（避免重复弹窗）
+		if ok, has := PickBool(data, "success"); has && !ok {
+			c.cfg.Emitter.Emit(c.cfg.IdentityID, map[string]any{
+				"code":    codeSystemNotice,
+				"content": "举报提交失败，请稍后重试",
+			})
+		}
 	case proto.EventPartnerLeft:
 		c.mu.Lock()
 		c.partnerUID = ""
@@ -778,6 +789,45 @@ func (c *Client) onReceiveMessage(data map[string]any) {
 		return
 	}
 	c.cfg.Emitter.Emit(c.cfg.IdentityID, msg)
+
+	// 用户正在与对方聊天：顺手把该会话在对方侧标为已读，
+	// 这样对方能看到已读回执（我方前端不显示，纯属对外体验对齐）。
+	c.sendAutoRead(data, ctx)
+}
+
+// sendAutoRead 收到对端消息后，向对方回一个 read_messages。
+//
+// 只在「对方发来的消息」时触发；自己发出的消息会被对方侧标已读，不需要我们回。
+func (c *Client) sendAutoRead(data map[string]any, ctx DownstreamContext) {
+	if strings.EqualFold(PickString(data, "fromCid"), "self") {
+		return
+	}
+	peer := ctx.PartnerUID
+	if peer == "" {
+		peer = PickString(data, c.proto().FromUIDKeys...)
+	}
+	if peer == "" || strings.EqualFold(peer, ctx.SelfUpstreamUID) {
+		return
+	}
+	proto := c.proto()
+	// 非阻塞：队列满时丢弃（已读只是锦上添花，不能拖慢消息下发）
+	c.SendCommand(OutgoingCommand{
+		Action:  proto.ActionReadMessages,
+		Payload: map[string]any{"targetUid": peer},
+	})
+}
+
+// markPartnerRead 处理对方推来的已读回执（messages_read）。
+//
+// 前端目前没有已读 UI，这里只做日志与状态记录，方便后续接入而不必再改协议层。
+func (c *Client) markPartnerRead(data map[string]any) {
+	proto := c.proto()
+	peer := PickString(data, proto.TargetUIDKeys...)
+	if peer == "" {
+		peer = PickString(data, proto.FromUIDKeys...)
+	}
+	tids := PickStringSlice(data, "tids", "tidsRead", "readTids")
+	c.log.Debug("收到对方已读回执", "peer", peer, "count", len(tids))
 }
 
 // handleReceiveMedia 把对方媒体搬到 chat2019 媒体服务器，再下发 code=7（前端零改动）。

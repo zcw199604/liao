@@ -168,3 +168,15 @@ CREATE TABLE IF NOT EXISTS identity_provider_binding (
     PRIMARY KEY (identity_id, provider),
     INDEX idx_ipb_provider_uid (provider, upstream_uid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='身份与上游线路账号绑定';
+
+-- 身份匹配偏好（期望对方性别/年龄区间等）
+CREATE TABLE IF NOT EXISTS identity_match_preference (
+    identity_id VARCHAR(64) NOT NULL COMMENT '我方身份ID',
+    prefer_gender VARCHAR(16) NOT NULL DEFAULT 'any' COMMENT '期望对方性别：male/female/any',
+    prefer_age_min INT NOT NULL DEFAULT 0 COMMENT '期望对方最小年龄（0 表示不限）',
+    prefer_age_max INT NOT NULL DEFAULT 0 COMMENT '期望对方最大年龄（0 表示不限）',
+    prefer_same_province TINYINT NOT NULL DEFAULT 0 COMMENT '是否限制同省（1 是）',
+    created_at DATETIME NOT NULL COMMENT '创建时间',
+    updated_at DATETIME NOT NULL COMMENT '更新时间',
+    PRIMARY KEY (identity_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='身份匹配偏好';

@@ -92,6 +92,7 @@ type App struct {
 
 	identityService       *IdentityService
 	favoriteService       *FavoriteService
+	matchPreference       *MatchPreferenceService
 	douyinFavorite        *DouyinFavoriteService
 	fileStorage           *FileStorageService
 	imageServer           *ImageServerService
@@ -108,6 +109,7 @@ type App struct {
 	forceoutManager       *ForceoutManager
 	wsManager             *UpstreamWebSocketManager
 	wanfeng               *WanfengManager
+	wanfengMedia          *wanfengMediaBridge
 
 	staticDir string
 	handler   http.Handler
@@ -181,6 +183,7 @@ func New(cfg config.Config) (*App, error) {
 		jwt:              NewJWTService(cfg.JWTSecret, cfg.TokenExpireHours),
 		identityService:  NewIdentityService(db),
 		favoriteService:  NewFavoriteService(db),
+		matchPreference:  NewMatchPreferenceService(db),
 		douyinFavorite:   NewDouyinFavoriteService(db),
 		fileStorage:      NewFileStorageService(db),
 		imageServer:      NewImageServerService(cfg.ImageServerHost, cfg.ImageServerPort),
@@ -213,9 +216,17 @@ func New(cfg config.Config) (*App, error) {
 			Protocol:   proto,
 		})
 		application.wanfeng = NewWanfengManager(wanfengAPI, NewWanfengBindingService(db), nil)
+		// 匹配偏好随登录帧上送（三期）：注入读取回调，避免 manager 反向依赖数据库
+		if application.matchPreference != nil {
+			prefSvc := application.matchPreference
+			application.wanfeng.SetMatchPreferenceProvider(func(identityID string) (MatchPreference, error) {
+				return prefSvc.Get(context.Background(), identityID)
+			})
+		}
 		if cfg.WanfengMediaEnabled {
 			// 二期：图片/视频在「chat2019 媒体服务器 ↔ 对方媒体服务」之间搬运，前端渲染链路复用
-			application.wanfeng.SetMediaBridge(newWanfengMediaBridge(application, wanfengAPI, nil))
+			application.wanfengMedia = newWanfengMediaBridge(application, wanfengAPI, nil)
+			application.wanfeng.SetMediaBridge(application.wanfengMedia)
 		}
 		slog.Info("晚风线路已启用", "baseURL", cfg.WanfengBaseURL, "media", cfg.WanfengMediaEnabled)
 	}

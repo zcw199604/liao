@@ -14,10 +14,20 @@ import (
 
 // 前端 act 协议中与固定动作相关的常量（来自现有前端实现，不建议改动）。
 const (
-	actSign          = "sign"
-	actRandom        = "random"
-	actRandomOut     = "randomOut"
-	actToUserPrefix  = "touser_"
+	actSign         = "sign"
+	actRandom       = "random"
+	actRandomOut    = "randomOut"
+	actToUserPrefix = "touser_"
+	// actWarningReport 是前端「拉黑该用户」用的 act（沿用 chat2019 语义）。
+	actWarningReport = "warningreport"
+	// actReportUserPrefix 是「举报」act：reportuser_<uid>_<原因>_<备注>，原因/备注可省略。
+	actReportUserPrefix = "reportuser_"
+	// actUnblockUserPrefix 是「解除拉黑」act：unblockuser_<uid>。
+	actUnblockUserPrefix = "unblockuser_"
+	// actRecallPrefix 是「撤回」act：recall_<tid>。
+	actRecallPrefix = "recall_"
+	// actReadPrefix 是「标记已读」act：read_<uid>。
+	actReadPrefix    = "read_"
 	actInputStatusOn = "inputStatusOn_"
 )
 
@@ -44,6 +54,8 @@ type ClientFrame struct {
 	UserSex     string
 	UserAge     string
 	UserAddress string
+	// MatchPreference 是匹配偏好（对方 update_profile 里的字段），可省略。
+	MatchPreference map[string]any
 }
 
 // ParseClientFrame 解析前端下发的 act 帧。
@@ -53,13 +65,14 @@ func ParseClientFrame(raw string) (ClientFrame, error) {
 		return ClientFrame{}, fmt.Errorf("解析前端帧失败: %w", err)
 	}
 	return ClientFrame{
-		Act:         PickString(node, "act"),
-		ID:          PickString(node, "id"),
-		Msg:         PickString(node, "msg"),
-		Name:        PickString(node, "name", "nickname"),
-		UserSex:     PickString(node, "userSex", "sex"),
-		UserAge:     PickString(node, "userAge", "age"),
-		UserAddress: PickString(node, "useraddress", "userAddress", "address"),
+		Act:             PickString(node, "act"),
+		ID:              PickString(node, "id"),
+		Msg:             PickString(node, "msg"),
+		Name:            PickString(node, "name", "nickname"),
+		UserSex:         PickString(node, "userSex", "sex"),
+		UserAge:         PickString(node, "userAge", "age"),
+		UserAddress:     PickString(node, "useraddress", "userAddress", "address"),
+		MatchPreference: PickMap(node, "matchPreference", "match_preference"),
 	}, nil
 }
 
@@ -77,6 +90,35 @@ type Profile struct {
 	Nickname string
 	Gender   string // male/female/secret
 	Age      int
+	// MatchPreference 是匹配偏好（对方 update_profile 的字段，可省略）。
+	MatchPreference map[string]any
+}
+
+// UpdateProfilePayload 组装 update_profile 动作的 payload。
+//
+// 对方把匹配偏好挂在用户资料上，因此改偏好必须走 update_profile（对方前端同样如此）。
+func (p Protocol) UpdateProfilePayload(profile Profile) map[string]any {
+	nickname := strings.TrimSpace(profile.Nickname)
+	if nickname == "" {
+		nickname = "匿名"
+	}
+	gender := strings.TrimSpace(profile.Gender)
+	if gender == "" {
+		gender = "secret"
+	}
+	age := profile.Age
+	if age <= 0 {
+		age = p.DefaultAge
+	}
+	payload := map[string]any{
+		"nickname": nickname,
+		"gender":   gender,
+		"age":      age,
+	}
+	if len(profile.MatchPreference) > 0 {
+		payload["matchPreference"] = profile.MatchPreference
+	}
+	return payload
 }
 
 // TargetFromAct 从 "touser_<uid>_<nickname>" 中解析目标用户 id。
@@ -131,6 +173,48 @@ func (p Protocol) BuildCommand(frame ClientFrame, targetUID string) (OutgoingCom
 				"localTid":  newLocalTid(),
 			},
 		}, true
+	case act == actWarningReport:
+		// 前端「拉黑该用户」：id 是被拉黑方，msg 是本地流水号（对方无用）
+		target := firstNonEmpty(targetUID, frame.ID)
+		if target == "" {
+			return OutgoingCommand{}, false
+		}
+		return OutgoingCommand{Action: p.ActionBlockUser, Payload: map[string]any{"targetUid": target}}, true
+	case strings.HasPrefix(act, actUnblockUserPrefix):
+		target := firstNonEmpty(strings.TrimPrefix(act, actUnblockUserPrefix), frame.ID)
+		if target == "" {
+			return OutgoingCommand{}, false
+		}
+		return OutgoingCommand{Action: p.ActionUnblockUser, Payload: map[string]any{"targetUid": target}}, true
+	case strings.HasPrefix(act, actReportUserPrefix):
+		// reportuser_<uid>_<reason>_<remark>
+		parts := strings.SplitN(strings.TrimPrefix(act, actReportUserPrefix), "_", 3)
+		target := firstNonEmpty(parts[0], frame.ID)
+		if target == "" {
+			return OutgoingCommand{}, false
+		}
+		payload := map[string]any{"targetUid": target, "reason": p.DefaultReportReason}
+		if len(parts) > 1 && strings.TrimSpace(parts[1]) != "" {
+			payload["reason"] = strings.TrimSpace(parts[1])
+		}
+		if len(parts) > 2 && strings.TrimSpace(parts[2]) != "" {
+			payload["remark"] = strings.TrimSpace(parts[2])
+		} else if strings.TrimSpace(frame.Msg) != "" {
+			payload["remark"] = strings.TrimSpace(frame.Msg)
+		}
+		return OutgoingCommand{Action: p.ActionReportUser, Payload: payload}, true
+	case strings.HasPrefix(act, actRecallPrefix):
+		tid := firstNonEmpty(strings.TrimPrefix(act, actRecallPrefix), frame.Msg)
+		if tid == "" {
+			return OutgoingCommand{}, false
+		}
+		return OutgoingCommand{Action: p.ActionRecallMessage, Payload: map[string]any{"tid": tid}}, true
+	case strings.HasPrefix(act, actReadPrefix):
+		target := firstNonEmpty(strings.TrimPrefix(act, actReadPrefix), targetUID, frame.ID)
+		if target == "" {
+			return OutgoingCommand{}, false
+		}
+		return OutgoingCommand{Action: p.ActionReadMessages, Payload: map[string]any{"targetUid": target}}, true
 	default:
 		// sign / inputStatusOn_* / ShowUserLoginInfo 等由连接层自行处理或忽略
 		return OutgoingCommand{}, false
@@ -394,6 +478,10 @@ func (p Protocol) LoginPayload(binding Binding, profile Profile, resetState bool
 	}
 	if token := strings.TrimSpace(binding.IdentityToken); token != "" {
 		payload["identityToken"] = token
+	}
+	// 匹配偏好随登录帧上送（对方把它挂在用户资料上）
+	if len(profile.MatchPreference) > 0 {
+		payload["matchPreference"] = profile.MatchPreference
 	}
 	return payload
 }

@@ -365,11 +365,19 @@ func (c *APIClient) decodeResponseData(raw []byte, sess *Session) (map[string]an
 		return nil, fmt.Errorf("解析晚风响应失败: %w", err)
 	}
 
-	success, _ := node["success"].(bool)
+	success, hasSuccess := node["success"].(bool)
 	code := PickString(node, "code")
 	message := PickString(node, "message")
-	if !success {
-		return nil, &APIError{Code: code, Message: message}
+	if hasSuccess && !success {
+		// 对方一部分接口成功时省略 success 字段、失败时给 success=false + code；
+		// 另一部分成功时 success=true + code=0。这里只在「明确失败」时报错，
+		// 避免把 success=false 但 data 正常的历史接口误判成失败。
+		if code != "" && code != "0" {
+			return nil, &APIError{Code: code, Message: message}
+		}
+		if message != "" && !hasDataField(node) {
+			return nil, &APIError{Code: code, Message: message}
+		}
 	}
 
 	data, ok := node["data"]
@@ -662,4 +670,22 @@ func escapeMultipartQuotes(v string) string {
 	v = strings.ReplaceAll(v, "\r", "_")
 	v = strings.ReplaceAll(v, "\n", "_")
 	return v
+}
+
+// hasDataField 判断响应里是否带 data（用于区分「有数据的软失败」与真空响应）。
+func hasDataField(node map[string]any) bool {
+	data, ok := node["data"]
+	if !ok || data == nil {
+		return false
+	}
+	switch v := data.(type) {
+	case string:
+		return strings.TrimSpace(v) != ""
+	case map[string]any:
+		return len(v) > 0
+	case []any:
+		return len(v) > 0
+	default:
+		return true
+	}
 }

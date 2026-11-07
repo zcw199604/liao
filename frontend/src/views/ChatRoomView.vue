@@ -48,6 +48,7 @@
         @back="handleBack"
         @toggle-favorite="handleToggleFavorite"
         @blacklist="handleBlacklist"
+        @report="handleReport"
         @clear-and-reload="handleClearAndReload"
         @toggle-sidebar="showSidebar = !showSidebar"
         @reconnect="handleReconnect"
@@ -183,6 +184,35 @@
       @confirm="executeBlacklist"
     >
       确定要拉黑 <strong>{{ chatStore.currentChatUser?.nickname || '该用户' }}</strong> 吗？
+    </Dialog>
+
+    <!-- 举报原因弹窗 -->
+    <Dialog
+      v-model:visible="showReportDialog"
+      title="举报用户"
+      confirm-text="提交举报"
+      :show-warning="true"
+      @confirm="executeReport"
+    >
+      <p class="mb-3">
+        确定要举报 <strong>{{ chatStore.currentChatUser?.nickname || '该用户' }}</strong> 吗？
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <button
+          v-for="reason in reportReasons"
+          :key="reason"
+          type="button"
+          class="px-3 py-1.5 rounded-lg text-xs border transition"
+          :class="
+            selectedReportReason === reason
+              ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+              : 'bg-surface-2 border-line text-fg-muted hover:bg-surface-3'
+          "
+          @click="selectedReportReason = reason"
+        >
+          {{ reason }}
+        </button>
+      </div>
     </Dialog>
 
     <!-- 聊天历史图片/视频弹窗 -->
@@ -322,6 +352,10 @@ const messageListRef = ref<any>(null)
 
 const showClearDialog = ref(false)
 const showBlacklistDialog = ref(false)
+const showReportDialog = ref(false)
+// 举报原因：与对方站点一致的可选文案
+const reportReasons = ['骚扰辱骂', '色情低俗', '广告诈骗', '其他违规']
+const selectedReportReason = ref(reportReasons[0]!)
 const pageRef = ref<HTMLElement | null>(null)
 const sidebarRef = ref<HTMLElement | null>(null)
 const showSidebar = ref(false)
@@ -861,6 +895,38 @@ const executeBlacklist = () => {
   if (ok !== false) {
     show('已发送拉黑请求')
     showBlacklistDialog.value = false
+  }
+}
+
+const handleReport = () => {
+  if (!chatStore.currentChatUser) return
+  if (!chatStore.wsConnected) {
+    show(WS_DISCONNECTED_TIP)
+    return
+  }
+
+  selectedReportReason.value = reportReasons[0]!
+  showReportDialog.value = true
+}
+
+const executeReport = () => {
+  const target = chatStore.currentChatUser
+  if (!target) return
+  if (!chatStore.wsConnected) {
+    show(WS_DISCONNECTED_TIP)
+    return
+  }
+
+  // act 形如 reportuser_<uid>_<原因>：后端按线路翻译（晚风走 report_user 帧）
+  const ok = send({
+    act: `reportuser_${target.id}`,
+    id: target.id,
+    msg: selectedReportReason.value
+  })
+
+  if (ok !== false) {
+    show('已提交举报')
+    showReportDialog.value = false
   }
 }
 

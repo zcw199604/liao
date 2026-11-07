@@ -28,12 +28,13 @@ type WanfengManager struct {
 	bindings wanfeng.BindingStore
 	logger   *slog.Logger
 
-	mu           sync.Mutex
-	media        wanfeng.MediaBridge
-	clients      map[string]*wanfeng.Client
-	profiles     map[string]wanfeng.Profile
-	sessions     map[string]map[*DownstreamSession]struct{}
-	pendingClose map[string]*time.Timer
+	mu              sync.Mutex
+	media           wanfeng.MediaBridge
+	matchPreference MatchPreferenceProvider
+	clients         map[string]*wanfeng.Client
+	profiles        map[string]wanfeng.Profile
+	sessions        map[string]map[*DownstreamSession]struct{}
+	pendingClose    map[string]*time.Timer
 }
 
 // NewWanfengManager 创建晚风线路管理器。
@@ -61,6 +62,8 @@ func (m *WanfengManager) RegisterDownstream(userID string, session *DownstreamSe
 	}
 
 	profile := m.profileFromSign(signMessage)
+	// 本地匹配偏好要随登录帧上送，否则对方站点按默认偏好匹配
+	profile = m.applyMatchPreference(userID, profile)
 
 	var shouldCreate bool
 	m.mu.Lock()
@@ -139,12 +142,23 @@ func (m *WanfengManager) SendToUpstream(userID string, message string) {
 		return
 	}
 
-	// sign 帧只用于更新展示资料，不作为业务动作转发
+	// sign 帧用于更新展示资料（含匹配偏好），不当作聊天动作转发
 	if strings.TrimSpace(frame.Act) == "sign" {
 		profile := m.profileFromFrame(frame)
 		m.mu.Lock()
+		previous, hadPrevious := m.profiles[userID]
 		m.profiles[userID] = profile
+		client := m.clients[userID]
 		m.mu.Unlock()
+
+		// 登录帧已带过资料时，资料变更（尤其是匹配偏好）必须走 update_profile，
+		// 否则对方站点不会生效。
+		if client != nil && hadPrevious && !profileEqual(previous, profile) {
+			client.SendCommand(wanfeng.OutgoingCommand{
+				Action:  m.Protocol().ActionUpdateProfile,
+				Payload: m.Protocol().UpdateProfilePayload(profile),
+			})
+		}
 		return
 	}
 
@@ -170,6 +184,29 @@ func (m *WanfengManager) SendToUpstream(userID string, message string) {
 	if cmd.Action == proto.ActionJoinMatch {
 		m.Emit(userID, proto.MatchingMessage())
 	}
+}
+
+// SendAction 直接向该身份的上游连接下发一个动作（收藏/已读/匹配偏好等旁路操作）。
+//
+// 与 SendToUpstream 的区别：这里由后端主动触发，不经过前端帧翻译。
+func (m *WanfengManager) SendAction(identityID, action string, payload map[string]any) error {
+	identityID = strings.TrimSpace(identityID)
+	action = strings.TrimSpace(action)
+	if m == nil || identityID == "" || action == "" {
+		return fmt.Errorf("缺少身份或动作")
+	}
+	if payload == nil {
+		payload = map[string]any{}
+	}
+
+	m.mu.Lock()
+	client := m.clients[identityID]
+	m.mu.Unlock()
+	if client == nil {
+		return fmt.Errorf("晚风连接未就绪，请稍后重试")
+	}
+	client.SendCommand(wanfeng.OutgoingCommand{Action: action, Payload: payload})
+	return nil
 }
 
 // Emit 实现 wanfeng.Emitter：把业务消息广播给该身份的所有下游会话。
@@ -249,6 +286,60 @@ func (m *WanfengManager) CloseAll() {
 			_ = s.Close()
 		}
 	}
+}
+
+// SetMatchPreferenceProvider 注入「读取本地匹配偏好」的能力（由 App 装配时调用）。
+//
+// 用函数注入而不是直接依赖服务，是为了让 manager 不反向依赖 App/数据库。
+func (m *WanfengManager) SetMatchPreferenceProvider(fn MatchPreferenceProvider) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	m.matchPreference = fn
+	m.mu.Unlock()
+}
+
+// applyMatchPreference 把本地偏好并入要上送的展示资料。
+func (m *WanfengManager) applyMatchPreference(identityID string, profile wanfeng.Profile) wanfeng.Profile {
+	m.mu.Lock()
+	fn := m.matchPreference
+	m.mu.Unlock()
+	if fn == nil {
+		return profile
+	}
+	pref, err := fn(identityID)
+	if err != nil {
+		return profile
+	}
+	// 全默认值时不带，避免覆盖对方侧已有偏好
+	if pref.PreferGender == PreferGenderAny && pref.PreferAgeMin == 0 &&
+		pref.PreferAgeMax == 0 && !pref.PreferSameProvince {
+		return profile
+	}
+	profile.MatchPreference = pref.UpstreamPayload()
+	return profile
+}
+
+// Supported 表示晚风线路是否已启用（api 已配置）。
+func (m *WanfengManager) Supported() bool {
+	return m != nil && m.api != nil
+}
+
+// API 返回底层 HTTP 客户端（只读，供历史/媒体等旁路调用）。
+func (m *WanfengManager) API() *wanfeng.APIClient {
+	if m == nil {
+		return nil
+	}
+	return m.api
+}
+
+// Protocol 返回晚风协议参数（只读；含可热覆盖的动作名）。
+func (m *WanfengManager) Protocol() wanfeng.Protocol {
+	if m == nil || m.api == nil {
+		return wanfeng.DefaultProtocol()
+	}
+	return m.api.Protocol()
 }
 
 // ProfileOf 返回某个身份最近一次上送的展示资料。
@@ -333,6 +424,8 @@ func (m *WanfengManager) createClient(userID string) {
 	}
 	m.mu.Unlock()
 
+	profile = m.applyMatchPreference(userID, profile)
+
 	m.mu.Lock()
 	media := m.media
 	m.mu.Unlock()
@@ -384,10 +477,31 @@ func (m *WanfengManager) profileFromFrame(frame wanfeng.ClientFrame) wanfeng.Pro
 		age = 0
 	}
 	return wanfeng.Profile{
-		Nickname: strings.TrimSpace(frame.Name),
-		Gender:   wanfeng.SexToUpstream(frame.UserSex),
-		Age:      age,
+		Nickname:        strings.TrimSpace(frame.Name),
+		Gender:          wanfeng.SexToUpstream(frame.UserSex),
+		Age:             age,
+		MatchPreference: frame.MatchPreference,
 	}
+}
+
+// profileEqual 判断两份资料是否等价（匹配偏好按 JSON 比较，避免 map 直接比较 panic）。
+func profileEqual(a, b wanfeng.Profile) bool {
+	if a.Nickname != b.Nickname || a.Gender != b.Gender || a.Age != b.Age {
+		return false
+	}
+	return matchPreferenceJSON(a.MatchPreference) == matchPreferenceJSON(b.MatchPreference)
+}
+
+// matchPreferenceJSON 把匹配偏好序列化成稳定字符串用于比较。
+func matchPreferenceJSON(pref map[string]any) string {
+	if len(pref) == 0 {
+		return ""
+	}
+	raw, err := json.Marshal(pref)
+	if err != nil {
+		return fmt.Sprintf("%v", pref)
+	}
+	return string(raw)
 }
 
 // describeProfile 便于日志排查。

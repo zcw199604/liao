@@ -26,6 +26,19 @@ type Protocol struct {
 	// RefreshExpiryPath 用于刷新对方媒体的有效期（对方媒体 URL 会过期）。
 	RefreshExpiryPath string `json:"refreshExpiryPath"`
 
+	// —— 历史会话 / 联系人 / 历史消息（三期）——
+	// 这些接口都是「POST + X-Get-Via-Post」风格：query 参数放进加密信封的明文里。
+	HomeDataPath        string `json:"homeDataPath"`
+	RelationsPath       string `json:"relationsPath"`
+	FavoritesPath       string `json:"favoritesPath"`
+	ChatMessagesPath    string `json:"chatMessagesPath"`
+	RelationReadPath    string `json:"relationReadPath"`
+	RelationReadAllPath string `json:"relationReadAllPath"`
+	RelationDeletePath  string `json:"relationDeletePath"`
+	RelationClearPath   string `json:"relationClearPath"`
+	FavoritePinPath     string `json:"favoritePinPath"`
+	NotifySettingsPath  string `json:"notifySettingsPath"`
+
 	// —— 上传表单字段名与桶名 ——
 	UploadFileField   string `json:"uploadFileField"`
 	UploadUserField   string `json:"uploadUserField"`
@@ -67,6 +80,17 @@ type Protocol struct {
 	ActionExitChat      string `json:"actionExitChat"`
 	ActionHeartbeat     string `json:"actionHeartbeat"`
 	ActionUpdateProfile string `json:"actionUpdateProfile"`
+	// 三期：拉黑 / 举报 / 撤回 / 已读 / 收藏
+	ActionBlockUser      string `json:"actionBlockUser"`
+	ActionUnblockUser    string `json:"actionUnblockUser"`
+	ActionReportUser     string `json:"actionReportUser"`
+	ActionRecallMessage  string `json:"actionRecallMessage"`
+	ActionReadMessages   string `json:"actionReadMessages"`
+	ActionAddFavorite    string `json:"actionAddFavorite"`
+	ActionRemoveFavorite string `json:"actionRemoveFavorite"`
+
+	// DefaultReportReason 是举报时使用的默认原因（前端只点「拉黑」时兜底）。
+	DefaultReportReason string `json:"defaultReportReason"`
 
 	// —— 上行事件名（对方 → 我方）——
 	EventConnected       string `json:"eventConnected"`
@@ -77,6 +101,8 @@ type Protocol struct {
 	EventPartnerLeft     string `json:"eventPartnerLeft"`
 	EventError           string `json:"eventError"`
 	EventMessagesRead    string `json:"eventMessagesRead"`
+	// 三期：对方确认举报结果时会推 report_user
+	EventReportUser string `json:"eventReportUser"`
 
 	// —— 业务字段容错候选键（对方改字段名时在此追加，不需改代码）——
 	TargetUIDKeys     []string `json:"targetUidKeys"`
@@ -98,6 +124,21 @@ type Protocol struct {
 	MediaURLKeys []string `json:"mediaUrlKeys"`
 	// UploadFilePathKeys 是上传响应里文件路径的候选键。
 	UploadFilePathKeys []string `json:"uploadFilePathKeys"`
+
+	// —— 历史列表 / 历史消息的候选键（三期）——
+	RelationListKeys     []string `json:"relationListKeys"`
+	FavoriteListKeys     []string `json:"favoriteListKeys"`
+	HistoryMessageKeys   []string `json:"historyMessageKeys"`
+	HistoryHasMoreKeys   []string `json:"historyHasMoreKeys"`
+	RelationTargetKeys   []string `json:"relationTargetKeys"`
+	RelationNicknameKeys []string `json:"relationNicknameKeys"`
+	RelationGenderKeys   []string `json:"relationGenderKeys"`
+	RelationAgeKeys      []string `json:"relationAgeKeys"`
+	RelationLastAtKeys   []string `json:"relationLastAtKeys"`
+	FavoriteUIDKeys      []string `json:"favoriteUidKeys"`
+	FavoriteNicknameKeys []string `json:"favoriteNicknameKeys"`
+	FavoriteGenderKeys   []string `json:"favoriteGenderKeys"`
+	FavoriteAgeKeys      []string `json:"favoriteAgeKeys"`
 
 	// —— 匹配状态常量（对方状态机值）——
 	StateIdle     string `json:"stateIdle"`
@@ -122,6 +163,17 @@ func DefaultProtocol() Protocol {
 		ConfigAppInfoPath:    "/api/nimingChat/config/app-info",
 		UploadPath:           "/api/tools/niming-file/upload",
 		RefreshExpiryPath:    "/api/tools/niming-file/refresh-expiry",
+
+		HomeDataPath:        "/api/nimingChat/user/home-data",
+		RelationsPath:       "/api/nimingChat/user/relations",
+		FavoritesPath:       "/api/nimingChat/user/favorites",
+		ChatMessagesPath:    "/api/nimingChat/user/chat/messages",
+		RelationReadPath:    "/api/nimingChat/user/relations/read",
+		RelationReadAllPath: "/api/nimingChat/user/relations/read-all",
+		RelationDeletePath:  "/api/nimingChat/user/relations/delete",
+		RelationClearPath:   "/api/nimingChat/user/relations/clear-all",
+		FavoritePinPath:     "/api/nimingChat/user/favorites/pin",
+		NotifySettingsPath:  "/api/nimingChat/user/notify-settings",
 
 		UploadFileField:   "file",
 		UploadUserField:   "userId",
@@ -156,6 +208,16 @@ func DefaultProtocol() Protocol {
 		ActionHeartbeat:     "heartbeat",
 		ActionUpdateProfile: "update_profile",
 
+		DefaultReportReason: "违规行为",
+
+		ActionBlockUser:      "block_user",
+		ActionUnblockUser:    "unblock_user",
+		ActionReportUser:     "report_user",
+		ActionRecallMessage:  "recall_message",
+		ActionReadMessages:   "read_messages",
+		ActionAddFavorite:    "add_favorite",
+		ActionRemoveFavorite: "remove_favorite",
+
 		EventConnected:       "connected",
 		EventUserInfo:        "user_info",
 		EventMatchResult:     "match_result",
@@ -164,6 +226,7 @@ func DefaultProtocol() Protocol {
 		EventPartnerLeft:     "partner_left",
 		EventError:           "error",
 		EventMessagesRead:    "messages_read",
+		EventReportUser:      "report_user",
 
 		TargetUIDKeys:      []string{"targetUid", "target_uid", "toUid"},
 		PartnerKeys:        []string{"partner", "peer", "target"},
@@ -182,6 +245,20 @@ func DefaultProtocol() Protocol {
 		IdentityTokenKeys:  []string{"identityToken", "identity_token", "token"},
 		MediaURLKeys:       []string{"payload", "mediaUrl", "mediaURL", "url", "filePath", "mediaId"},
 		UploadFilePathKeys: []string{"filePath", "path", "url", "fileName"},
+
+		RelationListKeys:     []string{"relations"},
+		FavoriteListKeys:     []string{"favorites"},
+		HistoryMessageKeys:   []string{"messages", "list"},
+		HistoryHasMoreKeys:   []string{"hasMore", "has_more"},
+		RelationTargetKeys:   []string{"targetUid", "target_uid", "uid"},
+		RelationNicknameKeys: []string{"targetNickname", "target_nickname", "nickname"},
+		RelationGenderKeys:   []string{"targetGender", "target_gender", "gender"},
+		RelationAgeKeys:      []string{"targetAge", "target_age", "age"},
+		RelationLastAtKeys:   []string{"lastMessageAt", "last_message_at", "updatedAt"},
+		FavoriteUIDKeys:      []string{"uid", "targetUid"},
+		FavoriteNicknameKeys: []string{"nickname", "targetNickname"},
+		FavoriteGenderKeys:   []string{"gender", "targetGender"},
+		FavoriteAgeKeys:      []string{"age", "targetAge"},
 
 		StateIdle:     "IDLE",
 		StateMatching: "MATCHING",
@@ -352,6 +429,56 @@ func (p *Protocol) applyDefaults() {
 	}
 	if len(p.UploadFilePathKeys) == 0 {
 		p.UploadFilePathKeys = def.UploadFilePathKeys
+	}
+	for _, field := range []struct {
+		dst *string
+		src string
+	}{
+		{&p.HomeDataPath, def.HomeDataPath},
+		{&p.RelationsPath, def.RelationsPath},
+		{&p.FavoritesPath, def.FavoritesPath},
+		{&p.ChatMessagesPath, def.ChatMessagesPath},
+		{&p.RelationReadPath, def.RelationReadPath},
+		{&p.RelationReadAllPath, def.RelationReadAllPath},
+		{&p.RelationDeletePath, def.RelationDeletePath},
+		{&p.RelationClearPath, def.RelationClearPath},
+		{&p.FavoritePinPath, def.FavoritePinPath},
+		{&p.NotifySettingsPath, def.NotifySettingsPath},
+		{&p.ActionBlockUser, def.ActionBlockUser},
+		{&p.ActionUnblockUser, def.ActionUnblockUser},
+		{&p.ActionReportUser, def.ActionReportUser},
+		{&p.ActionRecallMessage, def.ActionRecallMessage},
+		{&p.ActionReadMessages, def.ActionReadMessages},
+		{&p.ActionAddFavorite, def.ActionAddFavorite},
+		{&p.ActionRemoveFavorite, def.ActionRemoveFavorite},
+		{&p.EventReportUser, def.EventReportUser},
+		{&p.DefaultReportReason, def.DefaultReportReason},
+	} {
+		if strings.TrimSpace(*field.dst) == "" {
+			*field.dst = field.src
+		}
+	}
+	for _, field := range []struct {
+		dst *[]string
+		src []string
+	}{
+		{&p.RelationListKeys, def.RelationListKeys},
+		{&p.FavoriteListKeys, def.FavoriteListKeys},
+		{&p.HistoryMessageKeys, def.HistoryMessageKeys},
+		{&p.HistoryHasMoreKeys, def.HistoryHasMoreKeys},
+		{&p.RelationTargetKeys, def.RelationTargetKeys},
+		{&p.RelationNicknameKeys, def.RelationNicknameKeys},
+		{&p.RelationGenderKeys, def.RelationGenderKeys},
+		{&p.RelationAgeKeys, def.RelationAgeKeys},
+		{&p.RelationLastAtKeys, def.RelationLastAtKeys},
+		{&p.FavoriteUIDKeys, def.FavoriteUIDKeys},
+		{&p.FavoriteNicknameKeys, def.FavoriteNicknameKeys},
+		{&p.FavoriteGenderKeys, def.FavoriteGenderKeys},
+		{&p.FavoriteAgeKeys, def.FavoriteAgeKeys},
+	} {
+		if len(*field.dst) == 0 {
+			*field.dst = field.src
+		}
 	}
 	if len(p.StateKeys) == 0 {
 		p.StateKeys = def.StateKeys
