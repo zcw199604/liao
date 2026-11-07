@@ -200,6 +200,30 @@ docker run -d -p 8080:8080 \
 - `WANFENG_PROTOCOL_OVERRIDES` - 晚风协议参数覆盖（JSON，用于对方改版时热修，详见 `docs/wanfeng-niming-integration-plan.md`）
 - `WANFENG_MEDIA_ENABLED` - 是否在晚风线路转发图片/视频（默认 `true`；关闭后媒体消息降级为系统提示）
 
+### 怎么切换聊天线路
+
+线路选择入口在**前端聊天页**里，不在环境变量里：
+
+1. 左侧聊天列表左上角，点 **☰（三条杠）菜单**；
+2. 选 **「身份信息」**（不是「系统设置」）；
+3. 抽屉**最底部**有「聊天线路」区块，点「晚风线路」即可，选中后自动断开重连。
+
+排查「看不到线路选择」：该区块只有**两条以上线路**时才渲染，而后端默认关闭晚风线路。
+
+```bash
+# 看当前后端开了几条线路（1 条 = 线路选择块不会出现）
+curl -s -H "Authorization: Bearer <你的token>" http://localhost:8080/api/provider/list
+```
+
+返回 `providers` 数组里只有「经典线路」，说明没开：
+
+```bash
+WANFENG_ENABLED=true   # 加到 .env / docker -e / 部署环境变量后重启服务
+```
+
+前端的选择保存在 `localStorage['liao-ws-provider']`（按浏览器记，切换身份不影响），
+实际连接地址是 `/ws?token=...&provider=wanfeng`。
+
 ## 开发规范
 
 - 代码注释使用中文

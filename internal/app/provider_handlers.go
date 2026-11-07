@@ -24,7 +24,7 @@ func (a *App) handleProviderList(w http.ResponseWriter, r *http.Request) {
 		providers = append(providers, ProviderInfo{
 			ID:          ProviderWanfeng,
 			Name:        "晚风线路",
-			Description: "新增线路，匹配池不同，仅支持文字聊天",
+			Description: "新增线路，匹配池不同，支持文字/图片/视频",
 			Default:     false,
 		})
 	}
