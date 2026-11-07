@@ -197,7 +197,7 @@ docker run -d -p 8080:8080 \
 - `WANFENG_BASE_URL` - 晚风站点根地址（默认 `https://wanfengniming.store`；HTTP 接口与 WS 同域）
 - `WANFENG_WS_URL` - 晚风 WebSocket 地址（可选；留空按 `WANFENG_BASE_URL + /ws` 推导）
 - `WANFENG_TIMEOUT_SECONDS` - 调用晚风接口超时（秒，默认30）
-- `WANFENG_PROTOCOL_OVERRIDES` - 晚风协议参数覆盖（JSON，用于对方改版时热修，详见 `docs/wanfeng-niming-integration-plan.md`）
+- `WANFENG_PROTOCOL_OVERRIDES` - 晚风协议参数覆盖（JSON，用于对方改版时热修，详见 `docs/wanfeng-niming-integration-plan.md` 与 `docs/wanfeng-reverse-engineering.md`）
 - `WANFENG_MEDIA_ENABLED` - 是否在晚风线路转发图片/视频（默认 `true`；关闭后媒体消息降级为系统提示）
 
 ### 怎么切换聊天线路

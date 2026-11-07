@@ -173,7 +173,8 @@ docker run -d -p 8080:8080 \
 - 拉黑/举报/撤回/已读：前端 act 在 `adapter.go` 的 `BuildCommand` 里翻译成 `block_user`/`unblock_user`/`report_user`/`recall_message`/`read_messages`；收到对方消息会自动回一条 `read_messages`（我方无已读 UI，但对方有）
 - 匹配偏好：本地表 `identity_match_preference`，随 `login` 与 `update_profile` 的 `matchPreference` 字段下发；接口 `/api/getMatchPreference`、`/api/updateMatchPreference`，`supported=false` 表示该线路不支持（chat2019）
 - 明确不支持：输入状态（对方站点没有该事件）、在线状态实时查询（只有 `favorite_online` 推送）
-- 语音仍未做：前端缺音频消息类型，晚风语音会按「文件」渲染
+- 语音仍未做：前端缺音频消息类型，晚风语音会按「文件」渲染（对方录制细节已逆向，见 `docs/wanfeng-reverse-engineering.md` 5.7）
+- **逆向知识库**：`docs/wanfeng-reverse-engineering.md`（协议/API/字段/风控全量，含未验证项清单）+ `docs/js-artifacts.md`（原始 JS 片段，改版时逐字对比）。对方改版后的定位流程、重新抓取脚本都在里面，改动前先看它
 
 ### 上游连接池（UpstreamWebSocketManager）
 - 同一userId只创建一个上游连接
