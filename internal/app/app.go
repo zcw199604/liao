@@ -111,7 +111,9 @@ type App struct {
 	wsManager             *UpstreamWebSocketManager
 	wanfeng               *WanfengManager
 	wanfengMedia          *wanfengMediaBridge
-	closeWanfengProxy     func()
+	// wanfengClients 按身份缓存带独立 Cookie Jar 的对方客户端（历史/收藏接口按 Cookie 认定身份）。
+	wanfengClients    *wanfengIdentityClients
+	closeWanfengProxy func()
 
 	staticDir string
 	handler   http.Handler
@@ -225,6 +227,7 @@ func New(cfg config.Config) (*App, error) {
 			Protocol:   proto,
 		})
 		application.wanfeng = NewWanfengManager(wanfengAPI, NewWanfengBindingService(db), nil)
+		application.wanfengClients = newWanfengIdentityClients(wanfengAPI)
 		// 匹配偏好随登录帧上送（三期）：注入读取回调，避免 manager 反向依赖数据库
 		if application.matchPreference != nil {
 			prefSvc := application.matchPreference

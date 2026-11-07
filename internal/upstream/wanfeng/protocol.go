@@ -53,6 +53,13 @@ type Protocol struct {
 	SessionHeader    string `json:"sessionHeader"`
 	UserAgent        string `json:"userAgent"`
 	AcceptHeader     string `json:"acceptHeader"`
+	// PostOnlyPaths 是「只能按 POST 路由」的接口路径子串。
+	//
+	// 对方的 X-Get-Via-Post 语义是「这个 POST 其实是个 GET」：带上它，服务端会按 GET 路由匹配，
+	// 于是被注册成 POST-only 的接口（实测 account/identity-cookie）直接返回
+	// 404「资源不存在: GET /api/xxx」，身份 Cookie 永远换不回来。
+	// 因此这些路径必须不带该头，与对方前端「不走 getViaPost 的 X() 调用」保持一致。
+	PostOnlyPaths []string `json:"postOnlyPaths"`
 
 	// —— WebSocket ——
 	WSPath           string `json:"wsPath"`
@@ -185,8 +192,10 @@ func DefaultProtocol() Protocol {
 		GetViaPostHeader: "X-Get-Via-Post",
 		GetViaPostValue:  "1",
 		SessionHeader:    "X-Enc-Sid",
-		UserAgent:        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-		AcceptHeader:     "application/json, text/plain, */*",
+		// account/identity-cookie 是 POST-only 路由，带 X-Get-Via-Post 会被当成 GET 路由 404。
+		PostOnlyPaths: []string{"/account/identity-cookie"},
+		UserAgent:     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+		AcceptHeader:  "application/json, text/plain, */*",
 
 		WSPath:           "/ws",
 		WSTimestampParam: "_t",
@@ -286,6 +295,20 @@ func (p Protocol) ApplyOverrides(raw string) (Protocol, error) {
 	return out, nil
 }
 
+// IsPostOnlyPath 判断该接口是否必须按 POST 路由（不能带 X-Get-Via-Post）。
+func (p Protocol) IsPostOnlyPath(path string) bool {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return false
+	}
+	for _, sub := range p.PostOnlyPaths {
+		if sub = strings.TrimSpace(sub); sub != "" && strings.Contains(path, sub) {
+			return true
+		}
+	}
+	return false
+}
+
 // applyDefaults 补齐覆盖后可能为空的字段，避免空串导致请求异常。
 func (p *Protocol) applyDefaults() {
 	def := DefaultProtocol()
@@ -297,6 +320,12 @@ func (p *Protocol) applyDefaults() {
 	}
 	if strings.TrimSpace(p.GetViaPostHeader) == "" {
 		p.GetViaPostHeader = def.GetViaPostHeader
+	}
+	if strings.TrimSpace(p.GetViaPostValue) == "" {
+		p.GetViaPostValue = def.GetViaPostValue
+	}
+	if len(p.PostOnlyPaths) == 0 {
+		p.PostOnlyPaths = def.PostOnlyPaths
 	}
 	if strings.TrimSpace(p.WSPath) == "" {
 		p.WSPath = def.WSPath

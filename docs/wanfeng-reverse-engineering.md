@@ -137,6 +137,28 @@ X-Enc-Sid: <sid>          // 仅当信封是 v3 形态时带
 
 query 参数**不放在 URL 上**，而是解析进业务参数对象一起加密（📖 代码：`Lo()` 把 `?a=b` 拆出来放进 `params`，然后整个 `params` 进信封）。
 
+⚠️ **`X-Get-Via-Post: 1` 的真实语义是「这个 POST 其实是个 GET」**（📖 代码 2026-11 版）：服务端看到该头就按 **GET 路由** 匹配。
+因此对手方注册成 **POST-only** 的接口，带上这个头会直接
+
+```
+HTTP 404 {"success":false,"code":404,"message":"资源不存在: GET /api/xxm-nimingChat/account/identity-cookie"}
+```
+
+（`xxm-` 是内部 rewrite 前缀；消息里回显的方法/路径就是路由匹配时用的。）
+
+判定依据是对方前端的两类调用方式：
+
+| 前端封装 | 是否带 `X-Get-Via-Post` | 典型接口 |
+|---|---|---|
+| `ke()` / `$e.query()`（GET 风格业务接口） | 带 | `user/home-data`、`user/favorites`、`user/chat/messages`、`config/*`、`tools/util/generate` |
+| `X()`（未包成 GET 的接口） | **不带** | `account/identity-cookie`（POST-only） |
+
+对方前端把「必须按 POST 路由」的路径子串写死在 `_a` 常量里（`/health /app-info /user/identity /user/init /auth/ /config /account/identity-cookie /account/whoami /util/generate`），
+但**只有 `identity-cookie` 是真正的 POST-only 路由**：`whoami` 相反，必须带该头，否则 404「资源不存在: POST /api/xxm-nimingChat/account/whoami」（已实测）。
+
+我方对应实现：`Protocol.PostOnlyPaths`（默认 `["/account/identity-cookie"]`，可用 `WANFENG_PROTOCOL_OVERRIDES` 覆盖），
+`httpx.go` 的 `post()` 命中这些路径时不再发该头。
+
 **哪些路径必须加密**（📖 代码，正则 `^/api/(nimingChat|tools|bottle|risk|story)(/|$)`）：
 
 必加密的 5 个前缀：`nimingChat` / `tools` / `bottle` / `risk` / `story`
@@ -161,10 +183,12 @@ query 参数**不放在 URL 上**，而是解析进业务参数对象一起加�
 | HTTP | code | 含义 | 前端行为 |
 |---|---|---|---|
 | 401 | `40310` | 会话密钥失效 | 清 sessionStorage 里的密钥 → 重握手 → 重试一次 |
-| 403 | — | 身份未就绪 | 等身份写入完成（最多 10s）→ 重试 |
+| 403 | `40300` | 身份 Cookie 未就绪 / 与 uid 不匹配（媒体上传也用它表示 Cookie 失效） | 等身份写入完成（最多 10s）→ 重试 |
 | 403 | `4031` | 同上另一分支 | 触发后台静默补发身份 Cookie |
+| 404 | `404` | 路由不存在（常见原因：POST-only 接口带了 `X-Get-Via-Post`） | — |
 
-我方实现：`internal/upstream/wanfeng/httpx.go` 对 401/40310 自动重握手并重试**一次**（不无限重试，避免触发风控）。
+我方实现：`internal/upstream/wanfeng/httpx.go` 对 401/40310 自动重握手并重试**一次**；
+对 40300/4031（`IdentityNotReady`）由调用方重建身份 Cookie 后重试**一次**（不无限重试，避免触发风控）。
 
 ---
 
@@ -211,11 +235,35 @@ canvas 指纹是标准的 240x60 画布 + 渐变 + 文字渲染后取图像数�
 | 接口 | 作用 | 返回 |
 |---|---|---|
 | `GET/POST /api/tools/util/generate` | 申请全新身份（**免加密**） | `{uid, nickname}` |
-| `POST /api/nimingChat/account/identity-cookie` | 用 `identityToken` 换回身份 Cookie；传 `{clear:true}` 是登出 | `{success}` |
+| `POST /api/nimingChat/account/identity-cookie` | 用 `identityToken` 换回身份 Cookie（`Set-Cookie: wf_identity=<identityToken>`）；传 `{clear:true}` 是登出。**POST-only：不能带 `X-Get-Via-Post`，否则 404** | `{success}` |
 | `POST /api/nimingChat/account/whoami` | 靠 Cookie 恢复当前身份 | `{uid, nickname}` |
 | `GET /api/nimingChat/config/nickname/random` | 随机昵称 | `{nickname}` |
 
 恢复顺序（📖 代码）：先试 `whoami`（靠 Cookie）→ 再试 `identityToken` → 都没有就 `generate` 新号。
+
+### 3.3.1 身份 Cookie 是「历史/会话类接口」的前置条件 ⚠️
+
+对方的 `user/home-data`、`user/favorites`、`user/relations`、`user/chat/messages` 全部按 **Cookie `wf_identity`** 认定身份，
+`uid` 参数只是业务主键、不做鉴权。Cookie 缺失或与 `uid` 不匹配时统一返回：
+
+```
+HTTP 403 {"success":false,"code":40300,"message":"请求错误，请刷新页面","data":null}
+```
+
+推论与实测（2026-11-07，SCF 出口 106.53.99.253）：
+
+1. 未绑定 Cookie → `home-data` 40300；`identity-cookie` 换到 Cookie（`wf_identity`）后同一请求立即 200；
+2. `whoami` 靠 Cookie 反查身份，**不需要** `uid` 参数，它是判断「Cookie 是否已就绪」的最轻探针；
+3. 对方前端遇到 `HTTP 403` 的处理是：「等身份写入完成（最多 10s）→ 重试一次」，不是换会话密钥；
+   只有 `HTTP 401 + code 40310` 才是「会话密钥失效 → 重新握手」。
+
+因此我方约定（`httpx.go` / `internal/app/wanfeng_client_cache.go`）：
+
+- `APIError` 必须带上 HTTP 状态码，否则 40300 与 40310 无法区分；
+- `wanfeng.IdentityNotReady(err)` 识别 `code=40300/4031` 或「带业务码的 HTTP 403」；
+- **历史/收藏/聊天记录必须用「按身份克隆、独立 Cookie Jar、已绑定身份 Cookie」的客户端**（`wanfengIdentityClients`），
+  不能用进程级共享客户端：多身份共用一份 Jar 会串号（A 的 Cookie 覆盖 B）；
+- 收到身份类错误时重建 Cookie 再重试**一次**（对方前端同样只重试一次，避免风控）。
 
 ---
 

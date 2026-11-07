@@ -192,7 +192,7 @@ func (c *APIClient) handshake(ctx context.Context) (*Session, error) {
 		"v":   c.proto.EnvelopeVersion,
 		"pub": kp.pubB64,
 	}
-	raw, err := c.post(ctx, c.proto.HandshakePath, body, nil)
+	raw, _, err := c.post(ctx, c.proto.HandshakePath, body, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -242,12 +242,12 @@ func (c *APIClient) Call(ctx context.Context, path string, params map[string]any
 		return nil, err
 	}
 
-	raw, err := c.post(ctx, path, envelope, sess)
+	raw, status, err := c.post(ctx, path, envelope, sess)
 	if err != nil {
 		return nil, err
 	}
 
-	node, apiErr := c.decodeResponse(raw, sess)
+	node, apiErr := c.decodeResponse(raw, status, sess)
 	if apiErr != nil {
 		// 会话过期：作废后重试一次
 		var ae *APIError
@@ -263,11 +263,11 @@ func (c *APIClient) Call(ctx context.Context, path string, params map[string]any
 			if err2 != nil {
 				return nil, err2
 			}
-			raw2, err2 := c.post(ctx, path, envelope2, sess2)
+			raw2, status2, err2 := c.post(ctx, path, envelope2, sess2)
 			if err2 != nil {
 				return nil, err2
 			}
-			return c.decodeResponseData(raw2, sess2)
+			return c.decodeResponseData(raw2, status2, sess2)
 		}
 		return nil, apiErr
 	}
@@ -315,17 +315,20 @@ func (c *APIClient) buildRequestEnvelope(sess *Session, params map[string]any) (
 	return body, nil
 }
 
-// post 发送 JSON 请求并返回原始响应体。
-func (c *APIClient) post(ctx context.Context, path string, body map[string]any, sess *Session) ([]byte, error) {
+// post 发送 JSON 请求并返回原始响应体与 HTTP 状态码。
+//
+// X-Get-Via-Post 只在「GET 风格」的业务接口上发送：对方用它把 POST 当 GET 路由匹配，
+// 而 POST-only 接口（如 account/identity-cookie）带上它就会 404，必须按 Protocol.PostOnlyPaths 排除。
+func (c *APIClient) post(ctx context.Context, path string, body map[string]any, sess *Session) ([]byte, int, error) {
 	raw, err := json.Marshal(body)
 	if err != nil {
-		return nil, fmt.Errorf("序列化请求失败: %w", err)
+		return nil, 0, fmt.Errorf("序列化请求失败: %w", err)
 	}
 
 	reqURL := c.baseURL + path
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewReader(raw))
 	if err != nil {
-		return nil, fmt.Errorf("构造请求失败: %w", err)
+		return nil, 0, fmt.Errorf("构造请求失败: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -333,7 +336,7 @@ func (c *APIClient) post(ctx context.Context, path string, body map[string]any, 
 	req.Header.Set("User-Agent", c.proto.UserAgent)
 	req.Header.Set("Origin", c.origin)
 	req.Header.Set("Referer", c.referer)
-	if c.proto.GetViaPostHeader != "" {
+	if c.proto.GetViaPostHeader != "" && !c.proto.IsPostOnlyPath(path) {
 		req.Header.Set(c.proto.GetViaPostHeader, c.proto.GetViaPostValue)
 	}
 	if sess != nil && c.proto.SessionHeader != "" {
@@ -343,30 +346,30 @@ func (c *APIClient) post(ctx context.Context, path string, body map[string]any, 
 	egress := c.egressID()
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("请求晚风接口失败: %w", err)
+		return nil, 0, fmt.Errorf("请求晚风接口失败: %w", err)
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, apiBodyLimit))
 	if err != nil {
-		return nil, fmt.Errorf("读取晚风响应失败: %w", err)
+		return nil, resp.StatusCode, fmt.Errorf("读取晚风响应失败: %w", err)
 	}
 	if err := c.checkIPBan(data, egress); err != nil {
-		return nil, err
+		return nil, resp.StatusCode, err
 	}
 	if resp.StatusCode >= 400 && !looksLikeJSON(data) {
 		// 常见于 WAF 拦截：返回 HTML 403/5xx 页面
-		return nil, &APIError{Status: resp.StatusCode, Message: "晚风接口被拦截或不可用（可能触发风控）"}
+		return nil, resp.StatusCode, &APIError{Status: resp.StatusCode, Message: "晚风接口被拦截或不可用（可能触发风控）"}
 	}
-	return data, nil
+	return data, resp.StatusCode, nil
 }
 
 // decodeResponse 解析响应并返回解密后的 data 对象。
-func (c *APIClient) decodeResponse(raw []byte, sess *Session) (map[string]any, error) {
-	return c.decodeResponseData(raw, sess)
+func (c *APIClient) decodeResponse(raw []byte, status int, sess *Session) (map[string]any, error) {
+	return c.decodeResponseData(raw, status, sess)
 }
 
-func (c *APIClient) decodeResponseData(raw []byte, sess *Session) (map[string]any, error) {
+func (c *APIClient) decodeResponseData(raw []byte, status int, sess *Session) (map[string]any, error) {
 	var node map[string]any
 	if err := json.Unmarshal(raw, &node); err != nil {
 		return nil, fmt.Errorf("解析晚风响应失败: %w", err)
@@ -380,10 +383,10 @@ func (c *APIClient) decodeResponseData(raw []byte, sess *Session) (map[string]an
 		// 另一部分成功时 success=true + code=0。这里只在「明确失败」时报错，
 		// 避免把 success=false 但 data 正常的历史接口误判成失败。
 		if code != "" && code != "0" {
-			return nil, &APIError{Code: code, Message: message}
+			return nil, &APIError{Code: code, Status: status, Message: message}
 		}
 		if message != "" && !hasDataField(node) {
-			return nil, &APIError{Code: code, Message: message}
+			return nil, &APIError{Code: code, Status: status, Message: message}
 		}
 	}
 
@@ -445,6 +448,24 @@ func (c *APIClient) UploadMedia(ctx context.Context, filename, contentType strin
 	}
 	c.logger.Debug("媒体上传重试", "reason", err)
 	return c.uploadMediaOnce(ctx, filename, contentType, data, bucket)
+}
+
+// IdentityNotReady 判断是否为「身份 Cookie 未就绪」类错误（HTTP 403 + code 40300/4031）。
+//
+// 对方的历史/收藏/聊天记录接口都按 Cookie 认定身份：Cookie 缺失或与本机 uid 不匹配时
+// 一律返回 40300「请求错误，请刷新页面」。对方前端的处理是「等身份 Cookie 写入后重试」，
+// 因此调用方收到这类错误时应先重新绑定身份 Cookie，再重试一次。
+func IdentityNotReady(err error) bool {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr == nil {
+		return false
+	}
+	switch apiErr.Code {
+	case "40300", "4031":
+		return true
+	}
+	// 只认「带业务码的 403」：WAF/风控返回 HTML 403 时没有 code，不能当作身份问题去重试。
+	return apiErr.Status == http.StatusForbidden && apiErr.Code != ""
 }
 
 // isSessionOrCookieError 判断是否为「会话/身份 Cookie 失效」这类可重试错误。
@@ -679,6 +700,8 @@ func (c *APIClient) Clone() *APIClient {
 		Egress:     c.egress,
 		HTTPClient: &http.Client{Timeout: 60 * time.Second, Transport: transport},
 	})
+	// 加密会话（sid + 派生密钥）与身份无关，克隆客户端共用一份，避免每个身份多一次握手。
+	clone.sessions = c.sessions
 	return clone
 }
 

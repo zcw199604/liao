@@ -43,6 +43,54 @@ func (a *App) wanfengIdentityUID(ctx context.Context, identityID string) (string
 	return binding.UpstreamUID, true
 }
 
+// wanfengHistoryAPI 返回该身份专用、已绑定身份 Cookie 的对方客户端及其晚风 uid。
+//
+// 对方的历史接口按 Cookie（wf_identity）认定身份，Cookie 缺失/错配会统一返回
+// 40300「请求错误，请刷新页面」，所以这里不能用进程级共享客户端。
+// 返回 ok=false 表示该身份不属于晚风线路。
+func (a *App) wanfengHistoryAPI(ctx context.Context, identityID string) (*wanfeng.APIClient, string, bool) {
+	identityID = strings.TrimSpace(identityID)
+	if a == nil || a.wanfeng == nil || identityID == "" {
+		return nil, "", false
+	}
+	binding, err := a.wanfeng.BindingOf(ctx, identityID)
+	if err != nil {
+		slog.Warn("读取晚风身份绑定失败，回退 chat2019 历史接口", "identityID", identityID, "error", err)
+		return nil, "", false
+	}
+	if binding == nil || strings.TrimSpace(binding.UpstreamUID) == "" {
+		return nil, "", false
+	}
+	// 优先用该身份专用客户端（独立 Cookie Jar）；未装配缓存时退回进程级共享客户端。
+	api := a.wanfeng.API()
+	if a.wanfengClients != nil {
+		if perIdentity := a.wanfengClients.Get(ctx, identityID, binding); perIdentity != nil {
+			api = perIdentity
+		}
+	}
+	if api == nil {
+		return nil, "", false
+	}
+	return api, strings.TrimSpace(binding.UpstreamUID), true
+}
+
+// retryWanfengIdentityOnce 在「身份 Cookie 未就绪」时重建客户端 Cookie 并重试一次。
+//
+// 对方身份 Cookie 会随登录换发/过期，缓存客户端的 Cookie 可能失效；
+// 与对方前端一致：遇到 403/40300 先重新绑定身份 Cookie，再重试一次。
+func (a *App) retryWanfengIdentityOnce(ctx context.Context, identityID string, err error, retry func(api *wanfeng.APIClient, selfUID string) error) error {
+	if err == nil || !wanfeng.IdentityNotReady(err) || a.wanfengClients == nil {
+		return err
+	}
+	a.wanfengClients.Drop(identityID)
+	api, selfUID, ok := a.wanfengHistoryAPI(ctx, identityID)
+	if !ok {
+		return err
+	}
+	slog.Info("晚风身份 Cookie 未就绪，重新绑定后重试", "identityID", identityID)
+	return retry(api, selfUID)
+}
+
 // wanfengHistoryUser 是「历史/收藏列表」里的一项（兼容前端 normalizeUser 的字段）。
 type wanfengHistoryUser struct {
 	ID            string `json:"id"`
@@ -275,18 +323,20 @@ func (a *App) serveWanfengHistoryUsers(w http.ResponseWriter, r *http.Request, i
 	ctx, cancel := context.WithTimeout(r.Context(), wanfengHistoryTimeout)
 	defer cancel()
 
-	selfUID, ok := a.wanfengIdentityUID(ctx, identityID)
+	api, selfUID, ok := a.wanfengHistoryAPI(ctx, identityID)
 	if !ok {
-		return false
-	}
-
-	api := a.wanfeng.API()
-	if api == nil {
 		return false
 	}
 
 	if favoritesOnly {
 		list, _, err := api.Favorites(ctx, selfUID, 1, wanfengHistoryPageSize)
+		if err != nil {
+			err = a.retryWanfengIdentityOnce(ctx, identityID, err, func(api *wanfeng.APIClient, _ string) error {
+				var retryErr error
+				list, _, retryErr = api.Favorites(ctx, selfUID, 1, wanfengHistoryPageSize)
+				return retryErr
+			})
+		}
 		if err != nil {
 			slog.Warn("晚风收藏列表获取失败", "identityID", identityID, "error", err)
 			// 失败时返回空列表而不是 5xx，避免前端整块报错
@@ -298,6 +348,13 @@ func (a *App) serveWanfengHistoryUsers(w http.ResponseWriter, r *http.Request, i
 	}
 
 	home, err := api.HomeData(ctx, selfUID, wanfengHistoryPageSize)
+	if err != nil {
+		err = a.retryWanfengIdentityOnce(ctx, identityID, err, func(api *wanfeng.APIClient, _ string) error {
+			var retryErr error
+			home, retryErr = api.HomeData(ctx, selfUID, wanfengHistoryPageSize)
+			return retryErr
+		})
+	}
 	if err != nil {
 		slog.Warn("晚风历史会话获取失败", "identityID", identityID, "error", err)
 		writeJSON(w, http.StatusOK, []wanfengHistoryUser{})
@@ -314,13 +371,8 @@ func (a *App) serveWanfengMessageHistory(w http.ResponseWriter, r *http.Request,
 	ctx, cancel := context.WithTimeout(r.Context(), wanfengHistoryTimeout)
 	defer cancel()
 
-	selfUID, ok := a.wanfengIdentityUID(ctx, identityID)
+	api, selfUID, ok := a.wanfengHistoryAPI(ctx, identityID)
 	if !ok {
-		return false
-	}
-
-	api := a.wanfeng.API()
-	if api == nil {
 		return false
 	}
 
@@ -331,6 +383,13 @@ func (a *App) serveWanfengMessageHistory(w http.ResponseWriter, r *http.Request,
 	}
 
 	page, err := api.ChatMessages(ctx, selfUID, strings.TrimSpace(peerUID), wanfengHistoryPageSize, before)
+	if err != nil {
+		err = a.retryWanfengIdentityOnce(ctx, identityID, err, func(api *wanfeng.APIClient, _ string) error {
+			var retryErr error
+			page, retryErr = api.ChatMessages(ctx, selfUID, strings.TrimSpace(peerUID), wanfengHistoryPageSize, before)
+			return retryErr
+		})
+	}
 	if err != nil {
 		slog.Warn("晚风聊天记录获取失败", "identityID", identityID, "peer", peerUID, "error", err)
 		writeJSON(w, http.StatusOK, wanfengHistoryContents{Code: 0, ContentsList: []wanfengHistoryContent{}})
