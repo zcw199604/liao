@@ -67,6 +67,9 @@ func ParseClientFrame(raw string) (ClientFrame, error) {
 type OutgoingCommand struct {
 	Action  string
 	Payload map[string]any
+	// Media 非空表示这是媒体消息的发送意图：客户端会先把媒体搬到对方站点，
+	// 再用返回的 URL 覆盖 Payload 后发送（避免在协议翻译层做 IO）。
+	Media *OutgoingMedia
 }
 
 // Profile 是我方身份在对方站点上的展示资料。
@@ -107,6 +110,17 @@ func (p Protocol) BuildCommand(frame ClientFrame, targetUID string) (OutgoingCom
 		}
 		if target == "" {
 			return OutgoingCommand{}, false
+		}
+		// 媒体消息：前端沿用 chat2019 的 "[文件名]" 编码，这里标记为待搬运
+		if token, ok := ParseMediaToken(frame.Msg); ok {
+			return OutgoingCommand{
+				Action: p.ActionSendMessage,
+				Payload: map[string]any{
+					"targetUid": target,
+					"localTid":  newLocalTid(),
+				},
+				Media: &OutgoingMedia{Kind: token.Kind, Path: token.Path},
+			}, true
 		}
 		return OutgoingCommand{
 			Action: p.ActionSendMessage,

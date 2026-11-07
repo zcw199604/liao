@@ -126,6 +126,7 @@ docker run -d -p 8080:8080 \
 - `WANFENG_WS_URL` - 晚风 WebSocket 地址（可选；留空按 `WANFENG_BASE_URL + /ws` 推导）
 - `WANFENG_TIMEOUT_SECONDS` - 调用晚风接口超时（秒，默认30）
 - `WANFENG_PROTOCOL_OVERRIDES` - 晚风协议参数覆盖（JSON，用于对方改版时热修）
+- `WANFENG_MEDIA_ENABLED` - 是否在晚风线路转发图片/视频（默认 `true`）
 
 **说明**：
 - `src/main/resources/application.yml` 为配置约定参考文件（Go 运行时不读取该文件），用于记录环境变量名与默认值对齐规则。
@@ -167,7 +168,8 @@ docker run -d -p 8080:8080 \
 - 线路列表由 `/api/provider/list` 下发，前端存在 `localStorage['liao-ws-provider']`，切换线路会断开并重连
 - 晚风线路协议差异（加密信封、帧动作名、字段名）**全部集中在** `internal/upstream/wanfeng/protocol.go` + `adapter.go`；对方改版时优先改这里或通过 `WANFENG_PROTOCOL_OVERRIDES` 覆盖，不要散落到业务代码
 - 晚风身份（`uid` + `identityToken` + 独立 `deviceId`）必须落库到 `identity_provider_binding`，否则重连会变成新用户/触发对方同设备风控
-- 一期仅支持纯文字；历史列表/图片/语音等仍只走 chat2019 上游
+- 图片/视频：前端照旧上传到 `/api/upload`（chat2019 媒体服务器），后端 `internal/app/wanfeng_media.go` 在两条线路之间搬运字节；对前端下发仍是 `code=7` 的 `[文件名]`，渲染链路零改动
+- 历史列表/语音体验仍只走 chat2019 上游
 
 ### 上游连接池（UpstreamWebSocketManager）
 - 同一userId只创建一个上游连接

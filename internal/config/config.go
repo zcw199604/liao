@@ -112,6 +112,8 @@ type Config struct {
 	WanfengProtocolOverrides string
 	// WanfengTimeoutSeconds 是调用晚风接口的超时（秒）。
 	WanfengTimeoutSeconds int
+	// WanfengMediaEnabled 控制是否在晚风线路上启用图片/视频转发（二期）。
+	WanfengMediaEnabled bool
 }
 
 func Load() (Config, error) {
@@ -192,6 +194,7 @@ func Load() (Config, error) {
 		WanfengWSURL:             getEnv("WANFENG_WS_URL", ""),
 		WanfengProtocolOverrides: getEnv("WANFENG_PROTOCOL_OVERRIDES", ""),
 		WanfengTimeoutSeconds:    getEnvInt("WANFENG_TIMEOUT_SECONDS", 30),
+		WanfengMediaEnabled:      getEnvBool("WANFENG_MEDIA_ENABLED", true),
 
 		FFmpegPath:              getEnv("FFMPEG_PATH", "ffmpeg"),
 		FFprobePath:             getEnv("FFPROBE_PATH", "ffprobe"),

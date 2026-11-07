@@ -123,3 +123,5 @@ wanfeng:
   timeout-seconds: ${WANFENG_TIMEOUT_SECONDS:30}
   # 协议参数覆盖（JSON）：对方改版时用于热修，无需改代码
   protocol-overrides: ${WANFENG_PROTOCOL_OVERRIDES:}
+  # 是否在该线路转发图片/视频（关闭后媒体消息降级为系统提示）
+  media-enabled: ${WANFENG_MEDIA_ENABLED:true}

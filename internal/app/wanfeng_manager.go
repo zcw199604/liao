@@ -29,6 +29,7 @@ type WanfengManager struct {
 	logger   *slog.Logger
 
 	mu           sync.Mutex
+	media        wanfeng.MediaBridge
 	clients      map[string]*wanfeng.Client
 	profiles     map[string]wanfeng.Profile
 	sessions     map[string]map[*DownstreamSession]struct{}
@@ -250,6 +251,43 @@ func (m *WanfengManager) CloseAll() {
 	}
 }
 
+// ProfileOf 返回某个身份最近一次上送的展示资料。
+func (m *WanfengManager) ProfileOf(identityID string) (wanfeng.Profile, bool) {
+	if m == nil {
+		return wanfeng.Profile{}, false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	profile, ok := m.profiles[identityID]
+	return profile, ok
+}
+
+// BindingOf 返回某个身份的晚风绑定（含 uid 与 identityToken）。
+func (m *WanfengManager) BindingOf(ctx context.Context, identityID string) (*wanfeng.Binding, error) {
+	if m == nil || m.bindings == nil {
+		return nil, nil
+	}
+	return m.bindings.Get(ctx, identityID)
+}
+
+// SetMediaBridge 设置媒体搬运桥（二期图片/视频），同时下发给已存在的客户端。
+func (m *WanfengManager) SetMediaBridge(bridge wanfeng.MediaBridge) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	m.media = bridge
+	clients := make([]*wanfeng.Client, 0, len(m.clients))
+	for _, c := range m.clients {
+		clients = append(clients, c)
+	}
+	m.mu.Unlock()
+
+	for _, c := range clients {
+		c.SetMediaBridge(bridge)
+	}
+}
+
 // Stats 返回线路统计（供 /api/system/wsStats 之类的运维接口使用）。
 func (m *WanfengManager) Stats() map[string]any {
 	if m == nil {
@@ -295,12 +333,17 @@ func (m *WanfengManager) createClient(userID string) {
 	}
 	m.mu.Unlock()
 
+	m.mu.Lock()
+	media := m.media
+	m.mu.Unlock()
+
 	client := wanfeng.NewClient(wanfeng.ClientConfig{
 		IdentityID: userID,
 		Profile:    profile,
 		API:        m.api,
 		Bindings:   m.bindings,
 		Emitter:    m,
+		Media:      media,
 		Logger:     m.logger,
 	})
 

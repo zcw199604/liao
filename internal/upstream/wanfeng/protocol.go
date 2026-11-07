@@ -21,6 +21,18 @@ type Protocol struct {
 	GenerateIdentityPath string `json:"generateIdentityPath"`
 	IdentityCookiePath   string `json:"identityCookiePath"`
 	ConfigAppInfoPath    string `json:"configAppInfoPath"`
+	// UploadPath 是媒体上传接口（multipart/form-data，不经加密信封）。
+	UploadPath string `json:"uploadPath"`
+	// RefreshExpiryPath 用于刷新对方媒体的有效期（对方媒体 URL 会过期）。
+	RefreshExpiryPath string `json:"refreshExpiryPath"`
+
+	// —— 上传表单字段名与桶名 ——
+	UploadFileField   string `json:"uploadFileField"`
+	UploadUserField   string `json:"uploadUserField"`
+	UploadBucketField string `json:"uploadBucketField"`
+	UploadHashField   string `json:"uploadHashField"`
+	BucketImage       string `json:"bucketImage"`
+	BucketAudio       string `json:"bucketAudio"`
 
 	// —— HTTP 请求头 ——
 	GetViaPostHeader string `json:"getViaPostHeader"`
@@ -82,6 +94,10 @@ type Protocol struct {
 	UIDKeys           []string `json:"uidKeys"`
 	IdentityTokenKeys []string `json:"identityTokenKeys"`
 	ErrorCodeKeys     []string `json:"errorCodeKeys"`
+	// MediaURLKeys 是接收消息里媒体地址的候选键（对方可能放在 content/mediaUrl/payload）。
+	MediaURLKeys []string `json:"mediaUrlKeys"`
+	// UploadFilePathKeys 是上传响应里文件路径的候选键。
+	UploadFilePathKeys []string `json:"uploadFilePathKeys"`
 
 	// —— 匹配状态常量（对方状态机值）——
 	StateIdle     string `json:"stateIdle"`
@@ -104,6 +120,15 @@ func DefaultProtocol() Protocol {
 		GenerateIdentityPath: "/api/tools/util/generate",
 		IdentityCookiePath:   "/api/nimingChat/account/identity-cookie",
 		ConfigAppInfoPath:    "/api/nimingChat/config/app-info",
+		UploadPath:           "/api/tools/niming-file/upload",
+		RefreshExpiryPath:    "/api/tools/niming-file/refresh-expiry",
+
+		UploadFileField:   "file",
+		UploadUserField:   "userId",
+		UploadBucketField: "bucketName",
+		UploadHashField:   "fileHash",
+		BucketImage:       "media-lib",
+		BucketAudio:       "chat",
 
 		GetViaPostHeader: "X-Get-Via-Post",
 		GetViaPostValue:  "1",
@@ -140,21 +165,23 @@ func DefaultProtocol() Protocol {
 		EventError:           "error",
 		EventMessagesRead:    "messages_read",
 
-		TargetUIDKeys:     []string{"targetUid", "target_uid", "toUid"},
-		PartnerKeys:       []string{"partner", "peer", "target"},
-		ContentKeys:       []string{"content", "payload", "text", "msg"},
-		NicknameKeys:      []string{"nickname", "name", "nick"},
-		GenderKeys:        []string{"gender", "sex"},
-		AgeKeys:           []string{"age"},
-		CityKeys:          []string{"city", "address", "area"},
-		TimeKeys:          []string{"ts", "time", "timestamp"},
-		MessageIDKeys:     []string{"tid", "msgId", "id"},
-		FromUIDKeys:       []string{"fromUid", "from_uid", "from"},
-		TypeKeys:          []string{"type"},
-		StateKeys:         []string{"state", "status"},
-		ErrorCodeKeys:     []string{"code", "errorCode"},
-		UIDKeys:           []string{"uid", "id"},
-		IdentityTokenKeys: []string{"identityToken", "identity_token", "token"},
+		TargetUIDKeys:      []string{"targetUid", "target_uid", "toUid"},
+		PartnerKeys:        []string{"partner", "peer", "target"},
+		ContentKeys:        []string{"content", "payload", "text", "msg"},
+		NicknameKeys:       []string{"nickname", "name", "nick"},
+		GenderKeys:         []string{"gender", "sex"},
+		AgeKeys:            []string{"age"},
+		CityKeys:           []string{"city", "address", "area"},
+		TimeKeys:           []string{"ts", "time", "timestamp"},
+		MessageIDKeys:      []string{"tid", "msgId", "id"},
+		FromUIDKeys:        []string{"fromUid", "from_uid", "from"},
+		TypeKeys:           []string{"type"},
+		StateKeys:          []string{"state", "status"},
+		ErrorCodeKeys:      []string{"code", "errorCode"},
+		UIDKeys:            []string{"uid", "id"},
+		IdentityTokenKeys:  []string{"identityToken", "identity_token", "token"},
+		MediaURLKeys:       []string{"payload", "mediaUrl", "mediaURL", "url", "filePath", "mediaId"},
+		UploadFilePathKeys: []string{"filePath", "path", "url", "fileName"},
 
 		StateIdle:     "IDLE",
 		StateMatching: "MATCHING",
@@ -295,6 +322,36 @@ func (p *Protocol) applyDefaults() {
 	}
 	if len(p.ErrorCodeKeys) == 0 {
 		p.ErrorCodeKeys = def.ErrorCodeKeys
+	}
+	if strings.TrimSpace(p.UploadPath) == "" {
+		p.UploadPath = def.UploadPath
+	}
+	if strings.TrimSpace(p.RefreshExpiryPath) == "" {
+		p.RefreshExpiryPath = def.RefreshExpiryPath
+	}
+	if strings.TrimSpace(p.UploadFileField) == "" {
+		p.UploadFileField = def.UploadFileField
+	}
+	if strings.TrimSpace(p.UploadUserField) == "" {
+		p.UploadUserField = def.UploadUserField
+	}
+	if strings.TrimSpace(p.UploadBucketField) == "" {
+		p.UploadBucketField = def.UploadBucketField
+	}
+	if strings.TrimSpace(p.UploadHashField) == "" {
+		p.UploadHashField = def.UploadHashField
+	}
+	if strings.TrimSpace(p.BucketImage) == "" {
+		p.BucketImage = def.BucketImage
+	}
+	if strings.TrimSpace(p.BucketAudio) == "" {
+		p.BucketAudio = def.BucketAudio
+	}
+	if len(p.MediaURLKeys) == 0 {
+		p.MediaURLKeys = def.MediaURLKeys
+	}
+	if len(p.UploadFilePathKeys) == 0 {
+		p.UploadFilePathKeys = def.UploadFilePathKeys
 	}
 	if len(p.StateKeys) == 0 {
 		p.StateKeys = def.StateKeys

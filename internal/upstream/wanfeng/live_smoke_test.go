@@ -2,7 +2,9 @@ package wanfeng
 
 import (
 	"context"
+	"encoding/base64"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -121,4 +123,72 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// TestLiveMediaUploadAndDownload 校验对方媒体上传接口可用，且返回的 URL 可匿名下载（默认跳过）。
+//
+// 运行方式：
+//
+//	WANFENG_LIVE_TEST=1 go test ./internal/upstream/wanfeng/ -run TestLiveMediaUploadAndDownload -v
+func TestLiveMediaUploadAndDownload(t *testing.T) {
+	if os.Getenv("WANFENG_LIVE_TEST") != "1" {
+		t.Skip("未开启联调测试（设置 WANFENG_LIVE_TEST=1 启用）")
+	}
+
+	baseURL := os.Getenv("WANFENG_BASE_URL")
+	if baseURL == "" {
+		baseURL = "https://wanfengniming.store"
+	}
+
+	api := NewAPIClient(APIClientConfig{BaseURL: baseURL, Protocol: DefaultProtocol()})
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// 优先复用已有身份（对方对「同 IP 短时间批量注册」有风控，反复申请会触发封禁）：
+	//   WANFENG_TEST_UID=WFU... WANFENG_TEST_TOKEN=v1.xxx WANFENG_LIVE_TEST=1 go test ...
+	uid := strings.TrimSpace(os.Getenv("WANFENG_TEST_UID"))
+	token := strings.TrimSpace(os.Getenv("WANFENG_TEST_TOKEN"))
+	if uid != "" && token != "" {
+		if _, err := api.Session(ctx); err != nil {
+			t.Fatalf("握手失败: %v", err)
+		}
+		if err := api.BindIdentityCookie(ctx, token); err != nil {
+			t.Logf("绑定身份 Cookie 失败（继续尝试上传）：%v", err)
+		}
+	} else {
+		identity, err := api.GenerateIdentity(ctx)
+		if err != nil {
+			if strings.Contains(err.Error(), "批量注册") || strings.Contains(err.Error(), "HANDSHAKE_FAILED") {
+				t.Skipf("对方触发同 IP 注册风控，跳过（可设置 WANFENG_TEST_UID/WANFENG_TEST_TOKEN 复用已有身份）：%v", err)
+			}
+			t.Fatalf("申请身份失败: %v", err)
+		}
+		uid = identity.UID
+	}
+	api.SetUploadUserID(uid)
+	t.Logf("使用身份 uid=%s", uid)
+
+	// 1x1 PNG
+	pngBytes, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+	if err != nil {
+		t.Fatalf("准备图片失败: %v", err)
+	}
+
+	result, err := api.UploadMedia(ctx, "lctest.png", "image/png", pngBytes, api.Protocol().BucketImage)
+	if err != nil {
+		t.Fatalf("上传媒体失败: %v", err)
+	}
+	if result.URL == "" {
+		t.Fatal("上传成功但未返回 URL")
+	}
+	t.Logf("上传成功 url=%s fileId=%s", result.URL, result.FileID)
+
+	data, contentType, err := api.DownloadMedia(ctx, result.URL)
+	if err != nil {
+		t.Fatalf("下载刚上传的媒体失败: %v", err)
+	}
+	if len(data) != len(pngBytes) {
+		t.Fatalf("下载内容长度不一致: got=%d want=%d", len(data), len(pngBytes))
+	}
+	t.Logf("下载校验通过 contentType=%s bytes=%d", contentType, len(data))
 }

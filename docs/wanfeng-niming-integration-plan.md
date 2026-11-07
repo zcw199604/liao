@@ -20,10 +20,90 @@
 | 线路列表接口 + 前端线路选择 | ✅ | `/api/provider/list`，UI 在「设置 → 身份」面板 |
 | 协议参数热修（不改代码） | ✅ | `WANFENG_PROTOCOL_OVERRIDES`（JSON 覆盖） |
 
-二期（尚未实现，前端在该线路上会降级）：
+### 二期：图片/视频（2026-11-07 已实现）
+
+用户可以直接复用现有「本地上传 / mtPhoto 选图 / 抖音素材」的发送流程，后端在两条线路之间搬运字节：
+
+| 能力 | 状态 | 说明 |
+|---|---|---|
+| 发送图片/视频 | ✅ | 前端照旧传到 `/api/upload` 得远程文件名 → 后端把文件搬到对方 `niming-file/upload` → 以 `type=image/video` + 对方 URL 发送 |
+| 接收图片/视频 | ✅ | 后端下载对方媒体 → 上传到 chat2019 媒体服务器拿文件名 → 下发 `code=7` 的 `[文件名]`，前端渲染链路零改动 |
+| 自己消息回显 | ✅ | 发送时记录「对方 URL → 本地文件名」映射，回显直接复用，前端乐观消息能正常合并 |
+| 语音（audio） | ⚠️ 半支持 | 接收可转存，但前端语音渲染沿用 chat2019 编码，暂不保证体验 |
+| 媒体开关 | ✅ | `WANFENG_MEDIA_ENABLED`（默认 true），关闭后媒体消息降级为系统提示 |
+
+实现位置：
+- `internal/upstream/wanfeng/media.go`：`[文件名]` 解析/还原、媒体消息载荷与 `MediaBridge` 接口；
+- `internal/upstream/wanfeng/client.go`：下发队列（保序）+ 媒体搬运 + 接收转存 + 回显映射；
+- `internal/upstream/wanfeng/httpx.go`：`UploadMedia` / `DownloadMedia`（含 Cookie Jar，对方按 Cookie 认定上传身份）；
+- `internal/app/wanfeng_media.go`：chat2019 媒体服务器 ↔ 对方媒体服务的字节搬运与缓存。
+
+#### 发送链路（图片/视频，前端零改动）
+
+```
+前端 uploadFile()               后端 /api/upload                chat2019 媒体服务器
+   │  FormData(file)  ───────────►  uploadImgRandom  ──────────►  落盘
+   │                              ◄── {state:OK, msg:"2026/11/07/Random/x.png"}
+   │  ◄── {url: "http://img:7001/img/Upload/2026/.../x.png"}
+   │
+   │  WS 发送 {act:"touser_<uid>_<nick>", msg:"[2026/11/07/Random/x.png]"}
+   ▼
+Go 晚风线路（WanfengManager → Client.dispatchLoop）
+   1) ParseMediaToken("[...]") → kind=image, path=2026/11/07/Random/x.png
+   2) MediaBridge.MirrorOutbound：
+      a. 先查 media_file 表读本地文件（命中就不用走网络）
+      b. 否则 GET http://<imgServer>:<port>/img/Upload/<path>（端口按系统配置策略解析）
+      c. POST <对方>/api/tools/niming-file/upload（multipart：file/userId/bucketName/fileHash，
+         Cookie 携带身份，不加密） → {code:200,data:{filePath}}
+      d. filePath 补成绝对 URL
+   3) 发送帧 {type:"send_message", data:{targetUid, type:"image", content:<URL>, localTid}}
+```
+
+接收链路（对方推图片/视频）：
+
+```
+对方 WS 帧 receive_message {type:"image", payload:"/files/xxx.jpg", fromUid, tid}
+   ▼
+ParseReceiveMedia → kind=image, url=/files/xxx.jpg
+   ▼
+MediaBridge.MirrorInbound：
+   1) GET <对方><url>（下载字节，≤80MB）
+   2) POST http://<imgServer>/asmx/upload.asmx/ProcessRequest?act=uploadImgRandom&userid=<uid>
+      → {state:"OK", msg:"2026/11/07/Random/y.png"}
+   3) 登记双向缓存
+   ▼
+下发前端 {code:7, type:"image", fromuser:{content:"[2026/11/07/Random/y.png]"}, ...}
+   ▼
+前端 parseMessageSegments → <img src="http://img:port/img/Upload/2026/.../y.png">
+```
+
+要点：
+
+- **自己消息回显**必须复用发送时的 chat2019 文件名，否则前端「乐观消息」无法合并（`getOptimisticMatchKey` 按媒体路径 + 时间桶匹配）。实现方式：发送成功后在内存里记录 `对方 URL 键 → 本地文件名`（有界 256 条），回显命中就直接下发，不重复搬运。
+- **多身份隔离**：对方用 Cookie 认定媒体归属，因此每个身份用 `APIClient.Clone()`（独立 Cookie Jar + 独立会话）并绑定自己的 `identityToken`，避免「图片传到别人名下」。
+- **保序**：媒体搬运会阻塞，因此所有下发动作进 `outbox` 队列串行消费，保证「文字 → 图片」顺序不乱；搬运超时 60 秒，超时只影响该条。
+- **接收不阻塞读循环**：`receive_message` 里是媒体的会放到 goroutine 处理，避免心跳/匹配事件被下载卡住。
+
+#### 媒体相关的可热修参数（都在 `Protocol` 里）
+
+| 字段 | 默认值 | 用途 |
+|---|---|---|
+| `uploadPath` | `/api/tools/niming-file/upload` | 媒体上传接口 |
+| `uploadFileField` / `uploadUserField` / `uploadBucketField` / `uploadHashField` | `file` / `userId` / `bucketName` / `fileHash` | 表单字段名 |
+| `bucketImage` / `bucketAudio` | `media-lib` / `chat` | 图片视频 / 语音的桶名 |
+| `mediaUrlKeys` | `payload, mediaUrl, mediaURL, url, filePath, mediaId` | 接收消息里取媒体地址的候选键 |
+| `uploadFilePathKeys` | `filePath, path, url, fileName` | 上传响应里取文件路径的候选键 |
+| `refreshExpiryPath` | `/api/tools/niming-file/refresh-expiry` | 媒体过期时间续期（可选调用） |
+
+对方改版时优先用 `WANFENG_PROTOCOL_OVERRIDES` 覆盖这些字段，例如：
+
+```bash
+WANFENG_PROTOCOL_OVERRIDES='{"uploadPath":"/api/v2/file/upload","uploadUserField":"uid","bucketImage":"chat-media"}'
+```
+
+### 三期（尚未实现）
 
 - 历史会话/联系人列表：`/api/nimingChat/user/{home-data,relations,favorites,chat/messages}` 转发（当前历史列表只读 chat2019 上游，故晚风会话刷新后不回显）；
-- 图片/语音：需转发对方 `niming-file/upload` 拿 `mediaId`；
 - 输入状态、在线状态查询（`code 18/19/30`）、拉黑/举报、匹配偏好；
 - 线路健康度监控与自动熔断（当前仅日志 + 前端提示）。
 
@@ -226,7 +306,7 @@ frontend  ──/ws?token&provider=latewind──►  App.handleWebSocket
 | `DEVICE_DUPLICATE` | 「同设备只能登录一个账号」 | 每身份生成并持久化独立 `deviceId`，绝不共用 |
 | 身份被回收 | 长期不活跃或重置时 `IDENTITY_INVALID` | 持久化 `upstream_uid + identityToken`；失效时自动重建身份并提示用户 |
 | 匹配不到（池子不同） | 用户期待「人多」，实际是别人家的池子 | 前端把「线路」做成可见选择项，并做线路健康度/命中率统计 |
-| 无图片/语音 | `mediaId` 需传到对方上传接口 | 一期只做文字 + emoji；二期转发上传并代理媒体 URL（注意其 URL 可能带签名过期） |
+| 无图片/语音 | 媒体要先上传到对方 `niming-file/upload` 再发 URL | 二期已实现：后端在 chat2019 媒体服务器与对方之间搬运字节（注意对方 URL 可能带签名过期，只做即时转发、不做长期代理） |
 | 条款/合规 | 用其用户池为自己站点供流，可能违反对方服务条款，且双方用户会看到彼此内容 | 需业务侧确认授权/风险；技术上建议保留开关，随时可下线 |
 | 心跳/断线 | 无心跳时服务端可能踢线（实测 `partner_left`） | 定时 `heartbeat` + gorilla ping；`connected` 后按 `resetState=false` 重连恢复 `IN_ROOM` |
 
@@ -250,7 +330,7 @@ frontend  ──/ws?token&provider=latewind──►  App.handleWebSocket
 ## 九、已确认的产品决策（2026-11-07）
 
 1. 线路**并列可选**（前端可选），不替换现有 chat2019 线路；
-2. 第一期只做**匹配 + 纯文字**，图片/语音等富媒体放二期；
+2. 第一期只做**匹配 + 纯文字**；第二期已补上**图片/视频**（后端搬运字节，前端零改动）；
 3. 首要约束是**对方改版时我方改动要小** → 因此：
    - 所有易变参数（接口路径、帧动作名、加密版本/前缀/HKDF info、字段候选键）集中在 `Protocol`，支持 `WANFENG_PROTOCOL_OVERRIDES` JSON 热修；
    - 未知帧、解密失败、未知 act 一律降级忽略，不中断线路；
@@ -273,16 +353,34 @@ frontend  ──/ws?token&provider=latewind──►  App.handleWebSocket
 | `internal/app/wanfeng_binding.go` | 绑定落库（MySQL/PostgreSQL upsert） |
 | `internal/app/websocket_wanfeng.go` | `/ws?provider=wanfeng` 入口 |
 | `internal/app/provider_handlers.go` | `/api/provider/list` |
+| `internal/upstream/wanfeng/media.go` | `[文件名]` ↔ 对方媒体 URL、媒体消息拼装、`MediaBridge` 接口 |
+| `internal/app/wanfeng_media.go` | 媒体字节搬运（chat2019 媒体服务器 ↔ 对方上传接口）与双向缓存 |
 | `sql/{mysql,postgres}/010_identity_provider_binding.sql` | 绑定表迁移 |
 | `frontend/src/stores/provider.ts`、`frontend/src/api/provider.ts` | 线路状态与接口 |
 | `frontend/src/composables/useWebSocket.ts` | WS 连接带 `provider` 参数（切换线路自动重连） |
 | `frontend/src/components/settings/SettingsDrawer.vue` | 线路选择 UI |
 
-联调命令（不会进入匹配队列，不影响对方真实用户）：
+联调命令（进入匹配队列前会先登录，注意别频繁跑，对方有同 IP 注册风控）：
 
 ```bash
 # 手工检查握手 + 身份 + 登录
 WANFENG_LIVE_TEST=1 go test ./internal/upstream/wanfeng/ -run TestLiveHandshakeAndLogin -v
 # 手工检查「我方 /ws(provider=wanfeng) → 晚风」整条链路
 WANFENG_LIVE_TEST=1 go test ./internal/app/ -run TestLiveWanfengWebSocketProxy -v
+# 手工检查媒体上传/下载（会申请一个新身份）
+WANFENG_LIVE_TEST=1 go test ./internal/upstream/wanfeng/ -run TestLiveMediaUploadAndDownload -v
 ```
+
+> 注意：对方对「同 IP 短时间批量注册」有自动风控（`HANDSHAKE_FAILED` + `您的 IP 已被封禁（同 IP 短时间批量注册）`）。
+> 频繁跑联调测试会触发；线上多人共用出口 IP 时也需要提前准备代理/限流（见风险表）。
+> 触发风控后媒体联调会直接 `SKIP`，此时用已有身份复跑：
+>
+> ```bash
+> WANFENG_LIVE_TEST=1 WANFENG_TEST_UID=WFU... WANFENG_TEST_TOKEN=v1.xxx \
+>   go test ./internal/upstream/wanfeng/ -run TestLiveMediaUploadAndDownload -v
+> ```
+>
+> **待补验证**：媒体上传接口（`niming-file/upload`）的真实链路目前只在本地 mock 站点验证过
+> （`e2e_media_test.go` 用同一套握手/加密实现模拟服务端），真实站点因上述注册风控暂时无法复测。
+> 复测点：①上传返回 `{code:200,data:{filePath}}`；②返回的 URL 能匿名下载；③`send_message(type=image)`
+> 在对方页面能正常出图。

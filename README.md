@@ -198,6 +198,7 @@ docker run -d -p 8080:8080 \
 - `WANFENG_WS_URL` - 晚风 WebSocket 地址（可选；留空按 `WANFENG_BASE_URL + /ws` 推导）
 - `WANFENG_TIMEOUT_SECONDS` - 调用晚风接口超时（秒，默认30）
 - `WANFENG_PROTOCOL_OVERRIDES` - 晚风协议参数覆盖（JSON，用于对方改版时热修，详见 `docs/wanfeng-niming-integration-plan.md`）
+- `WANFENG_MEDIA_ENABLED` - 是否在晚风线路转发图片/视频（默认 `true`；关闭后媒体消息降级为系统提示）
 
 ## 开发规范
 

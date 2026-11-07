@@ -213,7 +213,11 @@ func New(cfg config.Config) (*App, error) {
 			Protocol:   proto,
 		})
 		application.wanfeng = NewWanfengManager(wanfengAPI, NewWanfengBindingService(db), nil)
-		slog.Info("晚风线路已启用", "baseURL", cfg.WanfengBaseURL)
+		if cfg.WanfengMediaEnabled {
+			// 二期：图片/视频在「chat2019 媒体服务器 ↔ 对方媒体服务」之间搬运，前端渲染链路复用
+			application.wanfeng.SetMediaBridge(newWanfengMediaBridge(application, wanfengAPI, nil))
+		}
+		slog.Info("晚风线路已启用", "baseURL", cfg.WanfengBaseURL, "media", cfg.WanfengMediaEnabled)
 	}
 
 	application.mediaUpload = NewMediaUploadService(db, cfg.ServerPort, application.fileStorage, application.imageServer, application.httpClient)
