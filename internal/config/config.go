@@ -123,7 +123,6 @@ type Config struct {
 	WanfengProxyEnabled bool
 	// Chat2019ProxyEnabled 让 chat2019 HTTP/WS 共用 SCF TCP 隧道。
 	Chat2019ProxyEnabled             bool
-	SCFProxyStrategy                 string
 	SCFProxyPoolFile                 string
 	SCFProxyEndpointsFile            string
 	SCFProxyToken                    string
@@ -222,7 +221,6 @@ func Load() (Config, error) {
 		WanfengMediaEnabled:              getEnvBool("WANFENG_MEDIA_ENABLED", true),
 		WanfengProxyEnabled:              getEnvBool("WANFENG_PROXY_ENABLED", false),
 		Chat2019ProxyEnabled:             getEnvBool("CHAT2019_PROXY_ENABLED", false),
-		SCFProxyStrategy:                 strings.ToLower(strings.TrimSpace(getEnv("SCFPROXY_STRATEGY", "sticky_by_host"))),
 		SCFProxyPoolFile:                 strings.TrimSpace(getEnv("SCFPROXY_POOL_FILE", "")),
 		SCFProxyEndpointsFile:            strings.TrimSpace(getEnv("SCFPROXY_ENDPOINTS_FILE", "")),
 		SCFProxyToken:                    getEnv("SCFPROXY_TOKEN", ""),
@@ -252,9 +250,6 @@ func Load() (Config, error) {
 		if cfg.SCFProxyPoolSize < 2 || cfg.SCFProxyCommandTimeoutSeconds <= 0 || cfg.SCFProxyReconcileIntervalSeconds <= 0 {
 			return Config{}, fmt.Errorf("SCFPROXY_POOL_SIZE 必须至少为2，SCFPROXY_COMMAND_TIMEOUT_SECONDS 和 SCFPROXY_RECONCILE_INTERVAL_SECONDS 必须为正数")
 		}
-	}
-	if cfg.SCFProxyStrategy != "random" && cfg.SCFProxyStrategy != "sticky_by_host" {
-		return Config{}, fmt.Errorf("SCFPROXY_STRATEGY 非法: %s（仅支持 random/sticky_by_host）", cfg.SCFProxyStrategy)
 	}
 
 	if cfg.TokenExpireHours <= 0 {
