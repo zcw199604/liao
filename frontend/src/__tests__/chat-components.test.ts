@@ -333,6 +333,28 @@ describe('components/chat/MessageList.vue', () => {
 })
 
 describe('components/chat/MatchButton.vue', () => {
+  it.each([true, false])('starts a match from the message panel with auto-send %s', async (enabled) => {
+    const wrapper = mount(MatchButton, { global: { plugins: [createPinia()] } })
+    startContinuousMatchMock.mockReturnValue(true)
+
+    await wrapper.get('button[aria-label="连续匹配选项"]').trigger('click')
+    await wrapper.get('[data-testid="match-message-entry"]').trigger('click')
+    expect(startContinuousMatchMock).not.toHaveBeenCalled()
+    const checkbox = wrapper.get('input[type="checkbox"]')
+    expect((checkbox.element as HTMLInputElement).checked).toBe(false)
+    await checkbox.setValue(enabled)
+    const submit = wrapper.get('button[type="submit"]')
+    expect(submit.attributes('disabled') !== undefined).toBe(enabled)
+    await wrapper.get('textarea').setValue('  你好！  ')
+    if (enabled) await wrapper.get('select').setValue('5')
+    expect(submit.attributes('disabled')).toBeUndefined()
+    await wrapper.get('form').trigger('submit')
+
+    expect(startContinuousMatchMock).toHaveBeenCalledWith(enabled ? 5 : 1, enabled ? '你好！' : undefined)
+    expect(wrapper.find('form').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('short press triggers startMatch and toast', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)

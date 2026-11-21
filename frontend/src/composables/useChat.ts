@@ -3,6 +3,7 @@ import { useUserStore } from '@/stores/user'
 import { useMessageStore } from '@/stores/message'
 import { useFavoriteStore } from '@/stores/favorite'
 import { useWebSocket } from './useWebSocket'
+import { useMessage } from './useMessage'
 import * as chatApi from '@/api/chat'
 import { generateCookie } from '@/utils/cookie'
 import { UPSTREAM_REFERER } from '@/constants/config'
@@ -49,7 +50,10 @@ export const useChat = () => {
       userAge: '0'
     }
 
-    send(message)
+    if (send(message) === false) {
+      chatStore.cancelContinuousMatch()
+      return false
+    }
     console.log('开始匹配，已发送random消息')
     return true
   }
@@ -79,14 +83,23 @@ export const useChat = () => {
   }
 
   // 开始连续匹配
-  const startContinuousMatch = (count: number) => {
-    if (!userStore.currentUser) return false
+  const startContinuousMatch = (count: number, autoMessage?: string) => {
+    const ownerId = userStore.currentUser?.id
+    if (!ownerId) return false
     if (!chatStore.wsConnected) {
       show('WebSocket 未连接，无法匹配')
       return false
     }
 
-    chatStore.startContinuousMatch(count)
+    const content = autoMessage?.trim()
+    if (content) {
+      const { sendText } = useMessage()
+      chatStore.startContinuousMatch(count, user => {
+        if (userStore.currentUser?.id === ownerId) sendText(content, user)
+      })
+    } else {
+      chatStore.startContinuousMatch(count)
+    }
     return startMatch(true)
   }
 
@@ -105,6 +118,7 @@ export const useChat = () => {
 
       // 也等待2秒显示用户信息后再取消
       autoMatchTimer = setTimeout(() => {
+        if (chatStore.continuousMatchConfig !== config) return
         chatStore.cancelContinuousMatch()
         show(`连续匹配完成！共匹配 ${config.total} 次`)
       }, 2000)
@@ -113,6 +127,7 @@ export const useChat = () => {
 
     // 等待2秒后开始下一次匹配
     autoMatchTimer = setTimeout(() => {
+      if (chatStore.continuousMatchConfig !== config) return
       chatStore.incrementMatchCount()
       chatStore.setCurrentMatchedUser(null) // 清空上一个用户信息
       startMatch(true)

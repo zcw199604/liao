@@ -60,6 +60,7 @@ export const useChatStore = defineStore('chat', () => {
 
   // 当前匹配到的用户（用于蒙层显示）
   const currentMatchedUser = ref<User | null>(null)
+  let onMatched: ((user: User) => void) | undefined
 
   // === Computed：从单一数据源派生列表 ===
   const historyUsers = computed(() =>
@@ -287,16 +288,19 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const startMatch = () => {
+    onMatched = undefined
     isMatching.value = true
   }
 
   const cancelMatch = () => {
+    onMatched = undefined
     isMatching.value = false
   }
 
   // === 连续匹配方法 ===
   // 开始连续匹配
-  const startContinuousMatch = (total: number) => {
+  const startContinuousMatch = (total: number, action?: (user: User) => void) => {
+    onMatched = action
     continuousMatchConfig.value = {
       enabled: true,
       total,
@@ -308,6 +312,7 @@ export const useChatStore = defineStore('chat', () => {
 
   // 取消连续匹配
   const cancelContinuousMatch = () => {
+    onMatched = undefined
     continuousMatchConfig.value = {
       enabled: false,
       total: 0,
@@ -327,6 +332,14 @@ export const useChatStore = defineStore('chat', () => {
   // 设置当前匹配用户
   const setCurrentMatchedUser = (user: User | null) => {
     currentMatchedUser.value = user
+  }
+
+  const runMatchedAction = (user: User) => {
+    const action = onMatched
+    if (continuousMatchConfig.value.current >= continuousMatchConfig.value.total) {
+      onMatched = undefined
+    }
+    action?.(user)
   }
 
   return {
@@ -368,6 +381,7 @@ export const useChatStore = defineStore('chat', () => {
     cancelContinuousMatch,
     incrementMatchCount,
     setCurrentMatchedUser,
+    runMatchedAction,
 
     // 新增工具方法
     upsertUser,

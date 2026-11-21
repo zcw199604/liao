@@ -26,6 +26,7 @@ vi.mock('@/api/chat', () => ({
 }))
 
 import { useWebSocket } from '@/composables/useWebSocket'
+import { useChat } from '@/composables/useChat'
 import router from '@/router'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
@@ -800,6 +801,68 @@ describe('composables/useWebSocket', () => {
     expect((onMatchSuccess.mock.calls[0]?.[0] as CustomEvent).detail.id).toBe('u3')
 
     window.removeEventListener('match-success', onMatchSuccess as any)
+  })
+
+  it.each(['enabled', 'unchecked', 'cancelled', 'continuous', 'continuous-cancelled'])('handles match auto-send when %s', async (mode) => {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 'me', name: 'Me', nickname: 'Me' } as any
+    localStorage.setItem('authToken', 't-1')
+    const mediaStore = useMediaStore()
+    vi.spyOn(mediaStore, 'loadImgServer').mockResolvedValue(undefined)
+    vi.spyOn(mediaStore, 'loadCachedImages').mockResolvedValue(undefined)
+    vi.useFakeTimers()
+
+    useWebSocket().connect()
+    const socket = FakeWebSocket.instances[0]!
+    await socket.triggerOpen()
+    const chat = useChat()
+    const autoCheck = () => chat.handleAutoMatch()
+    const continuous = mode.startsWith('continuous')
+    const privateMessages = () => socket.sent.map(raw => JSON.parse(raw))
+      .filter(message => message.act.startsWith('touser_'))
+
+    expect(chat.startContinuousMatch(continuous ? 3 : 1, mode === 'unchecked' ? undefined : '  你好！  ')).toBe(true)
+    expect(privateMessages()).toEqual([])
+    if (mode === 'cancelled') chat.cancelMatch()
+    const result = { code: 15, sel_userid: 'u3', sel_userNikename: 'Bob' }
+    window.addEventListener('match-auto-check', autoCheck)
+    try {
+      await socket.triggerMessage(result)
+      await socket.triggerMessage(result)
+      if (continuous) {
+        vi.advanceTimersByTime(2000)
+        await socket.triggerMessage({ code: 15, sel_userid: 'u4', sel_userNikename: 'Amy' })
+        if (mode === 'continuous-cancelled') chat.cancelMatch()
+        vi.advanceTimersByTime(2000)
+        await socket.triggerMessage({ code: 15, sel_userid: 'u5', sel_userNikename: 'Jo' })
+        vi.advanceTimersByTime(2000)
+        expect(useChatStore().isMatching).toBe(false)
+        expect(socket.sent.map(raw => JSON.parse(raw)).filter(message => message.act === 'random'))
+          .toHaveLength(mode === 'continuous' ? 3 : 2)
+      }
+    } finally {
+      window.removeEventListener('match-auto-check', autoCheck)
+    }
+
+    const expected = mode === 'enabled' ? [{ act: 'touser_u3_Bob', id: 'me', msg: '你好！' }] : []
+    if (continuous) {
+      expected.push(
+        { act: 'touser_u3_Bob', id: 'me', msg: '你好！' },
+        { act: 'touser_u4_Amy', id: 'me', msg: '你好！' }
+      )
+    }
+    if (mode === 'continuous') expected.push({ act: 'touser_u5_Jo', id: 'me', msg: '你好！' })
+    expect(privateMessages()).toEqual(expected)
+    if (mode === 'enabled') {
+      expect(useMessageStore().getMessages('me', 'u3')).toEqual([
+        expect.objectContaining({ content: '你好！', isSelf: true, sendStatus: 'sending' })
+      ])
+    }
+
+    chat.cancelMatch()
+    expect(chat.startContinuousMatch(1)).toBe(true)
+    await socket.triggerMessage({ code: 15, sel_userid: 'u6' })
+    expect(privateMessages()).toEqual(expected)
   })
 
   it('handles match success (continuous match) by setting currentMatchedUser and dispatching auto-check', async () => {

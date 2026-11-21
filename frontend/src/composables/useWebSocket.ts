@@ -381,6 +381,9 @@ export const useWebSocket = () => {
 
         // 处理匹配成功消息 (code: 15)
         if (code === 15 && (data as any).sel_userid) {
+          // 展示本轮结果期间，迟到的回包不能触发下一轮或覆盖当前消息。
+          if (chatStore.isMatching && chatStore.currentMatchedUser) return
+
           const matchedUser: User = {
             id: String((data as any).sel_userid),
             name: String((data as any).sel_userNikename || '匿名用户'),
@@ -404,9 +407,6 @@ export const useWebSocket = () => {
           // 移到历史列表最前面
           promoteHistoryUser(matchedUser.id)
 
-          // 初始化聊天记录为空
-          messageStore.clearHistory(matchedUser.id)
-
           // 检查匹配是否已被取消（用户点击了取消按钮）
           if (!chatStore.isMatching) {
             // 匹配已取消，只更新用户列表，不自动进入聊天
@@ -414,10 +414,14 @@ export const useWebSocket = () => {
             return
           }
 
+          // 初始化聊天记录为空
+          messageStore.clearHistory(matchedUser.id)
+
           // 判断是否为连续匹配模式
           if (chatStore.continuousMatchConfig.enabled) {
             // 连续匹配模式：不进入聊天，只更新蒙层显示
             chatStore.setCurrentMatchedUser(matchedUser)
+            chatStore.runMatchedAction(matchedUser)
             // 触发自动匹配检查
             window.dispatchEvent(new CustomEvent('match-auto-check'))
           } else {

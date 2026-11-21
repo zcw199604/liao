@@ -45,7 +45,7 @@
 
     <!-- 长按菜单 -->
     <div
-      v-if="showMenu"
+      v-if="showMenu && !chatStore.isMatching"
       class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 bg-surface rounded-xl shadow-2xl border border-line-strong overflow-hidden"
     >
       <button
@@ -56,6 +56,16 @@
       >
         <i :class="option.icon" class="text-blue-400"></i>
         <span>连续匹配 {{ option.count }} 次</span>
+      </button>
+
+      <button
+        type="button"
+        data-testid="match-message-entry"
+        @click="openMessagePanel"
+        class="w-full px-6 py-3 text-left hover:bg-surface-3 text-fg flex items-center gap-3 border-t border-line transition whitespace-nowrap"
+      >
+        <i class="fas fa-paper-plane text-blue-400" aria-hidden="true"></i>
+        <span>匹配并自动发送消息</span>
       </button>
 
       <!-- 匹配偏好：仅晚风线路支持 -->
@@ -70,6 +80,46 @@
         <span class="text-xs text-fg-muted">{{ matchPreferenceStore.summary }}</span>
       </button>
     </div>
+
+    <form
+      v-if="showMessagePanel && !chatStore.isMatching"
+      class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-72 max-w-full bg-surface rounded-xl shadow-2xl border border-line-strong p-4 space-y-3"
+      @submit.prevent="handleMessageMatch"
+      @keydown.esc.stop="showMessagePanel = false"
+    >
+      <div class="flex items-center justify-between">
+        <span class="text-sm font-medium text-fg">匹配并自动发送消息</span>
+        <button type="button" aria-label="关闭" @click="showMessagePanel = false" class="text-fg-muted hover:text-fg">
+          <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+      </div>
+      <label class="block text-xs text-fg">
+        <span>待发送消息</span>
+        <textarea
+          v-model="matchMessage"
+          rows="3"
+          class="mt-1 block w-full resize-y bg-surface-2 border border-line rounded-lg px-2 py-1.5 text-sm text-fg"
+        />
+      </label>
+      <label class="flex items-center gap-2 text-sm text-fg cursor-pointer">
+        <input v-model="autoSendMessage" type="checkbox" />
+        每轮匹配成功后自动发送
+      </label>
+      <label class="flex items-center justify-between gap-2 text-sm text-fg">
+        匹配次数
+        <select v-model.number="messageMatchCount" class="bg-surface-2 border border-line rounded-lg px-2 py-1 text-sm text-fg">
+          <option :value="1">1 次</option>
+          <option v-for="option in menuOptions" :key="option.count" :value="option.count">{{ option.count }} 次</option>
+        </select>
+      </label>
+      <button
+        type="submit"
+        :disabled="autoSendMessage && !matchMessage.trim()"
+        class="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium disabled:opacity-60"
+      >
+        开始匹配
+      </button>
+    </form>
 
     <!-- 匹配偏好面板 -->
     <div
@@ -163,6 +213,10 @@ const matchPreferenceStore = useMatchPreferenceStore()
 
 const showMenu = ref(false)
 const showPreferencePanel = ref(false)
+const showMessagePanel = ref(false)
+const matchMessage = ref('')
+const autoSendMessage = ref(false)
+const messageMatchCount = ref(1)
 // 编辑中的副本，点保存才提交，避免每改一项就发请求
 const draft = ref({
   preferGender: 'any',
@@ -187,7 +241,24 @@ const menuOptions = [
 ]
 
 const openMenu = () => {
+  showMessagePanel.value = false
+  showPreferencePanel.value = false
   showMenu.value = true
+}
+
+const openMessagePanel = () => {
+  showMenu.value = false
+  autoSendMessage.value = false
+  showMessagePanel.value = true
+}
+
+const handleMessageMatch = () => {
+  const content = matchMessage.value.trim()
+  if (autoSendMessage.value && !content) return
+  if (startContinuousMatch(messageMatchCount.value, autoSendMessage.value ? content : undefined)) {
+    showMessagePanel.value = false
+    show('正在匹配...')
+  }
 }
 
 // 打开匹配偏好面板：先把当前生效值拷进 draft
@@ -215,7 +286,11 @@ const savePreference = async () => {
 }
 
 const toggleMenu = () => {
-  showMenu.value = !showMenu.value
+  if (showMenu.value) {
+    showMenu.value = false
+  } else {
+    openMenu()
+  }
 }
 
 const startLongPressTimer = () => {
@@ -253,6 +328,8 @@ const handleTouchCancel = () => {
 
 // 单次匹配
 const handleStartMatch = () => {
+  showMenu.value = false
+  showMessagePanel.value = false
   const ok = startContinuousMatch(1)
   if (ok) {
     show('正在匹配...')
@@ -286,6 +363,7 @@ const handleClickOutside = (e: MouseEvent) => {
   if (target && rootRef.value?.contains(target)) return
   if (showMenu.value) showMenu.value = false
   if (showPreferencePanel.value) showPreferencePanel.value = false
+  if (showMessagePanel.value) showMessagePanel.value = false
 }
 
 onMounted(() => {
