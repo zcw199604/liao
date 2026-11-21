@@ -41,6 +41,7 @@ var (
 type UpstreamWebSocketManager struct {
 	httpClient *http.Client
 	fallbackWS string
+	wsDialer   *websocket.Dialer
 
 	forceout *ForceoutManager
 	cache    UserInfoCacheService
@@ -62,9 +63,11 @@ func NewUpstreamWebSocketManager(httpClient *http.Client, fallbackWS string, for
 	if len(archives) > 0 {
 		archive = archives[0]
 	}
+	dialer := *websocket.DefaultDialer
 	return &UpstreamWebSocketManager{
 		httpClient:            httpClient,
 		fallbackWS:            fallbackWS,
+		wsDialer:              &dialer,
 		forceout:              forceout,
 		cache:                 cache,
 		history:               history,
@@ -465,7 +468,11 @@ func (c *UpstreamWebSocketClient) connect() {
 	ctx, cancel := context.WithTimeout(context.Background(), wsUpstreamConnectTimeout)
 	defer cancel()
 
-	conn, _, err := websocket.DefaultDialer.DialContext(ctx, c.wsURL, nil)
+	dialer := websocket.DefaultDialer
+	if c.manager != nil && c.manager.wsDialer != nil {
+		dialer = c.manager.wsDialer
+	}
+	conn, _, err := dialer.DialContext(ctx, c.wsURL, nil)
 	if err != nil {
 		if c.manager != nil {
 			c.manager.HandleUpstreamDisconnect(c.userID)

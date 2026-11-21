@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/gorilla/websocket"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"liao/internal/config"
@@ -113,8 +115,8 @@ type App struct {
 	wanfeng               *WanfengManager
 	wanfengMedia          *wanfengMediaBridge
 	// wanfengClients 按身份缓存带独立 Cookie Jar 的对方客户端（历史/收藏接口按 Cookie 认定身份）。
-	wanfengClients    *wanfengIdentityClients
-	closeWanfengProxy func()
+	wanfengClients *wanfengIdentityClients
+	closeSCFProxy  func()
 
 	staticDir string
 	handler   http.Handler
@@ -201,19 +203,47 @@ func New(cfg config.Config) (*App, error) {
 		forceoutManager:  NewForceoutManager(),
 		staticDir:        staticDir,
 	}
-	systemDefaults := defaultSystemConfig
-	systemDefaults.MtPhotoTimelineDeferSubfolderThreshold = cfg.MtPhotoTimelineDeferSubfolderThreshold
-	application.systemConfig = NewSystemConfigService(db, systemDefaults)
-	application.imagePortResolver = NewImagePortResolver(application.httpClient)
-	_ = application.systemConfig.EnsureDefaults(context.Background())
-	application.wsManager = NewUpstreamWebSocketManager(application.httpClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache, application.chatHistoryCache, application.userArchive)
-	if cfg.WanfengEnabled {
-		wanfengHTTP, egress, closeProxy, err := newWanfengHTTPClient(cfg)
+	var wanfengHTTP *http.Client
+	var wanfengEgress wanfeng.IPBanEgress
+	chat2019HTTPClient := application.httpClient
+	var proxyDialContext func(context.Context, string, string) (net.Conn, error)
+	if cfg.Chat2019ProxyEnabled || (cfg.WanfengEnabled && cfg.WanfengProxyEnabled) {
+		proxyClient, egress, closeProxy, err := newWanfengHTTPClient(cfg)
 		if err != nil {
 			application.Shutdown(context.Background())
 			return nil, err
 		}
-		application.closeWanfengProxy = closeProxy
+		application.closeSCFProxy = closeProxy
+		proxyClient.Timeout = time.Duration(cfg.UpstreamHTTPTimeoutSeconds) * time.Second
+		if cfg.Chat2019ProxyEnabled {
+			chat2019HTTPClient = proxyClient
+		}
+		if cfg.WanfengEnabled && cfg.WanfengProxyEnabled {
+			wanfengHTTP = proxyClient
+			wanfengEgress = egress
+		}
+		if cfg.Chat2019ProxyEnabled {
+			if transport, ok := proxyClient.Transport.(*http.Transport); ok && transport.DialContext != nil {
+				proxyDialContext = transport.DialContext
+			}
+		}
+	}
+	systemDefaults := defaultSystemConfig
+	systemDefaults.MtPhotoTimelineDeferSubfolderThreshold = cfg.MtPhotoTimelineDeferSubfolderThreshold
+	application.systemConfig = NewSystemConfigService(db, systemDefaults)
+	application.imagePortResolver = NewImagePortResolver(chat2019HTTPClient)
+	_ = application.systemConfig.EnsureDefaults(context.Background())
+	application.wsManager = NewUpstreamWebSocketManager(chat2019HTTPClient, cfg.WebSocketFallback, application.forceoutManager, application.userInfoCache, application.chatHistoryCache, application.userArchive)
+	if proxyDialContext != nil {
+		dialer := *websocket.DefaultDialer
+		dialer.NetDialContext = proxyDialContext
+		application.wsManager.wsDialer = &dialer
+	}
+	if cfg.WanfengEnabled {
+		if wanfengHTTP == nil {
+			wanfengHTTP = &http.Client{Timeout: time.Duration(cfg.WanfengTimeoutSeconds) * time.Second}
+		}
+		wanfengHTTP.Timeout = time.Duration(cfg.WanfengTimeoutSeconds) * time.Second
 		proto := wanfeng.DefaultProtocol()
 		overridden, protoErr := proto.ApplyOverrides(cfg.WanfengProtocolOverrides)
 		if protoErr != nil {
@@ -225,7 +255,7 @@ func New(cfg config.Config) (*App, error) {
 			BaseURL:    cfg.WanfengBaseURL,
 			WSURL:      cfg.WanfengWSURL,
 			HTTPClient: wanfengHTTP,
-			Egress:     egress,
+			Egress:     wanfengEgress,
 			Protocol:   proto,
 		})
 		application.wanfeng = NewWanfengManager(wanfengAPI, NewWanfengBindingService(db), nil)
@@ -259,7 +289,7 @@ func New(cfg config.Config) (*App, error) {
 		slog.Info("晚风线路已启用", "baseURL", cfg.WanfengBaseURL, "media", cfg.WanfengMediaEnabled)
 	}
 
-	application.mediaUpload = NewMediaUploadService(db, cfg.ServerPort, application.fileStorage, application.imageServer, application.httpClient)
+	application.mediaUpload = NewMediaUploadService(db, cfg.ServerPort, application.fileStorage, application.imageServer, chat2019HTTPClient)
 	application.douyinDownloader = NewDouyinDownloaderService(cfg.TikTokDownloaderBaseURL, cfg.TikTokDownloaderToken, cfg.DouyinDefaultCookie, cfg.DouyinDefaultProxy, time.Duration(cfg.TikTokDownloaderTimeoutSeconds)*time.Second)
 	if strings.TrimSpace(cfg.CookieCloudBaseURL) != "" {
 		provider, err := NewDouyinCookieCloudProvider(cfg, application.httpClient)
@@ -289,8 +319,8 @@ func (a *App) Shutdown(ctx context.Context) {
 	if a.wanfeng != nil {
 		a.wanfeng.CloseAll()
 	}
-	if a.closeWanfengProxy != nil {
-		a.closeWanfengProxy()
+	if a.closeSCFProxy != nil {
+		a.closeSCFProxy()
 	}
 	if a.videoExtract != nil {
 		a.videoExtract.Shutdown()

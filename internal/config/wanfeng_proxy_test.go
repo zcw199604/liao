@@ -28,7 +28,7 @@ func TestWanfengProxyEnvironmentConfiguration(t *testing.T) {
 
 func TestManagedSCFProxyEnvironmentConfiguration(t *testing.T) {
 	for name, value := range map[string]string{
-		"WANFENG_ENABLED": "true", "WANFENG_PROXY_ENABLED": "true", "SCFPROXY_MANAGED": "true",
+		"WANFENG_ENABLED": "true", "WANFENG_PROXY_ENABLED": "true", "CHAT2019_PROXY_ENABLED": "false", "SCFPROXY_MANAGED": "true",
 		"SCFPROXY_POOL_FILE": "/config/pool.json", "SCFPROXY_ENDPOINTS_FILE": "",
 		"SCFPROXY_CLI_PATH": "/usr/local/bin/scfproxy", "SCFPROXY_PACKAGE_PATH": "/app/scf-server.zip",
 		"SCFPROXY_REGIONS": "ap-shanghai,ap-beijing,ap-chengdu", "SCFPROXY_POOL_SIZE": "3",
@@ -50,5 +50,22 @@ func TestManagedSCFProxyEnvironmentConfiguration(t *testing.T) {
 				t.Fatalf("accepted invalid managed setting: %s", name)
 			}
 		})
+	}
+}
+
+func TestManagedSCFProxyAllowsChat2019Only(t *testing.T) {
+	for name, value := range map[string]string{
+		"WANFENG_ENABLED": "false", "WANFENG_PROXY_ENABLED": "false", "CHAT2019_PROXY_ENABLED": "true",
+		"SCFPROXY_MANAGED": "true", "SCFPROXY_POOL_FILE": "/config/pool.json", "SCFPROXY_ENDPOINTS_FILE": "",
+		"SCFPROXY_POOL_SIZE": "2",
+	} {
+		t.Setenv(name, value)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Chat2019ProxyEnabled || cfg.WanfengProxyEnabled {
+		t.Fatalf("unexpected proxy configuration: %+v", cfg)
 	}
 }

@@ -120,7 +120,9 @@ type Config struct {
 	// WanfengMediaEnabled 控制是否在晚风线路上启用图片/视频转发（二期）。
 	WanfengMediaEnabled bool
 	// WanfengProxyEnabled 让晚风 HTTP/WS 共用 SCF TCP 隧道。
-	WanfengProxyEnabled              bool
+	WanfengProxyEnabled bool
+	// Chat2019ProxyEnabled 让 chat2019 HTTP/WS 共用 SCF TCP 隧道。
+	Chat2019ProxyEnabled             bool
 	SCFProxyPoolFile                 string
 	SCFProxyEndpointsFile            string
 	SCFProxyToken                    string
@@ -218,6 +220,7 @@ func Load() (Config, error) {
 		WanfengTimeoutSeconds:            getEnvInt("WANFENG_TIMEOUT_SECONDS", 30),
 		WanfengMediaEnabled:              getEnvBool("WANFENG_MEDIA_ENABLED", true),
 		WanfengProxyEnabled:              getEnvBool("WANFENG_PROXY_ENABLED", false),
+		Chat2019ProxyEnabled:             getEnvBool("CHAT2019_PROXY_ENABLED", false),
 		SCFProxyPoolFile:                 strings.TrimSpace(getEnv("SCFPROXY_POOL_FILE", "")),
 		SCFProxyEndpointsFile:            strings.TrimSpace(getEnv("SCFPROXY_ENDPOINTS_FILE", "")),
 		SCFProxyToken:                    getEnv("SCFPROXY_TOKEN", ""),
@@ -241,8 +244,8 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("SERVER_PORT 非法: %d", cfg.ServerPort)
 	}
 	if cfg.SCFProxyManaged {
-		if !cfg.WanfengEnabled || !cfg.WanfengProxyEnabled || cfg.SCFProxyPoolFile == "" || cfg.SCFProxyEndpointsFile != "" {
-			return Config{}, fmt.Errorf("SCFPROXY_MANAGED 需要启用 WANFENG_ENABLED、WANFENG_PROXY_ENABLED 并仅配置 SCFPROXY_POOL_FILE")
+		if (!(cfg.WanfengEnabled && cfg.WanfengProxyEnabled) && !cfg.Chat2019ProxyEnabled) || cfg.SCFProxyPoolFile == "" || cfg.SCFProxyEndpointsFile != "" {
+			return Config{}, fmt.Errorf("SCFPROXY_MANAGED 需要启用 WANFENG_ENABLED、WANFENG_PROXY_ENABLED 或 CHAT2019_PROXY_ENABLED，并仅配置 SCFPROXY_POOL_FILE")
 		}
 		if cfg.SCFProxyPoolSize < 2 || cfg.SCFProxyCommandTimeoutSeconds <= 0 || cfg.SCFProxyReconcileIntervalSeconds <= 0 {
 			return Config{}, fmt.Errorf("SCFPROXY_POOL_SIZE 必须至少为2，SCFPROXY_COMMAND_TIMEOUT_SECONDS 和 SCFPROXY_RECONCILE_INTERVAL_SECONDS 必须为正数")

@@ -3,10 +3,12 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -86,6 +88,33 @@ func TestUpstreamWebSocketManager_RegisterDownstream_SendsSignMessage(t *testing
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatalf("timeout waiting sign message")
+	}
+}
+
+func TestUpstreamWebSocketClientUsesConfiguredDialContext(t *testing.T) {
+	connected := make(chan struct{}, 1)
+	srv := newUpstreamWSServer(t, func(conn *websocket.Conn) {
+		connected <- struct{}{}
+		_ = conn.Close()
+	})
+	t.Cleanup(srv.Close)
+
+	manager := NewUpstreamWebSocketManager(nil, "", nil, nil, nil)
+	var dialCalls atomic.Int32
+	manager.wsDialer.NetDialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		dialCalls.Add(1)
+		return (&net.Dialer{}).DialContext(ctx, network, addr)
+	}
+	client := NewUpstreamWebSocketClient("u1", toWSURL(srv.URL), manager)
+	client.connect()
+
+	select {
+	case <-connected:
+	case <-time.After(2 * time.Second):
+		t.Fatal("websocket did not connect")
+	}
+	if dialCalls.Load() == 0 {
+		t.Fatal("configured dial context was not used")
 	}
 }
 

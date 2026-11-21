@@ -13,11 +13,11 @@ import (
 	"liao/internal/upstream/wanfeng"
 )
 
-// newWanfengHTTPClient 只装配晚风出口，其他线路继续使用 App.httpClient。
+// newWanfengHTTPClient 装配晚风或 chat2019 共用的 SCF 出口。
 // 返回的清理函数同时关闭 HTTP 空闲连接和活动隧道。
 func newWanfengHTTPClient(cfg config.Config) (*http.Client, wanfeng.IPBanEgress, func(), error) {
 	client := &http.Client{Timeout: time.Duration(cfg.WanfengTimeoutSeconds) * time.Second}
-	if !cfg.WanfengProxyEnabled {
+	if !cfg.WanfengProxyEnabled && !cfg.Chat2019ProxyEnabled {
 		return client, nil, func() {}, nil
 	}
 	var manager *scfPoolCLI
@@ -51,7 +51,7 @@ func newWanfengHTTPClient(cfg config.Config) (*http.Client, wanfeng.IPBanEgress,
 	if cfg.SCFProxyPoolFile != "" {
 		egress = &wanfengProxyEgress{proxy: proxy}
 	}
-	slog.Info("晚风 HTTP/WS 已启用 SCF 代理", "pinned", cfg.SCFProxyPoolFile != "")
+	slog.Info("上游 HTTP/WS 已启用 SCF 代理", "wanfeng", cfg.WanfengProxyEnabled, "chat2019", cfg.Chat2019ProxyEnabled, "pinned", cfg.SCFProxyPoolFile != "")
 	return client, egress, func() {
 		if manager != nil {
 			manager.Close()
