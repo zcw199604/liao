@@ -26,6 +26,21 @@ func TestWanfengProxyEnvironmentConfiguration(t *testing.T) {
 	}
 }
 
+func TestSCFProxyStrategyEnvironmentConfiguration(t *testing.T) {
+	t.Setenv("SCFPROXY_STRATEGY", " RANDOM ")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SCFProxyStrategy != "random" {
+		t.Fatalf("strategy=%q, want random", cfg.SCFProxyStrategy)
+	}
+	t.Setenv("SCFPROXY_STRATEGY", "round_robin")
+	if _, err := Load(); err == nil {
+		t.Fatal("invalid strategy accepted")
+	}
+}
+
 func TestManagedSCFProxyEnvironmentConfiguration(t *testing.T) {
 	for name, value := range map[string]string{
 		"WANFENG_ENABLED": "true", "WANFENG_PROXY_ENABLED": "true", "CHAT2019_PROXY_ENABLED": "false", "SCFPROXY_MANAGED": "true",

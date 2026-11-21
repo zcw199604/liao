@@ -28,11 +28,15 @@ func newWanfengHTTPClient(cfg config.Config) (*http.Client, wanfeng.IPBanEgress,
 			return nil, nil, nil, err
 		}
 	}
+	strategy := scfproxy.StickyByHost
+	if cfg.SCFProxyStrategy == "random" {
+		strategy = scfproxy.Random
+	}
 	proxy, err := scfproxy.New(scfproxy.Config{
 		PoolFile:      cfg.SCFProxyPoolFile,
 		EndpointsFile: cfg.SCFProxyEndpointsFile,
 		Token:         cfg.SCFProxyToken,
-		Strategy:      scfproxy.StickyByHost,
+		Strategy:      strategy,
 		OnSwitch: func(_, _ scfproxy.EndpointInfo, _ string) {
 			if manager != nil {
 				manager.request()

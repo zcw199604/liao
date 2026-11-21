@@ -223,6 +223,7 @@ docker run -d -p 8080:8080 \
 - `SCFPROXY_POOL_FILE` - scfProxy 固定 IP 池 `pool.json` 路径，与 `SCFPROXY_ENDPOINTS_FILE` 二选一
 - `SCFPROXY_ENDPOINTS_FILE` - scfProxy endpoint 列表文件路径，每行一个 `wss://` 地址
 - `SCFPROXY_TOKEN` - SCF 隧道共享令牌，必须与代理服务端一致，仅通过环境变量提供
+- `SCFPROXY_STRATEGY` - SCF 出口选择策略，`sticky_by_host` 按目标主机固定出口，`random` 在新建隧道连接时随机选择健康出口（默认 `sticky_by_host`）
 
 上游代理使用 [`scfproxy`](https://github.com/zcw199604/scfProxy) v0.1.0。固定 IP 池可由 Liao 自动管理，也可复用已有池。仅复用已有池时，chat2019 示例配置如下：
 
