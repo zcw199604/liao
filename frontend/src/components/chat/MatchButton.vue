@@ -362,9 +362,8 @@ const handleMatchAutoCheck = () => {
 
 // 点击外部关闭菜单
 const handleClickOutside = (e: MouseEvent) => {
-  const target = e.target as Node | null
-  // 偏好面板也挂在 rootRef 内，点内部不关闭
-  if (target && rootRef.value?.contains(target)) return
+  // Vue 可能在事件到达 document 前移除菜单，事件路径仍保留点击时的祖先。
+  if (rootRef.value && e.composedPath().includes(rootRef.value)) return
   if (showMenu.value) showMenu.value = false
   if (showPreferencePanel.value) showPreferencePanel.value = false
   if (showMessagePanel.value) showMessagePanel.value = false
