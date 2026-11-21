@@ -98,13 +98,15 @@
         <textarea
           v-model="matchMessage"
           rows="3"
+          :aria-invalid="matchMessageInvalid || undefined"
+          :aria-describedby="matchMessageInvalid ? 'match-message-error' : undefined"
+          @input="matchMessageInvalid = false"
           class="mt-1 block w-full resize-y bg-surface-2 border border-line rounded-lg px-2 py-1.5 text-sm text-fg"
         />
       </label>
-      <label class="flex items-center gap-2 text-sm text-fg cursor-pointer">
-        <input v-model="autoSendMessage" type="checkbox" />
-        每轮匹配成功后自动发送
-      </label>
+      <p v-if="matchMessageInvalid" id="match-message-error" role="alert" class="text-xs text-red-400">
+        请输入要自动发送的消息
+      </p>
       <label class="flex items-center justify-between gap-2 text-sm text-fg">
         匹配次数
         <select v-model.number="messageMatchCount" class="bg-surface-2 border border-line rounded-lg px-2 py-1 text-sm text-fg">
@@ -114,10 +116,9 @@
       </label>
       <button
         type="submit"
-        :disabled="autoSendMessage && !matchMessage.trim()"
-        class="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium disabled:opacity-60"
+        class="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium"
       >
-        开始匹配
+        开始匹配并自动发送
       </button>
     </form>
 
@@ -215,7 +216,7 @@ const showMenu = ref(false)
 const showPreferencePanel = ref(false)
 const showMessagePanel = ref(false)
 const matchMessage = ref('')
-const autoSendMessage = ref(false)
+const matchMessageInvalid = ref(false)
 const messageMatchCount = ref(1)
 // 编辑中的副本，点保存才提交，避免每改一项就发请求
 const draft = ref({
@@ -248,14 +249,17 @@ const openMenu = () => {
 
 const openMessagePanel = () => {
   showMenu.value = false
-  autoSendMessage.value = false
+  matchMessageInvalid.value = false
   showMessagePanel.value = true
 }
 
 const handleMessageMatch = () => {
   const content = matchMessage.value.trim()
-  if (autoSendMessage.value && !content) return
-  if (startContinuousMatch(messageMatchCount.value, autoSendMessage.value ? content : undefined)) {
+  if (!content) {
+    matchMessageInvalid.value = true
+    return
+  }
+  if (startContinuousMatch(messageMatchCount.value, content)) {
     showMessagePanel.value = false
     show('正在匹配...')
   }

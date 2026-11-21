@@ -333,26 +333,30 @@ describe('components/chat/MessageList.vue', () => {
 })
 
 describe('components/chat/MatchButton.vue', () => {
-  it.each([true, false])('starts a match from the message panel with auto-send %s', async (enabled) => {
-    const wrapper = mount(MatchButton, { global: { plugins: [createPinia()] } })
+  it('starts auto-send via the submit button and explains why blank text cannot be sent', async () => {
+    const wrapper = mount(MatchButton, {
+      attachTo: document.body,
+      global: { plugins: [createPinia()] }
+    })
     startContinuousMatchMock.mockReturnValue(true)
 
-    await wrapper.get('button[aria-label="连续匹配选项"]').trigger('click')
-    await wrapper.get('[data-testid="match-message-entry"]').trigger('click')
-    expect(startContinuousMatchMock).not.toHaveBeenCalled()
-    const checkbox = wrapper.get('input[type="checkbox"]')
-    expect((checkbox.element as HTMLInputElement).checked).toBe(false)
-    await checkbox.setValue(enabled)
-    const submit = wrapper.get('button[type="submit"]')
-    expect(submit.attributes('disabled') !== undefined).toBe(enabled)
-    await wrapper.get('textarea').setValue('  你好！  ')
-    if (enabled) await wrapper.get('select').setValue('5')
-    expect(submit.attributes('disabled')).toBeUndefined()
-    await wrapper.get('form').trigger('submit')
+    try {
+      await wrapper.get('button[aria-label="连续匹配选项"]').trigger('click')
+      await wrapper.get('[data-testid="match-message-entry"]').trigger('click')
+      await wrapper.get('textarea').setValue('   ')
+      await wrapper.get('button[type="submit"]').trigger('click')
+      expect(startContinuousMatchMock).not.toHaveBeenCalled()
+      expect(wrapper.get('[role="alert"]').text()).toBe('请输入要自动发送的消息')
 
-    expect(startContinuousMatchMock).toHaveBeenCalledWith(enabled ? 5 : 1, enabled ? '你好！' : undefined)
-    expect(wrapper.find('form').exists()).toBe(false)
-    wrapper.unmount()
+      await wrapper.get('textarea').setValue('  你好！  ')
+      await wrapper.get('select').setValue('5')
+      await wrapper.get('button[type="submit"]').trigger('click')
+
+      expect(startContinuousMatchMock).toHaveBeenCalledExactlyOnceWith(5, '你好！')
+      expect(wrapper.find('form').exists()).toBe(false)
+    } finally {
+      wrapper.unmount()
+    }
   })
 
   it('short press triggers startMatch and toast', async () => {
