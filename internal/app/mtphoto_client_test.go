@@ -149,7 +149,7 @@ func TestMtPhotoService_GatewayGet_RefreshesAuthCodeOn401(t *testing.T) {
 				"expires_in": time.Now().Add(1 * time.Hour).UnixMilli(),
 			})
 			return
-		case "/gateway/s260/m":
+		case "/gateway/s260/0123456789abcdef0123456789abcdef":
 			atomic.AddInt32(&gatewayCalls, 1)
 			if got := r.Header.Get("x-api-key"); got != "api-key-1" {
 				t.Fatalf("x-api-key=%q, want api-key-1", got)
@@ -181,7 +181,7 @@ func TestMtPhotoService_GatewayGet_RefreshesAuthCodeOn401(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 
-	resp, err := svc.GatewayGet(ctx, "s260", "m")
+	resp, err := svc.GatewayGet(ctx, "s260", "0123456789abcdef0123456789abcdef")
 	if err != nil {
 		t.Fatalf("GatewayGet error: %v", err)
 	}

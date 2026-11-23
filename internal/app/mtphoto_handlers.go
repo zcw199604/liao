@@ -194,7 +194,7 @@ func (a *App) handleGetMtPhotoThumb(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	size := strings.TrimSpace(q.Get("size"))
 	md5Value := strings.TrimSpace(q.Get("md5"))
-	if size == "" || md5Value == "" {
+	if size == "" || md5Value == "" || !isValidMD5Hex(md5Value) {
 		http.NotFound(w, r)
 		return
 	}
@@ -215,12 +215,14 @@ func (a *App) handleGetMtPhotoThumb(w http.ResponseWriter, r *http.Request) {
 	defer resp.Body.Close()
 
 	// 仅透传必要响应头，避免 Set-Cookie 等敏感头下发到前端
-	if ct := strings.TrimSpace(resp.Header.Get("Content-Type")); ct != "" {
-		w.Header().Set("Content-Type", ct)
+	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
+	if !strings.HasPrefix(contentType, "image/") {
+		http.NotFound(w, r)
+		return
 	}
-	if cc := strings.TrimSpace(resp.Header.Get("Cache-Control")); cc != "" {
-		w.Header().Set("Cache-Control", cc)
-	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "private, max-age=86400")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
 }
@@ -239,9 +241,11 @@ func (a *App) handleDownloadMtPhotoOriginal(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	resp, err := a.mtPhoto.GatewayFileDownload(r.Context(), fileID, md5Value)
+	rangeHeader := strings.TrimSpace(r.Header.Get("Range"))
+	resp, err := a.mtPhoto.GatewayFileDownloadRange(r.Context(), fileID, md5Value, rangeHeader)
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "mtPhoto 下载失败: " + err.Error()})
+		slog.Warn("mtPhoto 原文件下载失败", "error", err)
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "mtPhoto 下载失败"})
 		return
 	}
 	defer resp.Body.Close()
@@ -258,14 +262,15 @@ func (a *App) handleDownloadMtPhotoOriginal(w http.ResponseWriter, r *http.Reque
 	} else {
 		w.Header().Set("Content-Type", "application/octet-stream")
 	}
-	if cc := strings.TrimSpace(resp.Header.Get("Cache-Control")); cc != "" {
-		w.Header().Set("Cache-Control", cc)
-	}
+	w.Header().Set("Cache-Control", "private, no-store")
 	if cl := strings.TrimSpace(resp.Header.Get("Content-Length")); cl != "" {
 		w.Header().Set("Content-Length", cl)
 	}
 	if ar := strings.TrimSpace(resp.Header.Get("Accept-Ranges")); ar != "" {
 		w.Header().Set("Accept-Ranges", ar)
+	}
+	if cr := strings.TrimSpace(resp.Header.Get("Content-Range")); cr != "" {
+		w.Header().Set("Content-Range", cr)
 	}
 
 	disp := strings.TrimSpace(resp.Header.Get("Content-Disposition"))

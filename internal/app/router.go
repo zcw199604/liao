@@ -174,6 +174,28 @@ func (a *App) buildRouter() http.Handler {
 		api.Post("/clearForceoutUsers", a.handleClearForceoutUsers)
 	})
 
+	// 只读集成 API（供 AnonChat 等外部系统调用）。始终注册，未配置 Token 时由
+	// integrationAuth 统一返回 404，避免落到 SPA 回退。
+	r.Route("/api/integration/v1", func(ir chi.Router) {
+		ir.Use(a.integrationAuth)
+
+		// 全部媒体（本地 + 抖音）
+		ir.Get("/media", a.handleIntegrationMediaList)
+		ir.Get("/media/item", a.handleIntegrationMediaItem)
+		ir.Get("/media/thumb", a.handleIntegrationMediaThumb)
+		ir.Get("/media/file", a.handleIntegrationMediaFile)
+
+		// mtPhoto 只读代理：复用现有 handler，避免逻辑分叉。
+		ir.Get("/mt/albums", a.handleGetMtPhotoAlbums)
+		ir.Get("/mt/album-files", a.handleGetMtPhotoAlbumFiles)
+		ir.Get("/mt/folders/root", a.handleGetMtPhotoFolderRoot)
+		ir.Get("/mt/folders/content", a.handleGetMtPhotoFolderContent)
+		ir.Get("/mt/folders/breadcrumbs", a.handleGetMtPhotoFolderBreadcrumbs)
+		ir.Get("/mt/favorites", a.handleGetMtPhotoFolderFavorites)
+		ir.Get("/mt/thumb", a.handleGetMtPhotoThumb)
+		ir.Get("/mt/file", a.handleDownloadMtPhotoOriginal)
+	})
+
 	// 前端静态资源 + SPA 回退
 	r.Handle("/*", a.spaHandler())
 

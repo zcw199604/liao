@@ -939,7 +939,7 @@ func TestMtPhotoService_GatewayGet_CoversBranches(t *testing.T) {
 				"expires_in": time.Now().Add(1 * time.Hour).UnixMilli(),
 			})
 			return
-		case "/gateway/s260/m":
+		case "/gateway/s260/0123456789abcdef0123456789abcdef":
 			if got := r.URL.Query().Get("auth_code"); got != "ac" {
 				t.Fatalf("auth_code=%q, want ac", got)
 			}
@@ -953,7 +953,7 @@ func TestMtPhotoService_GatewayGet_CoversBranches(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	svc = NewMtPhotoService(srv.URL, "u", "/lsp", srv.Client())
-	resp, err := svc.GatewayGet(context.Background(), "s260", "m")
+	resp, err := svc.GatewayGet(context.Background(), "s260", "0123456789abcdef0123456789abcdef")
 	if err != nil {
 		t.Fatalf("err=%v", err)
 	}

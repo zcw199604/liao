@@ -106,6 +106,7 @@ type App struct {
 	douyinDownloader      *DouyinDownloaderService
 	mtPhoto               *MtPhotoService
 	mtPhotoFolderFavorite *MtPhotoFolderFavoriteService
+	integrationThumbs     *integrationThumbCache
 	videoExtract          *VideoExtractService
 	userInfoCache         UserInfoCacheService
 	chatHistoryCache      ChatHistoryCacheService
@@ -299,13 +300,24 @@ func New(cfg config.Config) (*App, error) {
 		}
 		application.douyinDownloader.SetCookieProvider(provider)
 	}
-	application.mtPhoto = NewMtPhotoService(cfg.MtPhotoBaseURL, cfg.MtPhotoAPIKey, cfg.LspRoot, application.httpClient)
+	application.mtPhoto = NewMtPhotoService(cfg.MtPhotoBaseURL, cfg.MtPhotoAPIKey, cfg.LspRoot, newMtPhotoHTTPClient(time.Duration(cfg.UpstreamHTTPTimeoutSeconds)*time.Second))
 	application.workerPreview = newWorkerPreviewService(cfg, application.httpClient)
 	application.mtPhotoFolderFavorite = NewMtPhotoFolderFavoriteService(db)
+	application.integrationThumbs = newIntegrationThumbCache(cfg.IntegrationThumbDir)
 	application.videoExtract = NewVideoExtractService(db, cfg, application.fileStorage, application.mtPhoto)
 
 	application.handler = application.buildRouter()
 	return application, nil
+}
+
+// newMtPhotoHTTPClient 拒绝所有重定向，避免 API Key/auth_code 被带到其他上游路径或主机。
+func newMtPhotoHTTPClient(timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout: timeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 }
 
 func (a *App) Handler() http.Handler {

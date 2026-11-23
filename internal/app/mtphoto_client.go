@@ -763,6 +763,9 @@ func (s *MtPhotoService) GetFolderContentPage(
 	if page < 1 {
 		page = 1
 	}
+	if page > 100000 {
+		return nil, 0, 0, fmt.Errorf("page 非法")
+	}
 	if pageSize <= 0 {
 		pageSize = 60
 	}
@@ -853,6 +856,9 @@ func (s *MtPhotoService) GetAlbumFilesPage(ctx context.Context, albumID, page, p
 	}
 	if page < 1 {
 		page = 1
+	}
+	if page > 100000 {
+		return nil, 0, 0, fmt.Errorf("page 非法")
 	}
 	if pageSize <= 0 {
 		pageSize = 60
@@ -1365,6 +1371,9 @@ func (s *MtPhotoService) GatewayGet(ctx context.Context, size, md5Value string) 
 	if size == "" || md5Value == "" {
 		return nil, fmt.Errorf("参数为空")
 	}
+	if !isValidMD5Hex(md5Value) {
+		return nil, fmt.Errorf("md5 非法")
+	}
 
 	return s.doGatewayGet(ctx, fmt.Sprintf("/gateway/%s/%s", size, md5Value), map[string]string{
 		"Accept": "*/*",
@@ -1383,11 +1392,31 @@ func (s *MtPhotoService) GatewayFileDownload(ctx context.Context, fileID int64, 
 	}
 
 	md5Value = strings.TrimSpace(md5Value)
-	if md5Value == "" {
-		return nil, fmt.Errorf("md5 为空")
+	if !isValidMD5Hex(md5Value) {
+		return nil, fmt.Errorf("md5 非法")
 	}
+	return s.gatewayFileDownload(ctx, fileID, md5Value, "")
+}
 
-	return s.doGatewayGet(ctx, fmt.Sprintf("/gateway/fileDownload/%d/%s", fileID, md5Value), map[string]string{
-		"Accept": "*/*",
-	})
+// GatewayFileDownloadRange 与 GatewayFileDownload 相同，但透传 Range。
+func (s *MtPhotoService) GatewayFileDownloadRange(ctx context.Context, fileID int64, md5Value, rangeHeader string) (*http.Response, error) {
+	if !s.configured() {
+		return nil, fmt.Errorf("mtPhoto 未配置")
+	}
+	if fileID <= 0 {
+		return nil, fmt.Errorf("id 非法")
+	}
+	md5Value = strings.TrimSpace(md5Value)
+	if !isValidMD5Hex(md5Value) {
+		return nil, fmt.Errorf("md5 非法")
+	}
+	return s.gatewayFileDownload(ctx, fileID, md5Value, strings.TrimSpace(rangeHeader))
+}
+
+func (s *MtPhotoService) gatewayFileDownload(ctx context.Context, fileID int64, md5Value, rangeHeader string) (*http.Response, error) {
+	headers := map[string]string{"Accept": "*/*"}
+	if rangeHeader != "" {
+		headers["Range"] = rangeHeader
+	}
+	return s.doGatewayGet(ctx, fmt.Sprintf("/gateway/fileDownload/%d/%s", fileID, md5Value), headers)
 }

@@ -223,6 +223,26 @@ docker run -d -p 8080:8080 \
 - `SCFPROXY_POOL_FILE` - scfProxy 固定 IP 池 `pool.json` 路径，与 `SCFPROXY_ENDPOINTS_FILE` 二选一
 - `SCFPROXY_ENDPOINTS_FILE` - scfProxy endpoint 列表文件路径，每行一个 `wss://` 地址
 - `SCFPROXY_TOKEN` - SCF 隧道共享令牌，必须与代理服务端一致，仅通过环境变量提供
+- `INTEGRATION_TOKEN` - 只读集成 API Token（建议 ≥24 位随机串；为空时 `/api/integration/v1/*` 整组不注册）
+- `INTEGRATION_ALLOWED_IPS` - 集成 API 来源 IP allowlist（逗号分隔 IP 或 CIDR，可选）
+- `INTEGRATION_TRUSTED_PROXIES` - 可信反向代理 IP/CIDR（逗号分隔）；只有直接连接来自这些地址时才解析 `X-Real-IP`/`X-Forwarded-For`
+- `INTEGRATION_THUMB_DIR` - 本地媒体缩略图缓存目录（默认系统临时目录下 `liao-media-thumbs`）
+
+### 只读集成 API（供 AnonChat 等外部系统）
+
+仅当配置 `INTEGRATION_TOKEN` 时启用；全部为 GET，请求头 `Authorization: Bearer <INTEGRATION_TOKEN>`，不参与 JWT 登录态。
+
+- `GET /api/integration/v1/media?page=1&pageSize=60&source=all|local|douyin&kind=all|image|video&q=&from=&to=&douyinSecUserId=` - 全部媒体（本地 + 抖音），返回 `key/kind/mime/sizeBytes/width/height/date/md5/hasPoster/supported`
+- `GET /api/integration/v1/media/item?key=` - 单条媒体元数据
+- `GET /api/integration/v1/media/thumb?key=&variant=image|poster&size=s160|s320|s640` - 缩略图（JPEG，落盘缓存）
+- `GET /api/integration/v1/media/file?key=` - 原文件，支持 Range
+- `GET /api/integration/v1/mt/albums`、`/mt/album-files?albumId=`、`/mt/folders/root`、`/mt/folders/content?folderId=`、`/mt/folders/breadcrumbs?folderId=`、`/mt/favorites`、`/mt/thumb?md5=&size=`、`/mt/file?id=&md5=` - mtPhoto 只读代理，复用现有 mtPhoto 响应结构
+
+```bash
+# 占位 Token 仅作示例，请用运行环境注入的真实值替换。
+curl -sS -H "Authorization: Bearer $INTEGRATION_TOKEN" \
+  "http://127.0.0.1:8080/api/integration/v1/media?page=1&pageSize=1"
+```
 
 上游代理使用 [`scfproxy`](https://github.com/zcw199604/scfProxy) v0.1.0。固定 IP 池可由 Liao 自动管理，也可复用已有池。仅复用已有池时，chat2019 示例配置如下：
 

@@ -63,7 +63,7 @@ func TestMtPhotoHandlers_Core(t *testing.T) {
 				"ver":        1,
 			})
 			return
-		case "/gateway/s260/abc":
+		case "/gateway/s260/0123456789abcdef0123456789abcdef":
 			w.Header().Set("Content-Type", "image/jpeg")
 			w.Header().Set("Cache-Control", "max-age=1")
 			_, _ = w.Write([]byte("thumb"))
@@ -183,7 +183,7 @@ func TestMtPhotoHandlers_Core(t *testing.T) {
 	})
 
 	t.Run("handleGetMtPhotoThumb not init", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoThumb?size=s260&md5=abc", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoThumb?size=s260&md5=0123456789abcdef0123456789abcdef", nil)
 		rr := httptest.NewRecorder()
 		(&App{}).handleGetMtPhotoThumb(rr, req)
 		if rr.Code != http.StatusNotFound {
@@ -201,7 +201,7 @@ func TestMtPhotoHandlers_Core(t *testing.T) {
 	})
 
 	t.Run("handleGetMtPhotoThumb size not allowed", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoThumb?size=bad&md5=abc", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoThumb?size=bad&md5=0123456789abcdef0123456789abcdef", nil)
 		rr := httptest.NewRecorder()
 		app.handleGetMtPhotoThumb(rr, req)
 		if rr.Code != http.StatusNotFound {
@@ -211,7 +211,7 @@ func TestMtPhotoHandlers_Core(t *testing.T) {
 
 	t.Run("handleGetMtPhotoThumb gateway error", func(t *testing.T) {
 		bad := &App{mtPhoto: NewMtPhotoService("", "", "/lsp", nil)}
-		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoThumb?size=s260&md5=abc", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoThumb?size=s260&md5=0123456789abcdef0123456789abcdef", nil)
 		rr := httptest.NewRecorder()
 		bad.handleGetMtPhotoThumb(rr, req)
 		if rr.Code != http.StatusNotFound {
@@ -220,7 +220,7 @@ func TestMtPhotoHandlers_Core(t *testing.T) {
 	})
 
 	t.Run("handleGetMtPhotoThumb ok", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoThumb?size=s260&md5=abc", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://api.local/api/getMtPhotoThumb?size=s260&md5=0123456789abcdef0123456789abcdef", nil)
 		rr := httptest.NewRecorder()
 		app.handleGetMtPhotoThumb(rr, req)
 		if rr.Code != http.StatusOK {
@@ -340,7 +340,7 @@ func TestMtPhotoHandlers_Core(t *testing.T) {
 	t.Run("GatewayGet ok", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		t.Cleanup(cancel)
-		resp, err := mt.GatewayGet(ctx, "s260", "abc")
+		resp, err := mt.GatewayGet(ctx, "s260", "0123456789abcdef0123456789abcdef")
 		if err != nil {
 			t.Fatalf("GatewayGet error: %v", err)
 		}

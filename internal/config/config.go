@@ -2,8 +2,10 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -79,6 +81,14 @@ type Config struct {
 	// MtPhotoTimelineDeferSubfolderThreshold 控制 mtPhoto 目录“延迟加载时间线”的阈值（子目录数 > 阈值时延迟）。
 	// 默认 10；可通过环境变量 MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD 覆盖。
 	MtPhotoTimelineDeferSubfolderThreshold int
+
+	// Integration* 为只读集成 API（供 AnonChat 等外部系统调用）配置。
+	// INTEGRATION_TOKEN 为空时整组 /api/integration/v1 不注册；INTEGRATION_ALLOWED_IPS 为空不限制来源 IP。
+	IntegrationToken          string
+	IntegrationAllowedIPs     []string
+	IntegrationTrustedProxies []string
+	// IntegrationThumbDir 是本地媒体缩略图缓存目录；为空时使用 os.TempDir()/liao-media-thumbs。
+	IntegrationThumbDir string
 
 	// TikTokDownloaderBaseURL 为 TikTokDownloader Web API（FastAPI）地址（可选；未配置时抖音相关 API 将返回错误）。
 	// 参考知识库：helloagents/wiki/external/tiktokdownloader-web-api.md
@@ -196,6 +206,10 @@ func Load() (Config, error) {
 			"MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD",
 			10,
 		),
+		IntegrationToken:          strings.TrimSpace(getEnv("INTEGRATION_TOKEN", "")),
+		IntegrationAllowedIPs:     splitCSVEnv(getEnv("INTEGRATION_ALLOWED_IPS", "")),
+		IntegrationTrustedProxies: splitCSVEnv(getEnv("INTEGRATION_TRUSTED_PROXIES", "")),
+		IntegrationThumbDir:       strings.TrimSpace(getEnv("INTEGRATION_THUMB_DIR", "")),
 
 		TikTokDownloaderBaseURL: getEnvOptional2("TIKTOKDOWNLOADER_BASE_URL", "TIKTOK_DOWNLOADER_BASE_URL"),
 		TikTokDownloaderToken:   getEnvOptional2("TIKTOKDOWNLOADER_TOKEN", "TIKTOK_DOWNLOADER_TOKEN"),
@@ -357,8 +371,41 @@ func Load() (Config, error) {
 	if cfg.MtPhotoTimelineDeferSubfolderThreshold > 500 {
 		return Config{}, fmt.Errorf("MTPHOTO_TIMELINE_DEFER_SUBFOLDER_THRESHOLD 非法: %d（最大 500）", cfg.MtPhotoTimelineDeferSubfolderThreshold)
 	}
+	if cfg.IntegrationToken != "" && len(cfg.IntegrationToken) < 24 {
+		return Config{}, fmt.Errorf("INTEGRATION_TOKEN 过短（至少 24 位）")
+	}
+	for _, raw := range cfg.IntegrationAllowedIPs {
+		if net.ParseIP(raw) == nil {
+			if _, _, err := net.ParseCIDR(raw); err != nil {
+				return Config{}, fmt.Errorf("INTEGRATION_ALLOWED_IPS 项非法: %s（需为 IP 或 CIDR）", raw)
+			}
+		}
+	}
+	for _, raw := range cfg.IntegrationTrustedProxies {
+		if net.ParseIP(raw) == nil {
+			if _, _, err := net.ParseCIDR(raw); err != nil {
+				return Config{}, fmt.Errorf("INTEGRATION_TRUSTED_PROXIES 项非法: %s（需为 IP 或 CIDR）", raw)
+			}
+		}
+	}
+	if cfg.IntegrationThumbDir == "" {
+		cfg.IntegrationThumbDir = filepath.Join(os.TempDir(), "liao-media-thumbs")
+	}
 
 	return cfg, nil
+}
+
+// splitCSVEnv 拆分逗号分隔的环境变量，忽略空白项。
+func splitCSVEnv(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func (c Config) ListenAddr() string {
